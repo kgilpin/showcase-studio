@@ -62,14 +62,14 @@ scenes:
     theme: title
     title: Gold Traces
     captions:
-      - text: Catch the problems that unit tests and code reads miss
+      - text: Catch the problems that unit tests and code reads miss.
     media:
       kind: image
       asset: appmap-mark
       alt: "AppMap logo: a white A on a pink circle"
       motion: zoom-in
       frame: mark
-    durationMs: 4500
+    durationMs: 5000
     export: false
 
   - id: baseline

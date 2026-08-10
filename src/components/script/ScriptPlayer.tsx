@@ -15,12 +15,25 @@ type Line = {
   endMs: number;
 };
 
+/** Reading time for a line of narration at ~3 words/second. */
+function readMs(text: string): number {
+  return Math.round((text.trim().split(/\s+/).length / 3) * 1000) + 400;
+}
+
 /** Flattens every slide into one continuous, time-coded script. */
 function buildLines(scenes: Scene[]): Line[] {
   const lines: Line[] = [];
   let offset = 0;
   scenes.forEach((scene, sceneIndex) => {
     const timeline = captionTimeline(scene);
+    /* On title scenes the narrator states the title, then the caption — so
+     * carve the title a reading window from the start of the scene (prompter
+     * only; on-screen caption timing is unchanged). Elsewhere the title is a
+     * visual header and gets whatever time precedes the first caption. */
+    const titleEnd =
+      scene.theme === "title" && timeline.length > 0
+        ? offset + Math.min(readMs(scene.title), scene.durationMs / 2)
+        : offset + (timeline[0]?.startMs ?? scene.durationMs);
     lines.push({
       key: `${scene.id}-title`,
       kind: "title",
@@ -28,7 +41,7 @@ function buildLines(scenes: Scene[]): Line[] {
       eyebrow: scene.eyebrow,
       sceneIndex,
       startMs: offset,
-      endMs: offset + (timeline[0]?.startMs ?? scene.durationMs),
+      endMs: titleEnd,
     });
     timeline.forEach((caption, i) => {
       lines.push({
@@ -36,7 +49,7 @@ function buildLines(scenes: Scene[]): Line[] {
         kind: "caption",
         text: caption.text,
         sceneIndex,
-        startMs: offset + caption.startMs,
+        startMs: i === 0 ? Math.max(offset + caption.startMs, titleEnd) : offset + caption.startMs,
         endMs: offset + caption.endMs,
       });
     });

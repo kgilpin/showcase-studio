@@ -6,11 +6,22 @@ import appStoreBadge from "@/assets/app-store-badge.svg";
 
 /** CTA content: the App Store badge by default, or a labeled pill button
  *  for `kind: link` (products with no store listing). */
-function CtaContent({ cta, badgeClass }: { cta: NonNullable<Scene["cta"]>; badgeClass: string }) {
+function CtaContent({
+  cta,
+  badgeClass,
+  pillClass = "px-7 py-3 text-sm",
+}: {
+  cta: NonNullable<Scene["cta"]>;
+  badgeClass: string;
+  pillClass?: string | undefined;
+}) {
   if (cta.kind === "link") {
     return (
       <span
-        className="inline-flex items-center rounded-full px-7 py-3 text-sm font-medium text-primary-foreground"
+        className={cn(
+          "inline-flex items-center rounded-full font-medium text-primary-foreground",
+          pillClass,
+        )}
         style={{ background: "var(--gradient-accent)" }}
       >
         {cta.label}
@@ -45,7 +56,7 @@ function FixedStage({
   frameless?: boolean;
 }) {
   if (frameless) {
-    return <div className="absolute inset-0 overflow-hidden bg-card">{children}</div>;
+    return <div className="@container absolute inset-0 overflow-hidden bg-card">{children}</div>;
   }
   return (
     <div
@@ -60,7 +71,7 @@ function FixedStage({
           className="absolute -inset-8 rounded-[999px] bg-[var(--gradient-accent)] opacity-40 blur-[70px]"
         />
         <div
-          className="relative h-full w-full overflow-hidden rounded-[2.2rem] border border-border bg-card"
+          className="@container relative h-full w-full overflow-hidden rounded-[2.2rem] border border-border bg-card"
           style={{ boxShadow: "var(--shadow-device)" }}
         >
           {children}
@@ -95,6 +106,10 @@ export function SceneView({
   const captionKey = caption?.text ?? "body";
   const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
   const captionTextClass = "text-base leading-relaxed sm:text-lg";
+  /* Inside the fixed stage, type is sized in container-width units so the
+   * text keeps the same proportion at any render size — the in-page player,
+   * the screenshot export, and the video recorder all get the same look. */
+  const stageCaptionClass = "text-[5.2cqw] leading-relaxed";
 
   /* THEME: title — app mark above a large display-serif title. */
   if (scene.theme === "title") {
@@ -107,13 +122,20 @@ export function SceneView({
                 aria-hidden
                 className="scene-glow absolute -inset-8 rounded-full bg-[var(--gradient-accent)] opacity-40 blur-[60px]"
               />
-              <div className="relative size-28 bg-transparent sm:size-32">{media}</div>
+              <div
+                className={cn(
+                  "relative bg-transparent",
+                  isFixed ? "size-[36cqw]" : "size-28 sm:size-32",
+                )}
+              >
+                {media}
+              </div>
             </div>
           )}
           <h2
             className={cn(
               "font-display leading-[1.05] tracking-tight text-foreground",
-              isFixed ? "text-3xl sm:text-4xl" : "text-5xl sm:text-7xl",
+              isFixed ? "text-[10.5cqw]" : "text-5xl sm:text-7xl",
             )}
           >
             {scene.title}
@@ -122,7 +144,7 @@ export function SceneView({
             <p
               className={cn(
                 "mt-4 text-muted-foreground",
-                isFixed ? "text-base" : "text-lg sm:text-xl",
+                isFixed ? "text-[5cqw]" : "text-lg sm:text-xl",
               )}
             >
               {body}
@@ -135,10 +157,20 @@ export function SceneView({
               rel="noreferrer"
               className="mt-9 inline-block transition-opacity hover:opacity-80"
             >
-              <CtaContent cta={scene.cta} badgeClass={cn("w-auto", isFixed ? "h-10" : "h-12")} />
+              <CtaContent
+                cta={scene.cta}
+                badgeClass={cn("w-auto", isFixed ? "h-[11cqw]" : "h-12")}
+                pillClass={isFixed ? "px-[6cqw] py-[2.6cqw] text-[4.2cqw]" : undefined}
+              />
             </a>
           )}
-          {scene.ctaNote && <p className="mt-4 text-xs text-support sm:text-sm">{scene.ctaNote}</p>}
+          {scene.ctaNote && (
+            <p
+              className={cn("mt-4 text-support", isFixed ? "text-[3.5cqw]" : "text-xs sm:text-sm")}
+            >
+              {scene.ctaNote}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -180,19 +212,19 @@ export function SceneView({
             <h2
               className={cn(
                 "font-display leading-[1.08] tracking-tight text-foreground",
-                hasMedia ? "text-3xl" : "text-4xl",
+                hasMedia ? "text-[9cqw]" : "text-[10.5cqw]",
               )}
             >
               {scene.title}
             </h2>
             {!overlay && body && (
-              <p className={cn("mt-4 text-muted-foreground", captionTextClass)}>{body}</p>
+              <p className={cn("mt-4 text-muted-foreground", stageCaptionClass)}>{body}</p>
             )}
             {overlay && !hasMedia && body && (
-              <p className="mt-5 text-lg leading-relaxed text-muted-foreground">{body}</p>
+              <p className="mt-5 text-[5.4cqw] leading-relaxed text-muted-foreground">{body}</p>
             )}
             {!hasMedia && scene.support && (
-              <p className="mt-6 text-sm leading-relaxed text-support">{scene.support}</p>
+              <p className="mt-6 text-[4.2cqw] leading-relaxed text-support">{scene.support}</p>
             )}
           </div>
 
@@ -214,7 +246,7 @@ export function SceneView({
                   <p
                     className={cn(
                       "rounded-2xl border border-border bg-background/80 px-4 py-3 text-center text-muted-foreground backdrop-blur-md",
-                      captionTextClass,
+                      stageCaptionClass,
                     )}
                   >
                     {body}
@@ -235,7 +267,7 @@ export function SceneView({
                   <p
                     className={cn(
                       "rounded-2xl border border-border bg-background/80 px-4 py-3 text-center text-muted-foreground backdrop-blur-md",
-                      captionTextClass,
+                      stageCaptionClass,
                     )}
                   >
                     {body}
@@ -253,9 +285,13 @@ export function SceneView({
                 rel="noopener noreferrer"
                 className="inline-block"
               >
-                <CtaContent cta={scene.cta} badgeClass="mx-auto h-11 w-auto" />
+                <CtaContent
+                  cta={scene.cta}
+                  badgeClass="mx-auto h-[11cqw] w-auto"
+                  pillClass="px-[6cqw] py-[2.6cqw] text-[4.2cqw]"
+                />
               </a>
-              {scene.ctaNote && <p className="mt-4 text-xs text-support">{scene.ctaNote}</p>}
+              {scene.ctaNote && <p className="mt-4 text-[3.5cqw] text-support">{scene.ctaNote}</p>}
             </div>
           )}
         </div>
