@@ -1,0 +1,235 @@
+# =============================================================
+# NOVA — Space Strategy Game
+#
+# Desktop screenshots use the "console" theme (wide landscape panel);
+# the one portrait mobile shot uses "feature" (phone frame).
+# Console scenes are left out of the App Store export (`export: false`)
+# because the export stage is phone-portrait.
+#
+# Field reference — each entry under `scenes:` is one slide:
+# meta.cover .... asset key for the home-page card image (defaults to the
+#                 app mark)
+# meta.theme .... optional quick styling overrides, e.g.
+#                 theme: { primary: "..." }. Prefer theme.yaml next to this
+#                 file — it documents the themeable keys and also supports
+#                 inheriting another showcase's theme and loading fonts.
+# meta.captions . caption display defaults:
+#                 mode: side (default, captions beside the slide) | overlay
+#                   (captions on the screen) — sets the player's starting
+#                   mode; the player toggle still switches it live
+#                 size: large (default) | normal — caption text size
+#                 The screenshot export overlays captions unless run with
+#                 --captions=off (see scripts/export-screens.mjs).
+# theme ......... "title" | "feature" | "statement" | "console" (required,
+#                 see showcases.ts)
+# durationMs .... how long the whole slide stays on screen
+# captions ...... overlay lines, shown in order. Each may set its own
+#                 durationMs; captions without one split the leftover time.
+# media.asset ... file name (without extension) of an image in this
+#                 showcase's assets/ folder, e.g. shot-starmap
+# media.motion .. zoom-in | zoom-out | pan-up | pan-left | still
+# media.frame ... phone | full | mark
+# media.fit ..... cover (default, crops to fill) | contain (whole image shown)
+# media.align ... top | center | bottom — which part of the screenshot to keep
+#                 when it is cropped to fit ("bottom" clips the top instead)
+# captions[].position ... top | center | lower | bottom (default) — where the
+#                 caption sits vertically on the slide ("lower" = 60% down)
+# export ........ set false to leave a scene out of the App Store screenshot
+#                 export (see the /export page and `npm run export:screens`)
+# =============================================================
+
+meta:
+  title: NOVA — Space Strategy Game
+  description: An auto-playing showcase of NOVA, a real-time game of galactic conquest.
+  loop: true
+  captions:
+    mode: overlay # start with captions on the screens (player can still toggle)
+  soundtrack:
+    src: ""
+    volume: 0.18
+
+scenes:
+  - id: opening-1
+    theme: title
+    eyebrow: Opening
+    title: Most strategy games wait for your move
+    captions: []
+    media:
+      kind: none
+    durationMs: 3500
+    export: false
+
+  - id: opening-2
+    theme: title
+    eyebrow: Opening
+    title: This galaxy doesn't
+    captions: []
+    media:
+      kind: none
+    durationMs: 3500
+    export: false
+
+  - id: intro
+    theme: title
+    title: NOVA
+    captions:
+      - text: A real-time game of galactic conquest
+    media:
+      kind: image
+      asset: nova-mark
+      alt: "NOVA app icon: a glowing constellation inside a radar ring"
+      motion: zoom-in
+      frame: mark
+    durationMs: 4500
+
+  - id: never-pauses
+    theme: console
+    eyebrow: Real time
+    title: It never pauses
+    captions:
+      - text: No turns. Production ticks, fleets fly and battles resolve on a live clock.
+        durationMs: 4000
+      - text: Standing orders keep reinforcements flowing to the front — even while you sleep.
+    media:
+      kind: image
+      asset: shot-starmap
+      alt: NOVA star map with two fleets underway, live arrival countdowns and a capture report
+      motion: zoom-in
+      frame: full
+    durationMs: 8500
+    export: false
+
+  - id: commit-and-watch
+    theme: feature
+    eyebrow: Fleet orders
+    title: Commit, then watch
+    captions:
+      - text: Pick your force — a quarter, half, or everything — and launch.
+        durationMs: 3200
+      - text: You get 30 seconds to recall a misclick. After that, the fleet is committed.
+    media:
+      kind: image
+      asset: shot-send-fleet
+      alt: "Mobile fleet order screen: ships-to-send slider with quarter, half and max presets, travel time and a launch button"
+      motion: zoom-in
+      frame: phone
+    durationMs: 7000
+
+  - id: jump-gates
+    theme: console
+    eyebrow: Jump gates
+    title: Build highways between the stars
+    captions:
+      - text: A jump gate is a permanent high-speed lane. You set its speed, and can upgrade it later.
+        durationMs: 4000
+      - text: Capture one end of an enemy gate and you inherit their highway.
+    media:
+      kind: image
+      asset: shot-jump-gate
+      alt: Star map close-up of a ×5 jump-gate link between Rasalhague and Situla, with two fleets in transit
+      motion: zoom-in
+      frame: full
+    durationMs: 8500
+    export: false
+
+  - id: contracts
+    theme: console
+    eyebrow: Diplomacy
+    title: Diplomacy with teeth
+    captions:
+      - text: Global comms, private channels — and contracts.
+        durationMs: 3200
+      - text: Offer credits for a specific fleet sent from a specific star. Accepting settles both sides in one atomic act.
+    media:
+      kind: image
+      asset: shot-contract
+      alt: "Diplomacy panel: a private thread with a ¢120 contract offer and accept and decline buttons"
+      motion: zoom-in
+      frame: full
+      fit: contain
+    durationMs: 8000
+    export: false
+
+  - id: fog-of-war
+    theme: console
+    eyebrow: Fog of war
+    title: Intel goes stale
+    captions:
+      - text: Every star is on your map. What's parked there is another question.
+        durationMs: 3500
+      - text: A spy probe buys you a look. The numbers start going stale the moment you read them.
+    media:
+      kind: image
+      asset: shot-spy-probe
+      alt: Contact panel for a scouted star marked 'last known intel — may be out of date'
+      motion: zoom-in
+      frame: full
+    durationMs: 8000
+    export: false
+
+  - id: nova-bomb
+    theme: statement
+    eyebrow: Nova bomb
+    title: Some orders can't be undone
+    captions:
+      - text: Two hundred credits destroys a star forever — a dead scar on the map.
+    support: Probe shields and nova shields keep the other side honest.
+    media:
+      kind: image
+      asset: shot-command-console
+      alt: NOVA command console with spy probe, nova bomb, shield and jump-gate orders
+      motion: zoom-out
+      frame: full
+    durationMs: 6500
+    export: false
+
+  - id: fair-by-design
+    theme: console
+    eyebrow: Fair by design
+    title: Everyone starts equal
+    captions:
+      - text: "Every commander begins with the same resources: one star, 250 ships, 250 credits."
+        durationMs: 4000
+      - text: Design one wedge in the map editor and NOVA rotates an exact copy to every player.
+    media:
+      kind: image
+      asset: shot-editor
+      alt: NOVA map editor in pie-slice mode, editing one wedge of a symmetric galaxy
+      motion: zoom-out
+      frame: full
+    durationMs: 8500
+    export: false
+
+  - id: your-pace
+    theme: console
+    eyebrow: Your pace
+    title: One hour. Or two weeks.
+    captions:
+      - text: Choose your time frame — a lunch-break skirmish or a long campaign.
+        durationMs: 4000
+      - text: Private games come with a six-letter code and a QR invite.
+    media:
+      kind: image
+      asset: shot-new-theatre
+      alt: "New game wizard: name, private-or-public choice and pacing options"
+      motion: zoom-in
+      frame: full
+    durationMs: 8000
+    export: false
+
+  - id: outro
+    theme: title
+    title: NOVA
+    captions:
+      - text: Play in the browser. Command from your phone.
+    cta:
+      label: Download on the App Store
+      url: https://apps.apple.com/us/app/nova-space-strategy-game/id6780326157
+    ctaNote: Or play in any browser at novagame.app
+    media:
+      kind: image
+      asset: nova-mark
+      alt: "NOVA app icon: a glowing constellation inside a radar ring"
+      motion: zoom-in
+      frame: mark
+    durationMs: 7000

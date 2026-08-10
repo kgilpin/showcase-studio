@@ -1,0 +1,537 @@
+/* =============================================================
+ * SHOWCASE MODEL
+ *
+ * Every showcase lives in its own folder under `src/showcases/<id>/`:
+ *
+ *   src/showcases/<id>/showcase.yaml   the script (scenes, copy, timings)
+ *   src/showcases/<id>/theme.yaml      optional styling (see SHOWCASE THEME)
+ *   src/showcases/<id>/assets/         its screenshots and app mark
+ *
+ * Folders are discovered automatically at build time — adding a new
+ * showcase requires no code changes. Asset keys in the YAML are simply
+ * file names without their extension: `asset: shot-mirror` resolves to
+ * `assets/shot-mirror.png`.
+ * ============================================================= */
+
+import { parse } from "yaml";
+
+/* -------------------------------------------------------------
+ * THEMES — the fixed set of screen designs.
+ *
+ * "title"     Centered app mark above a large display-serif title.
+ *             No body copy. Used for the intro screen.
+ * "feature"   Title + description on one side, phone screenshot on the
+ *             other (set `flip` to swap sides).
+ * "statement" Centered display-serif line over a dimmed full-bleed
+ *             backdrop, with optional one-line body and CTA. Used for outros.
+ * "console"   Title above a wide landscape media panel with captions
+ *             overlaid on it. For desktop/web app screenshots that don't
+ *             fit a phone frame.
+ *
+ * Adding a new theme is a design change: define it in SceneView.tsx and
+ * document it here first. Do not style scenes ad hoc.
+ * ------------------------------------------------------------- */
+export type SceneTheme = "title" | "feature" | "statement" | "console";
+
+/** Which part of a cropped screenshot stays visible. "top" clips the bottom,
+ *  "bottom" clips the top, "center" clips both evenly (default). */
+export type MediaAlign = "top" | "center" | "bottom";
+
+/** How the screenshot fills its area. "cover" (default) crops to fill;
+ *  "contain" keeps the whole screenshot visible with no cropping. */
+export type MediaFit = "cover" | "contain";
+
+export type SceneMotion = "zoom-in" | "zoom-out" | "pan-up" | "pan-left" | "still";
+
+export type SceneMedia =
+  | {
+      kind: "image" | "video";
+      src: string;
+      /** Asset key: the file name (no extension) in the showcase's assets folder. */
+      asset?: string | undefined;
+      file?: string | undefined;
+      /** Describe the screenshot for accessibility. */
+      alt: string;
+      motion?: SceneMotion;
+      /**
+       * "phone" = framed in a device (feature theme).
+       * "full"  = edge-to-edge backdrop (statement theme) or landscape
+       *           panel (console theme).
+       * "mark"  = app-icon tile (title / statement theme).
+       */
+      frame?: "phone" | "full" | "mark";
+      /** Which edge of the screenshot to keep when it's cropped to fit. */
+      align?: MediaAlign;
+      /** Crop to fill ("cover", default) or show the whole image ("contain"). */
+      fit?: MediaFit;
+      /** Optional second screenshot that cross-fades in midway through the scene. */
+      fadeTo?:
+        | {
+            src: string;
+            alt: string;
+            asset?: string | undefined;
+            file?: string | undefined;
+            align?: MediaAlign;
+          }
+        | undefined;
+    }
+  | { kind: "none" };
+
+/** Where an overlay caption sits on the slide.
+ *  "bottom" (default) pinned near the bottom edge,
+ *  "center" vertically centered, "lower" 60% of the way down,
+ *  "top" near the top of the screenshot. */
+export type CaptionPosition = "top" | "center" | "lower" | "bottom";
+
+/** One overlay line. `durationMs` is optional — omitted captions share the
+ *  slide time left over after the explicitly timed ones. */
+export type SceneCaption = { text: string; durationMs?: number; position?: CaptionPosition };
+
+/** Where the player puts captions when a scene has media: "side" (default)
+ *  next to the slide, "overlay" on top of it. The player toggle still works;
+ *  this only sets the starting mode. */
+export type CaptionMode = "side" | "overlay";
+
+/** Caption text size: "large" (default) or "normal" for the smaller size. */
+export type CaptionSize = "normal" | "large";
+
+/** Per-showcase caption settings — `meta.captions` in showcase.yaml. */
+export type CaptionSettings = { mode: CaptionMode; size: CaptionSize };
+
+export type Scene = {
+  id: string;
+  /** Required. One of the documented THEMES above. */
+  theme: SceneTheme;
+  eyebrow?: string;
+  title: string;
+  /** Overlay lines shown in order across the slide. */
+  captions: SceneCaption[];
+  /** Convenience alias for the first caption. */
+  body?: string | undefined;
+  media: SceneMedia;
+  durationMs: number;
+  /** Put the phone on the left instead of the right. */
+  flip?: boolean;
+  /** Set false to leave this scene out of the exported screenshot set. */
+  export?: boolean;
+  /** Smaller supporting paragraph shown under `body` (statement theme). */
+  support?: string;
+  /** Small, low-emphasis line shown under the call to action. */
+  ctaNote?: string;
+  /** Optional call-to-action link shown below the body on statement scenes. */
+  cta?: {
+    label: string;
+    url: string;
+  };
+};
+
+export type Showcase = {
+  /** Folder name under src/showcases/ — also the URL segment. */
+  id: string;
+  title: string;
+  description: string;
+  /** Loop back to the first scene when the last one finishes. */
+  loop: boolean;
+  soundtrack: { src: string; volume: number };
+  /** Caption display defaults — `meta.captions` in showcase.yaml. */
+  captions: CaptionSettings;
+  /** Asset key for the home-page card image (defaults to the app mark). */
+  cover?: string | undefined;
+  /** Resolved styling: CSS-variable overrides (names without the leading
+   *  `--`) plus font stylesheet URLs to load. Combined, in order: the
+   *  extended showcase's theme, this showcase's theme.yaml, and the
+   *  meta.theme quick overrides in showcase.yaml. Anything not set falls
+   *  back to the default design in styles.css. */
+  theme: ResolvedTheme;
+  scenes: Scene[];
+  /** Scenes included in the App Store screenshot export (`export: false` opts out). */
+  exportScenes: Scene[];
+};
+
+type RawMedia =
+  | { kind: "none" }
+  | {
+      kind: "image" | "video";
+      asset: string;
+      alt: string;
+      motion?: SceneMotion;
+      frame?: "phone" | "full" | "mark";
+      align?: MediaAlign;
+      fit?: MediaFit;
+      fadeTo?: { asset: string; alt: string; align?: MediaAlign };
+    };
+
+type RawScene = Omit<Scene, "media" | "captions" | "body"> & {
+  media?: RawMedia;
+  captions?: SceneCaption[];
+};
+
+type RawDoc = {
+  meta: {
+    title: string;
+    description: string;
+    loop: boolean;
+    soundtrack: { src: string; volume: number };
+    captions?: { mode?: string; size?: string };
+    cover?: string;
+    theme?: Record<string, string>;
+  };
+  scenes: RawScene[];
+};
+
+function resolveCaptions(
+  showcaseId: string,
+  raw?: { mode?: string; size?: string },
+): CaptionSettings {
+  const mode = raw?.mode ?? "side";
+  const size = raw?.size ?? "large";
+  if (mode !== "side" && mode !== "overlay") {
+    throw new Error(
+      `meta.captions.mode in showcase "${showcaseId}" must be "side" or "overlay" (got "${mode}")`,
+    );
+  }
+  if (size !== "normal" && size !== "large") {
+    throw new Error(
+      `meta.captions.size in showcase "${showcaseId}" must be "normal" or "large" (got "${size}")`,
+    );
+  }
+  return { mode, size };
+}
+
+/* -------------------------------------------------------------
+ * SHOWCASE THEME — src/showcases/<id>/theme.yaml
+ *
+ * Per-showcase styling. Only the keys below are themeable; the loader
+ * rejects anything else at build time, so a theme cannot override the
+ * structural variables the app needs (the Tailwind `@theme inline` wiring,
+ * radius derivations, library internals).
+ *
+ *   extends: <showcase-id>   start from another showcase's resolved theme;
+ *                            keys set here override the inherited values
+ *   colors: { primary: ... }
+ *   fonts: { display: ..., body: ..., load: [<stylesheet url>, ...] }
+ *   shape: { radius: ... }
+ *   atmosphere: { gradient-stage: ..., gradient-accent: ..., shadow-device: ... }
+ *
+ * `fonts.load` is for font families the app does not already load: list
+ * stylesheet URLs (e.g. Google Fonts) and they are added to <head> on that
+ * showcase's pages. `meta.theme` in showcase.yaml still works as a flat
+ * map of the same CSS-variable names, applied on top of theme.yaml.
+ * ------------------------------------------------------------- */
+
+/** Themeable keys, by group, mapped to the CSS variable each one sets. */
+const THEME_GROUPS: Record<string, Record<string, string>> = {
+  colors: Object.fromEntries(
+    [
+      "background",
+      "foreground",
+      "card",
+      "card-foreground",
+      "primary",
+      "primary-foreground",
+      "secondary",
+      "secondary-foreground",
+      "muted",
+      "muted-foreground",
+      "accent",
+      "accent-foreground",
+      "border",
+      "support",
+    ].map((name) => [name, name]),
+  ),
+  fonts: { display: "font-display", body: "font-body" },
+  shape: { radius: "radius" },
+  atmosphere: {
+    "gradient-stage": "gradient-stage",
+    "gradient-accent": "gradient-accent",
+    "shadow-device": "shadow-device",
+  },
+};
+
+/** Every CSS-variable name a theme may set (also the valid `meta.theme` keys). */
+const THEMEABLE_VARS = new Set(Object.values(THEME_GROUPS).flatMap((keys) => Object.values(keys)));
+
+export type ResolvedTheme = {
+  /** CSS-variable overrides, names without the leading `--`. */
+  vars: Record<string, string>;
+  /** Font stylesheet URLs to load on this showcase's pages (own + inherited). */
+  fontLoads: string[];
+};
+
+type RawTheme = {
+  extends?: string;
+  colors?: Record<string, unknown>;
+  fonts?: Record<string, unknown>;
+  shape?: Record<string, unknown>;
+  atmosphere?: Record<string, unknown>;
+};
+
+function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
+  const file = `src/showcases/${showcaseId}/theme.yaml`;
+  const groups = Object.keys(THEME_GROUPS);
+  for (const key of Object.keys(doc)) {
+    if (key !== "extends" && !groups.includes(key)) {
+      throw new Error(
+        `Unknown section "${key}" in ${file} — expected: extends, ${groups.join(", ")}`,
+      );
+    }
+  }
+  if (doc.extends != null && typeof doc.extends !== "string") {
+    throw new Error(
+      `"extends" in ${file} must be a showcase id (folder name under src/showcases/)`,
+    );
+  }
+  for (const [group, keys] of Object.entries(THEME_GROUPS)) {
+    const section = doc[group as keyof RawTheme];
+    if (section == null) continue;
+    if (typeof section !== "object" || Array.isArray(section)) {
+      throw new Error(`"${group}" in ${file} must be a map of ${Object.keys(keys).join(", ")}`);
+    }
+    for (const [key, value] of Object.entries(section)) {
+      if (group === "fonts" && key === "load") {
+        if (!Array.isArray(value) || value.some((url) => typeof url !== "string")) {
+          throw new Error(`"fonts.load" in ${file} must be a list of stylesheet URLs`);
+        }
+        continue;
+      }
+      if (!(key in keys)) {
+        throw new Error(
+          `Unknown ${group} key "${key}" in ${file} — themeable ${group} keys: ${Object.keys(keys).join(", ")}`,
+        );
+      }
+      if (typeof value !== "string" && typeof value !== "number") {
+        throw new Error(`"${group}.${key}" in ${file} must be a CSS value (got ${typeof value})`);
+      }
+    }
+  }
+}
+
+function validateMetaTheme(showcaseId: string, theme: Record<string, string>): void {
+  for (const name of Object.keys(theme)) {
+    if (!THEMEABLE_VARS.has(name)) {
+      throw new Error(
+        `meta.theme in showcase "${showcaseId}" sets "--${name}", which is not themeable. ` +
+          `Themeable variables: ${[...THEMEABLE_VARS].sort().join(", ")}`,
+      );
+    }
+  }
+}
+
+/* -------------------------------------------------------------
+ * Discovery — every showcase folder is picked up at build time.
+ * ------------------------------------------------------------- */
+
+const yamlModules = import.meta.glob("../showcases/*/showcase.yaml", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+const themeModules = import.meta.glob("../showcases/*/theme.yaml", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+const assetModules = import.meta.glob("../showcases/*/assets/*", {
+  query: "?url",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+type AssetEntry = { url: string; file: string };
+
+const assetsByShowcase = new Map<string, Map<string, AssetEntry>>();
+for (const [path, url] of Object.entries(assetModules)) {
+  const parts = path.split("/");
+  const showcaseId = parts.at(-3)!;
+  const filename = parts.at(-1)!;
+  const key = filename.replace(/\.[^.]+$/, "");
+  let entries = assetsByShowcase.get(showcaseId);
+  if (!entries) assetsByShowcase.set(showcaseId, (entries = new Map()));
+  if (entries.has(key)) {
+    throw new Error(
+      `Showcase "${showcaseId}" has two assets named "${key}" (different extensions). ` +
+        `Asset keys are file names without extension, so they must be unique.`,
+    );
+  }
+  entries.set(key, { url, file: `src/showcases/${showcaseId}/assets/${filename}` });
+}
+
+function resolveAsset(showcaseId: string, key: string): AssetEntry {
+  const entry = assetsByShowcase.get(showcaseId)?.get(key);
+  if (!entry) {
+    throw new Error(
+      `Unknown asset "${key}" in showcase "${showcaseId}" — ` +
+        `expected a file named ${key}.* in src/showcases/${showcaseId}/assets/`,
+    );
+  }
+  return entry;
+}
+
+function resolveMedia(showcaseId: string, media?: RawMedia): SceneMedia {
+  if (!media || media.kind === "none") return { kind: "none" };
+  const asset = resolveAsset(showcaseId, media.asset);
+  return {
+    kind: media.kind,
+    src: asset.url,
+    asset: media.asset,
+    file: asset.file,
+    alt: media.alt,
+    ...(media.motion ? { motion: media.motion } : {}),
+    ...(media.frame ? { frame: media.frame } : {}),
+    ...(media.align ? { align: media.align } : {}),
+    ...(media.fit ? { fit: media.fit } : {}),
+    fadeTo: media.fadeTo
+      ? {
+          src: resolveAsset(showcaseId, media.fadeTo.asset).url,
+          alt: media.fadeTo.alt,
+          asset: media.fadeTo.asset,
+          file: resolveAsset(showcaseId, media.fadeTo.asset).file,
+          ...(media.fadeTo.align ? { align: media.fadeTo.align } : {}),
+        }
+      : undefined,
+  };
+}
+
+/* -------------------------------------------------------------
+ * Theme resolution — parent theme (extends) first, then this showcase's
+ * theme.yaml, then its meta.theme quick overrides. CSS variables cascade,
+ * so anything left unset falls through to the defaults in styles.css.
+ * ------------------------------------------------------------- */
+
+const rawDocs = new Map<string, RawDoc>();
+for (const [path, raw] of Object.entries(yamlModules)) {
+  rawDocs.set(path.split("/").at(-2)!, parse(raw) as RawDoc);
+}
+
+const themeDocs = new Map<string, RawTheme>();
+for (const [path, raw] of Object.entries(themeModules)) {
+  const showcaseId = path.split("/").at(-2)!;
+  const doc = (parse(raw) ?? {}) as RawTheme;
+  validateThemeDoc(showcaseId, doc);
+  themeDocs.set(showcaseId, doc);
+}
+
+const resolvedThemes = new Map<string, ResolvedTheme>();
+
+function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
+  const cached = resolvedThemes.get(showcaseId);
+  if (cached) return cached;
+  if (stack.includes(showcaseId)) {
+    throw new Error(`Theme "extends" cycle: ${[...stack, showcaseId].join(" -> ")}`);
+  }
+
+  const doc = themeDocs.get(showcaseId) ?? {};
+  let vars: Record<string, string> = {};
+  const fontLoads: string[] = [];
+
+  if (doc.extends) {
+    if (!rawDocs.has(doc.extends)) {
+      throw new Error(
+        `Showcase "${showcaseId}" extends unknown showcase "${doc.extends}" — ` +
+          `expected a folder under src/showcases/ with a showcase.yaml`,
+      );
+    }
+    const parent = resolveTheme(doc.extends, [...stack, showcaseId]);
+    vars = { ...parent.vars };
+    fontLoads.push(...parent.fontLoads);
+  }
+
+  for (const [group, keys] of Object.entries(THEME_GROUPS)) {
+    const section = doc[group as keyof RawTheme];
+    if (section == null || typeof section !== "object") continue;
+    for (const [key, value] of Object.entries(section)) {
+      if (group === "fonts" && key === "load") continue;
+      vars[keys[key]!] = String(value);
+    }
+  }
+  const load = doc.fonts?.["load"];
+  if (Array.isArray(load)) fontLoads.push(...(load as string[]));
+
+  const metaTheme = rawDocs.get(showcaseId)?.meta.theme;
+  if (metaTheme) {
+    validateMetaTheme(showcaseId, metaTheme);
+    vars = { ...vars, ...metaTheme };
+  }
+
+  const resolved: ResolvedTheme = { vars, fontLoads: [...new Set(fontLoads)] };
+  resolvedThemes.set(showcaseId, resolved);
+  return resolved;
+}
+
+function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
+  const scenes: Scene[] = doc.scenes.map((scene) => {
+    const captions = scene.captions ?? [];
+    return {
+      ...scene,
+      captions,
+      body: captions[0]?.text,
+      media: resolveMedia(showcaseId, scene.media),
+    };
+  });
+  return {
+    id: showcaseId,
+    ...doc.meta,
+    captions: resolveCaptions(showcaseId, doc.meta.captions),
+    theme: resolveTheme(showcaseId),
+    scenes,
+    exportScenes: scenes.filter((scene) => scene.export !== false),
+  };
+}
+
+export const showcases: Showcase[] = [...rawDocs.entries()]
+  .map(([showcaseId, doc]) => buildShowcase(showcaseId, doc))
+  .sort((a, b) => a.title.localeCompare(b.title));
+
+export function getShowcase(id: string): Showcase | undefined {
+  return showcases.find((showcase) => showcase.id === id);
+}
+
+/** The home-page card image: `meta.cover` if set, else the first
+ *  mark-framed asset, else the first image in the showcase. */
+export function coverUrl(showcase: Showcase): string | undefined {
+  if (showcase.cover) return resolveAsset(showcase.id, showcase.cover).url;
+  const mark = showcase.scenes.find((s) => s.media.kind === "image" && s.media.frame === "mark");
+  if (mark && mark.media.kind !== "none") return mark.media.src;
+  const image = showcase.scenes.find((s) => s.media.kind === "image");
+  return image && image.media.kind !== "none" ? image.media.src : undefined;
+}
+
+/** Inline-style CSS variables for a showcase's resolved theme. */
+export function themeVars(showcase: Showcase): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(showcase.theme.vars).map(([name, value]) => [`--${name}`, value]),
+  );
+}
+
+/** <head> link descriptors for the font stylesheets a showcase's theme loads. */
+export function fontLinks(showcase: Showcase): { rel: string; href: string }[] {
+  return showcase.theme.fontLoads.map((href) => ({ rel: "stylesheet", href }));
+}
+
+/**
+ * Resolves caption timing for a slide: explicit durations are honoured, and
+ * the remaining slide time is split evenly between the untimed captions.
+ */
+export function captionTimeline(scene: Scene) {
+  const captions = scene.captions;
+  const fixed = captions.reduce((sum, c) => sum + (c.durationMs ?? 0), 0);
+  const untimed = captions.filter((c) => c.durationMs == null).length;
+  const share = untimed > 0 ? Math.max(0, scene.durationMs - fixed) / untimed : 0;
+
+  let start = 0;
+  return captions.map((caption) => {
+    const durationMs = caption.durationMs ?? share;
+    const entry = { ...caption, startMs: start, endMs: start + durationMs, durationMs };
+    start += durationMs;
+    return entry;
+  });
+}
+
+/** Which caption is visible at `elapsedMs` into the slide. */
+export function activeCaption(scene: Scene, elapsedMs: number) {
+  const timeline = captionTimeline(scene);
+  if (timeline.length === 0) return undefined;
+  return timeline.find((c) => elapsedMs < c.endMs) ?? timeline[timeline.length - 1];
+}

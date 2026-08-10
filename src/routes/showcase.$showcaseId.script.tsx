@@ -1,0 +1,171 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { ArrowLeft, Play } from "lucide-react";
+import { captionTimeline, getShowcase } from "@/content/showcases";
+import { MediaThumb } from "@/components/script/MediaThumb";
+import { ScriptPlayer } from "@/components/script/ScriptPlayer";
+
+export const Route = createFileRoute("/showcase/$showcaseId/script")({
+  head: ({ params }) => {
+    const showcase = getShowcase(params.showcaseId);
+    const title = showcase ? `Script — ${showcase.title}` : "Script";
+    return {
+      meta: [
+        { title },
+        {
+          name: "description",
+          content: "Slide-by-slide script: timings, captions, screenshots and narration copy.",
+        },
+      ],
+    };
+  },
+  component: ScriptScreen,
+});
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+
+function ScriptScreen() {
+  const { showcaseId } = Route.useParams();
+  const showcase = getShowcase(showcaseId);
+  const [prompter, setPrompter] = useState(false);
+  if (!showcase) return null; // the layout route renders the not-found message
+
+  const scenes = showcase.scenes;
+  const total = scenes.reduce((sum, s) => sum + s.durationMs, 0);
+  let runningStart = 0;
+
+  if (prompter) return <ScriptPlayer scenes={scenes} onExit={() => setPrompter(false)} />;
+
+  return (
+    <main
+      className="min-h-dvh w-full px-6 py-14 sm:px-10"
+      style={{ background: "var(--gradient-stage)" }}
+    >
+      <div className="mx-auto max-w-4xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <Link
+            to="/showcase/$showcaseId"
+            params={{ showcaseId }}
+            className="inline-flex items-center gap-2 text-sm text-support transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" /> Back to the showcase
+          </Link>
+          <button
+            type="button"
+            onClick={() => setPrompter(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-5 py-2.5 text-sm text-foreground transition-colors hover:bg-card"
+          >
+            <Play className="size-4" /> Play script
+          </button>
+        </div>
+
+        <header className="mt-8 border-b border-border pb-8">
+          <p className="text-xs uppercase tracking-[0.42em] text-primary">Script</p>
+          <h1 className="mt-4 font-display text-5xl leading-tight tracking-tight text-foreground">
+            {showcase.title}
+          </h1>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+            {showcase.description}
+          </p>
+          <p className="mt-6 text-sm text-support">
+            {scenes.length} slides · {seconds(total)} total ·{" "}
+            {showcase.loop ? "loops" : "plays once"} · soundtrack{" "}
+            {showcase.soundtrack.src ? "set" : "not set"} at{" "}
+            {Math.round(showcase.soundtrack.volume * 100)}% volume · edit{" "}
+            <code className="text-foreground/80">src/showcases/{showcase.id}/showcase.yaml</code>
+          </p>
+        </header>
+
+        <ol className="mt-10 space-y-8">
+          {scenes.map((scene, i) => {
+            const start = runningStart;
+            runningStart += scene.durationMs;
+            const timeline = captionTimeline(scene);
+            const media = scene.media;
+
+            return (
+              <li key={scene.id} className="rounded-2xl border border-border bg-card/40 p-6 sm:p-8">
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <p className="text-xs uppercase tracking-[0.32em] text-support">
+                    Slide {i + 1} · {scene.theme} · {scene.id}
+                  </p>
+                  <p className="text-xs tabular-nums text-support">
+                    {seconds(start)} → {seconds(start + scene.durationMs)} ·{" "}
+                    <span className="text-foreground/80">{seconds(scene.durationMs)}</span>
+                  </p>
+                </div>
+
+                <div className="mt-5 flex flex-col gap-6 sm:flex-row">
+                  {media.kind !== "none" && (
+                    <div className="flex w-28 shrink-0 flex-col gap-4">
+                      <MediaThumb
+                        src={media.src}
+                        alt={media.alt}
+                        kind={media.kind}
+                        caption={media.file ?? media.asset}
+                      />
+                      {media.fadeTo && (
+                        <MediaThumb
+                          src={media.fadeTo.src}
+                          alt={media.fadeTo.alt}
+                          kind="image"
+                          caption={`fades to ${media.fadeTo.file ?? media.fadeTo.asset}`}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    {scene.eyebrow && (
+                      <p className="text-xs uppercase tracking-[0.42em] text-primary">
+                        {scene.eyebrow}
+                      </p>
+                    )}
+                    <h2 className="mt-3 font-display text-2xl leading-snug tracking-tight text-foreground">
+                      {scene.title}
+                    </h2>
+
+                    {timeline.length > 0 && (
+                      <ul className="mt-5 space-y-3">
+                        {timeline.map((caption, ci) => (
+                          <li key={ci} className="flex gap-4">
+                            <span className="w-24 shrink-0 pt-0.5 text-[0.7rem] tabular-nums text-support">
+                              {seconds(caption.startMs)}–{seconds(caption.endMs)}
+                            </span>
+                            <span className="text-sm leading-relaxed text-muted-foreground">
+                              {caption.text}
+                              {caption.durationMs !== scene.durationMs && (
+                                <span className="ml-2 text-[0.7rem] text-support">
+                                  ({seconds(caption.durationMs)})
+                                </span>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {scene.support && (
+                      <p className="mt-5 text-sm leading-relaxed text-support">{scene.support}</p>
+                    )}
+                    {scene.cta && (
+                      <p className="mt-5 text-sm text-support">
+                        CTA: {scene.cta.label} — {scene.cta.url}
+                      </p>
+                    )}
+                    {media.kind !== "none" && (
+                      <p className="mt-5 text-xs leading-relaxed text-support">
+                        {media.kind} · {media.motion ?? "zoom-in"} · {media.frame ?? "phone"} ·{" "}
+                        {media.alt}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </main>
+  );
+}

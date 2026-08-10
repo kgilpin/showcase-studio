@@ -1,0 +1,44 @@
+# =============================================================
+# NOVA SHOWCASE — THEME
+#
+# Copied from the game's own design system (nova-2 web/src/theme.css)
+# so the showcase reads first-party: near-black void, one cyan
+# "signal" accent, mono data text, angular Chakra Petch display type.
+# =============================================================
+
+colors:
+  background: "#04060c" # --void: near-black deep space
+  foreground: "#eaf4fa" # --hud: primary text
+  card: "#0a0f19" # --panel-solid: HUD panels
+  card-foreground: "#eaf4fa"
+  primary: "#34e7d6" # --signal: the brand cyan
+  primary-foreground: "#04060c"
+  secondary: "#070b14" # --void-2
+  secondary-foreground: "#e3f0f7"
+  muted: "#0a0f19"
+  muted-foreground: "#b7c8d3" # --hud-dim: secondary text
+  accent: "#34e7d6"
+  accent-foreground: "#04060c"
+  border: "rgba(120, 205, 255, 0.26)" # --edge: cool hairline borders
+  support: "#91a3af" # --hud-faint: tertiary text
+
+fonts:
+  display: '"Chakra Petch", "IBM Plex Mono", ui-sans-serif, sans-serif'
+  body: '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
+  load:
+    - https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap
+
+shape:
+  radius: 0.5rem # terminal, not bubbly
+
+atmosphere:
+  # Teal nebula glow top-right, faint violet low-left, over the void —
+  # mirrors the game's fixed page backdrop.
+  gradient-stage: >-
+    radial-gradient(90% 70% at 72% 0%, rgba(52, 231, 214, 0.10), transparent 60%),
+    radial-gradient(60% 50% at 8% 100%, rgba(120, 90, 255, 0.07), transparent 65%),
+    linear-gradient(180deg, #070b14, #04060c)
+  gradient-accent: linear-gradient(100deg, #34e7d6, #0a8f95)
+  shadow-device: >-
+    0 40px 120px -30px rgba(0, 0, 0, 0.9),
+    0 0 90px -20px rgba(52, 231, 214, 0.22)
