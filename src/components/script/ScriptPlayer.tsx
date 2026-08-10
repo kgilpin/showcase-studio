@@ -137,7 +137,11 @@ export function ScriptPlayer({ scenes, onExit }: Props) {
 
       <div className="flex min-h-0 flex-1 gap-8 px-6 pb-4 sm:px-12">
         <div className="hidden w-44 shrink-0 self-center sm:block lg:w-56">
-          {media.kind !== "none" ? (
+          {media.kind === "graphic" ? (
+            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-border bg-card">
+              <media.component />
+            </div>
+          ) : media.kind !== "none" ? (
             <img
               key={media.src}
               src={media.src}

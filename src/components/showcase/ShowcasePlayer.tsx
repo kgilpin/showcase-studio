@@ -14,7 +14,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [captionMode, setCaptionMode] = useState<"side" | "overlay">(showcase.captions.mode);
+  const [captionMode, setCaptionMode] = useState<"side" | "overlay">("side");
   const scene = scenes[index] ?? scenes[0]!;
 
   const go = useCallback((next: number) => {
@@ -92,17 +92,13 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             mode="fixed-overlay"
             elapsedMs={elapsedMs}
             hideCaption={sideCaptions}
-            captionSize={showcase.captions.size}
           />
         </div>
         <div className="hidden shrink-0 items-center justify-start sm:flex sm:w-56 md:w-60 lg:w-64">
           {sideCaptions && captionText && (
             <p
               key={captionText}
-              className={cn(
-                "caption-fade text-left leading-snug text-muted-foreground",
-                showcase.captions.size === "large" ? "text-lg md:text-xl" : "text-base md:text-lg",
-              )}
+              className="caption-fade text-left text-lg leading-snug text-muted-foreground md:text-xl"
             >
               {captionText}
             </p>

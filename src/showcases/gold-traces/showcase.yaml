@@ -1,0 +1,206 @@
+# =============================================================
+# GOLD TRACES SHOWCASE — SCRIPT
+#
+# A showcase for the AppMap "gold traces" behavioral-review skills
+# (appmap-gold-traces + appmap-review), focused on what runtime
+# trace diffing catches that static analysis and LLM code review
+# cannot. Grounded in the skill docs at
+# ~/source/appland/skills/appmap-gold-traces.
+#
+# Media is a mix of real captures (assets/, ~1600x1000 landscape)
+# and TSX-drawn diagrams (graphics/, kind: graphic — CSS-animated,
+# themed via CSS variables). Remaining placeholder assets are
+# labeled .svg files — replace each by deleting the .svg and adding
+# the real capture as .png.
+#
+# ASSETS:
+#   appmap-mark           the AppMap round mark (from appmap.io)
+#   shot-manifest         gold_traces/manifest.yaml — curated entries (real)
+#   shot-sql              AppMap sequence diagram with SQL + timings (real)
+#   shot-sanitize         sanitized recording JSON, <v1>/<v8> tokens (real)
+#
+# GRAPHICS:
+#   lifecycle             record → digest compare → bless/seed/unchanged
+#   side-effects          diff vs. recorded call graph; out-of-scope call
+#   absence               baseline path with authorize() vs. new path without
+#   deterministic         sequence diagram + what the digest ignores
+# =============================================================
+
+meta:
+  title: Gold Traces — Review the behavior, not the diff
+  description: >-
+    Recordings of how your code runs, committed in git and diffed on
+    every release. Catches the side effects, dropped guards, and new
+    queries that green tests and code review miss.
+  loop: true
+  soundtrack:
+    src: ""
+    volume: 0.18
+
+scenes:
+  - id: opening-1
+    theme: title
+    eyebrow: Opening
+    title: Your tests pass. Your diff looks clean.
+    captions: []
+    media:
+      kind: none
+    durationMs: 4000
+    export: false
+
+  - id: opening-2
+    theme: title
+    eyebrow: Opening
+    title: So why did checkout queries double? And where did the permission check go?
+    captions: []
+    media:
+      kind: none
+    durationMs: 5000
+    export: false
+
+  - id: intro
+    theme: title
+    title: Gold Traces
+    captions:
+      - text: A recorded baseline of your app's behavior, kept in git
+    media:
+      kind: image
+      asset: appmap-mark
+      alt: "AppMap logo: a white A on a pink circle"
+      motion: zoom-in
+      frame: mark
+    durationMs: 4500
+    export: false
+
+  - id: baseline
+    theme: console
+    eyebrow: The baseline
+    title: Record how the code runs. Commit the recording.
+    captions:
+      - text: Curated tests walk the paths you care about. AppMap records each one as it runs.
+        durationMs: 7500
+      - text: The recordings go in git, a few kilobytes each. That's the baseline.
+    media:
+      kind: image
+      asset: shot-manifest
+      alt: gold_traces/manifest.yaml with curated entries grouped by feature
+      motion: zoom-in
+      frame: full
+    durationMs: 14000
+    export: false
+
+  - id: lifecycle
+    theme: console
+    eyebrow: Record and bless
+    title: Re-record on each release. Bless what you meant to change.
+    captions:
+      - text: A digest compares each new recording to its baseline. It ignores timing, ids, and values, so a flag means behavior changed.
+        durationMs: 9000
+      - text: Intended changes are blessed and committed. The rest stay byte-identical.
+    media:
+      kind: graphic
+      graphic: lifecycle
+      alt: "Diagram: gold tests are recorded, digest-compared to the committed baseline, and each trace is blessed, seeded, or left unchanged"
+      frame: full
+    durationMs: 16000
+    export: false
+
+  - id: side-effects
+    theme: console
+    eyebrow: Side effects
+    title: Finds unintended behavior changes
+    captions:
+      - text: You touched the discount calculation. The trace shows the notification service now fires twice per order.
+        durationMs: 7000
+      - text: A reviewer reads the lines you edited. The recording shows everything those lines set off.
+    media:
+      kind: graphic
+      graphic: side-effects
+      alt: "Diagram: the diff's two files beside the recorded call graph, with a notification call highlighted outside the change's stated scope"
+      frame: full
+    durationMs: 14500
+    export: false
+
+  - id: absence
+    theme: console
+    eyebrow: Missing guards
+    title: The permission check that quietly stopped running
+    captions:
+      - text: Nothing in the diff deletes the check. The new path just never calls it. Tests still pass.
+        durationMs: 7000
+      - text: When a security-labeled function disappears from a path, the review says so.
+    media:
+      kind: graphic
+      graphic: absence
+      alt: "Diagram: the baseline call path runs authorize() with a security.authz label; the new path skips it, flagged in red, while tests pass"
+      frame: full
+    durationMs: 14000
+    export: false
+
+  - id: sql
+    theme: console
+    eyebrow: SQL
+    title: New queries have nowhere to hide
+    captions:
+      - text: Tests assert what came back, not how many queries it took.
+        durationMs: 5000
+      - text: Every query is recorded. The N+1 your refactor introduced shows up, with the SQL.
+    media:
+      kind: image
+      asset: shot-sql
+      alt: AppMap sequence diagram showing SQL statements flowing to the database lane, each with its timing
+      motion: zoom-in
+      frame: full
+    durationMs: 12000
+    export: false
+
+  - id: deterministic
+    theme: console
+    eyebrow: Determinism
+    title: Computed facts first. Judgment second.
+    captions:
+      - text: Whether behavior changed is decided by a digest, not a model's impression. Same input, same answer.
+        durationMs: 6500
+      - text: "The review starts from those facts: recorded calls, labels, queries. It interprets; it doesn't guess."
+    media:
+      kind: graphic
+      graphic: deterministic
+      alt: "Diagram: a sequence diagram with a security.authz label on the changed call, above a strip of digest-ignored values: elapsed time, ids, parameter values"
+      frame: full
+    durationMs: 13500
+    export: false
+
+  - id: sanitized
+    theme: console
+    eyebrow: Sanitized
+    title: A baseline that can't leak a secret
+    captions:
+      - text: Before a recording is committed, every captured value becomes a short token.
+        durationMs: 6500
+      - text: What's left is who called what, in what order. No customer data, no keys.
+    media:
+      kind: image
+      asset: shot-sanitize
+      alt: "Sanitized recording JSON: parameter values replaced by tokens like <v1> and <v8>"
+      motion: zoom-in
+      frame: full
+    durationMs: 13000
+    export: false
+
+  - id: outro
+    theme: title
+    title: Gold Traces
+    captions:
+      - text: appmap-gold-traces keeps the baseline. appmap-review reads it.
+    cta:
+      label: Learn more at appmap.io
+      url: https://appmap.io
+      kind: link
+    media:
+      kind: image
+      asset: appmap-mark
+      alt: "AppMap logo: a white A on a pink circle"
+      motion: zoom-in
+      frame: mark
+    durationMs: 7000
+    export: false

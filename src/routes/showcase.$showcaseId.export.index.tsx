@@ -71,7 +71,6 @@ function ExportGallery() {
                       mode="fixed-overlay"
                       elapsedMs={scene.durationMs / 2}
                       frameless
-                      captionSize={showcase.captions.size}
                     />
                   </div>
                 </div>

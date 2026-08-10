@@ -1,13 +1,24 @@
 import { cn } from "@/lib/utils";
-import {
-  activeCaption,
-  type CaptionPosition,
-  type CaptionSize,
-  type Scene,
-} from "@/content/showcases";
+import { activeCaption, type CaptionPosition, type Scene } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
 import { PhoneFrame } from "./PhoneFrame";
 import appStoreBadge from "@/assets/app-store-badge.svg";
+
+/** CTA content: the App Store badge by default, or a labeled pill button
+ *  for `kind: link` (products with no store listing). */
+function CtaContent({ cta, badgeClass }: { cta: NonNullable<Scene["cta"]>; badgeClass: string }) {
+  if (cta.kind === "link") {
+    return (
+      <span
+        className="inline-flex items-center rounded-full px-7 py-3 text-sm font-medium text-primary-foreground"
+        style={{ background: "var(--gradient-accent)" }}
+      >
+        {cta.label}
+      </span>
+    );
+  }
+  return <img src={appStoreBadge} alt={cta.label} className={badgeClass} />;
+}
 
 /** How the showcase lays out each scene. Toggled from the player controls. */
 export type DisplayMode = "side-by-side" | "fixed-separated" | "fixed-overlay";
@@ -66,7 +77,6 @@ export function SceneView({
   elapsedMs = 0,
   hideCaption = false,
   frameless = false,
-  captionSize = "large",
 }: {
   scene: Scene;
   paused: boolean;
@@ -77,8 +87,6 @@ export function SceneView({
   hideCaption?: boolean;
   /** Drop the device chrome and fill the parent (screenshot export). */
   frameless?: boolean;
-  /** Caption text size — the showcase's `meta.captions.size`. */
-  captionSize?: CaptionSize;
 }) {
   const media = <SceneMedia media={scene.media} durationMs={scene.durationMs} paused={paused} />;
   const isFixed = mode !== "side-by-side";
@@ -86,8 +94,7 @@ export function SceneView({
   const body = caption?.text ?? scene.body;
   const captionKey = caption?.text ?? "body";
   const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
-  const captionTextClass =
-    captionSize === "large" ? "text-base leading-relaxed sm:text-lg" : "text-sm leading-relaxed";
+  const captionTextClass = "text-base leading-relaxed sm:text-lg";
 
   /* THEME: title — app mark above a large display-serif title. */
   if (scene.theme === "title") {
@@ -128,11 +135,7 @@ export function SceneView({
               rel="noreferrer"
               className="mt-9 inline-block transition-opacity hover:opacity-80"
             >
-              <img
-                src={appStoreBadge}
-                alt={scene.cta.label}
-                className={cn("w-auto", isFixed ? "h-10" : "h-12")}
-              />
+              <CtaContent cta={scene.cta} badgeClass={cn("w-auto", isFixed ? "h-10" : "h-12")} />
             </a>
           )}
           {scene.ctaNote && <p className="mt-4 text-xs text-support sm:text-sm">{scene.ctaNote}</p>}
@@ -186,14 +189,7 @@ export function SceneView({
               <p className={cn("mt-4 text-muted-foreground", captionTextClass)}>{body}</p>
             )}
             {overlay && !hasMedia && body && (
-              <p
-                className={cn(
-                  "mt-5 text-muted-foreground",
-                  captionSize === "large" ? "text-lg leading-relaxed" : "text-base leading-relaxed",
-                )}
-              >
-                {body}
-              </p>
+              <p className="mt-5 text-lg leading-relaxed text-muted-foreground">{body}</p>
             )}
             {!hasMedia && scene.support && (
               <p className="mt-6 text-sm leading-relaxed text-support">{scene.support}</p>
@@ -202,9 +198,14 @@ export function SceneView({
 
           {hasMedia && isConsole && (
             <div className="relative mt-4 flex min-h-0 w-full flex-1 flex-col justify-center">
+              {/* Screenshots keep the 16:10 landscape band; TSX graphics are
+               * drawn portrait-first and fill the whole remaining height. */}
               <div
-                className="scene-drift relative w-full overflow-hidden border-y border-border bg-card"
-                style={{ aspectRatio: "16 / 10" }}
+                className={cn(
+                  "scene-drift relative w-full overflow-hidden border-y border-border bg-card",
+                  scene.media.kind === "graphic" && "min-h-0 flex-1",
+                )}
+                style={scene.media.kind === "graphic" ? undefined : { aspectRatio: "16 / 10" }}
               >
                 {media}
               </div>
@@ -252,7 +253,7 @@ export function SceneView({
                 rel="noopener noreferrer"
                 className="inline-block"
               >
-                <img src={appStoreBadge} alt={scene.cta.label} className="mx-auto h-11 w-auto" />
+                <CtaContent cta={scene.cta} badgeClass="mx-auto h-11 w-auto" />
               </a>
               {scene.ctaNote && <p className="mt-4 text-xs text-support">{scene.ctaNote}</p>}
             </div>
@@ -276,7 +277,10 @@ export function SceneView({
           <div className="relative flex min-h-0 w-full flex-1 justify-center">
             <div
               className="scene-drift relative h-full max-w-full overflow-hidden rounded-3xl border border-border bg-card"
-              style={{ aspectRatio: "16 / 10", boxShadow: "var(--shadow-device)" }}
+              style={{
+                ...(scene.media.kind === "graphic" ? {} : { aspectRatio: "16 / 10" }),
+                boxShadow: "var(--shadow-device)",
+              }}
             >
               {media}
               {body && !hideCaption && (
@@ -369,7 +373,7 @@ export function SceneView({
               rel="noopener noreferrer"
               className="mt-12 inline-block"
             >
-              <img src={appStoreBadge} alt={scene.cta.label} className="h-12 w-auto" />
+              <CtaContent cta={scene.cta} badgeClass="h-12 w-auto" />
             </a>
           )}
           {isCentered && scene.ctaNote && (

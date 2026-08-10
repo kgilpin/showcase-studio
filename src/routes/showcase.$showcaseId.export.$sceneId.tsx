@@ -45,7 +45,6 @@ function ExportFrame() {
           elapsedMs={scene.durationMs / 2}
           frameless
           hideCaption={captions === "off"}
-          captionSize={showcase.captions.size}
         />
       </div>
     </main>

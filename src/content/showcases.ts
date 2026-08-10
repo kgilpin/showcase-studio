@@ -14,6 +14,7 @@
  * ============================================================= */
 
 import { parse } from "yaml";
+import type { ComponentType } from "react";
 
 /* -------------------------------------------------------------
  * THEMES — the fixed set of screen designs.
@@ -75,6 +76,23 @@ export type SceneMedia =
           }
         | undefined;
     }
+  | {
+      /** A TSX-authored diagram from the showcase's graphics/ folder.
+       *  Graphics animate with CSS only (no JS timers) so the player's
+       *  pause, the screenshot export's freeze, and the video recorder's
+       *  frame seeking all work; their resting state must be the fully
+       *  revealed diagram. Style with theme CSS variables. */
+      kind: "graphic";
+      /** Graphic key: the file name (no extension) in graphics/. */
+      graphic: string;
+      component: ComponentType;
+      file?: string | undefined;
+      /** Describe the diagram for accessibility. */
+      alt: string;
+      /** Defaults to "still" — diagrams usually animate themselves. */
+      motion?: SceneMotion;
+      frame?: "phone" | "full" | "mark";
+    }
   | { kind: "none" };
 
 /** Where an overlay caption sits on the slide.
@@ -87,16 +105,9 @@ export type CaptionPosition = "top" | "center" | "lower" | "bottom";
  *  slide time left over after the explicitly timed ones. */
 export type SceneCaption = { text: string; durationMs?: number; position?: CaptionPosition };
 
-/** Where the player puts captions when a scene has media: "side" (default)
- *  next to the slide, "overlay" on top of it. The player toggle still works;
- *  this only sets the starting mode. */
-export type CaptionMode = "side" | "overlay";
-
-/** Caption text size: "large" (default) or "normal" for the smaller size. */
-export type CaptionSize = "normal" | "large";
-
-/** Per-showcase caption settings — `meta.captions` in showcase.yaml. */
-export type CaptionSettings = { mode: CaptionMode; size: CaptionSize };
+/* Caption presentation is not configurable per showcase: the player always
+ * starts with captions beside the slide (the viewer can still toggle them
+ * onto it), and caption text always uses the large size. */
 
 export type Scene = {
   id: string;
@@ -118,10 +129,13 @@ export type Scene = {
   support?: string;
   /** Small, low-emphasis line shown under the call to action. */
   ctaNote?: string;
-  /** Optional call-to-action link shown below the body on statement scenes. */
+  /** Optional call-to-action link shown below the body on statement scenes.
+   *  kind "app-store" (default) renders the App Store badge; "link" renders
+   *  a plain labeled button for products with no store listing. */
   cta?: {
     label: string;
     url: string;
+    kind?: "app-store" | "link";
   };
 };
 
@@ -133,8 +147,6 @@ export type Showcase = {
   /** Loop back to the first scene when the last one finishes. */
   loop: boolean;
   soundtrack: { src: string; volume: number };
-  /** Caption display defaults — `meta.captions` in showcase.yaml. */
-  captions: CaptionSettings;
   /** Asset key for the home-page card image (defaults to the app mark). */
   cover?: string | undefined;
   /** Resolved styling: CSS-variable overrides (names without the leading
@@ -159,6 +171,13 @@ type RawMedia =
       align?: MediaAlign;
       fit?: MediaFit;
       fadeTo?: { asset: string; alt: string; align?: MediaAlign };
+    }
+  | {
+      kind: "graphic";
+      graphic: string;
+      alt: string;
+      motion?: SceneMotion;
+      frame?: "phone" | "full" | "mark";
     };
 
 type RawScene = Omit<Scene, "media" | "captions" | "body"> & {
@@ -172,31 +191,11 @@ type RawDoc = {
     description: string;
     loop: boolean;
     soundtrack: { src: string; volume: number };
-    captions?: { mode?: string; size?: string };
     cover?: string;
     theme?: Record<string, string>;
   };
   scenes: RawScene[];
 };
-
-function resolveCaptions(
-  showcaseId: string,
-  raw?: { mode?: string; size?: string },
-): CaptionSettings {
-  const mode = raw?.mode ?? "side";
-  const size = raw?.size ?? "large";
-  if (mode !== "side" && mode !== "overlay") {
-    throw new Error(
-      `meta.captions.mode in showcase "${showcaseId}" must be "side" or "overlay" (got "${mode}")`,
-    );
-  }
-  if (size !== "normal" && size !== "large") {
-    throw new Error(
-      `meta.captions.size in showcase "${showcaseId}" must be "normal" or "large" (got "${size}")`,
-    );
-  }
-  return { mode, size };
-}
 
 /* -------------------------------------------------------------
  * SHOWCASE THEME — src/showcases/<id>/theme.yaml
@@ -339,6 +338,37 @@ const assetModules = import.meta.glob("../showcases/*/assets/*", {
   eager: true,
 }) as Record<string, string>;
 
+/* TSX-authored diagrams, one component per file in graphics/. Same
+ * discovery and naming rules as assets: the key is the file name. */
+const graphicModules = import.meta.glob("../showcases/*/graphics/*.tsx", {
+  import: "default",
+  eager: true,
+}) as Record<string, ComponentType>;
+
+type GraphicEntry = { component: ComponentType; file: string };
+
+const graphicsByShowcase = new Map<string, Map<string, GraphicEntry>>();
+for (const [path, component] of Object.entries(graphicModules)) {
+  const parts = path.split("/");
+  const showcaseId = parts.at(-3)!;
+  const filename = parts.at(-1)!;
+  const key = filename.replace(/\.tsx$/, "");
+  let entries = graphicsByShowcase.get(showcaseId);
+  if (!entries) graphicsByShowcase.set(showcaseId, (entries = new Map()));
+  entries.set(key, { component, file: `src/showcases/${showcaseId}/graphics/${filename}` });
+}
+
+function resolveGraphic(showcaseId: string, key: string): GraphicEntry {
+  const entry = graphicsByShowcase.get(showcaseId)?.get(key);
+  if (!entry) {
+    throw new Error(
+      `Unknown graphic "${key}" in showcase "${showcaseId}" — ` +
+        `expected a component at src/showcases/${showcaseId}/graphics/${key}.tsx`,
+    );
+  }
+  return entry;
+}
+
 type AssetEntry = { url: string; file: string };
 
 const assetsByShowcase = new Map<string, Map<string, AssetEntry>>();
@@ -371,6 +401,18 @@ function resolveAsset(showcaseId: string, key: string): AssetEntry {
 
 function resolveMedia(showcaseId: string, media?: RawMedia): SceneMedia {
   if (!media || media.kind === "none") return { kind: "none" };
+  if (media.kind === "graphic") {
+    const graphic = resolveGraphic(showcaseId, media.graphic);
+    return {
+      kind: "graphic",
+      graphic: media.graphic,
+      component: graphic.component,
+      file: graphic.file,
+      alt: media.alt,
+      ...(media.motion ? { motion: media.motion } : {}),
+      ...(media.frame ? { frame: media.frame } : {}),
+    };
+  }
   const asset = resolveAsset(showcaseId, media.asset);
   return {
     kind: media.kind,
@@ -473,7 +515,6 @@ function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
   return {
     id: showcaseId,
     ...doc.meta,
-    captions: resolveCaptions(showcaseId, doc.meta.captions),
     theme: resolveTheme(showcaseId),
     scenes,
     exportScenes: scenes.filter((scene) => scene.export !== false),
@@ -493,9 +534,9 @@ export function getShowcase(id: string): Showcase | undefined {
 export function coverUrl(showcase: Showcase): string | undefined {
   if (showcase.cover) return resolveAsset(showcase.id, showcase.cover).url;
   const mark = showcase.scenes.find((s) => s.media.kind === "image" && s.media.frame === "mark");
-  if (mark && mark.media.kind !== "none") return mark.media.src;
+  if (mark && mark.media.kind === "image") return mark.media.src;
   const image = showcase.scenes.find((s) => s.media.kind === "image");
-  return image && image.media.kind !== "none" ? image.media.src : undefined;
+  return image && image.media.kind === "image" ? image.media.src : undefined;
 }
 
 /** Inline-style CSS variables for a showcase's resolved theme. */

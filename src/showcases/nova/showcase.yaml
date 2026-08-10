@@ -13,13 +13,9 @@
 #                 theme: { primary: "..." }. Prefer theme.yaml next to this
 #                 file — it documents the themeable keys and also supports
 #                 inheriting another showcase's theme and loading fonts.
-# meta.captions . caption display defaults:
-#                 mode: side (default, captions beside the slide) | overlay
-#                   (captions on the screen) — sets the player's starting
-#                   mode; the player toggle still switches it live
-#                 size: large (default) | normal — caption text size
-#                 The screenshot export overlays captions unless run with
-#                 --captions=off (see scripts/export-screens.mjs).
+# (captions always show beside the slide in the player — the viewer can
+#  toggle them onto it. The screenshot export overlays captions unless run
+#  with --captions=off, see scripts/export-screens.mjs.)
 # theme ......... "title" | "feature" | "statement" | "console" (required,
 #                 see showcases.ts)
 # durationMs .... how long the whole slide stays on screen
@@ -42,8 +38,6 @@ meta:
   title: NOVA — Space Strategy Game
   description: An auto-playing showcase of NOVA, a real-time game of galactic conquest.
   loop: true
-  captions:
-    mode: overlay # start with captions on the screens (player can still toggle)
   soundtrack:
     src: ""
     volume: 0.18

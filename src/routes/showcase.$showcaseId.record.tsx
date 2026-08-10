@@ -175,7 +175,6 @@ function Recorder({ showcase, controlled }: { showcase: Showcase; controlled: bo
           mode="fixed-overlay"
           elapsedMs={clock.elapsedMs}
           frameless
-          captionSize={showcase.captions.size}
         />
       </div>
     </main>

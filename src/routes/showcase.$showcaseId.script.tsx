@@ -96,7 +96,17 @@ function ScriptScreen() {
                 </div>
 
                 <div className="mt-5 flex flex-col gap-6 sm:flex-row">
-                  {media.kind !== "none" && (
+                  {media.kind === "graphic" && (
+                    <div className="flex w-28 shrink-0 flex-col gap-2">
+                      <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg border border-border bg-card">
+                        <media.component />
+                      </div>
+                      <p className="break-all text-[0.65rem] leading-snug text-support">
+                        {media.file ?? media.graphic}
+                      </p>
+                    </div>
+                  )}
+                  {media.kind !== "none" && media.kind !== "graphic" && (
                     <div className="flex w-28 shrink-0 flex-col gap-4">
                       <MediaThumb
                         src={media.src}

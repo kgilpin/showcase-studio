@@ -14,7 +14,7 @@ export function collectSceneSources(scenes: Scene[]): PreloadSource[] {
   };
   for (const scene of scenes) {
     const media = scene.media;
-    if (media.kind === "none") continue;
+    if (media.kind === "none" || media.kind === "graphic") continue;
     push(media.src, media.kind);
     if (media.kind === "image" && media.fadeTo) push(media.fadeTo.src, "image");
   }

@@ -285,6 +285,12 @@
   animation: cross-fade-in var(--scene-duration, 6s) linear both;
 }
 
+/* Freezes a graphic's internal CSS animations while the player is paused. */
+.media-paused,
+.media-paused * {
+  animation-play-state: paused !important;
+}
+
 /* ---------------------------------------------------------------
  * Screenshot export mode (/export routes)
  * Kill every animation so each scene renders as a still frame at its

@@ -25,6 +25,32 @@ type Props = {
 export function SceneMedia({ media, durationMs, paused, className }: Props) {
   if (media.kind === "none") return null;
 
+  /* TSX-authored diagram: the component fills the media area and animates
+   * itself with CSS. `media-paused` (styles.css) freezes those animations
+   * when the player is paused. */
+  if (media.kind === "graphic") {
+    const Graphic = media.component;
+    const graphicMotion = motionClass[media.motion ?? "still"];
+    return (
+      <div
+        role="img"
+        aria-label={media.alt}
+        className={cn(
+          "relative h-full w-full overflow-hidden",
+          paused && "media-paused",
+          className,
+        )}
+      >
+        <div
+          className={cn("h-full w-full", graphicMotion)}
+          style={{ ["--scene-duration" as string]: `${durationMs + 1200}ms` }}
+        >
+          <Graphic />
+        </div>
+      </div>
+    );
+  }
+
   const motion = motionClass[media.motion ?? "zoom-in"];
   const fit = media.frame === "mark" || media.fit === "contain" ? "object-contain" : "object-cover";
   const align = alignClass[media.align ?? "center"];
