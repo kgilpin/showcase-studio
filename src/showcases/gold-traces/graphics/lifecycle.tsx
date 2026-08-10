@@ -1,6 +1,6 @@
 /* The record → digest → bless cycle, drawn portrait-first for the phone
- * stage and staged to the scene's caption windows (caption 1: 0-12s,
- * caption 2: 12-16s). All content sits above viewBox y≈800 so the overlay
+ * stage and staged to the scene's caption windows (caption 1: 0-10s,
+ * caption 2: 10-14s). All content sits above viewBox y≈800 so the overlay
  * caption (export/video contexts) never covers it. CSS animations only
  * (no JS timers): the player's pause, the export freeze, and the video
  * recorder's frame seeking all depend on that. Resting state = the fully
@@ -16,8 +16,8 @@ export default function Lifecycle() {
         .gtlc-s1, .gtlc-s2, .gtlc-s3, .gtlc-s4 { animation: gtlc-in 0.7s ease-out both; }
         .gtlc-s1 { animation-delay: 0.3s; }
         .gtlc-s2 { animation-delay: 3s; }
-        .gtlc-s3 { animation-delay: 7s; }
-        .gtlc-s4 { animation-delay: 12.5s; }
+        .gtlc-s3 { animation-delay: 6.5s; }
+        .gtlc-s4 { animation-delay: 10.5s; }
       `}</style>
       <svg
         viewBox="0 0 760 950"

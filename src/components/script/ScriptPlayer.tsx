@@ -56,6 +56,24 @@ function buildLines(scenes: Scene[]): Line[] {
   return lines;
 }
 
+/** Pie-style countdown for the active line: the filled wedge is the time
+ *  left in this line's window, beside the seconds remaining. */
+function LinePie({ remainingMs, allottedMs }: { remainingMs: number; allottedMs: number }) {
+  const fraction = Math.max(0, Math.min(1, remainingMs / allottedMs));
+  return (
+    <span className="flex items-center justify-end gap-2">
+      <span className="text-xs tabular-nums text-primary">
+        {(Math.max(0, remainingMs) / 1000).toFixed(1)}s
+      </span>
+      <span
+        aria-hidden
+        className="inline-block size-5 shrink-0 rounded-full border border-primary/50"
+        style={{ background: `conic-gradient(var(--primary) ${fraction * 360}deg, transparent 0)` }}
+      />
+    </span>
+  );
+}
+
 /** Lyrics-style teleprompter: the whole script scrolls continuously and the
  *  current line stays pinned near the top so a narrator reads from one spot. */
 export function ScriptPlayer({ scenes, onExit }: Props) {
@@ -163,6 +181,7 @@ export function ScriptPlayer({ scenes, onExit }: Props) {
             {lines.map((line) => {
               const isActive = line.key === active.key;
               const isPast = line.endMs <= elapsed;
+              const allottedMs = line.endMs - line.startMs;
               return (
                 <li
                   key={line.key}
@@ -170,42 +189,57 @@ export function ScriptPlayer({ scenes, onExit }: Props) {
                     lineRefs.current[line.key] = el;
                   }}
                   className={cn(
-                    "transition-all duration-500",
+                    "flex gap-5 transition-all duration-500",
                     isActive ? "opacity-100" : isPast ? "opacity-25" : "opacity-45",
                   )}
                 >
-                  {line.kind === "title" ? (
-                    <>
-                      {line.eyebrow && (
-                        <p className="text-xs uppercase tracking-[0.42em] text-primary">
-                          {line.eyebrow}
-                        </p>
-                      )}
-                      <h2
+                  {/* Pacing gutter: allotted seconds; the active line counts
+                   *  down with a pie. Zero-width windows (a title that shares
+                   *  its time with the first caption) get no indicator. */}
+                  <div className="w-20 shrink-0 pt-2 text-right">
+                    {allottedMs >= 400 &&
+                      (isActive ? (
+                        <LinePie remainingMs={line.endMs - elapsed} allottedMs={allottedMs} />
+                      ) : (
+                        <span className="text-xs tabular-nums text-support/80">
+                          {(allottedMs / 1000).toFixed(1)}s
+                        </span>
+                      ))}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {line.kind === "title" ? (
+                      <>
+                        {line.eyebrow && (
+                          <p className="text-xs uppercase tracking-[0.42em] text-primary">
+                            {line.eyebrow}
+                          </p>
+                        )}
+                        <h2
+                          className={cn(
+                            "mt-2 font-display leading-tight tracking-tight text-foreground",
+                            isActive ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl",
+                          )}
+                        >
+                          {line.text}
+                        </h2>
+                      </>
+                    ) : line.kind === "support" ? (
+                      <p className="text-lg leading-relaxed text-muted-foreground sm:text-xl">
+                        {line.text}
+                      </p>
+                    ) : (
+                      <p
                         className={cn(
-                          "mt-2 font-display leading-tight tracking-tight text-foreground",
-                          isActive ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl",
+                          "leading-snug",
+                          isActive
+                            ? "text-3xl text-foreground sm:text-4xl"
+                            : "text-2xl text-muted-foreground sm:text-3xl",
                         )}
                       >
                         {line.text}
-                      </h2>
-                    </>
-                  ) : line.kind === "support" ? (
-                    <p className="text-lg leading-relaxed text-muted-foreground sm:text-xl">
-                      {line.text}
-                    </p>
-                  ) : (
-                    <p
-                      className={cn(
-                        "leading-snug",
-                        isActive
-                          ? "text-3xl text-foreground sm:text-4xl"
-                          : "text-2xl text-muted-foreground sm:text-3xl",
-                      )}
-                    >
-                      {line.text}
-                    </p>
-                  )}
+                      </p>
+                    )}
+                  </div>
                 </li>
               );
             })}

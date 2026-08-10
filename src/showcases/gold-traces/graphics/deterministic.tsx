@@ -14,7 +14,7 @@ export default function Deterministic() {
         .gtdt-s1, .gtdt-s2, .gtdt-s3 { animation: gtdt-in 0.7s ease-out both; }
         .gtdt-s1 { animation-delay: 0.4s; }
         .gtdt-s2 { animation-delay: 4s; }
-        .gtdt-s3 { animation-delay: 8.5s; }
+        .gtdt-s3 { animation-delay: 7.5s; }
       `}</style>
       <svg
         viewBox="0 0 760 950"

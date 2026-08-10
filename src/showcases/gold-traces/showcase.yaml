@@ -62,7 +62,7 @@ scenes:
     theme: title
     title: Gold Traces
     captions:
-      - text: A recorded baseline of your app's behavior, kept in git
+      - text: Catch the problems that unit tests and code reads miss
     media:
       kind: image
       asset: appmap-mark
@@ -75,7 +75,7 @@ scenes:
   - id: baseline
     theme: console
     eyebrow: The baseline
-    title: Record how the code runs. Commit the recording.
+    title: Record how the code runs. Commit the recordings.
     captions:
       - text: Curated tests walk the paths you care about. AppMap records each one as it runs.
         durationMs: 7500
@@ -92,27 +92,27 @@ scenes:
   - id: lifecycle
     theme: console
     eyebrow: Record and bless
-    title: Re-record on each release. Bless what you meant to change.
+    title: Re-record on each release. Bless the intended changes.
     captions:
-      - text: A digest compares each new recording to its baseline. It ignores timing, ids, and values, so a flag means behavior changed.
-        durationMs: 9000
+      - text: Each release is re-recorded and compared against the baseline. Unchanged traces stay untouched; changed ones are flagged.
+        durationMs: 10000
       - text: Intended changes are blessed and committed. The rest stay byte-identical.
     media:
       kind: graphic
       graphic: lifecycle
       alt: "Diagram: gold tests are recorded, digest-compared to the committed baseline, and each trace is blessed, seeded, or left unchanged"
       frame: full
-    durationMs: 16000
+    durationMs: 14000
     export: false
 
   - id: side-effects
     theme: console
     eyebrow: Side effects
-    title: Finds unintended behavior changes
+    title: "Scenario: An unintended behavior change"
     captions:
-      - text: You touched the discount calculation. The trace shows the notification service now fires twice per order.
+      - text: Suppose you touched the discount calculation; and now the trace shows the notification service now fires twice per order.
         durationMs: 7000
-      - text: A reviewer reads the lines you edited. The recording shows everything those lines set off.
+      - text: A code read wouldn't reveal this side effect. From a trace, it's obvious.
     media:
       kind: graphic
       graphic: side-effects
@@ -124,11 +124,11 @@ scenes:
   - id: absence
     theme: console
     eyebrow: Missing guards
-    title: The permission check that quietly stopped running
+    title: "Scenario: A dropped permission check"
     captions:
-      - text: Nothing in the diff deletes the check. The new path just never calls it. Tests still pass.
+      - text: Some changes can silently skip or disable security checks; but tests still pass.
         durationMs: 7000
-      - text: When a security-labeled function disappears from a path, the review says so.
+      - text: When a security-labeled function disappears from a code path, the behavior change is flagged.
     media:
       kind: graphic
       graphic: absence
@@ -137,61 +137,44 @@ scenes:
     durationMs: 14000
     export: false
 
-  - id: sql
-    theme: console
-    eyebrow: SQL
-    title: New queries have nowhere to hide
-    captions:
-      - text: Tests assert what came back, not how many queries it took.
-        durationMs: 5000
-      - text: Every query is recorded. The N+1 your refactor introduced shows up, with the SQL.
-    media:
-      kind: image
-      asset: shot-sql
-      alt: AppMap sequence diagram showing SQL statements flowing to the database lane, each with its timing
-      motion: zoom-in
-      frame: full
-    durationMs: 12000
-    export: false
-
   - id: deterministic
     theme: console
-    eyebrow: Determinism
-    title: Computed facts first. Judgment second.
+    eyebrow: Change detection
+    title: Changes are computed, not guessed or vibed
     captions:
-      - text: Whether behavior changed is decided by a digest, not a model's impression. Same input, same answer.
-        durationMs: 6500
-      - text: "The review starts from those facts: recorded calls, labels, queries. It interprets; it doesn't guess."
+      - text: "Each recording is reduced to a digest of its structure: the calls, their order, the queries. Timing and ephemeral values don't affect it."
+        durationMs: 11000
+      - text: Same input, same answer, every run. When a trace is flagged, behavior changed.
     media:
       kind: graphic
       graphic: deterministic
       alt: "Diagram: a sequence diagram with a security.authz label on the changed call, above a strip of digest-ignored values: elapsed time, ids, parameter values"
       frame: full
-    durationMs: 13500
+    durationMs: 17500
     export: false
 
   - id: sanitized
     theme: console
-    eyebrow: Sanitized
-    title: A baseline that can't leak a secret
+    eyebrow: Safe to commit
+    title: The recordings themselves hold no secret or private data
     captions:
-      - text: Before a recording is committed, every captured value becomes a short token.
-        durationMs: 6500
-      - text: What's left is who called what, in what order. No customer data, no keys.
+      - text: Before a recording goes into git, every captured value is replaced with a meaningless token.
+        durationMs: 8500
+      - text: So committed traces never contain secrets like customer data or environment keys.
     media:
       kind: image
       asset: shot-sanitize
       alt: "Sanitized recording JSON: parameter values replaced by tokens like <v1> and <v8>"
       motion: zoom-in
       frame: full
-    durationMs: 13000
+    durationMs: 14000
     export: false
 
   - id: outro
     theme: title
     title: Gold Traces
     captions:
-      - text: appmap-gold-traces keeps the baseline. appmap-review reads it.
+      - text: Behavioral review for every release
     cta:
       label: Learn more at appmap.io
       url: https://appmap.io
