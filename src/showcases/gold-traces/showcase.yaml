@@ -60,7 +60,7 @@ scenes:
 
   - id: intro
     theme: title
-    title: Gold Traces
+    title: AppMap Gold Traces
     captions:
       - text: Catch the problems that unit tests and code reads miss.
     media:
