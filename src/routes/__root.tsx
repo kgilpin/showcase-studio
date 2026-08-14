@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { showcasesReady } from "@/content/showcases";
 import { dataMode } from "@/content/source";
+import { StudioAgent } from "@/components/studio/StudioAgent";
 
 function NotFoundComponent() {
   return (
@@ -140,6 +141,8 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      {/* Desktop studio only — renders nothing in a plain browser. */}
+      <StudioAgent />
     </QueryClientProvider>
   );
 }

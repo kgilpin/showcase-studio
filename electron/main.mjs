@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { MIME, showcaseFile, showcaseIndex } from "../scripts/showcase-data.mjs";
 import { exportScreens, exportVideo } from "./exporter.mjs";
+import { registerAgent } from "./agent.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
@@ -127,11 +128,32 @@ app.whenReady().then(async () => {
     return out;
   });
 
+  registerAgent(ipcMain, win, {
+    showcasesDir,
+    runExport: (kind, showcaseId) => runExport(kind, showcaseId, win),
+  });
+
   await win.loadURL(appUrl + (process.env.ELECTRON_SMOKE_PATH ?? ""));
   watchShowcases(win);
 
   if (process.env.ELECTRON_SMOKE) {
     setTimeout(async () => {
+      /* ELECTRON_SMOKE_AGENT=1 additionally exercises the agent bridge:
+       * reports key status, verifies a bogus key is rejected, and opens
+       * the panel so the capture shows it. */
+      if (process.env.ELECTRON_SMOKE_AGENT) {
+        const exec = (code) => win.webContents.executeJavaScript(code);
+        console.log(
+          "smoke agent status:",
+          JSON.stringify(await exec("window.showcaseStudio.agent.status()")),
+        );
+        console.log(
+          "smoke agent setKey(invalid):",
+          JSON.stringify(await exec("window.showcaseStudio.agent.setKey('sk-ant-invalid-key')")),
+        );
+        await exec(`document.querySelector('[aria-label="Open the studio agent"]')?.click()`);
+        await new Promise((r) => setTimeout(r, 400));
+      }
       const image = await win.webContents.capturePage();
       const { writeFileSync } = await import("node:fs");
       writeFileSync(process.env.ELECTRON_SMOKE, image.toPNG());
