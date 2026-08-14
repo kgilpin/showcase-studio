@@ -16,14 +16,24 @@ npm run export:screens             # capture App Store screenshots for every
 npm run export:screens -- <id>     # showcase (or one) to exports/<id>/
                                    # (needs the dev server running; first time:
                                    #  npx playwright install chromium)
-                                   # --captions=off exports the bare screens
-                                   # (default overlays each scene's caption)
+                                   # App Screens presentation: slide titles
+                                   # shown, captions off
 
 npm run export:video               # render every showcase (or one) as an MP4
 npm run export:video -- <id>       # to exports/<id>/video.mp4 — frame-by-frame
                                    # at 1320×2868, 30 fps (slow but exact)
+                                   # Video presentation: captions overlaid on
+                                   # the media, slide titles hidden
 npm run export:video -- --realtime # quick 440×956 draft (video-draft.mp4)
+npm run export:video -- --prompter # record the teleprompter (/script page)
+                                   # instead: 1280×720 real-time draft to
+                                   # exports/<id>/prompter-draft.mp4
                                    # (needs the dev server running)
+
+npm run export:script              # print every showcase's narration script
+npm run export:script -- <id>      # (or one) as plain text to stdout — the
+                                   # same spoken lines as the /script page.
+                                   # Reads the YAML directly; no dev server.
 ```
 
 ## Where things live
@@ -37,6 +47,7 @@ npm run export:video -- --realtime # quick 440×956 draft (video-draft.mp4)
 | `src/routes/`                | TanStack Router file routes: `/` (home), `/showcase/$showcaseId` (+ `/script`, `/export`, `/export/$sceneId`, `/record`).                                 |
 | `scripts/export-screens.mjs` | Playwright script that screenshots each export page at 1320×2868 (App Store 6.9"). Scenes with `export: false` are skipped.                               |
 | `scripts/export-video.mjs`   | Playwright script that renders each showcase's `/record` page to an MP4 — frame-by-frame via `window.__record.seek()` by default, or a real-time screen recording with `--realtime`. |
+| `scripts/export-script.mjs`  | Prints a showcase's narration script as plain text (the same spoken lines as the `/script` page), straight from the YAML — no server or browser needed.  |
 | `src/assets/`                | Shared UI assets only (App Store badge). Showcase screenshots live in each showcase's own `assets/` folder.                                               |
 
 ## Conventions
