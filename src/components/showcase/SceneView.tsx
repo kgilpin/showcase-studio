@@ -373,7 +373,6 @@ export function SceneView({
           isCentered
             ? "items-center justify-center text-center"
             : "flex-col items-center justify-center gap-8 py-12 md:flex-row md:gap-16 md:text-left",
-          !isCentered && scene.flip && "md:flex-row-reverse",
         )}
       >
         <div

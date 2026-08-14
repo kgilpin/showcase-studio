@@ -22,7 +22,7 @@ import type { ComponentType } from "react";
  * "title"     Centered app mark above a large display-serif title.
  *             No body copy. Used for the intro screen.
  * "feature"   Title + description on one side, phone screenshot on the
- *             other (set `flip` to swap sides).
+ *             other.
  * "statement" Centered display-serif line over a dimmed full-bleed
  *             backdrop, with optional one-line body and CTA. Used for outros.
  * "console"   Title above a wide landscape media panel with captions
@@ -124,8 +124,6 @@ export type Scene = {
   body?: string | undefined;
   media: SceneMedia;
   durationMs: number;
-  /** Put the phone on the left instead of the right. */
-  flip?: boolean;
   /** Set false to leave this scene out of the exported screenshot set. */
   export?: boolean;
   /** Smaller supporting paragraph shown under `body` (statement theme). */
