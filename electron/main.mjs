@@ -16,12 +16,13 @@
  * ELECTRON_SMOKE=<path.png> captures the loaded window to a file and
  * quits — used for automated verification.
  */
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import http from "node:http";
 import { cpSync, existsSync, mkdirSync, readFileSync, watch } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { MIME, showcaseFile, showcaseIndex } from "../scripts/showcase-data.mjs";
+import { exportScreens, exportVideo } from "./exporter.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
@@ -71,17 +72,62 @@ function watchShowcases(win) {
   });
 }
 
+/** Runs one export, streaming progress to the studio window when open. */
+async function runExport(kind, showcaseId, win) {
+  const progress = (label) => {
+    win?.webContents.send("export-progress", { showcaseId, kind, label });
+    if (process.env.ELECTRON_EXPORT) console.log(`${kind} ${showcaseId}: ${label}`);
+  };
+  const outDir = path.join(app.getPath("downloads"), "showcase-exports", showcaseId);
+  const options = { showcasesDir, showcaseId, appUrl, outDir, progress };
+  const out =
+    kind === "screens"
+      ? await exportScreens(options)
+      : await exportVideo({ ...options, fps: Number(process.env.EXPORT_FPS ?? 30) });
+  win?.webContents.send("export-progress", { showcaseId, kind, label: "done", done: true, out });
+  return out;
+}
+
 app.whenReady().then(async () => {
   ensureShowcasesDir();
   serveData();
+
+  /* Headless export (also the automated-test hook):
+   * ELECTRON_EXPORT=screens:<id> or video:<id> runs it and quits. */
+  if (process.env.ELECTRON_EXPORT) {
+    const [kind, showcaseId] = process.env.ELECTRON_EXPORT.split(":");
+    try {
+      console.log(`exported: ${await runExport(kind, showcaseId, undefined)}`);
+      app.exit(0);
+    } catch (error) {
+      console.error(error);
+      app.exit(1);
+    }
+    return;
+  }
 
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     title: "Showcase Studio",
     show: !process.env.ELECTRON_SMOKE,
+    webPreferences: {
+      preload: path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.cjs"),
+    },
   });
-  await win.loadURL(appUrl);
+
+  ipcMain.handle("export-screens", async (_event, showcaseId) => {
+    const out = await runExport("screens", showcaseId, win);
+    shell.showItemInFolder(out);
+    return out;
+  });
+  ipcMain.handle("export-video", async (_event, showcaseId) => {
+    const out = await runExport("video", showcaseId, win);
+    shell.showItemInFolder(out);
+    return out;
+  });
+
+  await win.loadURL(appUrl + (process.env.ELECTRON_SMOKE_PATH ?? ""));
   watchShowcases(win);
 
   if (process.env.ELECTRON_SMOKE) {

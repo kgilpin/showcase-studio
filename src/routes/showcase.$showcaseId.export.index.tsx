@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { getShowcase } from "@/content/showcases";
 import { FIXED_ASPECT, SceneView } from "@/components/showcase/SceneView";
+import { StudioExports } from "@/components/studio/StudioExports";
 
 export const Route = createFileRoute("/showcase/$showcaseId/export/")({
   head: ({ params }) => {
@@ -45,6 +46,7 @@ function ExportGallery() {
             1320×2868 (the 6.9&quot; App Store size). Scenes marked <code>export: false</code> in{" "}
             <code>showcase.yaml</code> are left out{skipped > 0 ? ` (${skipped} skipped)` : ""}.
           </p>
+          <StudioExports showcaseId={showcase.id} />
         </header>
 
         <div className="mt-10 flex flex-wrap gap-8">
