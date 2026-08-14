@@ -11,6 +11,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { showcasesReady } from "@/content/showcases";
+import { dataMode } from "@/content/source";
 
 function NotFoundComponent() {
   return (
@@ -73,6 +75,16 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  /* Every route reads showcase data synchronously (getShowcase etc.), so
+   * gate rendering until the active source has loaded. With the default
+   * bundled source this resolves immediately; in data mode (HTTP source,
+   * client-only) it fetches first, so skip SSR there. Await without
+   * returning: showcases hold React components (TSX graphics), which the
+   * router could not dehydrate for the client. */
+  loader: async () => {
+    await showcasesReady;
+  },
+  ssr: !dataMode,
   head: () => ({
     meta: [
       { charSet: "utf-8" },

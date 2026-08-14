@@ -16,6 +16,7 @@
 import { parse } from "yaml";
 import type { ComponentType } from "react";
 import { resolveSceneTiming } from "./timing.mjs";
+import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 
 /* Caption/title timing is shared with the export scripts — the model and
  * implementation live in timing.mjs. */
@@ -331,29 +332,15 @@ function validateMetaTheme(showcaseId: string, theme: Record<string, string>): v
 }
 
 /* -------------------------------------------------------------
- * Discovery — every showcase folder is picked up at build time.
+ * Discovery — showcase data comes from the active source (see
+ * source.ts): bundled folders by default, or plain files over HTTP
+ * when VITE_SHOWCASES_URL is set.
  * ------------------------------------------------------------- */
 
-const yamlModules = import.meta.glob("../showcases/*/showcase.yaml", {
-  query: "?raw",
-  import: "default",
-  eager: true,
-}) as Record<string, string>;
-
-const themeModules = import.meta.glob("../showcases/*/theme.yaml", {
-  query: "?raw",
-  import: "default",
-  eager: true,
-}) as Record<string, string>;
-
-const assetModules = import.meta.glob("../showcases/*/assets/*", {
-  query: "?url",
-  import: "default",
-  eager: true,
-}) as Record<string, string>;
-
 /* TSX-authored diagrams, one component per file in graphics/. Same
- * discovery and naming rules as assets: the key is the file name. */
+ * discovery and naming rules as assets: the key is the file name.
+ * Graphics are code, not data — they are always bundled, in either
+ * source mode. */
 const graphicModules = import.meta.glob("../showcases/*/graphics/*.tsx", {
   import: "default",
   eager: true,
@@ -383,31 +370,14 @@ function resolveGraphic(showcaseId: string, key: string): GraphicEntry {
   return entry;
 }
 
-type AssetEntry = { url: string; file: string };
+const assetsByShowcase = new Map<string, Map<string, ShowcaseAsset>>();
 
-const assetsByShowcase = new Map<string, Map<string, AssetEntry>>();
-for (const [path, url] of Object.entries(assetModules)) {
-  const parts = path.split("/");
-  const showcaseId = parts.at(-3)!;
-  const filename = parts.at(-1)!;
-  const key = filename.replace(/\.[^.]+$/, "");
-  let entries = assetsByShowcase.get(showcaseId);
-  if (!entries) assetsByShowcase.set(showcaseId, (entries = new Map()));
-  if (entries.has(key)) {
-    throw new Error(
-      `Showcase "${showcaseId}" has two assets named "${key}" (different extensions). ` +
-        `Asset keys are file names without extension, so they must be unique.`,
-    );
-  }
-  entries.set(key, { url, file: `src/showcases/${showcaseId}/assets/${filename}` });
-}
-
-function resolveAsset(showcaseId: string, key: string): AssetEntry {
+function resolveAsset(showcaseId: string, key: string): ShowcaseAsset {
   const entry = assetsByShowcase.get(showcaseId)?.get(key);
   if (!entry) {
     throw new Error(
       `Unknown asset "${key}" in showcase "${showcaseId}" — ` +
-        `expected a file named ${key}.* in src/showcases/${showcaseId}/assets/`,
+        `expected a file named ${key}.* in the showcase's assets/ folder`,
     );
   }
   return entry;
@@ -457,18 +427,7 @@ function resolveMedia(showcaseId: string, media?: RawMedia): SceneMedia {
  * ------------------------------------------------------------- */
 
 const rawDocs = new Map<string, RawDoc>();
-for (const [path, raw] of Object.entries(yamlModules)) {
-  rawDocs.set(path.split("/").at(-2)!, parse(raw) as RawDoc);
-}
-
 const themeDocs = new Map<string, RawTheme>();
-for (const [path, raw] of Object.entries(themeModules)) {
-  const showcaseId = path.split("/").at(-2)!;
-  const doc = (parse(raw) ?? {}) as RawTheme;
-  validateThemeDoc(showcaseId, doc);
-  themeDocs.set(showcaseId, doc);
-}
-
 const resolvedThemes = new Map<string, ResolvedTheme>();
 
 function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
@@ -536,9 +495,33 @@ function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
   };
 }
 
-export const showcases: Showcase[] = [...rawDocs.entries()]
-  .map(([showcaseId, doc]) => buildShowcase(showcaseId, doc))
-  .sort((a, b) => a.title.localeCompare(b.title));
+async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
+  const data = await source.load();
+  rawDocs.clear();
+  themeDocs.clear();
+  resolvedThemes.clear();
+  assetsByShowcase.clear();
+  for (const entry of data) {
+    rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
+    if (entry.themeYaml != null) {
+      const doc = (parse(entry.themeYaml) ?? {}) as RawTheme;
+      validateThemeDoc(entry.id, doc);
+      themeDocs.set(entry.id, doc);
+    }
+    assetsByShowcase.set(entry.id, entry.assets);
+  }
+  showcases = [...rawDocs.entries()]
+    .map(([showcaseId, doc]) => buildShowcase(showcaseId, doc))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  return showcases;
+}
+
+/* Populated once showcasesReady resolves; the root route's loader awaits
+ * it, so components can keep reading synchronously. (With the bundled
+ * source the promise resolves immediately from build-time data.) */
+export let showcases: Showcase[] = [];
+
+export const showcasesReady: Promise<Showcase[]> = loadFromSource(activeSource());
 
 export function getShowcase(id: string): Showcase | undefined {
   return showcases.find((showcase) => showcase.id === id);
