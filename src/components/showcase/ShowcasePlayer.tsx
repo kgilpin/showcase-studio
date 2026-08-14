@@ -92,7 +92,6 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             key={scene.id}
             scene={scene}
             paused={paused}
-            mode="fixed-overlay"
             elapsedMs={elapsedMs}
             hideCaption={sideCaptions}
             hideTitle={presentation === "video"}

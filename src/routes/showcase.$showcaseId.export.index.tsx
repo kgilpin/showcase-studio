@@ -68,7 +68,6 @@ function ExportGallery() {
                     <SceneView
                       scene={scene}
                       paused
-                      mode="fixed-overlay"
                       elapsedMs={scene.durationMs / 2}
                       frameless
                       hideCaption

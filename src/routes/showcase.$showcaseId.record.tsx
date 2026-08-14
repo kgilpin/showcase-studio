@@ -173,7 +173,6 @@ function Recorder({ showcase, controlled }: { showcase: Showcase; controlled: bo
           key={scene.id}
           scene={scene}
           paused={controlled ? true : !clock.started}
-          mode="fixed-overlay"
           elapsedMs={clock.elapsedMs}
           frameless
           hideTitle

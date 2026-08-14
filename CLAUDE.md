@@ -42,7 +42,7 @@ npm run export:script -- <id>      # (or one) as plain text to stdout — the
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/showcases/<id>/`        | One folder per showcase: `showcase.yaml` (the script), optional `theme.yaml` (styling), and `assets/` (its screenshots). Folders are discovered automatically. |
 | `src/content/showcases.ts`   | Generic loader: finds every showcase folder, parses its YAML, resolves asset keys (file name without extension) to URLs, and resolves each showcase's theme (whitelist, `extends`, font loads). Documents the scene/theme model. |
-| `src/components/showcase/`   | The player: `ShowcasePlayer`, `SceneView` (slide layouts), `SceneMedia` (motion), `PhoneFrame`, `ProgressRail`, `Soundtrack`.                             |
+| `src/components/showcase/`   | The player: `ShowcasePlayer`, `SceneView` (slide layouts), `SceneMedia` (motion), `ProgressRail`, `Soundtrack`.                                          |
 | `src/components/script/`     | The script page: script listing and teleprompter.                                                                                                         |
 | `src/routes/`                | TanStack Router file routes: `/` (home), `/showcase/$showcaseId` (+ `/script`, `/export`, `/export/$sceneId`, `/record`).                                 |
 | `scripts/export-screens.mjs` | Playwright script that screenshots each export page at 1320×2868 (App Store 6.9"). Scenes with `export: false` are skipped.                               |

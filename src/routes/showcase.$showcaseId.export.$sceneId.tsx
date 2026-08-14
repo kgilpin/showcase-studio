@@ -35,14 +35,7 @@ function ExportFrame() {
   return (
     <main className="export-static flex h-dvh w-full items-center justify-center overflow-hidden bg-background">
       <div className="relative h-full max-w-full" style={{ aspectRatio: FIXED_ASPECT }}>
-        <SceneView
-          scene={scene}
-          paused
-          mode="fixed-overlay"
-          elapsedMs={scene.durationMs / 2}
-          frameless
-          hideCaption
-        />
+        <SceneView scene={scene} paused elapsedMs={scene.durationMs / 2} frameless hideCaption />
       </div>
     </main>
   );
