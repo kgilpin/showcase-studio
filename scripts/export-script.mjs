@@ -16,6 +16,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { parse } from "yaml";
+import { resolveSceneTiming } from "../src/content/timing.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const showcasesDir = path.join(root, "src/showcases");
@@ -49,22 +50,23 @@ for (const [i, id] of ids.entries()) {
 
   let total = 0;
   doc.scenes.forEach((scene, index) => {
-    total += scene.durationMs ?? 0;
+    const { durationMs } = resolveSceneTiming(scene, doc.meta.pace);
+    total += durationMs;
     const header = [`Slide ${index + 1}`];
     if (scene.eyebrow) header.push(scene.eyebrow);
     if (scene.theme !== "title") header.push(scene.title);
-    out.push("", `--- ${header.join(" · ")}  [${secs(scene.durationMs ?? 0)}]`);
-    if (scene.theme === "title") out.push(`    "${oneLine(scene.title)}"`);
-    for (const caption of scene.captions ?? []) out.push(`    "${oneLine(caption.text)}"`);
-    if (scene.support) out.push(`    "${oneLine(scene.support)}"`);
+    out.push("", `--- ${header.join(" · ")}  [${secs(durationMs)}]`);
+    if (scene.theme === "title") out.push(`    ${oneLine(scene.title)}`);
+    for (const caption of scene.captions ?? []) out.push(`    ${oneLine(caption.text)}`);
+    if (scene.support) out.push(`    ${oneLine(scene.support)}`);
     if (scene.cta) out.push(`    (on-screen button: ${scene.cta.label})`);
   });
 
   out.push(
     "",
     `Total running time: ~${Math.round(total / 1000)} seconds.`,
-    "Quoted lines are the narration, read verbatim in order as one continuous voiceover.",
-    "Unquoted slide titles are on-screen text only and are never read aloud.",
+    "Indented lines are the narration, read verbatim in order as one continuous voiceover.",
+    "Slide titles in headers are on-screen text only and are never read aloud.",
   );
   if (i > 0) console.log("\n");
   console.log(out.join("\n"));

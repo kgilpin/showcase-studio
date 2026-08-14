@@ -15,6 +15,11 @@
 
 import { parse } from "yaml";
 import type { ComponentType } from "react";
+import { resolveSceneTiming } from "./timing.mjs";
+
+/* Caption/title timing is shared with the export scripts — the model and
+ * implementation live in timing.mjs. */
+export { activeCaption, captionTimeline, readingTime } from "./timing.mjs";
 
 /* -------------------------------------------------------------
  * THEMES — the fixed set of screen designs.
@@ -101,8 +106,8 @@ export type SceneMedia =
  *  "top" near the top of the screenshot. */
 export type CaptionPosition = "top" | "center" | "lower" | "bottom";
 
-/** One overlay line. `durationMs` is optional — omitted captions share the
- *  slide time left over after the explicitly timed ones. */
+/** One overlay line. `durationMs` is optional — see the TIMING model in
+ *  timing.mjs: all timing derives from the copy unless pinned explicitly. */
 export type SceneCaption = { text: string; durationMs?: number; position?: CaptionPosition };
 
 /* Presentation is not configurable per showcase. There are two, matching
@@ -123,7 +128,11 @@ export type Scene = {
   /** Convenience alias for the first caption. */
   body?: string | undefined;
   media: SceneMedia;
+  /** Resolved slide length — explicit in the YAML, or derived from the copy. */
   durationMs: number;
+  /** Resolved spoken-title window at the start of the slide (title-theme
+   *  slides; 0 elsewhere). Captions start after it. */
+  titleMs: number;
   /** Set false to leave this scene out of the exported screenshot set. */
   export?: boolean;
   /** Smaller supporting paragraph shown under `body` (statement theme). */
@@ -181,9 +190,11 @@ type RawMedia =
       frame?: "phone" | "full" | "mark";
     };
 
-type RawScene = Omit<Scene, "media" | "captions" | "body"> & {
+type RawScene = Omit<Scene, "media" | "captions" | "body" | "durationMs" | "titleMs"> & {
   media?: RawMedia;
   captions?: SceneCaption[];
+  durationMs?: number;
+  titleDurationMs?: number;
 };
 
 type RawDoc = {
@@ -193,6 +204,8 @@ type RawDoc = {
     loop: boolean;
     soundtrack: { src: string; volume: number };
     cover?: string;
+    /** Reading speed in words per second for derived timing (default 3). */
+    pace?: number;
     theme?: Record<string, string>;
   };
   scenes: RawScene[];
@@ -504,12 +517,13 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
 }
 
 function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
-  const scenes: Scene[] = doc.scenes.map((scene) => {
-    const captions = scene.captions ?? [];
+  const scenes: Scene[] = doc.scenes.map((raw) => {
+    const { titleDurationMs: _, ...scene } = raw;
+    const timing = resolveSceneTiming(raw, doc.meta.pace);
     return {
       ...scene,
-      captions,
-      body: captions[0]?.text,
+      ...timing,
+      body: timing.captions[0]?.text,
       media: resolveMedia(showcaseId, scene.media),
     };
   });
@@ -550,30 +564,4 @@ export function themeVars(showcase: Showcase): Record<string, string> {
 /** <head> link descriptors for the font stylesheets a showcase's theme loads. */
 export function fontLinks(showcase: Showcase): { rel: string; href: string }[] {
   return showcase.theme.fontLoads.map((href) => ({ rel: "stylesheet", href }));
-}
-
-/**
- * Resolves caption timing for a slide: explicit durations are honoured, and
- * the remaining slide time is split evenly between the untimed captions.
- */
-export function captionTimeline(scene: Scene) {
-  const captions = scene.captions;
-  const fixed = captions.reduce((sum, c) => sum + (c.durationMs ?? 0), 0);
-  const untimed = captions.filter((c) => c.durationMs == null).length;
-  const share = untimed > 0 ? Math.max(0, scene.durationMs - fixed) / untimed : 0;
-
-  let start = 0;
-  return captions.map((caption) => {
-    const durationMs = caption.durationMs ?? share;
-    const entry = { ...caption, startMs: start, endMs: start + durationMs, durationMs };
-    start += durationMs;
-    return entry;
-  });
-}
-
-/** Which caption is visible at `elapsedMs` into the slide. */
-export function activeCaption(scene: Scene, elapsedMs: number) {
-  const timeline = captionTimeline(scene);
-  if (timeline.length === 0) return undefined;
-  return timeline.find((c) => elapsedMs < c.endMs) ?? timeline[timeline.length - 1];
 }

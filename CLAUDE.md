@@ -11,6 +11,7 @@ npm run build    # production build
 npm run preview  # serve the production build locally
 npm run lint     # eslint
 npm run format   # prettier --write .
+npm test         # vitest (slide timing model)
 
 npm run export:screens             # capture App Store screenshots for every
 npm run export:screens -- <id>     # showcase (or one) to exports/<id>/

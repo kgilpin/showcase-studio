@@ -41,33 +41,22 @@ type Line = {
   endMs: number;
 };
 
-/** Reading time for a line of narration at ~3 words/second. */
-function readMs(text: string): number {
-  return Math.round((text.trim().split(/\s+/).length / 3) * 1000) + 400;
-}
-
 /** Flattens every slide into one continuous, time-coded script.
  *
  * Only lines the narrator actually reads make it in: captions and support
  * everywhere, plus the title on title-theme scenes (where the title IS the
  * spoken line — e.g. an on-camera segment or the outro). Other titles are
  * on-screen text and stay out of the prompter; the scene's eyebrow is kept
- * as a section label over the scene's first line. */
+ * as a section label over the scene's first line. The timeline already
+ * reserves the spoken title's window (scene.titleMs), so lines here match
+ * the on-screen caption timing exactly. */
 function buildLines(scenes: Scene[]): Line[] {
   const lines: Line[] = [];
   let offset = 0;
   scenes.forEach((scene, sceneIndex) => {
     const timeline = captionTimeline(scene);
     const sceneLineStart = lines.length;
-    /* On title scenes the narrator states the title, then the caption — so
-     * carve the title a reading window from the start of the scene (prompter
-     * only; on-screen caption timing is unchanged). */
-    let titleEnd = offset;
     if (scene.theme === "title") {
-      titleEnd =
-        timeline.length > 0
-          ? offset + Math.min(readMs(scene.title), scene.durationMs / 2)
-          : offset + scene.durationMs;
       lines.push({
         key: `${scene.id}-title`,
         kind: "title",
@@ -75,7 +64,7 @@ function buildLines(scenes: Scene[]): Line[] {
         eyebrow: scene.eyebrow,
         sceneIndex,
         startMs: offset,
-        endMs: titleEnd,
+        endMs: offset + (timeline.length > 0 ? scene.titleMs : scene.durationMs),
       });
     }
     timeline.forEach((caption, i) => {
@@ -84,7 +73,7 @@ function buildLines(scenes: Scene[]): Line[] {
         kind: "caption",
         text: caption.text,
         sceneIndex,
-        startMs: i === 0 ? Math.max(offset + caption.startMs, titleEnd) : offset + caption.startMs,
+        startMs: offset + caption.startMs,
         endMs: offset + caption.endMs,
       });
     });
@@ -455,12 +444,16 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
                         {line.text}
                       </p>
                     ) : (
+                      /* Active emphasis via transform, not font size: a size
+                       * change reflows the list and makes the pinned scroll
+                       * position jump at every line change. Scale doesn't
+                       * touch layout, so the glide stays seamless. */
                       <p
                         className={cn(
-                          "leading-snug",
+                          "origin-left text-2xl leading-snug transition-[transform,color] duration-300 sm:text-3xl",
                           isActive
-                            ? "text-3xl text-foreground sm:text-4xl"
-                            : "text-2xl text-muted-foreground sm:text-3xl",
+                            ? "scale-105 text-foreground sm:scale-110"
+                            : "text-muted-foreground",
                         )}
                       >
                         {line.text}
