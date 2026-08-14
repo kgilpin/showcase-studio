@@ -13,6 +13,7 @@
     "export:screens": "node scripts/export-screens.mjs",
     "export:video": "node scripts/export-video.mjs",
     "export:script": "node scripts/export-script.mjs",
+    "electron:dev": "node electron/dev.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -77,6 +78,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.4.0",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",

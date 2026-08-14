@@ -35,6 +35,13 @@ npm run export:script              # print every showcase's narration script
 npm run export:script -- <id>      # (or one) as plain text to stdout — the
                                    # same spoken lines as the /script page.
                                    # Reads the YAML directly; no dev server.
+
+npm run electron:dev               # the desktop shell: starts a dev server in
+                                   # data mode and opens the app in Electron,
+                                   # reading showcases from ~/Showcases
+                                   # (SHOWCASES_DIR overrides; seeded from
+                                   # src/showcases/ on first run; live-reloads
+                                   # when the folder changes)
 ```
 
 ## Where things live
@@ -51,6 +58,7 @@ npm run export:script -- <id>      # (or one) as plain text to stdout — the
 | `scripts/export-video.mjs`   | Playwright script that renders each showcase's `/record` page to an MP4 — frame-by-frame via `window.__record.seek()` by default, or a real-time screen recording with `--realtime`. |
 | `scripts/export-script.mjs`  | Prints a showcase's narration script as plain text (the same spoken lines as the `/script` page), straight from the YAML — no server or browser needed.  |
 | `src/assets/`                | Shared UI assets only (App Store badge). Showcase screenshots live in each showcase's own `assets/` folder.                                               |
+| `electron/`                  | The desktop shell: `main.mjs` (serves the user's showcases folder in the data shape, opens the window, watches for changes) and `dev.mjs` (starts the dev server in data mode, then Electron). `scripts/showcase-data.mjs` holds the folder-serving shape both the shell and the vite middleware use. |
 
 ## Conventions
 
