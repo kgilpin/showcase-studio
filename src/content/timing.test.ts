@@ -189,9 +189,10 @@ describe("activeCaption", () => {
     captions: [{ text: "first", durationMs: 3000 }, { text: "second" }],
   };
 
-  it("shows nothing while the spoken title owns the slide", () => {
-    expect(activeCaption(scene, 0)).toBeUndefined();
-    expect(activeCaption(scene, 1999)).toBeUndefined();
+  it("already shows the first caption during the spoken title's window", () => {
+    // Display only — the prompter still paces the title via the timeline.
+    expect(activeCaption(scene, 0)?.text).toBe("first");
+    expect(activeCaption(scene, 1999)?.text).toBe("first");
   });
 
   it("returns the caption whose window contains the elapsed time", () => {

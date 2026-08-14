@@ -104,8 +104,7 @@ export function SceneView({
 }) {
   const media = <SceneMedia media={scene.media} durationMs={scene.durationMs} paused={paused} />;
   const caption = activeCaption(scene, elapsedMs);
-  /* While the spoken title owns the slide, show no caption under it. */
-  const body = caption?.text ?? (elapsedMs < scene.titleMs ? undefined : scene.body);
+  const body = caption?.text ?? scene.body;
   const captionKey = caption?.text ?? "body";
   const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
   const stageCaptionClass = "text-[5.2cqw] leading-relaxed";

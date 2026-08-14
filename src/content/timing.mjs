@@ -91,10 +91,12 @@ export function captionTimeline(scene) {
   });
 }
 
-/** Which caption is visible at `elapsedMs` into the slide (none while the
- *  spoken title still owns the slide). */
+/** Which caption is visible at `elapsedMs` into the slide. During a spoken
+ *  title's window the first caption is already showing — hiding it made
+ *  title slides visibly reflow when it appeared; the narrator's pacing
+ *  (the prompter) still honours the title window via the timeline. */
 export function activeCaption(scene, elapsedMs) {
   const timeline = captionTimeline(scene);
-  if (timeline.length === 0 || elapsedMs < scene.titleMs) return undefined;
+  if (timeline.length === 0) return undefined;
   return timeline.find((c) => elapsedMs < c.endMs) ?? timeline[timeline.length - 1];
 }
