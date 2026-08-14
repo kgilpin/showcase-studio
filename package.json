@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "export:screens": "node scripts/export-screens.mjs",
-    "export:video": "node scripts/export-video.mjs"
+    "export:video": "node scripts/export-video.mjs",
+    "export:script": "node scripts/export-script.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
