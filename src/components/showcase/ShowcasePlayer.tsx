@@ -14,7 +14,10 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [captionMode, setCaptionMode] = useState<"side" | "overlay">("side");
+  /* Two presentations, matching the two exports: "screens" (App Screens —
+   * titles on the slide, captions beside it) and "video" (TikTok — captions
+   * over the media, no titles competing with them). */
+  const [presentation, setPresentation] = useState<"screens" | "video">("screens");
   const scene = scenes[index] ?? scenes[0]!;
 
   const go = useCallback((next: number) => {
@@ -75,7 +78,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const caption = activeCaption(scene, elapsedMs);
   const captionText = caption?.text ?? scene.body;
   const sideCaptions =
-    captionMode === "side" && scene.media.kind !== "none" && scene.theme !== "title";
+    presentation === "screens" && scene.media.kind !== "none" && scene.theme !== "title";
 
   return (
     <main
@@ -92,6 +95,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             mode="fixed-overlay"
             elapsedMs={elapsedMs}
             hideCaption={sideCaptions}
+            hideTitle={presentation === "video"}
           />
         </div>
         <div className="hidden shrink-0 items-center justify-start sm:flex sm:w-56 md:w-60 lg:w-64">
@@ -130,13 +134,13 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           <Soundtrack paused={paused} soundtrack={showcase.soundtrack} />
           <Control
             label={
-              captionMode === "side"
-                ? "Overlay captions on the slide"
-                : "Show captions beside the slide"
+              presentation === "screens"
+                ? "Video presentation: captions over the media, no titles"
+                : "App Screens presentation: titles on the slide, captions beside"
             }
-            onClick={() => setCaptionMode((m) => (m === "side" ? "overlay" : "side"))}
+            onClick={() => setPresentation((p) => (p === "screens" ? "video" : "screens"))}
           >
-            {captionMode === "side" ? (
+            {presentation === "screens" ? (
               <Columns2 className="size-4" />
             ) : (
               <Layers className="size-4" />

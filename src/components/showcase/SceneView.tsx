@@ -87,6 +87,7 @@ export function SceneView({
   mode = "side-by-side",
   elapsedMs = 0,
   hideCaption = false,
+  hideTitle = false,
   frameless = false,
 }: {
   scene: Scene;
@@ -94,8 +95,12 @@ export function SceneView({
   mode?: DisplayMode;
   /** Time into the current slide — drives sequential captions. */
   elapsedMs?: number;
-  /** Captions are rendered outside the stage (side-by-side caption mode). */
+  /** Captions are rendered outside the stage (App Screens presentation). */
   hideCaption?: boolean;
+  /** Video presentation: drop the slide title so overlaid captions don't
+   *  compete with it. Only applies to scenes with media — on media-less
+   *  scenes the title is the visual and always stays. */
+  hideTitle?: boolean;
   /** Drop the device chrome and fill the parent (screenshot export). */
   frameless?: boolean;
 }) {
@@ -197,36 +202,39 @@ export function SceneView({
     const overlay = mode === "fixed-overlay";
     const hasMedia = scene.media.kind !== "none";
     const isConsole = scene.theme === "console";
+    const dropHeader = hideTitle && hasMedia;
     return (
       <FixedStage compact={overlay && hasMedia} frameless={frameless}>
         <div
           className={cn("flex h-full w-full flex-col", !hasMedia && !scene.cta && "justify-center")}
           style={{ background: "var(--gradient-stage)" }}
         >
-          <div
-            className={cn(
-              "scene-rise shrink-0 px-6 text-center",
-              hasMedia || scene.cta ? "pt-10" : "pb-6",
-            )}
-          >
-            <h2
+          {!dropHeader && (
+            <div
               className={cn(
-                "font-display leading-[1.08] tracking-tight text-foreground",
-                hasMedia ? "text-[9cqw]" : "text-[10.5cqw]",
+                "scene-rise shrink-0 px-6 text-center",
+                hasMedia || scene.cta ? "pt-10" : "pb-6",
               )}
             >
-              {scene.title}
-            </h2>
-            {!overlay && body && (
-              <p className={cn("mt-4 text-muted-foreground", stageCaptionClass)}>{body}</p>
-            )}
-            {overlay && !hasMedia && body && (
-              <p className="mt-5 text-[5.4cqw] leading-relaxed text-muted-foreground">{body}</p>
-            )}
-            {!hasMedia && scene.support && (
-              <p className="mt-6 text-[4.2cqw] leading-relaxed text-support">{scene.support}</p>
-            )}
-          </div>
+              <h2
+                className={cn(
+                  "font-display leading-[1.08] tracking-tight text-foreground",
+                  hasMedia ? "text-[9cqw]" : "text-[10.5cqw]",
+                )}
+              >
+                {scene.title}
+              </h2>
+              {!overlay && body && (
+                <p className={cn("mt-4 text-muted-foreground", stageCaptionClass)}>{body}</p>
+              )}
+              {overlay && !hasMedia && body && (
+                <p className="mt-5 text-[5.4cqw] leading-relaxed text-muted-foreground">{body}</p>
+              )}
+              {!hasMedia && scene.support && (
+                <p className="mt-6 text-[4.2cqw] leading-relaxed text-support">{scene.support}</p>
+              )}
+            </div>
+          )}
 
           {hasMedia && isConsole && (
             <div className="relative mt-4 flex min-h-0 w-full flex-1 flex-col justify-center">
@@ -257,7 +265,12 @@ export function SceneView({
           )}
 
           {hasMedia && !isConsole && (
-            <div className="scene-drift relative mt-7 min-h-0 flex-1 overflow-hidden rounded-t-[1.6rem] border-x border-t border-border">
+            <div
+              className={cn(
+                "scene-drift relative min-h-0 flex-1 overflow-hidden",
+                !dropHeader && "mt-7 rounded-t-[1.6rem] border-x border-t border-border",
+              )}
+            >
               {media}
               {overlay && body && !hideCaption && (
                 <div

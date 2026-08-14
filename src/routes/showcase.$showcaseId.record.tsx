@@ -7,7 +7,8 @@ import { collectSceneSources } from "@/components/showcase/useMediaPreload";
 
 /* The whole showcase as a playable, phone-shaped frame with no device chrome
  * and no player controls. `scripts/export-video.mjs` opens this page to render
- * the showcase as a video (see that script for usage).
+ * the showcase as a video (see that script for usage). Video presentation:
+ * captions overlay the media and slide titles stay out of their way.
  *
  * The page drives itself through `window.__record`:
  *   ready    true once fonts are loaded and every image is decoded
@@ -175,6 +176,7 @@ function Recorder({ showcase, controlled }: { showcase: Showcase; controlled: bo
           mode="fixed-overlay"
           elapsedMs={clock.elapsedMs}
           frameless
+          hideTitle
         />
       </div>
     </main>

@@ -71,6 +71,7 @@ function ExportGallery() {
                       mode="fixed-overlay"
                       elapsedMs={scene.durationMs / 2}
                       frameless
+                      hideCaption
                     />
                   </div>
                 </div>

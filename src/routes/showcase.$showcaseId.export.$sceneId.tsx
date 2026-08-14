@@ -5,21 +5,18 @@ import { FIXED_ASPECT, SceneView } from "@/components/showcase/SceneView";
 /* One scene as a still, phone-shaped frame with no device chrome.
  * `scripts/export-screens.mjs` opens this page at a 440x956 viewport with
  * deviceScaleFactor 3 and screenshots it, producing a 1320x2868 PNG — the
- * App Store 6.9" screenshot size. */
+ * App Store 6.9" screenshot size. App Screens presentation: the slide
+ * title carries the message and captions stay off (they belong to the
+ * video, where they narrate over the media instead). */
 export const Route = createFileRoute("/showcase/$showcaseId/export/$sceneId")({
   head: ({ params }) => ({
     meta: [{ title: `Export — ${params.showcaseId}/${params.sceneId}` }],
   }),
-  /** `?captions=off` exports the screen without the caption overlay
-   *  (optional — links and the default export overlay captions). */
-  validateSearch: (search: Record<string, unknown>): { captions?: "off" } =>
-    search["captions"] === "off" ? { captions: "off" } : {},
   component: ExportFrame,
 });
 
 function ExportFrame() {
   const { showcaseId, sceneId } = Route.useParams();
-  const { captions } = Route.useSearch();
   const showcase = getShowcase(showcaseId);
   if (!showcase) return null; // the layout route renders the not-found message
   const scene = showcase.scenes.find((s) => s.id === sceneId);
@@ -44,7 +41,7 @@ function ExportFrame() {
           mode="fixed-overlay"
           elapsedMs={scene.durationMs / 2}
           frameless
-          hideCaption={captions === "off"}
+          hideCaption
         />
       </div>
     </main>

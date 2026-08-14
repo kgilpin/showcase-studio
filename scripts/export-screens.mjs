@@ -5,14 +5,14 @@
  * at a 440x956 viewport with deviceScaleFactor 3 — producing 1320x2868 PNGs,
  * the App Store 6.9" screenshot size. Output goes to exports/<id>/.
  *
+ * Screens use the App Screens presentation: the slide title carries the
+ * message and captions stay off (captions belong to the video export,
+ * where they narrate over the media).
+ *
  * Usage:
  *   npm run dev                       # in one terminal (or any server on BASE_URL)
  *   npm run export:screens            # in another — exports every showcase
- *   npm run export:screens -- nova       # or just the named showcase(s)
- *   npm run export:screens -- --captions=off nova   # screens without captions
- *
- * --captions=overlay (default) overlays each scene's caption on the screen;
- * --captions=off exports the bare screens.
+ *   npm run export:screens -- nova    # or just the named showcase(s)
  *
  * Env: BASE_URL (default http://localhost:8080), OUT_DIR (default exports).
  */
@@ -36,14 +36,9 @@ const args = process.argv.slice(2);
 const flags = args.filter((arg) => arg.startsWith("--"));
 const requested = args.filter((arg) => !arg.startsWith("--"));
 
-let captions = "overlay";
-for (const flag of flags) {
-  const [name, value] = flag.split("=");
-  if (name !== "--captions" || (value !== "overlay" && value !== "off")) {
-    console.error(`Unknown option "${flag}". Supported: --captions=overlay|off`);
-    process.exit(1);
-  }
-  captions = value;
+if (flags.length > 0) {
+  console.error(`Unknown option "${flags[0]}". export:screens only takes showcase ids.`);
+  process.exit(1);
 }
 
 const unknown = requested.filter((id) => !available.includes(id));
@@ -82,7 +77,7 @@ for (const id of ids) {
 
   for (const [i, scene] of scenes.entries()) {
     const name = `${String(i + 1).padStart(2, "0")}-${scene.id}.png`;
-    await page.goto(`${baseUrl}/showcase/${id}/export/${scene.id}?captions=${captions}`, {
+    await page.goto(`${baseUrl}/showcase/${id}/export/${scene.id}`, {
       waitUntil: "networkidle",
     });
     // Make sure fonts and images have fully rendered before capturing.

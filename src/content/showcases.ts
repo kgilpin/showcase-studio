@@ -105,9 +105,12 @@ export type CaptionPosition = "top" | "center" | "lower" | "bottom";
  *  slide time left over after the explicitly timed ones. */
 export type SceneCaption = { text: string; durationMs?: number; position?: CaptionPosition };
 
-/* Caption presentation is not configurable per showcase: the player always
- * starts with captions beside the slide (the viewer can still toggle them
- * onto it), and caption text always uses the large size. */
+/* Presentation is not configurable per showcase. There are two, matching
+ * the two exports: "App Screens" (titles on the slide, captions beside it
+ * — the screenshot export) and "video" (captions over the media with no
+ * titles competing — the video export). The player starts on App Screens
+ * and the viewer can toggle between them. Caption text always uses the
+ * large size. */
 
 export type Scene = {
   id: string;
