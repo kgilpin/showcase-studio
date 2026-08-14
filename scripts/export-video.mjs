@@ -36,6 +36,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
 import { chromium } from "playwright";
+import { resolveSceneTiming } from "../src/content/timing.mjs";
 import ffmpegStatic from "ffmpeg-static";
 
 const run = promisify(execFile);
@@ -226,7 +227,10 @@ const browser = await chromium.launch();
 
 for (const id of ids) {
   const doc = parse(await readFile(path.join(showcasesDir, id, "showcase.yaml"), "utf8"));
-  const totalMs = doc.scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
+  const totalMs = doc.scenes.reduce(
+    (sum, scene) => sum + resolveSceneTiming(scene, doc.meta.pace).durationMs,
+    0,
+  );
   const outDir = path.join(outRoot, id);
   await mkdir(outDir, { recursive: true });
 
