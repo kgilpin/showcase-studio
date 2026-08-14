@@ -6,6 +6,13 @@ import { MediaThumb } from "@/components/script/MediaThumb";
 import { ScriptPlayer } from "@/components/script/ScriptPlayer";
 
 export const Route = createFileRoute("/showcase/$showcaseId/script")({
+  /* `?record=1` opens straight into the teleprompter in record mode: paused
+   * until window.__record.start(), plays once, then flags done — so
+   * `npm run export:video -- --prompter <id>` can capture it as a video. */
+  validateSearch: (search: Record<string, unknown>): { record?: boolean } =>
+    search["record"] === 1 || search["record"] === "1" || search["record"] === true
+      ? { record: true }
+      : {},
   head: ({ params }) => {
     const showcase = getShowcase(params.showcaseId);
     const title = showcase ? `Script — ${showcase.title}` : "Script";
@@ -26,6 +33,7 @@ const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
 function ScriptScreen() {
   const { showcaseId } = Route.useParams();
+  const { record } = Route.useSearch();
   const showcase = getShowcase(showcaseId);
   const [prompter, setPrompter] = useState(false);
   if (!showcase) return null; // the layout route renders the not-found message
@@ -34,7 +42,11 @@ function ScriptScreen() {
   const total = scenes.reduce((sum, s) => sum + s.durationMs, 0);
   let runningStart = 0;
 
-  if (prompter) return <ScriptPlayer scenes={scenes} onExit={() => setPrompter(false)} />;
+  if (record) return <ScriptPlayer scenes={scenes} record onExit={() => {}} />;
+  if (prompter)
+    return (
+      <ScriptPlayer scenes={scenes} takeName={showcase.id} onExit={() => setPrompter(false)} />
+    );
 
   return (
     <main

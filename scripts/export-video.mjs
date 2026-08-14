@@ -15,9 +15,15 @@
  *   npm run export:video               # in another — every showcase, frame-by-frame
  *   npm run export:video -- nova       # just the named showcase(s)
  *   npm run export:video -- --realtime nova
+ *   npm run export:video -- --prompter nova
  *
  * Output goes to exports/<id>/video.mp4 (or video-draft.mp4 for --realtime).
  * A showcase's soundtrack (meta.soundtrack.src) is looped in when set.
+ *
+ * --prompter records the teleprompter (/showcase/<id>/script?record=1) instead
+ * of the showcase: a 1280x720 real-time capture to exports/<id>/prompter-draft.mp4.
+ * The prompter's smooth scrolling runs on the real clock, so this mode is
+ * always a real-time draft — there is no frame-by-frame prompter export.
  *
  * Env: BASE_URL (default http://localhost:8080), OUT_DIR (default exports),
  *      FPS (default 30), SCALE (frame-by-frame deviceScaleFactor, default 3).
@@ -48,6 +54,7 @@ const available = (await readdir(showcasesDir, { withFileTypes: true }))
 
 const args = process.argv.slice(2);
 const realtime = args.includes("--realtime");
+const prompter = args.includes("--prompter");
 const requested = args.filter((arg) => !arg.startsWith("--"));
 const unknown = requested.filter((id) => !available.includes(id));
 if (unknown.length > 0) {
@@ -98,15 +105,20 @@ function tempDir(prefix) {
   return mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
-/** Approach A: play the showcase in real time and record the tab. */
-async function captureRealtime(browser, id, totalMs, soundtrack, outDir) {
+/** Approach A: play the page in real time and record the tab. Records the
+ *  showcase's /record page by default; `opts` retargets it (the --prompter
+ *  mode records /script?record=1 in a desktop-sized viewport instead). */
+async function captureRealtime(browser, id, totalMs, soundtrack, outDir, opts = {}) {
+  const viewport = opts.viewport ?? { width: 440, height: 956 };
+  const url = opts.url ?? `${baseUrl}/showcase/${id}/record`;
+  const outName = opts.outName ?? "video-draft.mp4";
   const tmpDir = await tempDir(`showcase-${id}-video-`);
   const context = await browser.newContext({
-    viewport: { width: 440, height: 956 },
-    recordVideo: { dir: tmpDir, size: { width: 440, height: 956 } },
+    viewport,
+    recordVideo: { dir: tmpDir, size: viewport },
   });
   const page = await context.newPage();
-  await page.goto(`${baseUrl}/showcase/${id}/record`, { waitUntil: "networkidle" });
+  await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => window.__record?.ready === true);
   await page.evaluate(() => window.__record.start());
   await page.waitForFunction(() => window.__record?.done === true, undefined, {
@@ -120,7 +132,7 @@ async function captureRealtime(browser, id, totalMs, soundtrack, outDir) {
   // The recording starts before playback does — trim to the played part.
   const totalSec = totalMs / 1000;
   const lead = Math.max(0, (await mediaDuration(webmPath)) - totalSec);
-  const outPath = path.join(outDir, "video-draft.mp4");
+  const outPath = path.join(outDir, outName);
   const audio = audioArgs(soundtrack);
   try {
     await encode(
@@ -140,7 +152,7 @@ async function captureRealtime(browser, id, totalMs, soundtrack, outDir) {
     );
   } catch (error) {
     // Keep the raw recording if the conversion fails.
-    await copyFile(webmPath, path.join(outDir, "video-draft.webm"));
+    await copyFile(webmPath, path.join(outDir, outName.replace(/\.mp4$/, ".webm")));
     throw error;
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -220,11 +232,17 @@ for (const id of ids) {
 
   console.log(
     `Exporting ${id}: ${doc.scenes.length} scenes, ${(totalMs / 1000).toFixed(1)}s ` +
-      `(${realtime ? "realtime draft" : `frame-by-frame at ${fps} fps`})`,
+      `(${prompter ? "teleprompter realtime draft" : realtime ? "realtime draft" : `frame-by-frame at ${fps} fps`})`,
   );
-  const outPath = realtime
-    ? await captureRealtime(browser, id, totalMs, doc.meta.soundtrack, outDir)
-    : await captureFrames(browser, id, totalMs, doc.meta.soundtrack, outDir);
+  const outPath = prompter
+    ? await captureRealtime(browser, id, totalMs, doc.meta.soundtrack, outDir, {
+        url: `${baseUrl}/showcase/${id}/script?record=1`,
+        viewport: { width: 1280, height: 720 },
+        outName: "prompter-draft.mp4",
+      })
+    : realtime
+      ? await captureRealtime(browser, id, totalMs, doc.meta.soundtrack, outDir)
+      : await captureFrames(browser, id, totalMs, doc.meta.soundtrack, outDir);
   console.log(`  ${path.relative(root, outPath)}`);
 }
 
