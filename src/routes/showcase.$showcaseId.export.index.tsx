@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Home } from "lucide-react";
 import { getShowcase } from "@/content/showcases";
 import { FIXED_ASPECT, SceneView } from "@/components/showcase/SceneView";
 import { StudioExports } from "@/components/studio/StudioExports";
@@ -29,13 +29,21 @@ function ExportGallery() {
       style={{ background: "var(--gradient-stage)" }}
     >
       <div className="mx-auto max-w-6xl">
-        <Link
-          to="/showcase/$showcaseId"
-          params={{ showcaseId }}
-          className="inline-flex items-center gap-2 text-sm text-support transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Back to the showcase
-        </Link>
+        <div className="flex flex-wrap items-center gap-5">
+          <Link
+            to="/showcase/$showcaseId"
+            params={{ showcaseId }}
+            className="inline-flex items-center gap-2 text-sm text-support transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" /> Back to the showcase
+          </Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm text-support transition-colors hover:text-foreground"
+          >
+            <Home className="size-4" /> All showcases
+          </Link>
+        </div>
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Export</p>
           <h1 className="mt-4 font-display text-5xl leading-tight tracking-tight text-foreground">

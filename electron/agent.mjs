@@ -30,11 +30,14 @@ showcase.yaml:
 
 theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme.
 
+Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram; style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
+
 ## Working rules
 - Read a file before rewriting it, and keep YAML valid — a parse error breaks the app until fixed.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, then reference them by key.
 - Keep narration natural to read aloud, and slides focused — one idea per slide.
 - Use export_showcase for deliverables when the user asks (video renders take several minutes).
+- The showcases folder may be a git repository the user manages themselves — never write to .git or advise destructive git operations; your job is the content files.
 - Keep responses focused, brief, and concise. When you edit files, say what changed and why in a sentence or two — the user sees the result live in the app.`;
 
 function keyPath() {

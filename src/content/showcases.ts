@@ -17,6 +17,7 @@ import { parse } from "yaml";
 import type { ComponentType } from "react";
 import { resolveSceneTiming } from "./timing.mjs";
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
+import { remoteGraphic } from "./graphics-runtime";
 
 /* Caption/title timing is shared with the export scripts — the model and
  * implementation live in timing.mjs. */
@@ -359,15 +360,25 @@ for (const [path, component] of Object.entries(graphicModules)) {
   entries.set(key, { component, file: `src/showcases/${showcaseId}/graphics/${filename}` });
 }
 
+/* Folder-authored graphics (data mode): graphic key → compiled-module URL,
+ * loaded lazily through the graphics runtime. The user's folder is the
+ * source of truth, so a folder graphic wins over a bundled one with the
+ * same showcase id and key; bundled graphics are the fallback. */
+const dataGraphicsByShowcase = new Map<string, Map<string, string>>();
+
 function resolveGraphic(showcaseId: string, key: string): GraphicEntry {
-  const entry = graphicsByShowcase.get(showcaseId)?.get(key);
-  if (!entry) {
-    throw new Error(
-      `Unknown graphic "${key}" in showcase "${showcaseId}" — ` +
-        `expected a component at src/showcases/${showcaseId}/graphics/${key}.tsx`,
-    );
+  const url = dataGraphicsByShowcase.get(showcaseId)?.get(key);
+  if (url) {
+    const file = `${showcaseId}/graphics/${key}.tsx`;
+    return { component: remoteGraphic(url, file), file };
   }
-  return entry;
+  const bundled = graphicsByShowcase.get(showcaseId)?.get(key);
+  if (bundled) return bundled;
+  throw new Error(
+    `Unknown graphic "${key}" in showcase "${showcaseId}" — ` +
+      `expected a component at ${showcaseId}/graphics/${key}.tsx (in the showcases folder ` +
+      `or bundled under src/showcases/)`,
+  );
 }
 
 const assetsByShowcase = new Map<string, Map<string, ShowcaseAsset>>();
@@ -501,6 +512,7 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   themeDocs.clear();
   resolvedThemes.clear();
   assetsByShowcase.clear();
+  dataGraphicsByShowcase.clear();
   for (const entry of data) {
     rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
     if (entry.themeYaml != null) {
@@ -509,6 +521,7 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
       themeDocs.set(entry.id, doc);
     }
     assetsByShowcase.set(entry.id, entry.assets);
+    dataGraphicsByShowcase.set(entry.id, entry.graphics);
   }
   showcases = [...rawDocs.entries()]
     .map(([showcaseId, doc]) => buildShowcase(showcaseId, doc))

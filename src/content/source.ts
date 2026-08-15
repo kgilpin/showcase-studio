@@ -15,8 +15,10 @@
  *                  /showcases in this shape — see vite.config.ts); a
  *                  desktop shell can point it at a user folder instead.
  *
- * TSX graphics are code, not data — they stay bundled in either mode
- * (see the graphics registry in showcases.ts).
+ * TSX graphics travel both ways: the bundled source compiles repo
+ * graphics into the app, and the HTTP source lists folder graphics that
+ * the data server compiles on request (loaded lazily by
+ * src/content/graphics-runtime.tsx; the folder wins when both exist).
  * ============================================================= */
 
 export type ShowcaseAsset = { url: string; file: string };
@@ -30,6 +32,11 @@ export type ShowcaseData = {
   themeYaml?: string | undefined;
   /** Asset key (file name without extension) → URL + display name. */
   assets: Map<string, ShowcaseAsset>;
+  /** Graphic key → URL of the server-compiled component module. Empty for
+   *  the bundled source, whose graphics are compiled into the app; the
+   *  HTTP source serves folder TSX compiled on request (see
+   *  src/content/graphics-runtime.tsx). */
+  graphics: Map<string, string>;
 };
 
 export type ShowcaseSource = { load(): Promise<ShowcaseData[]> };
@@ -81,13 +88,21 @@ export const bundledSource: ShowcaseSource = {
       const themeYaml = Object.entries(themeModules).find(
         ([path]) => path.split("/").at(-2) === id,
       )?.[1];
-      return { id, yaml, themeYaml, assets: assetMap(id, files) };
+      return {
+        id,
+        yaml,
+        themeYaml,
+        assets: assetMap(id, files),
+        graphics: new Map<string, string>(),
+      };
     });
     return Promise.resolve(data);
   },
 };
 
-type ShowcaseIndex = { showcases: { id: string; hasTheme: boolean; assets: string[] }[] };
+type ShowcaseIndex = {
+  showcases: { id: string; hasTheme: boolean; assets: string[]; graphics?: string[] }[];
+};
 
 export function httpSource(base: string): ShowcaseSource {
   const text = async (url: string) => {
@@ -99,7 +114,7 @@ export function httpSource(base: string): ShowcaseSource {
     async load() {
       const index = JSON.parse(await text(`${base}/index.json`)) as ShowcaseIndex;
       return Promise.all(
-        index.showcases.map(async ({ id, hasTheme, assets }) => ({
+        index.showcases.map(async ({ id, hasTheme, assets, graphics }) => ({
           id,
           yaml: await text(`${base}/${id}/showcase.yaml`),
           themeYaml: hasTheme ? await text(`${base}/${id}/theme.yaml`) : undefined,
@@ -110,6 +125,12 @@ export function httpSource(base: string): ShowcaseSource {
               url: `${base}/${id}/assets/${name}`,
               file: `${id}/assets/${name}`,
             })),
+          ),
+          graphics: new Map(
+            (graphics ?? []).map((name) => {
+              const key = name.replace(/\.[^.]+$/, "");
+              return [key, `${base}/${id}/graphics/${key}.js`];
+            }),
           ),
         })),
       );

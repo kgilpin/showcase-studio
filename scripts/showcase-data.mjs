@@ -3,12 +3,17 @@
  * the vite dev middleware (vite.config.ts) and the Electron shell
  * (electron/main.mjs).
  *
- *   GET <base>/index.json            → { showcases: [{ id, hasTheme, assets }] }
+ *   GET <base>/index.json               → { showcases: [{ id, hasTheme, assets, graphics }] }
  *   GET <base>/<id>/showcase.yaml
  *   GET <base>/<id>/theme.yaml
  *   GET <base>/<id>/assets/<file>
+ *   GET <base>/<id>/graphics/<key>.tsx  → raw source
+ *   GET <base>/<id>/graphics/<key>.js   → the source compiled with esbuild
+ *                                         (CJS, automatic JSX) for the app's
+ *                                         graphics runtime; compile errors
+ *                                         return 500 with the message
  */
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 export const MIME = {
@@ -22,7 +27,11 @@ export const MIME = {
   ".webm": "video/webm",
   ".mp3": "audio/mpeg",
   ".yaml": "text/yaml; charset=utf-8",
+  ".tsx": "text/plain; charset=utf-8",
+  ".jsx": "text/plain; charset=utf-8",
 };
+
+const GRAPHIC_EXTENSIONS = [".tsx", ".jsx"];
 
 /** The index.json payload for a folder of showcase folders. */
 export function showcaseIndex(dir) {
@@ -37,6 +46,11 @@ export function showcaseIndex(dir) {
       assets: existsSync(path.join(dir, id, "assets"))
         ? readdirSync(path.join(dir, id, "assets")).filter((f) => !f.startsWith("."))
         : [],
+      graphics: existsSync(path.join(dir, id, "graphics"))
+        ? readdirSync(path.join(dir, id, "graphics")).filter((f) =>
+            GRAPHIC_EXTENSIONS.includes(path.extname(f)),
+          )
+        : [],
     }));
   return { showcases };
 }
@@ -49,8 +63,55 @@ export function showcaseFile(dir, urlPath) {
   const file =
     parts.length === 2 && (parts[1] === "showcase.yaml" || parts[1] === "theme.yaml")
       ? path.join(dir, parts[0], parts[1])
-      : parts.length === 3 && parts[1] === "assets"
-        ? path.join(dir, parts[0], "assets", parts[2])
+      : parts.length === 3 && (parts[1] === "assets" || parts[1] === "graphics")
+        ? path.join(dir, parts[0], parts[1], parts[2])
         : undefined;
   return file && existsSync(file) ? file : undefined;
+}
+
+/** Handles one data-shape request against `dir`. Returns undefined when the
+ *  path is not part of the shape (callers fall through to their 404). */
+export async function handleShowcaseRequest(dir, urlPath) {
+  if (urlPath === "/index.json") {
+    return {
+      status: 200,
+      type: "application/json",
+      body: JSON.stringify(showcaseIndex(dir)),
+    };
+  }
+  const parts = urlPath.split("/").filter(Boolean).map(decodeURIComponent);
+  if (parts.some((part) => part === "..")) return undefined;
+
+  // Compiled TSX graphics: <id>/graphics/<key>.js compiles <key>.tsx|.jsx.
+  if (parts.length === 3 && parts[1] === "graphics" && parts[2].endsWith(".js")) {
+    const key = parts[2].slice(0, -3);
+    const source = GRAPHIC_EXTENSIONS.map((ext) =>
+      path.join(dir, parts[0], "graphics", key + ext),
+    ).find(existsSync);
+    if (!source) return undefined;
+    try {
+      const { transform } = await import("esbuild");
+      const result = await transform(readFileSync(source, "utf8"), {
+        loader: "tsx",
+        format: "cjs",
+        jsx: "automatic",
+        target: "es2020",
+      });
+      return { status: 200, type: "text/javascript; charset=utf-8", body: result.code };
+    } catch (error) {
+      return {
+        status: 500,
+        type: "text/plain; charset=utf-8",
+        body: String(error.message ?? error),
+      };
+    }
+  }
+
+  const file = showcaseFile(dir, urlPath);
+  if (!file) return undefined;
+  return {
+    status: 200,
+    type: MIME[path.extname(file)] ?? "application/octet-stream",
+    body: readFileSync(file),
+  };
 }

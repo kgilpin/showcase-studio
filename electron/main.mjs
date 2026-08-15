@@ -16,30 +16,56 @@
  * ELECTRON_SMOKE=<path.png> captures the loaded window to a file and
  * quits — used for automated verification.
  */
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import http from "node:http";
-import { cpSync, existsSync, mkdirSync, readFileSync, watch } from "node:fs";
+import { cpSync, existsSync, mkdirSync, watch, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { MIME, showcaseFile, showcaseIndex } from "../scripts/showcase-data.mjs";
+import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
 import { exportScreens, exportVideo } from "./exporter.mjs";
 import { registerAgent } from "./agent.mjs";
+import { loadSettings, saveSettings } from "./settings.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
 const appUrl = process.env.ELECTRON_APP_URL ?? "http://localhost:8092";
 
-const showcasesDir = process.env.SHOWCASES_DIR ?? path.join(app.getPath("home"), "Showcases");
+/* The showcases folder is the user's content repo — a plain directory
+ * they can `git init` and version themselves (the app never runs git;
+ * checkouts and branch switches simply live-reload). Resolution:
+ * SHOWCASES_DIR env → the persisted choice (Menu → Choose Showcases
+ * Folder…) → ~/Showcases. */
+let showcasesDir =
+  process.env.SHOWCASES_DIR ??
+  loadSettings().showcasesDir ??
+  path.join(app.getPath("home"), "Showcases");
 
-function ensureShowcasesDir() {
-  if (existsSync(showcasesDir) && showcaseIndex(showcasesDir).showcases.length > 0) return;
+const FOLDER_README = `# Showcases
+
+This folder is managed by Showcase Studio. Each showcase is a folder:
+
+    <id>/showcase.yaml   the script: scenes, narration, timing
+    <id>/theme.yaml      optional styling (colors, fonts, atmosphere)
+    <id>/assets/         screenshots and marks (asset keys = file names without extension)
+    <id>/graphics/       optional TSX diagrams (default-export React components, CSS-only animation)
+
+The studio live-reloads whenever files here change. The folder is yours
+to version: run \`git init\` here and commit as you like — the app never
+runs git itself, and switching branches reloads the app automatically.
+`;
+
+function ensureShowcasesDir(seedContent = true) {
   mkdirSync(showcasesDir, { recursive: true });
-  const seed = path.join(repoRoot, "src/showcases");
-  if (existsSync(seed)) {
-    cpSync(seed, showcasesDir, {
-      recursive: true,
-      filter: (src) => !src.includes(`${path.sep}graphics`),
-    });
+  if (seedContent && showcaseIndex(showcasesDir).showcases.length === 0) {
+    const seed = path.join(repoRoot, "src/showcases");
+    if (existsSync(seed)) cpSync(seed, showcasesDir, { recursive: true });
+  }
+  // Make the folder self-describing and git-friendly, without clobbering.
+  if (!existsSync(path.join(showcasesDir, "README.md"))) {
+    writeFileSync(path.join(showcasesDir, "README.md"), FOLDER_README);
+  }
+  if (!existsSync(path.join(showcasesDir, ".gitignore"))) {
+    writeFileSync(path.join(showcasesDir, ".gitignore"), ".DS_Store\n");
   }
 }
 
@@ -47,30 +73,82 @@ function serveData() {
   const server = http.createServer((req, res) => {
     const url = (req.url ?? "").split("?")[0] ?? "";
     res.setHeader("Access-Control-Allow-Origin", "*");
-    if (url === "/index.json") {
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(showcaseIndex(showcasesDir)));
-      return;
-    }
-    const file = showcaseFile(showcasesDir, url);
-    if (!file) {
-      res.statusCode = 404;
-      res.end("not found");
-      return;
-    }
-    res.setHeader("Content-Type", MIME[path.extname(file)] ?? "application/octet-stream");
-    res.end(readFileSync(file));
+    handleShowcaseRequest(showcasesDir, url).then(
+      (result) => {
+        if (!result) {
+          res.statusCode = 404;
+          res.end("not found");
+          return;
+        }
+        res.statusCode = result.status;
+        res.setHeader("Content-Type", result.type);
+        res.end(result.body);
+      },
+      (error) => {
+        res.statusCode = 500;
+        res.end(String(error));
+      },
+    );
   });
   server.listen(dataPort, "127.0.0.1");
   return server;
 }
 
+let watcher;
 function watchShowcases(win) {
+  watcher?.close();
   let timer;
-  watch(showcasesDir, { recursive: true }, () => {
+  watcher = watch(showcasesDir, { recursive: true }, () => {
     clearTimeout(timer);
     timer = setTimeout(() => win.webContents.reloadIgnoringCache(), 250);
   });
+}
+
+/** Menu → Choose Showcases Folder…: point the studio at any directory —
+ *  typically a git repo the user manages. Persisted across launches. */
+async function chooseShowcasesFolder(win) {
+  const picked = await dialog.showOpenDialog(win, {
+    title: "Choose Showcases Folder",
+    buttonLabel: "Use Folder",
+    properties: ["openDirectory", "createDirectory"],
+    defaultPath: showcasesDir,
+  });
+  const dir = picked.filePaths[0];
+  if (picked.canceled || !dir) return;
+  showcasesDir = dir;
+  saveSettings({ showcasesDir: dir });
+  let seed = false;
+  if (showcaseIndex(dir).showcases.length === 0) {
+    const answer = await dialog.showMessageBox(win, {
+      type: "question",
+      message: "This folder has no showcases yet.",
+      detail: "Copy the sample showcases into it, or start empty?",
+      buttons: ["Copy Samples", "Start Empty"],
+      defaultId: 0,
+    });
+    seed = answer.response === 0;
+  }
+  ensureShowcasesDir(seed);
+  watchShowcases(win);
+  win.webContents.reloadIgnoringCache();
+}
+
+function buildMenu(win) {
+  const template = [
+    ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
+    {
+      label: "File",
+      submenu: [
+        { label: "Choose Showcases Folder…", click: () => void chooseShowcasesFolder(win) },
+        { label: "Reveal Showcases Folder", click: () => void shell.openPath(showcasesDir) },
+        ...(process.platform === "darwin" ? [] : [{ type: "separator" }, { role: "quit" }]),
+      ],
+    },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 /** Runs one export, streaming progress to the studio window when open. */
@@ -129,10 +207,11 @@ app.whenReady().then(async () => {
   });
 
   registerAgent(ipcMain, win, {
-    showcasesDir,
+    showcasesDir: () => showcasesDir,
     runExport: (kind, showcaseId) => runExport(kind, showcaseId, win),
   });
 
+  buildMenu(win);
   await win.loadURL(appUrl + (process.env.ELECTRON_SMOKE_PATH ?? ""));
   watchShowcases(win);
 

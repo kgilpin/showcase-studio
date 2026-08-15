@@ -11,7 +11,7 @@ import path from "node:path";
 import { showcaseIndex } from "../scripts/showcase-data.mjs";
 
 const READ_LIMIT_BYTES = 200_000;
-const WRITABLE_EXTENSIONS = new Set([".yaml", ".yml", ".md", ".txt"]);
+const WRITABLE_EXTENSIONS = new Set([".yaml", ".yml", ".md", ".txt", ".tsx", ".jsx", ".svg"]);
 
 export const AGENT_TOOLS = [
   {
@@ -80,15 +80,17 @@ function resolveInside(dir, rel) {
   return full;
 }
 
-/** Returns an async executor for AGENT_TOOLS over `showcasesDir`.
- *  `runExport(kind, showcaseId)` is injected by the shell. */
+/** Returns an async executor for AGENT_TOOLS over `showcasesDir` (a path,
+ *  or a function returning the current path so the folder can be switched
+ *  at runtime). `runExport(kind, showcaseId)` is injected by the shell. */
 export function makeToolExecutor({ showcasesDir, runExport }) {
+  const dirOf = () => (typeof showcasesDir === "function" ? showcasesDir() : showcasesDir);
   return async function runTool(name, input) {
     switch (name) {
       case "list_showcases":
-        return JSON.stringify(showcaseIndex(showcasesDir), null, 2);
+        return JSON.stringify(showcaseIndex(dirOf()), null, 2);
       case "read_file": {
-        const file = resolveInside(showcasesDir, input.path);
+        const file = resolveInside(dirOf(), input.path);
         if (!existsSync(file)) throw new Error(`No such file: ${input.path}`);
         if (statSync(file).isDirectory()) {
           return readdirSync(file).join("\n");
@@ -99,7 +101,7 @@ export function makeToolExecutor({ showcasesDir, runExport }) {
         return readFileSync(file, "utf8");
       }
       case "write_file": {
-        const file = resolveInside(showcasesDir, input.path);
+        const file = resolveInside(dirOf(), input.path);
         if (!WRITABLE_EXTENSIONS.has(path.extname(file).toLowerCase())) {
           throw new Error(
             `Only text files (${[...WRITABLE_EXTENSIONS].join(", ")}) can be written`,

@@ -38,10 +38,14 @@ npm run export:script -- <id>      # (or one) as plain text to stdout — the
 
 npm run electron:dev               # the desktop shell: starts a dev server in
                                    # data mode and opens the app in Electron,
-                                   # reading showcases from ~/Showcases
-                                   # (SHOWCASES_DIR overrides; seeded from
-                                   # src/showcases/ on first run; live-reloads
-                                   # when the folder changes)
+                                   # reading showcases from a user-chosen
+                                   # folder (File > Choose Showcases Folder…;
+                                   # SHOWCASES_DIR overrides; default
+                                   # ~/Showcases, seeded from src/showcases/
+                                   # with a README + .gitignore so the user
+                                   # can git-manage it; live-reloads on every
+                                   # change, including TSX graphics compiled
+                                   # from <id>/graphics/ at runtime)
 ```
 
 ## Where things live
@@ -50,7 +54,7 @@ npm run electron:dev               # the desktop shell: starts a dev server in
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/showcases/<id>/`        | One folder per showcase: `showcase.yaml` (the script), optional `theme.yaml` (styling), and `assets/` (its screenshots). Folders are discovered automatically. |
 | `src/content/showcases.ts`   | Generic loader: parses each showcase's YAML, resolves asset keys (file name without extension) to URLs, and resolves each showcase's theme (whitelist, `extends`, font loads). Documents the scene/theme model. |
-| `src/content/source.ts`      | Where the showcase data comes from: folders bundled at build time (default, SSR-safe), or the same files fetched over HTTP when `VITE_SHOWCASES_URL` is set (the dev server serves `/showcases` in that shape — the seam a desktop shell points at a user folder). |
+| `src/content/source.ts`      | Where the showcase data comes from: folders bundled at build time (default, SSR-safe), or the same files fetched over HTTP when `VITE_SHOWCASES_URL` is set (the dev server serves `/showcases` in that shape — the seam the desktop shell points at the user's folder). Folder TSX graphics are compiled server-side (esbuild) and loaded by `src/content/graphics-runtime.tsx`; the folder wins over a bundled graphic with the same key. |
 | `src/components/showcase/`   | The player: `ShowcasePlayer`, `SceneView` (slide layouts), `SceneMedia` (motion), `ProgressRail`, `Soundtrack`.                                          |
 | `src/components/script/`     | The script page: script listing and teleprompter.                                                                                                         |
 | `src/routes/`                | TanStack Router file routes: `/` (home), `/showcase/$showcaseId` (+ `/script`, `/export`, `/export/$sceneId`, `/record`).                                 |
