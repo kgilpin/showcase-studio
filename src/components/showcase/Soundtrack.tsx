@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Music, Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX } from "lucide-react";
 
 /**
- * Background soundtrack for the showcase.
- * Uses `soundtrack.src` when set; otherwise a collaborator can
- * upload an MP3 (kept in-browser only) via the music button.
+ * Background soundtrack for the showcase (`meta.soundtrack.src`), with a
+ * mute toggle. Starts muted — browsers block unmuted autoplay anyway.
  */
 export function Soundtrack({
   paused,
@@ -14,9 +13,8 @@ export function Soundtrack({
   soundtrack: { src: string; volume: number };
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const [src, setSrc] = useState(soundtrack.src);
   const [muted, setMuted] = useState(true);
+  const src = soundtrack.src;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -29,42 +27,18 @@ export function Soundtrack({
     }
   }, [paused, muted, src, soundtrack.volume]);
 
-  const onFile = (file?: File) => {
-    if (!file) return;
-    setSrc((prev) => {
-      if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setMuted(false);
-  };
+  if (!src) return null;
 
   return (
     <>
-      {src ? <audio ref={audioRef} src={src} loop preload="auto" /> : null}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="audio/mpeg,audio/mp3,.mp3"
-        className="hidden"
-        onChange={(e) => onFile(e.target.files?.[0])}
-      />
-      {src ? (
-        <button
-          type="button"
-          aria-label={muted ? "Unmute soundtrack" : "Mute soundtrack"}
-          onClick={() => setMuted((m) => !m)}
-          className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
-        >
-          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-        </button>
-      ) : null}
+      <audio ref={audioRef} src={src} loop preload="auto" />
       <button
         type="button"
-        aria-label="Upload soundtrack MP3"
-        onClick={() => inputRef.current?.click()}
+        aria-label={muted ? "Unmute soundtrack" : "Mute soundtrack"}
+        onClick={() => setMuted((m) => !m)}
         className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
       >
-        <Music className="size-4" />
+        {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
       </button>
     </>
   );
