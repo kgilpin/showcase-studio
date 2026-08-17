@@ -1,6 +1,6 @@
 /* Export App Store screenshots from the showcases.
  *
- * For each showcase in src/showcases/, opens /showcase/<id>/export/<scene-id>
+ * For each showcase in showcases/, opens /showcase/<id>/export/<scene-id>
  * for every scene that doesn't set `export: false`, and screenshots each one
  * at a 440x956 viewport with deviceScaleFactor 3 — producing 1320x2868 PNGs,
  * the App Store 6.9" screenshot size. Output goes to exports/<id>/.
@@ -26,7 +26,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const baseUrl = process.env.BASE_URL ?? "http://localhost:8080";
 const outRoot = path.resolve(root, process.env.OUT_DIR ?? "exports");
 
-const showcasesDir = path.join(root, "src/showcases");
+const showcasesDir = path.join(root, "showcases");
 const available = (await readdir(showcasesDir, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)

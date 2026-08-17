@@ -5,7 +5,7 @@
  * asset URLs); src/content/showcases.ts turns that into the resolved
  * Showcase model. Two implementations:
  *
- *   bundledSource  the default — showcase folders under src/showcases/
+ *   bundledSource  the default — showcase folders under showcases/
  *                  compiled into the app at build time via import.meta.glob.
  *                  Synchronous data, SSR-safe, no deploy changes.
  *   httpSource     the same folders served as plain files over HTTP:
@@ -64,19 +64,19 @@ function assetMap(showcaseId: string, files: { name: string; url: string; file: 
   return assets;
 }
 
-const yamlModules = import.meta.glob("../showcases/*/showcase.yaml", {
+const yamlModules = import.meta.glob("../../showcases/*/showcase.yaml", {
   query: "?raw",
   import: "default",
   eager: true,
 }) as Record<string, string>;
 
-const themeModules = import.meta.glob("../showcases/*/theme.yaml", {
+const themeModules = import.meta.glob("../../showcases/*/theme.yaml", {
   query: "?raw",
   import: "default",
   eager: true,
 }) as Record<string, string>;
 
-const assetModules = import.meta.glob("../showcases/*/assets/*", {
+const assetModules = import.meta.glob("../../showcases/*/assets/*", {
   query: "?url",
   import: "default",
   eager: true,
@@ -90,7 +90,7 @@ export const bundledSource: ShowcaseSource = {
         .filter(([path]) => path.split("/").at(-3) === id)
         .map(([path, url]) => {
           const name = path.split("/").at(-1)!;
-          return { name, url, file: `src/showcases/${id}/assets/${name}` };
+          return { name, url, file: `showcases/${id}/assets/${name}` };
         });
       const themeYaml = Object.entries(themeModules).find(
         ([path]) => path.split("/").at(-2) === id,

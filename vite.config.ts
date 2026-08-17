@@ -12,23 +12,35 @@ import type { Plugin } from "vite";
 // @ts-ignore plain JS module shared with the Electron shell
 import { handleShowcaseRequest } from "./scripts/showcase-data.mjs";
 
-/* Serves src/showcases/ as plain data at /showcases — the shape the
+/* Serves the repo's showcases/ as plain data at /showcases — the shape the
  * httpSource in src/content/source.ts consumes (index.json, yaml, assets,
  * and TSX graphics compiled on request). Run the dev server with
  * VITE_SHOWCASES_URL=/showcases to exercise data mode; the Electron shell
  * serves a user folder in this same shape. */
 function showcaseData(): Plugin {
-  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "src/showcases");
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "showcases");
   return {
     name: "showcase-data",
     configureServer(server) {
       server.middlewares.use("/showcases", (req, res, next) => {
         const url = (req.url ?? "").split("?")[0] ?? "";
-        void handleShowcaseRequest(dir, url).then(
-          (result: { status: number; type: string; body: string | Buffer } | undefined) => {
+        void handleShowcaseRequest(dir, url, { range: req.headers.range }).then(
+          (
+            result:
+              | {
+                  status: number;
+                  type: string;
+                  body: string | Buffer;
+                  headers?: Record<string, string>;
+                }
+              | undefined,
+          ) => {
             if (!result) return next();
             res.statusCode = result.status;
             res.setHeader("Content-Type", result.type);
+            for (const [name, value] of Object.entries(result.headers ?? {})) {
+              res.setHeader(name, value);
+            }
             res.end(result.body);
           },
           next,

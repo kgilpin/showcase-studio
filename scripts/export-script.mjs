@@ -1,6 +1,6 @@
 /* Print a showcase's narration script as plain text.
  *
- * Processes src/showcases/<id>/showcase.yaml the same way the /script
+ * Processes showcases/<id>/showcase.yaml the same way the /script
  * teleprompter does (ScriptPlayer's buildLines): the narration is the
  * caption and support lines. Titles are on-screen text and appear only
  * in slide headers.
@@ -19,7 +19,7 @@ import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const showcasesDir = path.join(root, "src/showcases");
+const showcasesDir = path.join(root, "showcases");
 const available = (await readdir(showcasesDir, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)

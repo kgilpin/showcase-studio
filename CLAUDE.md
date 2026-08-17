@@ -58,7 +58,7 @@ npm run electron:dev               # the desktop shell: starts a dev server in
 
 | Path                         | Purpose                                                                                                                                                   |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/showcases/<id>/`        | One folder per showcase: `showcase.yaml` (the script), optional `theme.yaml` (styling), and `assets/` (its screenshots). Folders are discovered automatically. |
+| `showcases/<id>/`            | One folder per showcase: `showcase.yaml` (the script), optional `theme.yaml` (styling), and `assets/` (its screenshots). Folders are discovered automatically. |
 | `src/content/showcases.ts`   | Generic loader: parses each showcase's YAML, resolves asset keys (file name without extension) to URLs, and resolves each showcase's theme (whitelist, `extends`, font loads). Documents the scene/theme model. |
 | `src/content/source.ts`      | Where the showcase data comes from: folders bundled at build time (default, SSR-safe), or the same files fetched over HTTP when `VITE_SHOWCASES_URL` is set (the dev server serves `/showcases` in that shape — the seam the desktop shell points at the user's folder). Folder TSX graphics are compiled server-side (esbuild) and loaded by `src/content/graphics-runtime.tsx`; the folder wins over a bundled graphic with the same key. |
 | `src/components/showcase/`   | The player: `ShowcasePlayer`, `SceneView` (slide layouts), `SceneMedia` (motion), `ProgressRail`, `Soundtrack`.                                          |
@@ -81,7 +81,7 @@ npm run electron:dev               # the desktop shell: starts a dev server in
 - Asset keys in a showcase's YAML are file names without extension:
   `asset: shot-mirror` resolves to `assets/shot-mirror.png` in that
   showcase's folder. There is no registry to maintain.
-- Per-showcase styling goes in `src/showcases/<id>/theme.yaml` — a
+- Per-showcase styling goes in `showcases/<id>/theme.yaml` — a
   whitelisted set of `colors`, `fonts`, `shape`, and `atmosphere` overrides
   applied by the `/showcase/$showcaseId` layout route. A theme can
   `extends` another showcase's theme, and `fonts.load` lists font

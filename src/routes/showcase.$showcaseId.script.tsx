@@ -82,7 +82,7 @@ function ScriptScreen() {
             {showcase.soundtrack.src ? "set" : "not set"} at{" "}
             {Math.round(showcase.soundtrack.volume * 100)}% volume · edit{" "}
             <code className="text-foreground/80">
-              {dataMode ? "" : "src/showcases/"}
+              {dataMode ? "" : "showcases/"}
               {showcase.id}/showcase.yaml
             </code>
           </p>

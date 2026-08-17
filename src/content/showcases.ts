@@ -1,11 +1,11 @@
 /* =============================================================
  * SHOWCASE MODEL
  *
- * Every showcase lives in its own folder under `src/showcases/<id>/`:
+ * Every showcase lives in its own folder under `showcases/<id>/`:
  *
- *   src/showcases/<id>/showcase.yaml   the script (scenes, copy, timings)
- *   src/showcases/<id>/theme.yaml      optional styling (see SHOWCASE THEME)
- *   src/showcases/<id>/assets/         its screenshots and app mark
+ *   showcases/<id>/showcase.yaml   the script (scenes, copy, timings)
+ *   showcases/<id>/theme.yaml      optional styling (see SHOWCASE THEME)
+ *   showcases/<id>/assets/         its screenshots and app mark
  *
  * Folders are discovered automatically at build time — adding a new
  * showcase requires no code changes. Asset keys in the YAML are simply
@@ -167,7 +167,7 @@ export type Scene = {
 };
 
 export type Showcase = {
-  /** Folder name under src/showcases/ — also the URL segment. */
+  /** Folder name under showcases/ — also the URL segment. */
   id: string;
   title: string;
   description: string;
@@ -238,7 +238,7 @@ type RawDoc = {
 };
 
 /* -------------------------------------------------------------
- * SHOWCASE THEME — src/showcases/<id>/theme.yaml
+ * SHOWCASE THEME — showcases/<id>/theme.yaml
  *
  * Per-showcase styling. Only the keys below are themeable; the loader
  * rejects anything else at build time, so a theme cannot override the
@@ -306,7 +306,7 @@ type RawTheme = {
 };
 
 function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
-  const file = `src/showcases/${showcaseId}/theme.yaml`;
+  const file = `showcases/${showcaseId}/theme.yaml`;
   const groups = Object.keys(THEME_GROUPS);
   for (const key of Object.keys(doc)) {
     if (key !== "extends" && !groups.includes(key)) {
@@ -317,7 +317,7 @@ function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
   }
   if (doc.extends != null && typeof doc.extends !== "string") {
     throw new Error(
-      `"extends" in ${file} must be a showcase id (folder name under src/showcases/)`,
+      `"extends" in ${file} must be a showcase id (folder name under showcases/)`,
     );
   }
   for (const [group, keys] of Object.entries(THEME_GROUPS)) {
@@ -366,7 +366,7 @@ function validateMetaTheme(showcaseId: string, theme: Record<string, string>): v
  * discovery and naming rules as assets: the key is the file name.
  * Graphics are code, not data — they are always bundled, in either
  * source mode. */
-const graphicModules = import.meta.glob("../showcases/*/graphics/*.tsx", {
+const graphicModules = import.meta.glob("../../showcases/*/graphics/*.tsx", {
   import: "default",
   eager: true,
 }) as Record<string, ComponentType>;
@@ -381,7 +381,7 @@ for (const [path, component] of Object.entries(graphicModules)) {
   const key = filename.replace(/\.tsx$/, "");
   let entries = graphicsByShowcase.get(showcaseId);
   if (!entries) graphicsByShowcase.set(showcaseId, (entries = new Map()));
-  entries.set(key, { component, file: `src/showcases/${showcaseId}/graphics/${filename}` });
+  entries.set(key, { component, file: `showcases/${showcaseId}/graphics/${filename}` });
 }
 
 /* Folder-authored graphics (data mode): graphic key → compiled-module URL,
@@ -401,7 +401,7 @@ function resolveGraphic(showcaseId: string, key: string): GraphicEntry {
   throw new Error(
     `Unknown graphic "${key}" in showcase "${showcaseId}" — ` +
       `expected a component at ${showcaseId}/graphics/${key}.tsx (in the showcases folder ` +
-      `or bundled under src/showcases/)`,
+      `or bundled under showcases/)`,
   );
 }
 
@@ -480,7 +480,7 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
     if (!rawDocs.has(doc.extends)) {
       throw new Error(
         `Showcase "${showcaseId}" extends unknown showcase "${doc.extends}" — ` +
-          `expected a folder under src/showcases/ with a showcase.yaml`,
+          `expected a folder under showcases/ with a showcase.yaml`,
       );
     }
     const parent = resolveTheme(doc.extends, [...stack, showcaseId]);

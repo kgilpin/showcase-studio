@@ -47,7 +47,7 @@ const fps = Number(process.env.FPS ?? 30);
 const scale = Number(process.env.SCALE ?? 3);
 const ffmpeg = ffmpegStatic ?? "ffmpeg";
 
-const showcasesDir = path.join(root, "src/showcases");
+const showcasesDir = path.join(root, "showcases");
 const available = (await readdir(showcasesDir, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
@@ -72,13 +72,27 @@ try {
   process.exit(1);
 }
 
-/** ffmpeg args that loop the showcase's soundtrack under the video, if it has one. */
-function audioArgs(soundtrack) {
-  const src = soundtrack?.src;
+/** ffmpeg args that loop the showcase's soundtrack under the video, if it
+ *  has one. `src` may be an asset key (like scene media — resolved to the
+ *  file in the showcase's assets/ folder), a root-relative path served by
+ *  the app, or a full URL. */
+async function audioArgs(soundtrack, id) {
+  let src = soundtrack?.src;
   if (!src) return { inputs: [], output: [] };
-  const url = src.startsWith("/") ? baseUrl + src : src;
+  if (!/^https?:/.test(src)) {
+    if (src.startsWith("/")) {
+      src = baseUrl + src;
+    } else {
+      const assetsDir = path.join(showcasesDir, id, "assets");
+      const file = (await readdir(assetsDir).catch(() => [])).find(
+        (f) => f === src || f.replace(/\.[^.]+$/, "") === src,
+      );
+      if (!file) return { inputs: [], output: [] };
+      src = path.join(assetsDir, file);
+    }
+  }
   return {
-    inputs: ["-stream_loop", "-1", "-i", url],
+    inputs: ["-stream_loop", "-1", "-i", src],
     output: ["-shortest", "-af", `volume=${soundtrack.volume ?? 1}`, "-c:a", "aac", "-b:a", "192k"],
   };
 }
@@ -134,7 +148,7 @@ async function captureRealtime(browser, id, totalMs, soundtrack, outDir, opts = 
   const totalSec = totalMs / 1000;
   const lead = Math.max(0, (await mediaDuration(webmPath)) - totalSec);
   const outPath = path.join(outDir, outName);
-  const audio = audioArgs(soundtrack);
+  const audio = await audioArgs(soundtrack, id);
   try {
     await encode(
       ["-ss", lead.toFixed(3), "-i", webmPath, ...audio.inputs],
@@ -200,7 +214,7 @@ async function captureFrames(browser, id, totalMs, soundtrack, outDir) {
   await context.close();
 
   const outPath = path.join(outDir, "video.mp4");
-  const audio = audioArgs(soundtrack);
+  const audio = await audioArgs(soundtrack, id);
   try {
     await encode(
       ["-framerate", String(fps), "-i", path.join(framesDir, "frame-%05d.png"), ...audio.inputs],
