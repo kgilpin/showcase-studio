@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Play } from "lucide-react";
 import { captionTimeline, getShowcase } from "@/content/showcases";
 import { dataMode } from "@/content/source";
+import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { MediaThumb } from "@/components/script/MediaThumb";
 import { ScriptPlayer } from "@/components/script/ScriptPlayer";
@@ -142,9 +143,18 @@ function ScriptScreen() {
                         {scene.eyebrow}
                       </p>
                     )}
-                    <h2 className="mt-3 font-display text-2xl leading-snug tracking-tight text-foreground">
-                      {scene.title}
-                    </h2>
+                    {scene.title && (
+                      <h2 className="mt-3 font-display text-2xl leading-snug tracking-tight text-foreground">
+                        {scene.title}
+                      </h2>
+                    )}
+                    {scene.warnings && (
+                      <ul className="mt-3 space-y-1 text-xs leading-relaxed text-amber-400/90">
+                        {scene.warnings.map((warning, wi) => (
+                          <li key={wi}>⚠ {warning}</li>
+                        ))}
+                      </ul>
+                    )}
 
                     {timeline.length > 0 && (
                       <ul className="mt-5 space-y-3">
@@ -186,6 +196,9 @@ function ScriptScreen() {
             );
           })}
         </ol>
+      </div>
+      <div className="fixed inset-x-0 bottom-0">
+        <DiagnosticsTray />
       </div>
     </main>
   );

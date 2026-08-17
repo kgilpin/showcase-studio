@@ -39,29 +39,32 @@ meta:
 
 scenes:
   - id: opening-1
-    theme: title
+    theme: statement
     eyebrow: Opening
     title: Your tests pass. Your diff looks clean.
-    captions: []
+    captions:
+      - text: Your tests pass. Your diff looks clean.
     media:
       kind: none
     durationMs: 4000
     export: false
 
   - id: opening-2
-    theme: title
+    theme: statement
     eyebrow: Opening
     title: So why did checkout queries double? And where did the permission check go?
-    captions: []
+    captions:
+      - text: So why did checkout queries double? And where did the permission check go?
     media:
       kind: none
     durationMs: 5000
     export: false
 
   - id: intro
-    theme: title
+    theme: statement
     title: AppMap Gold Traces
     captions:
+      - text: AppMap Gold Traces
       - text: Catch the problems that unit tests and code reads miss.
     media:
       kind: image
@@ -171,9 +174,10 @@ scenes:
     export: false
 
   - id: outro
-    theme: title
+    theme: statement
     title: Gold Traces
     captions:
+      - text: Gold Traces
       - text: Behavioral review for every release
     cta:
       label: Learn more at appmap.io

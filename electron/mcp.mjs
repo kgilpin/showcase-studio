@@ -37,8 +37,9 @@ const TOOLS = [
     name: "validate",
     description:
       "Parse and build every showcase in the library exactly as the app does. Returns the " +
-      "showcases that loaded (id, title, slides, runtime) and, for any that failed, the error " +
-      "message. Use it after YAML edits to confirm nothing broke.",
+      "showcases that loaded (id, title, slides, runtime), theme-linter warnings (per scene), " +
+      "and, for any showcase that failed, the error message. Use it after YAML edits to " +
+      "confirm nothing broke.",
     inputSchema: { type: "object", properties: {} },
   },
 ];
@@ -125,6 +126,7 @@ async function validateShowcases(appUrl) {
                   ),
                 })),
                 errors: m.showcaseErrors,
+                warnings: m.showcaseWarnings,
               };
             } catch {
               await new Promise((r) => setTimeout(r, 200));

@@ -8,8 +8,10 @@
  *   exportVideo    frame-by-frame capture of the /record page driven by
  *                  window.__record.seek(), assembled into an MP4 with
  *                  the bundled ffmpeg. Exact but slow, like the
- *                  frame-by-frame web export. (Soundtracks are not yet
- *                  mixed in here.)
+ *                  frame-by-frame web export. The showcase's soundtrack
+ *                  (meta.soundtrack.src) is looped under the video when
+ *                  set — frame-by-frame timing starts the video at 0, so
+ *                  a timeline-synced voiceover lands exactly.
  *
  * Offscreen windows render at the primary display's scale factor, so the
  * window is sized to target ÷ scale and captures land at exactly
@@ -18,7 +20,7 @@
  */
 import { BrowserWindow, screen } from "electron";
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -72,9 +74,31 @@ function readDoc(showcasesDir, showcaseId) {
   return parse(readFileSync(path.join(showcasesDir, showcaseId, "showcase.yaml"), "utf8"));
 }
 
+/** Resolves meta.soundtrack.src to something ffmpeg can read: an asset key
+ *  (like scene media) becomes the file in the showcase's assets/ folder, a
+ *  root-relative path is fetched from the app, and absolute URLs pass
+ *  through. Returns undefined when there is no track (or the key doesn't
+ *  match a file) — the export then simply has no audio. */
+function soundtrackInput({ showcasesDir, showcaseId, appUrl, soundtrack }) {
+  const src = soundtrack?.src;
+  if (!src) return undefined;
+  if (/^https?:/.test(src)) return src;
+  if (src.startsWith("/")) return appUrl + src;
+  const dir = path.join(showcasesDir, showcaseId, "assets");
+  try {
+    const file = readdirSync(dir).find((f) => f === src || f.replace(/\.[^.]+$/, "") === src);
+    return file ? path.join(dir, file) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function exportScreens({ showcasesDir, showcaseId, appUrl, outDir, progress }) {
   const doc = readDoc(showcasesDir, showcaseId);
-  const scenes = doc.scenes.filter((scene) => scene.export !== false);
+  // footage scenes default out of the screenshot set (export: true opts in).
+  const scenes = doc.scenes.filter(
+    (scene) => (scene.export ?? (scene.theme !== "footage" ? true : false)) !== false,
+  );
   mkdirSync(outDir, { recursive: true });
   const win = studioWindow();
   try {
@@ -127,6 +151,12 @@ export async function exportVideo({
     }
     progress?.(`encoding ${frameCount} frames…`);
     const outPath = path.join(outDir, "video.mp4");
+    const audio = soundtrackInput({
+      showcasesDir,
+      showcaseId,
+      appUrl,
+      soundtrack: doc.meta.soundtrack,
+    });
     await new Promise((resolve, reject) => {
       const args = [
         "-y",
@@ -134,12 +164,24 @@ export async function exportVideo({
         String(fps),
         "-i",
         path.join(framesDir, "frame-%06d.png"),
+        ...(audio ? ["-stream_loop", "-1", "-i", audio] : []),
         "-c:v",
         "libx264",
         "-crf",
         "20",
         "-pix_fmt",
         "yuv420p",
+        ...(audio
+          ? [
+              "-shortest",
+              "-af",
+              `volume=${doc.meta.soundtrack?.volume ?? 1}`,
+              "-c:a",
+              "aac",
+              "-b:a",
+              "192k",
+            ]
+          : []),
         outPath,
       ];
       const proc = spawn(ffmpeg, args, { stdio: ["ignore", "ignore", "pipe"] });

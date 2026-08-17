@@ -34,7 +34,7 @@ type RecordApi = NonNullable<Window["__record"]>;
 
 type Line = {
   key: string;
-  kind: "title" | "caption" | "support";
+  kind: "caption" | "support";
   text: string;
   eyebrow?: string | undefined;
   sceneIndex: number;
@@ -44,30 +44,15 @@ type Line = {
 
 /** Flattens every slide into one continuous, time-coded script.
  *
- * Only lines the narrator actually reads make it in: captions and support
- * everywhere, plus the title on title-theme scenes (where the title IS the
- * spoken line — e.g. an on-camera segment or the outro). Other titles are
- * on-screen text and stay out of the prompter; the scene's eyebrow is kept
- * as a section label over the scene's first line. The timeline already
- * reserves the spoken title's window (scene.titleMs), so lines here match
- * the on-screen caption timing exactly. */
+ * Only lines the narrator actually reads make it in: captions and support.
+ * Titles are on-screen text and stay out of the prompter; the scene's
+ * eyebrow is kept as a section label over the scene's first line. */
 function buildLines(scenes: Scene[]): Line[] {
   const lines: Line[] = [];
   let offset = 0;
   scenes.forEach((scene, sceneIndex) => {
     const timeline = captionTimeline(scene);
     const sceneLineStart = lines.length;
-    if (scene.theme === "title") {
-      lines.push({
-        key: `${scene.id}-title`,
-        kind: "title",
-        text: scene.title,
-        eyebrow: scene.eyebrow,
-        sceneIndex,
-        startMs: offset,
-        endMs: offset + (timeline.length > 0 ? scene.titleMs : scene.durationMs),
-      });
-    }
     timeline.forEach((caption, i) => {
       lines.push({
         key: `${scene.id}-c${i}`,
@@ -90,7 +75,7 @@ function buildLines(scenes: Scene[]): Line[] {
       });
     }
     const first = lines[sceneLineStart];
-    if (scene.theme !== "title" && scene.eyebrow && first) first.eyebrow = scene.eyebrow;
+    if (scene.eyebrow && first) first.eyebrow = scene.eyebrow;
     offset += scene.durationMs;
   });
   return lines;

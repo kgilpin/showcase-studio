@@ -103,20 +103,36 @@ export function SceneView({
   frameless?: boolean;
 }) {
   const media = <SceneMedia media={scene.media} durationMs={scene.durationMs} paused={paused} />;
+  /* Entrance animation is opt-in (`transition: rise`) — by default scenes
+   * cut cleanly, which footage-to-footage sequences need. */
+  const rise = scene.transition === "rise" ? "scene-rise" : undefined;
+  const drift = scene.transition === "rise" ? "scene-drift" : undefined;
   const caption = activeCaption(scene, elapsedMs);
-  const body = caption?.text ?? scene.body;
+  /* A caption that duplicates the displayed title stays off the slide —
+   * the title already says it (narration and display often share a line
+   * on statement slides). */
+  const spoken = caption?.text ?? scene.body;
+  const body = spoken === scene.title ? undefined : spoken;
   const captionKey = caption?.text ?? "body";
   const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
   const stageCaptionClass = "text-[5.2cqw] leading-relaxed";
 
-  /* THEME: title — app mark above a large display-serif title. */
-  if (scene.theme === "title") {
+  /* THEME: statement — centered display text; optional app-mark media
+   * above the title, or full-bleed media as a dimmed backdrop behind it. */
+  if (scene.theme === "statement") {
+    const backdrop = scene.media.kind !== "none" && scene.media.frame === "full";
     return (
       <FixedStage frameless={frameless}>
         <div className="relative h-full w-full" style={{ background: "var(--gradient-stage)" }}>
+          {backdrop && (
+            <>
+              <div className="absolute inset-0">{media}</div>
+              <div aria-hidden className="absolute inset-0 bg-background/70" />
+            </>
+          )}
           <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-            <div className="scene-rise flex max-w-3xl flex-col items-center">
-              {scene.media.kind !== "none" && (
+            <div className={cn("flex max-w-3xl flex-col items-center", rise)}>
+              {!backdrop && scene.media.kind !== "none" && (
                 <div className="relative mb-10">
                   <div
                     aria-hidden
@@ -125,10 +141,15 @@ export function SceneView({
                   <div className="relative size-[36cqw] bg-transparent">{media}</div>
                 </div>
               )}
-              <h2 className="font-display text-[10.5cqw] leading-[1.05] tracking-tight text-foreground">
-                {scene.title}
-              </h2>
+              {scene.title && (
+                <h2 className="font-display text-[10.5cqw] leading-[1.05] tracking-tight text-foreground">
+                  {scene.title}
+                </h2>
+              )}
               {body && <p className="mt-4 text-[5cqw] text-muted-foreground">{body}</p>}
+              {scene.support && (
+                <p className="mt-6 text-[4.2cqw] leading-relaxed text-support">{scene.support}</p>
+              )}
               {scene.cta && (
                 <a
                   href={scene.cta.url}
@@ -153,10 +174,13 @@ export function SceneView({
 
   /* Other themes stack inside the stage: title header, media, CTA.
    * Console scenes show their landscape media as a centered widescreen
-   * band instead of cropping it to the portrait stage. */
+   * band instead of cropping it to the portrait stage; footage fills the
+   * stage edge-to-edge with no header — the media IS the slide. */
   const hasMedia = scene.media.kind !== "none";
   const isConsole = scene.theme === "console";
-  const dropHeader = hideTitle && hasMedia;
+  const fullBleed =
+    scene.media.kind !== "none" && (scene.theme === "footage" || scene.media.frame === "full");
+  const dropHeader = hasMedia && (hideTitle || fullBleed || !scene.title);
   return (
     <FixedStage compact={hasMedia} frameless={frameless}>
       <div
@@ -166,18 +190,21 @@ export function SceneView({
         {!dropHeader && (
           <div
             className={cn(
-              "scene-rise shrink-0 px-6 text-center",
+              "shrink-0 px-6 text-center",
+              rise,
               hasMedia || scene.cta ? "pt-10" : "pb-6",
             )}
           >
-            <h2
-              className={cn(
-                "font-display leading-[1.08] tracking-tight text-foreground",
-                hasMedia ? "text-[9cqw]" : "text-[10.5cqw]",
-              )}
-            >
-              {scene.title}
-            </h2>
+            {scene.title && (
+              <h2
+                className={cn(
+                  "font-display leading-[1.08] tracking-tight text-foreground",
+                  hasMedia ? "text-[9cqw]" : "text-[10.5cqw]",
+                )}
+              >
+                {scene.title}
+              </h2>
+            )}
             {!hasMedia && body && (
               <p className="mt-5 text-[5.4cqw] leading-relaxed text-muted-foreground">{body}</p>
             )}
@@ -193,7 +220,8 @@ export function SceneView({
              * drawn portrait-first and fill the whole remaining height. */}
             <div
               className={cn(
-                "scene-drift relative w-full overflow-hidden border-y border-border bg-card",
+                "relative w-full overflow-hidden border-y border-border bg-card",
+                drift,
                 scene.media.kind === "graphic" && "min-h-0 flex-1",
               )}
               style={scene.media.kind === "graphic" ? undefined : { aspectRatio: "16 / 10" }}
@@ -218,7 +246,8 @@ export function SceneView({
         {hasMedia && !isConsole && (
           <div
             className={cn(
-              "scene-drift relative min-h-0 flex-1 overflow-hidden",
+              "relative min-h-0 flex-1 overflow-hidden",
+              drift,
               !dropHeader && "mt-7 rounded-t-[1.6rem] border-x border-t border-border",
             )}
           >

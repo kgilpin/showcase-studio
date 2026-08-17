@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Columns2, FileText, Layers, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { HomeBackNav } from "./HomeBackNav";
+import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
 import { activeCaption, type Showcase } from "@/content/showcases";
@@ -80,14 +81,6 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const elapsedMs = progress * scene.durationMs;
   const caption = activeCaption(scene, elapsedMs);
   const captionText = caption?.text ?? scene.body;
-  /* captionsIn: video — the captions subtitle the media's own speech
-   * (on-camera footage), so App Screens shows them nowhere. */
-  const subtitlesOnly = scene.captionsIn === "video";
-  const sideCaptions =
-    presentation === "screens" &&
-    !subtitlesOnly &&
-    scene.media.kind !== "none" &&
-    scene.theme !== "title";
 
   return (
     <main
@@ -104,18 +97,27 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             scene={scene}
             paused={paused}
             elapsedMs={elapsedMs}
-            hideCaption={sideCaptions || (presentation === "screens" && subtitlesOnly)}
+            /* The transcript column always shows the caption; the toggle
+             * only decides whether it ALSO overlays the media. */
+            hideCaption={presentation === "screens"}
             hideTitle={presentation === "video"}
           />
         </div>
-        <div className="hidden shrink-0 items-center justify-start sm:flex sm:w-56 md:w-60 lg:w-64">
-          {sideCaptions && captionText && (
+        <div className="hidden shrink-0 flex-col justify-center gap-4 sm:flex sm:w-56 md:w-60 lg:w-64">
+          {captionText && (
             <p
               key={captionText}
               className="caption-fade text-left text-lg leading-snug text-muted-foreground md:text-xl"
             >
               {captionText}
             </p>
+          )}
+          {scene.warnings && (
+            <ul className="space-y-1.5 text-xs leading-relaxed text-amber-400/90">
+              {scene.warnings.map((warning, i) => (
+                <li key={i}>⚠ {warning}</li>
+              ))}
+            </ul>
           )}
         </div>
       </div>
@@ -151,8 +153,8 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           <Control
             label={
               presentation === "screens"
-                ? "Video presentation: captions over the media, no titles"
-                : "App Screens presentation: titles on the slide, captions beside"
+                ? "Video presentation: overlay captions on the media, hide titles"
+                : "App Screens presentation: titles on the slide, captions in the transcript column only"
             }
             onClick={() => setPresentation((p) => (p === "screens" ? "video" : "screens"))}
           >
@@ -173,6 +175,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           </Link>
         </div>
       </div>
+      <DiagnosticsTray />
     </main>
   );
 }

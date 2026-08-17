@@ -66,7 +66,10 @@ const page = await context.newPage();
 for (const id of ids) {
   const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
   const doc = parse(await readFile(yamlPath, "utf8"));
-  const scenes = doc.scenes.filter((scene) => scene.export !== false);
+  // footage scenes default out of the screenshot set (export: true opts in).
+  const scenes = doc.scenes.filter(
+    (scene) => (scene.export ?? (scene.theme !== "footage" ? true : false)) !== false,
+  );
   const skipped = doc.scenes.length - scenes.length;
   const outDir = path.join(outRoot, id);
   await mkdir(outDir, { recursive: true });

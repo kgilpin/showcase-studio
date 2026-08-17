@@ -72,9 +72,12 @@ npm run electron:dev               # the desktop shell: starts a dev server in
 
 ## Conventions
 
-- Slide designs are a fixed set of themes (`title`, `feature`, `statement`)
-  defined in `SceneView.tsx`. Do not style individual scenes ad hoc; add or
-  change a theme instead, and document it in `showcases.ts`.
+- Slide designs are a fixed set of layout themes (`statement`, `feature`,
+  `console`, `footage`) defined in `SceneView.tsx`. Do not style individual
+  scenes ad hoc; add or change a theme instead, and document it in
+  `showcases.ts`. Narration lives in captions only — titles are on-screen
+  text, never spoken or timed. A theme linter warns (diagnostics tray)
+  on legacy/incoherent themes but always renders.
 - Asset keys in a showcase's YAML are file names without extension:
   `asset: shot-mirror` resolves to `assets/shot-mirror.png` in that
   showcase's folder. There is no registry to maintain.

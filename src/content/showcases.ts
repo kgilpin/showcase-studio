@@ -24,22 +24,28 @@ import { remoteGraphic } from "./graphics-runtime";
 export { activeCaption, captionTimeline, readingTime } from "./timing.mjs";
 
 /* -------------------------------------------------------------
- * THEMES — the fixed set of screen designs.
+ * THEMES — the fixed set of slide layouts. A theme names where text and
+ * media go, nothing more: narration always lives in captions, and titles
+ * are on-screen text only.
  *
- * "title"     Centered app mark above a large display-serif title.
- *             No body copy. Used for the intro screen.
- * "feature"   Title + description on one side, phone screenshot on the
- *             other.
- * "statement" Centered display-serif line over a dimmed full-bleed
- *             backdrop, with optional one-line body and CTA. Used for outros.
- * "console"   Title above a wide landscape media panel with captions
- *             overlaid on it. For desktop/web app screenshots that don't
- *             fit a phone frame.
+ * "statement" Centered display text — claims, intros, outros. Optional
+ *             app-mark media above the title, optional CTA below.
+ * "feature"   Title header over a phone-framed screenshot.
+ * "console"   Title above a wide landscape media panel. For desktop/web
+ *             screenshots and TSX diagrams that don't fit a phone frame.
+ * "footage"   The media IS the slide — edge-to-edge, no title header.
+ *             For on-camera segments; captions act as subtitles (overlay
+ *             presentation only) and the scene defaults out of the
+ *             screenshot export.
+ *
+ * "title" is a legacy alias for "statement" (the linter flags it). An
+ * unrecognized theme renders anyway — the layout is inferred from the
+ * scene's media — with a linter warning in the diagnostics tray.
  *
  * Adding a new theme is a design change: define it in SceneView.tsx and
  * document it here first. Do not style scenes ad hoc.
  * ------------------------------------------------------------- */
-export type SceneTheme = "title" | "feature" | "statement" | "console";
+export type SceneTheme = "statement" | "feature" | "console" | "footage";
 
 /** Which part of a cropped screenshot stays visible. "top" clips the bottom,
  *  "bottom" clips the top, "center" clips both evenly (default). */
@@ -121,27 +127,27 @@ export type SceneCaption = { text: string; durationMs?: number; position?: Capti
 
 export type Scene = {
   id: string;
-  /** Required. One of the documented THEMES above. */
+  /** Normalized to one of the documented THEMES above (legacy and unknown
+   *  names are mapped, with a linter warning). */
   theme: SceneTheme;
   eyebrow?: string;
-  title: string;
-  /** Overlay lines shown in order across the slide. */
+  /** On-screen display text only — never spoken, never timed. Omit it on
+   *  scenes that don't display one (footage). */
+  title?: string | undefined;
+  /** The narration: lines read verbatim in order, each with derived or
+   *  explicit timing. */
   captions: SceneCaption[];
-  /** "video" restricts this scene's captions to the video (overlay)
-   *  presentation — subtitles for media that carries its own speech, like
-   *  an on-camera segment. App Screens then shows no caption for the
-   *  scene; the script and teleprompter still include the lines. */
-  captionsIn?: "video";
   /** Convenience alias for the first caption. */
   body?: string | undefined;
   media: SceneMedia;
   /** Resolved slide length — explicit in the YAML, or derived from the copy. */
   durationMs: number;
-  /** Resolved spoken-title window at the start of the slide (title-theme
-   *  slides; 0 elsewhere). Captions start after it. */
-  titleMs: number;
-  /** Set false to leave this scene out of the exported screenshot set. */
+  /** Set false to leave this scene out of the exported screenshot set
+   *  (footage scenes default out; `export: true` opts one back in). */
   export?: boolean;
+  /** Linter warnings for this scene — shown in the diagnostics tray and
+   *  beside the slide in the player. */
+  warnings?: string[];
   /** Entrance animation when the slide appears. Off by default so scenes
    *  (especially video footage) cut cleanly; `rise` opts in to the
    *  rise/drift-in entrance. */
@@ -205,11 +211,16 @@ type RawMedia =
       frame?: "phone" | "full" | "mark";
     };
 
-type RawScene = Omit<Scene, "media" | "captions" | "body" | "durationMs" | "titleMs"> & {
+type RawScene = Omit<Scene, "media" | "captions" | "body" | "durationMs" | "theme" | "warnings"> & {
+  /** As authored — normalized (with linter warnings) in buildShowcase. */
+  theme?: string;
   media?: RawMedia;
   captions?: SceneCaption[];
   durationMs?: number;
+  /** Obsolete (titles are no longer spoken) — linted. */
   titleDurationMs?: number;
+  /** Obsolete (captions always show in the transcript column) — linted. */
+  captionsIn?: string;
 };
 
 type RawDoc = {
@@ -507,15 +518,75 @@ function resolveSoundtrack(showcaseId: string, soundtrack: RawDoc["meta"]["sound
   return asset ? { ...soundtrack, src: asset.url } : soundtrack;
 }
 
-function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
+const KNOWN_THEMES = new Set<SceneTheme>(["statement", "feature", "console", "footage"]);
+
+/** THEME LINTER — normalizes each scene's theme and flags what doesn't
+ *  add up. Warnings never block rendering: a legacy or unknown theme is
+ *  mapped to the closest layout and the scene renders from the flags it
+ *  has set. */
+function lintScene(raw: RawScene): { theme: SceneTheme; warnings: string[] } {
+  const warnings: string[] = [];
+  const authored = raw.theme ?? "";
+  let theme: SceneTheme;
+  if (KNOWN_THEMES.has(authored as SceneTheme)) {
+    theme = authored as SceneTheme;
+  } else if (authored === "title") {
+    theme = "statement";
+    warnings.push(`theme "title" is now "statement" — rename it`);
+  } else {
+    // Infer the layout from the media so the scene still renders.
+    const media = raw.media;
+    theme =
+      media?.kind === "graphic"
+        ? "console"
+        : media && media.kind !== "none" && media.frame === "full"
+          ? "footage"
+          : media && media.kind !== "none" && media.frame !== "mark"
+            ? "feature"
+            : "statement";
+    warnings.push(
+      authored
+        ? `unknown theme "${authored}" — rendering as "${theme}" (themes: statement, feature, console, footage)`
+        : `no theme set — rendering as "${theme}"`,
+    );
+  }
+  if (theme === "feature" && raw.media && raw.media.kind !== "none" && raw.media.frame === "full") {
+    theme = "footage";
+    warnings.push(`a feature scene with frame: full media is footage — use theme: footage`);
+  }
+  if (theme === "footage" && raw.title) {
+    warnings.push(`footage doesn't display a title — remove it (the eyebrow labels the script)`);
+  }
+  if (raw.captionsIn != null) {
+    warnings.push(
+      `captionsIn is obsolete — captions always show in the transcript column, and the overlay follows the presentation toggle`,
+    );
+  }
+  if (raw.titleDurationMs != null) {
+    warnings.push(
+      `titleDurationMs is obsolete — titles are never spoken; time the captions instead`,
+    );
+  }
+  return { theme, warnings };
+}
+
+function buildShowcase(
+  showcaseId: string,
+  doc: RawDoc,
+  warn: (sceneId: string, message: string) => void,
+): Showcase {
   const scenes: Scene[] = doc.scenes.map((raw) => {
-    const { titleDurationMs: _, ...scene } = raw;
+    const { titleDurationMs: _titleDurationMs, captionsIn: _captionsIn, ...scene } = raw;
+    const { theme, warnings } = lintScene(raw);
+    warnings.forEach((message) => warn(raw.id, message));
     const timing = resolveSceneTiming(raw, doc.meta.pace);
     return {
       ...scene,
       ...timing,
+      theme,
       body: timing.captions[0]?.text,
       media: resolveMedia(showcaseId, scene.media),
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   });
   return {
@@ -524,7 +595,11 @@ function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
     soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
     theme: resolveTheme(showcaseId),
     scenes,
-    exportScenes: scenes.filter((scene) => scene.export !== false),
+    /* footage defaults out of the screenshot set (a paused frame of
+     * someone mid-sentence isn't an App Store screenshot). */
+    exportScenes: scenes.filter(
+      (scene) => (scene.export ?? (scene.theme !== "footage" ? true : false)) !== false,
+    ),
   };
 }
 
@@ -560,15 +635,21 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
     }
   }
   const built: Showcase[] = [];
+  const warnings: ShowcaseWarning[] = [];
   for (const [showcaseId, doc] of rawDocs) {
     try {
-      built.push(buildShowcase(showcaseId, doc));
+      built.push(
+        buildShowcase(showcaseId, doc, (sceneId, message) =>
+          warnings.push({ showcaseId, sceneId, message }),
+        ),
+      );
     } catch (error) {
       fail(showcaseId, error);
     }
   }
   showcases = built.sort((a, b) => a.title.localeCompare(b.title));
   showcaseErrors = errors;
+  showcaseWarnings = warnings;
   return showcases;
 }
 
@@ -581,6 +662,12 @@ export let showcases: Showcase[] = [];
  *  shown as fix-me cards on the home page. */
 export type ShowcaseError = { id: string; message: string };
 export let showcaseErrors: ShowcaseError[] = [];
+
+/** Theme-linter warnings from this load — shown in the diagnostics tray
+ *  and beside the affected scene in the player. Warnings never block
+ *  rendering. */
+export type ShowcaseWarning = { showcaseId: string; sceneId: string; message: string };
+export let showcaseWarnings: ShowcaseWarning[] = [];
 
 export const showcasesReady: Promise<Showcase[]> = loadFromSource(activeSource());
 

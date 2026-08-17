@@ -44,29 +44,32 @@ meta:
 
 scenes:
   - id: opening-1
-    theme: title
+    theme: statement
     eyebrow: Opening
     title: Most strategy games wait for your move
-    captions: []
+    captions:
+      - text: Most strategy games wait for your move
     media:
       kind: none
     durationMs: 3500
     export: false
 
   - id: opening-2
-    theme: title
+    theme: statement
     eyebrow: Opening
     title: This galaxy doesn't
-    captions: []
+    captions:
+      - text: This galaxy doesn't
     media:
       kind: none
     durationMs: 3500
     export: false
 
   - id: intro
-    theme: title
+    theme: statement
     title: NOVA
     captions:
+      - text: NOVA
       - text: A real-time game of galactic conquest
     media:
       kind: image
@@ -212,9 +215,10 @@ scenes:
     export: false
 
   - id: outro
-    theme: title
+    theme: statement
     title: NOVA
     captions:
+      - text: NOVA
       - text: Play in the browser. Command from your phone.
     cta:
       label: Download on the App Store

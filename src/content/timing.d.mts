@@ -9,14 +9,12 @@ export const MIN_SLIDE_MS: number;
 export function readingTime(text: string, pace?: number): number;
 
 /** The scene fields the timing model reads. Structurally satisfied by a
- *  raw YAML scene and by the resolved Scene type. */
+ *  raw YAML scene and by the resolved Scene type. Titles are on-screen
+ *  text only and play no part in timing. */
 export interface TimingInput<C extends { text: string; durationMs?: number }> {
-  theme: string;
-  title: string;
   support?: string | undefined;
   captions?: C[] | undefined;
   durationMs?: number | undefined;
-  titleDurationMs?: number | undefined;
 }
 
 export function resolveSceneTiming<C extends { text: string; durationMs?: number }>(
@@ -24,7 +22,6 @@ export function resolveSceneTiming<C extends { text: string; durationMs?: number
   pace?: number,
 ): {
   durationMs: number;
-  titleMs: number;
   /** In derived mode every caption gains a concrete durationMs; in budget
    *  mode captions pass through as written. */
   captions: (C & { durationMs?: number | undefined })[];
@@ -33,7 +30,6 @@ export function resolveSceneTiming<C extends { text: string; durationMs?: number
 /** A scene whose timing has been resolved (Scene satisfies this). */
 export interface TimedScene<C extends { text: string; durationMs?: number }> {
   durationMs: number;
-  titleMs: number;
   captions: C[];
 }
 

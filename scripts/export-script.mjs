@@ -1,9 +1,9 @@
 /* Print a showcase's narration script as plain text.
  *
  * Processes src/showcases/<id>/showcase.yaml the same way the /script
- * teleprompter does (ScriptPlayer's buildLines): caption and support lines
- * are spoken everywhere, and on title-theme slides the title is spoken
- * too. Other titles are on-screen text and appear only in slide headers.
+ * teleprompter does (ScriptPlayer's buildLines): the narration is the
+ * caption and support lines. Titles are on-screen text and appear only
+ * in slide headers.
  *
  * Usage:
  *   npm run export:script            # every showcase
@@ -54,9 +54,8 @@ for (const [i, id] of ids.entries()) {
     total += durationMs;
     const header = [`Slide ${index + 1}`];
     if (scene.eyebrow) header.push(scene.eyebrow);
-    if (scene.theme !== "title") header.push(scene.title);
+    if (scene.title) header.push(scene.title);
     out.push("", `--- ${header.join(" · ")}  [${secs(durationMs)}]`);
-    if (scene.theme === "title") out.push(`    ${oneLine(scene.title)}`);
     for (const caption of scene.captions ?? []) out.push(`    ${oneLine(caption.text)}`);
     if (scene.support) out.push(`    ${oneLine(scene.support)}`);
     if (scene.cta) out.push(`    (on-screen button: ${scene.cta.label})`);

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { coverUrl, showcaseErrors, showcases } from "@/content/showcases";
+import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { studio } from "@/lib/studio";
 import { cn } from "@/lib/utils";
@@ -148,6 +149,9 @@ function HomeScreen() {
           ))}
           <NewShowcaseCard />
         </div>
+      </div>
+      <div className="fixed inset-x-0 bottom-0">
+        <DiagnosticsTray />
       </div>
     </main>
   );

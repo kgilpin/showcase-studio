@@ -1,21 +1,19 @@
 /* =============================================================
  * TIMING — how long each slide runs.
  *
- * All timing is optional and derived from the copy by default:
+ * The narration is the captions — titles are on-screen text only and
+ * never contribute to timing. All timing is optional and derived from
+ * the copy by default:
  *
  *   line time   explicit `durationMs` on the caption, or the reading time
  *               of its text (words / pace, plus a settle beat and a short
  *               pause per extra sentence)
- *   title time  title-theme slides only — there the title is spoken, so
- *               it owns the start of the slide (captions follow it);
- *               explicit `titleDurationMs`, or the title's reading time
- *   slide time  explicit `durationMs` on the scene, or title + captions
- *               + support, with a floor for slides with nothing to read
+ *   slide time  explicit `durationMs` on the scene, or captions +
+ *               support, with a floor for slides with nothing to read
  *
  * An explicit scene `durationMs` switches the slide to budget mode:
- * explicitly timed captions keep their time, the untimed ones split what
- * remains after the spoken title (which is capped at half the slide).
- * `meta.pace` sets the reading speed in words per second (default 3).
+ * explicitly timed captions keep their time, the untimed ones split the
+ * remainder. `meta.pace` sets the reading speed in words per second.
  *
  * Plain ESM with no imports so both the app (src/content/showcases.ts)
  * and the Node export scripts (scripts/export-script.mjs) share one
@@ -52,8 +50,6 @@ export function readingTime(text, pace = DEFAULT_PACE_WPS) {
  *  are returned as-is and `captionTimeline` splits the remainder. */
 export function resolveSceneTiming(scene, pace = DEFAULT_PACE_WPS) {
   let captions = scene.captions ?? [];
-  let titleMs =
-    scene.theme === "title" ? (scene.titleDurationMs ?? readingTime(scene.title, pace)) : 0;
   let durationMs = scene.durationMs;
   if (durationMs == null) {
     captions = captions.map((c) => ({
@@ -61,28 +57,23 @@ export function resolveSceneTiming(scene, pace = DEFAULT_PACE_WPS) {
       durationMs: c.durationMs ?? readingTime(c.text, pace),
     }));
     const spoken =
-      titleMs +
       captions.reduce((sum, c) => sum + (c.durationMs ?? 0), 0) +
       (scene.support ? readingTime(scene.support, pace) : 0);
     durationMs = Math.max(spoken, MIN_SLIDE_MS);
-  } else {
-    // Budget mode: the spoken title can't eat more than half the slide.
-    titleMs = Math.min(titleMs, durationMs / 2);
   }
-  return { durationMs, titleMs, captions };
+  return { durationMs, captions };
 }
 
-/** Caption windows for a resolved scene: captions start after the spoken
- *  title (`titleMs` is 0 on slides without one), explicit durations are
- *  honoured, and the remaining slide time is split evenly between the
- *  untimed captions. */
+/** Caption windows for a resolved scene: explicit durations are honoured,
+ *  and the remaining slide time is split evenly between the untimed
+ *  captions. */
 export function captionTimeline(scene) {
   const captions = scene.captions;
   const fixed = captions.reduce((sum, c) => sum + (c.durationMs ?? 0), 0);
   const untimed = captions.filter((c) => c.durationMs == null).length;
-  const share = untimed > 0 ? Math.max(0, scene.durationMs - scene.titleMs - fixed) / untimed : 0;
+  const share = untimed > 0 ? Math.max(0, scene.durationMs - fixed) / untimed : 0;
 
-  let start = scene.titleMs;
+  let start = 0;
   return captions.map((caption) => {
     const durationMs = caption.durationMs ?? share;
     const entry = { ...caption, startMs: start, endMs: start + durationMs, durationMs };
@@ -91,10 +82,7 @@ export function captionTimeline(scene) {
   });
 }
 
-/** Which caption is visible at `elapsedMs` into the slide. During a spoken
- *  title's window the first caption is already showing — hiding it made
- *  title slides visibly reflow when it appeared; the narrator's pacing
- *  (the prompter) still honours the title window via the timeline. */
+/** Which caption is visible at `elapsedMs` into the slide. */
 export function activeCaption(scene, elapsedMs) {
   const timeline = captionTimeline(scene);
   if (timeline.length === 0) return undefined;
