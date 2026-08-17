@@ -31,6 +31,11 @@ import { createMcpHandler } from "./mcp.mjs";
 import { whisperPath } from "./transcribe.mjs";
 import { studioGuide } from "./showcase-guide.mjs";
 
+/* In dev the macOS menu-bar TITLE still reads "Electron" (it comes from
+ * the binary's Info.plist and can't change at runtime — a packaged build
+ * fixes it), but the items inside (About/Hide/Quit …) follow app.name. */
+app.setName("Showcase Studio");
+
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const require_ = createRequire(import.meta.url);
 /* In dev app.getVersion() reports Electron's own version — the app's
