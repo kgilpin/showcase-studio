@@ -11,19 +11,28 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
     ipcRenderer.on("export-progress", listener);
     return () => ipcRenderer.removeListener("export-progress", listener);
   },
+  folder: {
+    choose: () => ipcRenderer.invoke("folder-choose"),
+    reveal: () => ipcRenderer.invoke("folder-reveal"),
+  },
+  showcases: {
+    create: (name) => ipcRenderer.invoke("showcase-create", name),
+  },
   terminal: {
     available: () => ipcRenderer.invoke("terminal-available"),
-    start: (size) => ipcRenderer.invoke("terminal-start", size),
-    stop: () => ipcRenderer.invoke("terminal-stop"),
-    input: (data) => ipcRenderer.send("terminal-input", data),
-    resize: (size) => ipcRenderer.send("terminal-resize", size),
+    status: (options) => ipcRenderer.invoke("terminal-status", options),
+    external: (options) => ipcRenderer.invoke("terminal-external", options),
+    start: (options) => ipcRenderer.invoke("terminal-start", options),
+    stop: (options) => ipcRenderer.invoke("terminal-stop", options),
+    input: (payload) => ipcRenderer.send("terminal-input", payload),
+    resize: (payload) => ipcRenderer.send("terminal-resize", payload),
     onData: (callback) => {
-      const listener = (_event, data) => callback(data);
+      const listener = (_event, payload) => callback(payload);
       ipcRenderer.on("terminal-data", listener);
       return () => ipcRenderer.removeListener("terminal-data", listener);
     },
     onExit: (callback) => {
-      const listener = (_event, code) => callback(code);
+      const listener = (_event, payload) => callback(payload);
       ipcRenderer.on("terminal-exit", listener);
       return () => ipcRenderer.removeListener("terminal-exit", listener);
     },

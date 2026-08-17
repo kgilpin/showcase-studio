@@ -47,6 +47,15 @@ try {
     vite.kill();
     process.exit(code ?? 0);
   });
+  // Take Electron down with us — otherwise a killed dev.mjs leaves a
+  // stray instance holding the data port.
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+    process.on(signal, () => {
+      electron.kill();
+      vite.kill();
+      process.exit(0);
+    });
+  }
 } catch (error) {
   vite.kill();
   throw error;

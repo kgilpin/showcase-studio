@@ -28,17 +28,26 @@ export type StudioAgent = {
 export type StudioTerminal = {
   /** Whether the PTY host loaded and Claude Code is installed. */
   available(): Promise<{ ptyReady: boolean; claude: boolean }>;
-  /** Starts a session in the showcases folder — Claude Code when
-   *  installed, a plain login shell otherwise. */
-  start(size: {
-    cols: number;
-    rows: number;
-  }): Promise<{ ok: boolean; claude?: boolean; error?: string }>;
-  stop(): Promise<{ ok: boolean }>;
-  input(data: string): void;
-  resize(size: { cols: number; rows: number }): void;
-  onData(callback: (data: string) => void): () => void;
-  onExit(callback: (code: number) => void): () => void;
+  /** Whether the showcase's integrated session is currently running. */
+  status(options: { id: string }): Promise<{ running: boolean }>;
+  /** Opens the showcase's Claude session in the system terminal instead. */
+  external(options: { id: string }): Promise<{ ok: boolean; error?: string }>;
+  /** Starts (or reattaches to) the showcase's persistent session, whose
+   *  working directory is that showcase's folder — Claude Code when
+   *  installed, a plain login shell otherwise. On reattach, `buffer`
+   *  carries the scrollback to replay. */
+  start(options: { id: string; cols: number; rows: number }): Promise<{
+    ok: boolean;
+    attached?: boolean;
+    buffer?: string;
+    claude?: boolean;
+    error?: string;
+  }>;
+  stop(options: { id: string }): Promise<{ ok: boolean }>;
+  input(payload: { id: string; data: string }): void;
+  resize(payload: { id: string; cols: number; rows: number }): void;
+  onData(callback: (payload: { id: string; data: string }) => void): () => void;
+  onExit(callback: (payload: { id: string; code: number }) => void): () => void;
 };
 
 export type ShowcaseStudio = {
@@ -51,6 +60,17 @@ export type ShowcaseStudio = {
   agent: StudioAgent;
   /** The embedded terminal running the user's own Claude Code. */
   terminal: StudioTerminal;
+  /** Showcases-folder actions (also in the system File menu). */
+  folder: {
+    /** Opens the folder picker; the app reloads on a new choice. */
+    choose(): Promise<void>;
+    /** Reveals the current showcases folder in the system file manager. */
+    reveal(): Promise<void>;
+  };
+  /** Scaffolding for new showcases (the home page's "+" card). */
+  showcases: {
+    create(name: string): Promise<{ ok: boolean; id?: string; error?: string }>;
+  };
 };
 
 declare global {

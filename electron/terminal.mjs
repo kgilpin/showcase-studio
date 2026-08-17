@@ -1,16 +1,25 @@
-/* The studio's embedded terminal: a PTY in the main process running the
- * user's own Claude Code (`claude`) in the showcases folder, so agent
- * work bills their subscription — no API key involved. The seeded
- * CLAUDE.md in the folder gives Claude Code the showcase domain
- * knowledge automatically.
+/* The studio's embedded terminals: one persistent PTY per showcase,
+ * each running the user's own Claude Code (`claude`) with that
+ * showcase's folder as its working directory — so agent work bills the
+ * user's subscription, each showcase keeps its own session and history,
+ * and Claude Code opens directly onto the showcase it concerns. The
+ * folder-root CLAUDE.md still applies (Claude Code reads ancestor
+ * CLAUDE.md files).
+ *
+ * Sessions outlive the panel: closing and reopening the panel reattaches
+ * to the running PTY, replaying a bounded scrollback buffer. Sessions
+ * die with the app (or via terminal-stop).
  *
  * `claude` is resolved through the user's login shell (GUI apps get a
- * minimal PATH on macOS). When it's installed, the terminal launches
+ * minimal PATH on macOS). When it's installed, each terminal launches
  * straight into it; otherwise it opens a plain shell so the user can
  * install it.
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
+import { loadSettings, saveSettings } from "./settings.mjs";
 
 const require_ = createRequire(import.meta.url);
 let pty;
@@ -34,15 +43,37 @@ function hasClaude() {
   return claudeFound;
 }
 
+const BUFFER_MAX = 200_000;
+
+/* A showcase whose terminal ran before resumes with `claude --continue`,
+ * restoring its previous conversation; a non-zero exit clears the flag so
+ * the next start is fresh. Shared by the integrated and external paths. */
+function claudeCommand(cwd) {
+  if (!hasClaude()) return { command: undefined, resumed: false };
+  const resumed = Boolean(loadSettings().terminalRan?.[cwd]);
+  saveSettings({ terminalRan: { ...loadSettings().terminalRan, [cwd]: true } });
+  return { command: resumed ? "claude --continue" : "claude", resumed };
+}
+
+function clearRan(cwd) {
+  const terminalRan = { ...loadSettings().terminalRan };
+  delete terminalRan[cwd];
+  saveSettings({ terminalRan });
+}
+
 export function registerTerminal(ipcMain, win, { getCwd }) {
-  let proc;
-  const kill = () => {
-    try {
-      proc?.kill();
-    } catch {
-      /* already gone */
+  /** showcase id → { proc, buffer } */
+  const sessions = new Map();
+
+  const killAll = () => {
+    for (const session of sessions.values()) {
+      try {
+        session.proc.kill();
+      } catch {
+        /* already gone */
+      }
     }
-    proc = undefined;
+    sessions.clear();
   };
 
   ipcMain.handle("terminal-available", () => ({
@@ -50,38 +81,90 @@ export function registerTerminal(ipcMain, win, { getCwd }) {
     claude: Boolean(pty) && hasClaude(),
   }));
 
-  ipcMain.handle("terminal-start", (_event, { cols, rows } = {}) => {
+  /* Starts the showcase's session, or reattaches to a running one —
+   * returning the scrollback so the panel can restore the view. */
+  ipcMain.handle("terminal-start", (_event, { id, cols, rows } = {}) => {
     if (!pty) return { ok: false, error: "The terminal host (node-pty) failed to load" };
-    kill();
-    // Launch Claude Code directly when installed; else a plain login shell.
-    const args = hasClaude() ? ["-ilc", "claude"] : ["-il"];
-    proc = pty.spawn(shellPath(), args, {
+    if (!id) return { ok: false, error: "No showcase selected" };
+
+    const existing = sessions.get(id);
+    if (existing) {
+      try {
+        existing.proc.resize(cols || 80, rows || 24);
+      } catch {
+        /* exited between messages */
+      }
+      return { ok: true, attached: true, buffer: existing.buffer, claude: hasClaude() };
+    }
+
+    const cwd = path.join(getCwd(), id);
+    if (!existsSync(cwd)) return { ok: false, error: `No showcase folder named "${id}"` };
+
+    const { command, resumed } = claudeCommand(cwd);
+    const args = command ? ["-ilc", command] : ["-il"];
+    const proc = pty.spawn(shellPath(), args, {
       name: "xterm-256color",
       cols: cols || 80,
       rows: rows || 24,
-      cwd: getCwd(),
+      cwd,
       env: { ...process.env, TERM: "xterm-256color" },
     });
-    proc.onData((data) => win.webContents.send("terminal-data", data));
-    proc.onExit(({ exitCode }) => {
-      win.webContents.send("terminal-exit", exitCode);
-      proc = undefined;
+    const session = { proc, buffer: "", resumed, cwd };
+    sessions.set(id, session);
+    proc.onData((data) => {
+      session.buffer = (session.buffer + data).slice(-BUFFER_MAX);
+      win.webContents.send("terminal-data", { id, data });
     });
-    return { ok: true, claude: hasClaude() };
+    proc.onExit(({ exitCode }) => {
+      sessions.delete(id);
+      if (exitCode !== 0 && session.resumed) clearRan(cwd);
+      win.webContents.send("terminal-exit", { id, code: exitCode });
+    });
+    return { ok: true, attached: false, buffer: "", claude: hasClaude() };
   });
 
-  ipcMain.on("terminal-input", (_event, data) => proc?.write(data));
-  ipcMain.on("terminal-resize", (_event, { cols, rows }) => {
+  ipcMain.handle("terminal-status", (_event, { id } = {}) => ({
+    running: sessions.has(id),
+  }));
+
+  /* Opens the showcase's Claude session in the system terminal instead
+   * (macOS Terminal.app), with the same resume behavior. */
+  ipcMain.handle("terminal-external", (_event, { id } = {}) => {
+    if (process.platform !== "darwin") {
+      return { ok: false, error: "The external terminal is currently macOS-only" };
+    }
+    const cwd = path.join(getCwd(), id);
+    if (!existsSync(cwd)) return { ok: false, error: `No showcase folder named "${id}"` };
+    const { command } = claudeCommand(cwd);
+    const shellLine = `cd '${cwd.replace(/'/g, `'\\''`)}'${command ? ` && ${command}` : ""}`;
+    const escaped = shellLine.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    spawn("osascript", [
+      "-e",
+      `tell application "Terminal"\nactivate\ndo script "${escaped}"\nend tell`,
+    ]);
+    return { ok: true };
+  });
+
+  ipcMain.on("terminal-input", (_event, { id, data }) => sessions.get(id)?.proc.write(data));
+  ipcMain.on("terminal-resize", (_event, { id, cols, rows }) => {
     try {
-      proc?.resize(cols, rows);
+      sessions.get(id)?.proc.resize(cols, rows);
     } catch {
       /* exited between messages */
     }
   });
-  ipcMain.handle("terminal-stop", () => {
-    kill();
+  ipcMain.handle("terminal-stop", (_event, { id } = {}) => {
+    const session = sessions.get(id);
+    if (session) {
+      try {
+        session.proc.kill();
+      } catch {
+        /* already gone */
+      }
+      sessions.delete(id);
+    }
     return { ok: true };
   });
 
-  return { dispose: kill };
+  return { dispose: killAll };
 }

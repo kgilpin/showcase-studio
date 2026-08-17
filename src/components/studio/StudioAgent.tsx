@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { KeyRound, RotateCcw, Send, Sparkles, TerminalSquare, X } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
+import {
+  ExternalLink,
+  KeyRound,
+  Minus,
+  RotateCcw,
+  Send,
+  Sparkles,
+  TerminalSquare,
+  X,
+} from "lucide-react";
 import { studio, type AgentEvent } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 import { TerminalPane } from "./TerminalPane";
@@ -9,10 +19,14 @@ type Entry =
   | { kind: "tool"; text: string }
   | { kind: "error"; text: string };
 
-/* The studio's agent panel. Two modes:
- *   - Claude Code: an embedded terminal running the user's own `claude`
- *     in the showcases folder (subscription-billed; the seeded CLAUDE.md
- *     teaches it the showcase model). Default when installed.
+type TermView = "loading" | "chooser" | "integrated" | "external";
+
+/* The studio's agent panel, shown only inside a showcase (each showcase
+ * has its own Claude session, running in that showcase's folder). Two
+ * modes:
+ *   - Claude Code: the user's own `claude`, integrated (persistent PTY,
+ *     minimizable) or in the external system terminal. Sessions resume
+ *     their previous conversation via `claude --continue`.
  *   - API key: the built-in BYOK chat agent, for users without Claude
  *     Code.
  * Renders nothing in a plain browser — the bridge only exists inside
@@ -22,6 +36,7 @@ export function StudioAgent() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"terminal" | "chat">("chat");
   const [terminalReady, setTerminalReady] = useState(false);
+  const [termView, setTermView] = useState<TermView>("loading");
   const [termSession, setTermSession] = useState(1);
   const [termExited, setTermExited] = useState<number | null>(null);
   const [hasKey, setHasKey] = useState(false);
@@ -31,6 +46,33 @@ export function StudioAgent() {
   const [busy, setBusy] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  /* Each showcase has its own persistent terminal session; the panel
+   * shows the one for the showcase currently on screen. */
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const showcaseId = /^\/showcase\/([^/]+)/.exec(pathname)?.[1];
+
+  useEffect(() => {
+    setTermExited(null);
+    setTermView("loading");
+  }, [showcaseId]);
+
+  useEffect(() => {
+    // The new-showcase flow reloads the app, then wants the terminal open.
+    if (sessionStorage.getItem("studio-open-agent")) {
+      sessionStorage.removeItem("studio-open-agent");
+      setOpen(true);
+    }
+  }, []);
+
+  /* Entering the terminal view: reattach if the session is running,
+   * otherwise offer the integrated/external choice. */
+  useEffect(() => {
+    if (!open || mode !== "terminal" || !showcaseId || termView !== "loading") return;
+    void studio()
+      ?.terminal.status({ id: showcaseId })
+      .then(({ running }) => setTermView(running ? "integrated" : "chooser"));
+  }, [open, mode, showcaseId, termView]);
 
   useEffect(() => {
     const bridge = studio();
@@ -69,7 +111,8 @@ export function StudioAgent() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [entries]);
 
-  if (!available) return null;
+  /* The agent runs within a showcase — no button on the list pages. */
+  if (!available || !showcaseId) return null;
 
   const saveKey = async () => {
     setKeyError(null);
@@ -92,14 +135,32 @@ export function StudioAgent() {
     setBusy(false);
   };
 
-  const reset = async () => {
+  const restart = async () => {
     if (mode === "terminal") {
+      await studio()!.terminal.stop({ id: showcaseId });
       setTermExited(null);
       setTermSession((n) => n + 1);
+      setTermView("integrated");
       return;
     }
     await studio()!.agent.reset();
     setEntries([]);
+  };
+
+  /* Minimize keeps the session running; close ends it. */
+  const minimize = () => setOpen(false);
+  const close = async () => {
+    if (mode === "terminal" && termView === "integrated") {
+      await studio()!.terminal.stop({ id: showcaseId });
+    }
+    setTermExited(null);
+    setTermView("loading");
+    setOpen(false);
+  };
+
+  const openExternal = async () => {
+    const result = await studio()!.terminal.external({ id: showcaseId });
+    if (result.ok) setTermView("external");
   };
 
   if (!open) {
@@ -138,6 +199,9 @@ export function StudioAgent() {
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <p className="flex items-center gap-2 text-sm text-foreground">
           <Sparkles className="size-4 text-primary" /> Studio agent
+          {mode === "terminal" && (
+            <span className="font-mono text-xs text-support">· {showcaseId}</span>
+          )}
         </p>
         <div className="flex items-center gap-2">
           {terminalReady && (
@@ -148,7 +212,7 @@ export function StudioAgent() {
           )}
           <button
             type="button"
-            onClick={() => void reset()}
+            onClick={() => void restart()}
             aria-label={mode === "terminal" ? "Restart the session" : "Start a new conversation"}
             className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
           >
@@ -156,8 +220,16 @@ export function StudioAgent() {
           </button>
           <button
             type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Close the agent panel"
+            onClick={minimize}
+            aria-label="Minimize (the session keeps running)"
+            className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
+          >
+            <Minus className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void close()}
+            aria-label="Close and end the session"
             className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
           >
             <X className="size-4" />
@@ -167,15 +239,59 @@ export function StudioAgent() {
 
       {mode === "terminal" ? (
         <div className="relative min-h-0 flex-1 p-1">
-          <TerminalPane key={termSession} onExit={(code) => setTermExited(code)} />
-          {termExited != null && (
+          {termView === "integrated" && (
+            <TerminalPane
+              key={`${showcaseId}:${termSession}`}
+              sessionId={showcaseId}
+              onExit={(code) => setTermExited(code)}
+            />
+          )}
+          {termView === "chooser" && (
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <p className="text-xs text-support">
+                Start Claude Code for <span className="font-mono">{showcaseId}</span> in:
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTermView("integrated")}
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                >
+                  <TerminalSquare className="size-4" /> Integrated terminal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void openExternal()}
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                >
+                  <ExternalLink className="size-4" /> External terminal
+                </button>
+              </div>
+            </div>
+          )}
+          {termView === "external" && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-8">
+              <p className="text-center text-xs leading-relaxed text-support">
+                Claude Code for <span className="font-mono">{showcaseId}</span> is running in your
+                system terminal.
+              </p>
+              <button
+                type="button"
+                onClick={() => setTermView("chooser")}
+                className="rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+              >
+                Back
+              </button>
+            </div>
+          )}
+          {termExited != null && termView === "integrated" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/80">
               <p className="flex items-center gap-2 text-sm text-support">
                 <TerminalSquare className="size-4" /> Session ended (exit {termExited})
               </p>
               <button
                 type="button"
-                onClick={() => void reset()}
+                onClick={() => void restart()}
                 className="rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
               >
                 Restart

@@ -82,6 +82,10 @@ file here changes, so edits appear immediately.
 
 ${SHOWCASE_GUIDE}
 
+Claude Code sessions opened by the studio start inside a specific
+showcase's folder — paths are then relative to that showcase
+(showcase.yaml, assets/, graphics/). The library root is one level up.
+
 Exports (App Store screenshots, MP4 renders) are run from the studio's
 export page — ask the user to trigger them there.
 `,
@@ -109,6 +113,12 @@ function serveData() {
         res.end(String(error));
       },
     );
+  });
+  server.on("error", (error) => {
+    // Fail loudly — a silent EADDRINUSE (e.g. a stray instance) otherwise
+    // leaves the app serving stale data from the old process.
+    console.error(`Showcase data server failed on port ${dataPort}: ${error.message}`);
+    app.exit(1);
   });
   server.listen(dataPort, "127.0.0.1");
   return server;
@@ -226,6 +236,44 @@ app.whenReady().then(async () => {
     return out;
   });
 
+  /* Folder actions, callable from the in-app menu (HomeBackNav) as well
+   * as the system File menu. */
+  ipcMain.handle("folder-choose", () => chooseShowcasesFolder(win));
+  ipcMain.handle("folder-reveal", () => shell.openPath(showcasesDir));
+
+  /* Scaffolds a new showcase folder (the home page's "+" card). */
+  ipcMain.handle("showcase-create", (_event, name) => {
+    const title = String(name ?? "").trim();
+    const id = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    if (!id) return { ok: false, error: "Give the showcase a name" };
+    if (existsSync(path.join(showcasesDir, id))) {
+      return { ok: false, error: `A showcase named "${id}" already exists` };
+    }
+    mkdirSync(path.join(showcasesDir, id, "assets"), { recursive: true });
+    writeFileSync(
+      path.join(showcasesDir, id, "showcase.yaml"),
+      `meta:
+  title: ${title}
+  description: Describe ${title} in a sentence.
+  loop: true
+  soundtrack: { src: "", volume: 0.2 }
+
+scenes:
+  - id: intro
+    theme: title
+    title: ${title}
+    captions:
+      - text: Replace this narration with your opening line.
+    media:
+      kind: none
+`,
+    );
+    return { ok: true, id };
+  });
+
   registerAgent(ipcMain, win, {
     showcasesDir: () => showcasesDir,
     runExport: (kind, showcaseId) => runExport(kind, showcaseId, win),
@@ -258,13 +306,38 @@ app.whenReady().then(async () => {
             "smoke terminal available:",
             JSON.stringify(await exec("window.showcaseStudio.terminal.available()")),
           );
-          await exec(`document.querySelector('[aria-label="Open the studio agent"]')?.click()`);
-          // Give the terminal (Claude Code boot) time to render before capturing.
-          await new Promise((r) => setTimeout(r, 4000));
+          if (process.env.ELECTRON_SMOKE_MENU) {
+            // Open the in-app menu instead of the agent panel.
+            await exec(
+              `document.querySelector('[aria-label="App menu"]')?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))`,
+            );
+            await new Promise((r) => setTimeout(r, 600));
+          } else {
+            await exec(`document.querySelector('[aria-label="Open the studio agent"]')?.click()`);
+            // Pick the integrated terminal from the chooser, then give
+            // Claude Code time to boot before capturing.
+            await new Promise((r) => setTimeout(r, 800));
+            await exec(
+              `[...document.querySelectorAll("button")].find((b) => b.textContent.includes("Integrated terminal"))?.click()`,
+            );
+            await new Promise((r) => setTimeout(r, 4000));
+          }
         }
         const image = await win.webContents.capturePage();
         writeFileSync(process.env.ELECTRON_SMOKE, image.toPNG());
         console.log(`smoke: captured ${process.env.ELECTRON_SMOKE} from ${appUrl}`);
+        if (process.env.ELECTRON_SMOKE_MENU) {
+          /* Exercise showcase creation last — the write triggers the
+           * folder watcher's reload, which can strand in-flight
+           * executeJavaScript calls, hence the race. */
+          const created = await Promise.race([
+            win.webContents.executeJavaScript(
+              `window.showcaseStudio.showcases.create("Flow Test")`,
+            ),
+            new Promise((resolve) => setTimeout(() => resolve({ raced: true }), 3000)),
+          ]);
+          console.log("smoke create:", JSON.stringify(created));
+        }
       } catch (error) {
         console.error("smoke failed:", error);
       }

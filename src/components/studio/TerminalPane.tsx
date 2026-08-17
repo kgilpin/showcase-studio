@@ -1,10 +1,18 @@
 import { useEffect, useRef } from "react";
 import { studio } from "@/lib/studio";
 
-/* An xterm.js view over the shell's PTY (the user's own Claude Code
- * running in the showcases folder). xterm is loaded dynamically so the
- * web build never evaluates it. */
-export function TerminalPane({ onExit }: { onExit?: (code: number) => void }) {
+/* An xterm.js view attached to one showcase's persistent PTY session
+ * (the user's own Claude Code running in that showcase's folder). The
+ * session lives in the shell: unmounting detaches the view but leaves
+ * the session running, and remounting replays its scrollback. xterm is
+ * loaded dynamically so the web build never evaluates it. */
+export function TerminalPane({
+  sessionId,
+  onExit,
+}: {
+  sessionId: string;
+  onExit?: (code: number) => void;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,30 +42,45 @@ export function TerminalPane({ onExit }: { onExit?: (code: number) => void }) {
       fit.fit();
       cleanups.push(() => term.dispose());
 
-      cleanups.push(bridge.terminal.onData((data) => term.write(data)));
-      if (onExit) cleanups.push(bridge.terminal.onExit(onExit));
-      const inputDisposable = term.onData((data) => bridge.terminal.input(data));
+      cleanups.push(
+        bridge.terminal.onData(({ id, data }) => {
+          if (id === sessionId) term.write(data);
+        }),
+      );
+      if (onExit) {
+        cleanups.push(
+          bridge.terminal.onExit(({ id, code }) => {
+            if (id === sessionId) onExit(code);
+          }),
+        );
+      }
+      const inputDisposable = term.onData((data) => bridge.terminal.input({ id: sessionId, data }));
       cleanups.push(() => inputDisposable.dispose());
 
       const observer = new ResizeObserver(() => {
         fit.fit();
-        bridge.terminal.resize({ cols: term.cols, rows: term.rows });
+        bridge.terminal.resize({ id: sessionId, cols: term.cols, rows: term.rows });
       });
       observer.observe(host);
       cleanups.push(() => observer.disconnect());
 
-      const started = await bridge.terminal.start({ cols: term.cols, rows: term.rows });
+      const started = await bridge.terminal.start({
+        id: sessionId,
+        cols: term.cols,
+        rows: term.rows,
+      });
+      if (started.buffer) term.write(started.buffer);
       if (!started.ok && started.error) term.write(`\r\n${started.error}\r\n`);
       term.focus();
     })();
 
+    /* Detach only — the session keeps running in the shell. */
     return () => {
       disposed = true;
       cleanups.forEach((cleanup) => cleanup());
-      void studio()?.terminal.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionId]);
 
   return <div ref={hostRef} className="h-full w-full" style={{ background: "#0a0e19" }} />;
 }
