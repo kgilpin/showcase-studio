@@ -134,15 +134,11 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
         </div>
         <div className="hidden shrink-0 flex-col self-stretch py-8 sm:flex sm:w-56 md:w-60 lg:w-64">
           {/* Scene identity, pinned to the top: how to refer to this
-           * scene — in conversation and in the YAML (the id). */}
+           * scene — in conversation and in the YAML (the id). The title
+           * stays out; the slide itself displays it. */}
           <div className="shrink-0">
             {scene.eyebrow && (
               <p className="text-xs uppercase tracking-[0.42em] text-primary">{scene.eyebrow}</p>
-            )}
-            {scene.title && (
-              <p className="mt-2 font-display text-xl leading-snug tracking-tight text-foreground">
-                {scene.title}
-              </p>
             )}
             <p className="mt-2 font-mono text-[0.65rem] text-support">{scene.id}</p>
           </div>
