@@ -18,14 +18,27 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import http from "node:http";
-import { existsSync, mkdirSync, watch, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, watch, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
 import { exportScreens, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
-import { SHOWCASE_GUIDE } from "./showcase-guide.mjs";
+import { studioGuide } from "./showcase-guide.mjs";
+
+const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const require_ = createRequire(import.meta.url);
+/* In dev app.getVersion() reports Electron's own version — the app's
+ * version lives in package.json. */
+const appVersion = require_("../package.json").version;
+let ffmpegPath;
+try {
+  ffmpegPath = require_("ffmpeg-static");
+} catch {
+  /* exports degrade too; the guide says "(unavailable)" */
+}
 
 const dataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
 const appUrl = process.env.ELECTRON_APP_URL ?? "http://localhost:8092";
@@ -55,36 +68,50 @@ runs git itself, and switching branches reloads the app automatically.
 `;
 
 /* New folders start with scaffolding only — no sample showcases; the
- * samples live in the app repo, and the "+" card creates real content. */
+ * samples live in the app repo, and the "+" card creates real content.
+ *
+ * Two ownership rules keep instructions current without clobbering the
+ * user: CLAUDE.md and README are seeded once and then belong to the
+ * user; .studio/GUIDE.md belongs to the studio and is rewritten on
+ * every launch (and folder switch), so any Claude Code session here —
+ * embedded, external, or user-started — always sees instructions that
+ * match the running app. The seeded CLAUDE.md pulls the guide in via
+ * Claude Code's @-import; folders seeded before the split get the
+ * import line (and the .gitignore entry) appended once. */
+const GUIDE_IMPORT = "@.studio/GUIDE.md";
+
 function ensureShowcasesDir() {
-  mkdirSync(showcasesDir, { recursive: true });
-  // Make the folder self-describing and git-friendly, without clobbering.
+  mkdirSync(path.join(showcasesDir, ".studio"), { recursive: true });
+  writeFileSync(
+    path.join(showcasesDir, ".studio", "GUIDE.md"),
+    studioGuide({ version: appVersion, srcDir: repoRoot, ffmpegPath, showcasesDir }),
+  );
   if (!existsSync(path.join(showcasesDir, "README.md"))) {
     writeFileSync(path.join(showcasesDir, "README.md"), FOLDER_README);
   }
-  if (!existsSync(path.join(showcasesDir, ".gitignore"))) {
-    writeFileSync(path.join(showcasesDir, ".gitignore"), ".DS_Store\n");
+  const gitignorePath = path.join(showcasesDir, ".gitignore");
+  if (!existsSync(gitignorePath)) {
+    writeFileSync(gitignorePath, ".DS_Store\n.studio/\n");
+  } else if (!readFileSync(gitignorePath, "utf8").includes(".studio/")) {
+    appendFileSync(gitignorePath, ".studio/\n");
   }
-  /* CLAUDE.md teaches any Claude Code session in this folder the showcase
-   * model — including the studio's embedded terminal. */
-  if (!existsSync(path.join(showcasesDir, "CLAUDE.md"))) {
+  const claudeMdPath = path.join(showcasesDir, "CLAUDE.md");
+  if (!existsSync(claudeMdPath)) {
     writeFileSync(
-      path.join(showcasesDir, "CLAUDE.md"),
-      `# Showcase authoring guide
+      claudeMdPath,
+      `# Showcases folder
 
-This folder is a Showcase Studio library: auto-playing, video-style
-product tours defined as data. The studio app live-reloads whenever a
-file here changes, so edits appear immediately.
+${GUIDE_IMPORT}
 
-${SHOWCASE_GUIDE}
-
-Claude Code sessions opened by the studio start inside a specific
-showcase's folder — paths are then relative to that showcase
-(showcase.yaml, assets/, graphics/). The library root is one level up.
-
-Exports (App Store screenshots, MP4 renders) are run from the studio's
-export page — ask the user to trigger them there.
+The line above imports the studio's always-current instructions
+(regenerated on every launch — keep it). The rest of this file is yours:
+add notes specific to this library below, and the studio won't touch them.
 `,
+    );
+  } else if (!readFileSync(claudeMdPath, "utf8").includes(GUIDE_IMPORT)) {
+    appendFileSync(
+      claudeMdPath,
+      `\n${GUIDE_IMPORT}\n<!-- The studio's always-current instructions (regenerated every launch) — keep this import. -->\n`,
     );
   }
 }
@@ -326,7 +353,18 @@ scenes:
     return { ok: true, id };
   });
 
-  const terminal = registerTerminal(ipcMain, win, { getCwd: () => showcasesDir });
+  /* Facts every Claude session should have on hand, computed at spawn so
+   * they track the running app (and folder switches). The generated
+   * .studio/GUIDE.md explains each one. */
+  const studioEnv = () => ({
+    SHOWCASE_STUDIO_ROOT: showcasesDir,
+    SHOWCASE_STUDIO_SRC: repoRoot,
+    ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
+  });
+  const terminal = registerTerminal(ipcMain, win, {
+    getCwd: () => showcasesDir,
+    getEnv: studioEnv,
+  });
   app.on("before-quit", () => terminal.dispose());
 
   buildMenu(win);

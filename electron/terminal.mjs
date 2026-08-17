@@ -67,7 +67,7 @@ function clearRan(cwd) {
   saveSettings({ terminalRan });
 }
 
-export function registerTerminal(ipcMain, win, { getCwd }) {
+export function registerTerminal(ipcMain, win, { getCwd, getEnv }) {
   /** showcase id → { proc, buffer } */
   const sessions = new Map();
 
@@ -113,7 +113,7 @@ export function registerTerminal(ipcMain, win, { getCwd }) {
       cols: cols || 80,
       rows: rows || 24,
       cwd,
-      env: { ...process.env, TERM: "xterm-256color" },
+      env: { ...process.env, TERM: "xterm-256color", ...getEnv?.() },
     });
     const session = { proc, buffer: "", resumed, cwd };
     sessions.set(id, session);
@@ -142,7 +142,11 @@ export function registerTerminal(ipcMain, win, { getCwd }) {
     const cwd = path.join(getCwd(), id);
     if (!existsSync(cwd)) return { ok: false, error: `No showcase folder named "${id}"` };
     const { command } = claudeCommand(cwd);
-    const shellLine = `cd '${cwd.replace(/'/g, `'\\''`)}'${command ? ` && ${command}` : ""}`;
+    const sq = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
+    const exports = Object.entries(getEnv?.() ?? {})
+      .map(([name, value]) => `export ${name}=${sq(value)}`)
+      .join(" && ");
+    const shellLine = `cd ${sq(cwd)}${exports ? ` && ${exports}` : ""}${command ? ` && ${command}` : ""}`;
     const escaped = shellLine.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     spawn("osascript", [
       "-e",
