@@ -68,7 +68,8 @@ graphics/). The library root is ${showcasesDir}.
   screenshot_slide {showcaseId, sceneId} returns a rendered image of one
   slide — use it after editing a slide, theme, or TSX diagram to see your
   work; validate reports which showcases load and the error for any that
-  don't — use it after YAML edits.
+  don't — use it after YAML edits; script {showcaseId} returns the
+  narration as share-ready plain text (scene headers + spoken lines).
 - Exports run through the MCP export tools as background jobs: export
   {showcaseId, kind} starts one and returns a jobId immediately; poll
   export_status {jobId} while you keep working, and export_cancel stops

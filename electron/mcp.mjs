@@ -14,9 +14,9 @@
  * Both tools read through the running dev server, so they see the current
  * on-disk state (the same files Claude just edited). */
 import { BrowserWindow, screen } from "electron";
-import { readdirSync } from "node:fs";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { parse } from "yaml";
 import { transcribe, whisperPath } from "./transcribe.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
@@ -70,6 +70,20 @@ const TOOLS = [
     },
   },
   {
+    name: "script",
+    description:
+      "The showcase's narration script as share-ready plain text: a title header, the " +
+      "description, then one block per scene — '--- Scene N · theme · eyebrow · title' over the " +
+      "indented spoken lines (captions and support, read verbatim in order).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
     name: "export",
     description:
       "Start an export of a showcase as a background job — returns a jobId immediately; poll " +
@@ -108,6 +122,28 @@ const TOOLS = [
     },
   },
 ];
+
+/** The narration script as plain text, straight from the YAML. */
+function scriptText(showcasesDir, showcaseId) {
+  const yamlPath = path.join(showcasesDir, showcaseId, "showcase.yaml");
+  if (!existsSync(yamlPath)) {
+    throw new Error(`No showcase named "${showcaseId}" in ${showcasesDir}`);
+  }
+  const doc = parse(readFileSync(yamlPath, "utf8"));
+  const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
+  const title = oneLine(doc.meta?.title ?? showcaseId).toUpperCase();
+  const out = [title, "=".repeat(title.length)];
+  if (doc.meta?.description) out.push("", oneLine(doc.meta.description));
+  (doc.scenes ?? []).forEach((scene, i) => {
+    const header = [`Scene ${i + 1}`, scene.theme, scene.eyebrow, scene.title]
+      .filter(Boolean)
+      .map(oneLine);
+    out.push("", `--- ${header.join(" · ")}`);
+    for (const caption of scene.captions ?? []) out.push(`    ${oneLine(caption.text)}`);
+    if (scene.support) out.push(`    ${oneLine(scene.support)}`);
+  });
+  return out.join("\n") + "\n";
+}
 
 /** Resolves a tool-supplied file path against the library layout. */
 function resolveAudio(file, showcasesDir) {
@@ -226,6 +262,13 @@ const TRANSCRIBE_TIMEOUT_MS = 300_000;
 const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 
 async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: args = {} } = {}) {
+  if (name === "script") {
+    return {
+      content: [
+        { type: "text", text: scriptText(getShowcasesDir(), String(args.showcaseId ?? "")) },
+      ],
+    };
+  }
   if (name === "export") {
     const kind = String(args.kind ?? "");
     if (!["screens", "video", "video-draft"].includes(kind)) {
