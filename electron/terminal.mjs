@@ -52,7 +52,13 @@ function claudeCommand(cwd) {
   if (!hasClaude()) return { command: undefined, resumed: false };
   const resumed = Boolean(loadSettings().terminalRan?.[cwd]);
   saveSettings({ terminalRan: { ...loadSettings().terminalRan, [cwd]: true } });
-  return { command: resumed ? "claude --continue" : "claude", resumed };
+  /* The marker is set on launch, so a session that never became a
+   * conversation (declined trust prompt, immediate exit) would leave
+   * `--continue` with nothing to continue — it exits 1, and we fall back
+   * to a fresh session. The exit-code guard keeps an interrupted resumed
+   * session (130) from unexpectedly relaunching. */
+  const command = resumed ? "claude --continue || { [ $? -eq 1 ] && claude; }" : "claude";
+  return { command, resumed };
 }
 
 function clearRan(cwd) {
