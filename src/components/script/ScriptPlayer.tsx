@@ -16,6 +16,7 @@ import {
 import { captionTimeline, type Scene } from "@/content/showcases";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
 import { cn } from "@/lib/utils";
+import { isTypingTarget } from "@/lib/typing-target";
 
 type Props = {
   scenes: Scene[];
@@ -326,6 +327,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e)) return;
       if (e.key === " ") {
         e.preventDefault();
         setPlaying((p) => !p);

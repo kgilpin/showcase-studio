@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Columns2, FileText, Layers, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { HomeBackNav } from "./HomeBackNav";
 import { cn } from "@/lib/utils";
+import { isTypingTarget } from "@/lib/typing-target";
 import { activeCaption, type Showcase } from "@/content/showcases";
 import { FIXED_ASPECT, SceneView } from "./SceneView";
 import { ProgressRail } from "./ProgressRail";
@@ -64,6 +65,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e)) return;
       if (e.key === " ") {
         e.preventDefault();
         setPaused((p) => !p);
