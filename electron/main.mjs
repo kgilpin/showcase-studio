@@ -320,6 +320,12 @@ app.whenReady().then(async () => {
   });
   mainWindow = win;
 
+  /* A file dropped outside a drop target must not navigate the app to
+   * file:// (Chromium's default) — that would blank the studio. */
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith("file:")) event.preventDefault();
+  });
+
   ipcMain.handle("export-screens", async (_event, showcaseId) => {
     const out = await runExport("screens", showcaseId, win);
     shell.showItemInFolder(out);

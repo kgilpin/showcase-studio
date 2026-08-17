@@ -64,6 +64,27 @@ export function TerminalPane({
       observer.observe(host);
       cleanups.push(() => observer.disconnect());
 
+      /* Drag-and-drop, system-terminal style: dropping files types their
+       * shell-quoted paths; dropping text types the text. */
+      const quote = (p: string) => (/^[\w./-]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`);
+      const onDragOver = (e: DragEvent) => e.preventDefault();
+      const onDrop = (e: DragEvent) => {
+        e.preventDefault();
+        const files = [...(e.dataTransfer?.files ?? [])];
+        const data =
+          files.length > 0
+            ? files.map((file) => quote(bridge.terminal.pathForFile(file))).join(" ") + " "
+            : (e.dataTransfer?.getData("text") ?? "");
+        if (data) bridge.terminal.input({ id: sessionId, data });
+        term.focus();
+      };
+      host.addEventListener("dragover", onDragOver);
+      host.addEventListener("drop", onDrop);
+      cleanups.push(() => {
+        host.removeEventListener("dragover", onDragOver);
+        host.removeEventListener("drop", onDrop);
+      });
+
       const started = await bridge.terminal.start({
         id: sessionId,
         cols: term.cols,

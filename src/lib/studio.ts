@@ -11,6 +11,8 @@ export type StudioExportProgress = {
 };
 
 export type StudioTerminal = {
+  /** The filesystem path of a dropped File (renderer Files carry none). */
+  pathForFile(file: File): string;
   /** Whether the PTY host loaded and Claude Code is installed. */
   available(): Promise<{ ptyReady: boolean; claude: boolean }>;
   /** Whether the showcase's integrated session is currently running. */

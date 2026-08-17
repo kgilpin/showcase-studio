@@ -1,7 +1,7 @@
 /* Sandboxed bridge between the studio UI and the shell. The renderer
  * stays a plain web app; inside Electron it additionally sees
  * window.showcaseStudio (typed in src/lib/studio.ts). */
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("showcaseStudio", {
   exportScreens: (showcaseId) => ipcRenderer.invoke("export-screens", showcaseId),
@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
     create: (name) => ipcRenderer.invoke("showcase-create", name),
   },
   terminal: {
+    // Renderer File objects carry no path — resolve it here for
+    // drag-and-drop into the terminal.
+    pathForFile: (file) => webUtils.getPathForFile(file),
     available: () => ipcRenderer.invoke("terminal-available"),
     status: (options) => ipcRenderer.invoke("terminal-status", options),
     external: (options) => ipcRenderer.invoke("terminal-external", options),
