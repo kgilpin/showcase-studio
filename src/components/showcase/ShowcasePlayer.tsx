@@ -115,7 +115,10 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
 
   return (
     <main
-      onClick={() => setPaused((p) => !p)}
+      /* A stage click only ever pauses — starting playback is always an
+       * explicit choice (the play button or space), so the click that
+       * focuses the window can't kick off the show. */
+      onClick={() => setPaused(true)}
       className="relative flex h-dvh w-full flex-col select-none overflow-hidden"
       style={{ background: "var(--gradient-stage)" }}
     >
