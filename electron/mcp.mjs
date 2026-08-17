@@ -14,6 +14,10 @@
  * Both tools read through the running dev server, so they see the current
  * on-disk state (the same files Claude just edited). */
 import { BrowserWindow, screen } from "electron";
+import { readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { transcribe, whisperPath } from "./transcribe.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
 
@@ -42,7 +46,43 @@ const TOOLS = [
       "confirm nothing broke.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "transcribe",
+    description:
+      "Voice-to-text with timestamps: transcribe an audio or video file (whisper.cpp, run " +
+      "locally). Returns sentence segments with per-word timestamps in milliseconds. Use it to " +
+      "align narration to scenes, split a voiceover into scene-scoped clips (cut with ffmpeg at " +
+      "the returned boundaries), or check what a recording actually says — silencedetect only " +
+      "finds pauses, this finds the words. First use downloads the speech model (~142MB), so " +
+      "the first call can take a minute.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file: {
+          type: "string",
+          description:
+            "The recording: an absolute path, or a path relative to the showcases library " +
+            "root or to any showcase folder (e.g. nova/assets/voiceover.mp3 " +
+            "or assets/voiceover.mp3)",
+        },
+      },
+      required: ["file"],
+    },
+  },
 ];
+
+/** Resolves a tool-supplied file path against the library layout. */
+function resolveAudio(file, showcasesDir) {
+  if (path.isAbsolute(file)) return existsSync(file) ? file : undefined;
+  const direct = path.join(showcasesDir, file);
+  if (existsSync(direct)) return direct;
+  for (const entry of readdirSync(showcasesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const nested = path.join(showcasesDir, entry.name, file);
+    if (existsSync(nested)) return nested;
+  }
+  return undefined;
+}
 
 /* Half App Store size — text is readable, payloads stay small. Offscreen
  * windows render at the display's scale factor, so size the window down
@@ -141,7 +181,32 @@ async function validateShowcases(appUrl) {
   }
 }
 
-async function callTool(appUrl, { name, arguments: args = {} } = {}) {
+/* Transcription outlives the page-tool cap: a cold call downloads the
+ * model and a long recording takes real time. */
+const TRANSCRIBE_TIMEOUT_MS = 300_000;
+
+async function callTool(appUrl, getShowcasesDir, { name, arguments: args = {} } = {}) {
+  if (name === "transcribe") {
+    const file = String(args.file ?? "");
+    const audioPath = file && resolveAudio(file, getShowcasesDir());
+    if (!audioPath) {
+      throw new Error(
+        `No file named "${file}" found (looked in the library root and each showcase folder; ` +
+          `absolute paths work too).`,
+      );
+    }
+    let timer;
+    const result = await Promise.race([
+      transcribe(audioPath, { progress: (label) => console.log(`transcribe: ${label}`) }),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Transcription timed out after 5 minutes")),
+          TRANSCRIBE_TIMEOUT_MS,
+        );
+      }),
+    ]).finally(() => clearTimeout(timer));
+    return { content: [{ type: "text", text: JSON.stringify({ file: audioPath, ...result }) }] };
+  }
   if (name === "screenshot_slide") {
     const data = await screenshotSlide(appUrl, args);
     return {
@@ -162,7 +227,7 @@ async function callTool(appUrl, { name, arguments: args = {} } = {}) {
 }
 
 /** The /mcp request handler for the data server. */
-export function createMcpHandler({ appUrl, version }) {
+export function createMcpHandler({ appUrl, version, getShowcasesDir }) {
   const rpc = async ({ id, method, params }) => {
     const respond = (result) => ({ jsonrpc: "2.0", id, result });
     switch (method) {
@@ -180,7 +245,7 @@ export function createMcpHandler({ appUrl, version }) {
         return respond({ tools: TOOLS });
       case "tools/call":
         try {
-          return respond(await callTool(appUrl, params));
+          return respond(await callTool(appUrl, getShowcasesDir, params));
         } catch (error) {
           return respond({
             content: [{ type: "text", text: String(error?.message ?? error) }],

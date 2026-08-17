@@ -14,7 +14,24 @@ import { useMediaPreload } from "./useMediaPreload";
 export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const scenes = showcase.scenes;
   useMediaPreload(scenes);
-  const [index, setIndex] = useState(0);
+  /* Live reload (the studio watcher reloads the page on every file save)
+   * must not lose the viewer's place. The position is saved in
+   * beforeunload — which only fires on real page reloads, never on
+   * in-app navigation — and consumed once here, so opening a showcase
+   * fresh still starts at the top. */
+  const [index, setIndex] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const saved = sessionStorage.getItem("player-resume");
+    if (!saved) return 0;
+    sessionStorage.removeItem("player-resume");
+    try {
+      const pos = JSON.parse(saved) as { id: string; index: number };
+      if (pos.id === showcase.id && pos.index > 0 && pos.index < scenes.length) return pos.index;
+    } catch {
+      /* stale value */
+    }
+    return 0;
+  });
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   /* Two presentations, matching the two exports: "screens" (App Screens —
@@ -39,6 +56,18 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   pausedRef.current = paused;
   const advanceRef = useRef(advance);
   advanceRef.current = advance;
+  const indexRef = useRef(index);
+  indexRef.current = index;
+
+  useEffect(() => {
+    const save = () =>
+      sessionStorage.setItem(
+        "player-resume",
+        JSON.stringify({ id: showcase.id, index: indexRef.current }),
+      );
+    window.addEventListener("beforeunload", save);
+    return () => window.removeEventListener("beforeunload", save);
+  }, [showcase.id]);
 
   useEffect(() => {
     let raf = 0;

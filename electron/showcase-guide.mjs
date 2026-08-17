@@ -51,8 +51,17 @@ graphics/). The library root is ${showcasesDir}.
   belong in that repo, not in this folder.
 - ffmpeg is bundled with the studio at ${ffmpegPath ?? "(unavailable)"}
   (also in $SHOWCASE_STUDIO_FFMPEG). Use it for audio and video work on
-  this folder's recordings: extracting audio, detecting silences
-  (silencedetect), probing durations, transcoding.
+  this folder's recordings: extracting audio, cutting clips, probing
+  durations, transcoding.
+- Voice-to-text is built in: the transcribe MCP tool returns sentence
+  segments with per-word timestamps for any recording. Use it whenever
+  you need to know WHAT is said WHEN — aligning narration to scenes,
+  splitting a voiceover into scene-scoped clips (transcribe, match the
+  caption text to the word timestamps, cut with ffmpeg at those
+  boundaries), or verifying spoken words. ffmpeg's silencedetect only
+  finds pauses; prefer transcribe for anything word-aware. (The binary
+  is also in $SHOWCASE_STUDIO_WHISPER when set; the speech model
+  downloads once on first use.)
 - The studio exposes MCP tools (server "showcase-studio", preloaded in
   studio-opened sessions; a session you start yourself gets them with
   \`claude --mcp-config .studio/mcp.json\` from the library root):

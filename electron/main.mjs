@@ -27,6 +27,7 @@ import { exportScreens, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { createMcpHandler } from "./mcp.mjs";
+import { whisperPath } from "./transcribe.mjs";
 import { studioGuide } from "./showcase-guide.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -132,7 +133,11 @@ add notes specific to this library below, and the studio won't touch them.
 }
 
 function serveData() {
-  const mcp = createMcpHandler({ appUrl, version: appVersion });
+  const mcp = createMcpHandler({
+    appUrl,
+    version: appVersion,
+    getShowcasesDir: () => showcasesDir,
+  });
   const server = http.createServer((req, res) => {
     const url = (req.url ?? "").split("?")[0] ?? "";
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -383,6 +388,7 @@ scenes:
     SHOWCASE_STUDIO_ROOT: showcasesDir,
     SHOWCASE_STUDIO_SRC: repoRoot,
     ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
+    ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
   });
   const terminal = registerTerminal(ipcMain, win, {
     getCwd: () => showcasesDir,
