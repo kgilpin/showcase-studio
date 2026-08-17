@@ -287,7 +287,10 @@ function buildMenu(win) {
 /** Runs one export, streaming progress to the studio window when open. */
 async function runExport(kind, showcaseId, win) {
   const progress = (label) => {
-    win?.webContents.send("export-progress", { showcaseId, kind, label });
+    // The window can be gone (quit mid-export) — sending then throws.
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("export-progress", { showcaseId, kind, label });
+    }
     if (process.env.ELECTRON_EXPORT) console.log(`${kind} ${showcaseId}: ${label}`);
   };
   const outDir = path.join(app.getPath("downloads"), "showcase-exports", showcaseId);
@@ -296,7 +299,9 @@ async function runExport(kind, showcaseId, win) {
     kind === "screens"
       ? await exportScreens(options)
       : await exportVideo({ ...options, fps: Number(process.env.EXPORT_FPS ?? 30) });
-  win?.webContents.send("export-progress", { showcaseId, kind, label: "done", done: true, out });
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("export-progress", { showcaseId, kind, label: "done", done: true, out });
+  }
   return out;
 }
 

@@ -120,14 +120,20 @@ export function registerTerminal(ipcMain, win, { getCwd, getEnv, getMcpConfig })
     });
     const session = { proc, buffer: "", resumed, cwd };
     sessions.set(id, session);
+    /* On quit the PTYs emit their final output after the window is
+     * destroyed — sending to a destroyed window throws in the main
+     * process ("Object has been destroyed" on exit). */
+    const send = (channel, payload) => {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+    };
     proc.onData((data) => {
       session.buffer = (session.buffer + data).slice(-BUFFER_MAX);
-      win.webContents.send("terminal-data", { id, data });
+      send("terminal-data", { id, data });
     });
     proc.onExit(({ exitCode }) => {
       sessions.delete(id);
       if (exitCode !== 0 && session.resumed) clearRan(cwd);
-      win.webContents.send("terminal-exit", { id, code: exitCode });
+      send("terminal-exit", { id, code: exitCode });
     });
     return { ok: true, attached: false, buffer: "", claude: hasClaude() };
   });
