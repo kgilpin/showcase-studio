@@ -53,9 +53,16 @@ graphics/). The library root is ${showcasesDir}.
   (also in $SHOWCASE_STUDIO_FFMPEG). Use it for audio and video work on
   this folder's recordings: extracting audio, detecting silences
   (silencedetect), probing durations, transcoding.
+- The studio exposes MCP tools (server "showcase-studio", preloaded in
+  studio-opened sessions; a session you start yourself gets them with
+  \`claude --mcp-config .studio/mcp.json\` from the library root):
+  screenshot_slide {showcaseId, sceneId} returns a rendered image of one
+  slide — use it after editing a slide, theme, or TSX diagram to see your
+  work; validate reports which showcases load and the error for any that
+  don't — use it after YAML edits.
 - Exports (App Store screenshots, MP4 renders) run from the studio — the
-  File menu's Export items or the showcase's export page. Ask the user to
-  trigger them there.
+  File menu's Export items or the showcase's export page. They take
+  minutes; ask the user to trigger them there.
 
 ${SHOWCASE_GUIDE}
 `;

@@ -45,19 +45,22 @@ function hasClaude() {
 
 const BUFFER_MAX = 200_000;
 
+const sq = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
+
 /* A showcase whose terminal ran before resumes with `claude --continue`,
  * restoring its previous conversation; a non-zero exit clears the flag so
  * the next start is fresh. Shared by the integrated and external paths. */
-function claudeCommand(cwd) {
+function claudeCommand(cwd, mcpConfig) {
   if (!hasClaude()) return { command: undefined, resumed: false };
   const resumed = Boolean(loadSettings().terminalRan?.[cwd]);
   saveSettings({ terminalRan: { ...loadSettings().terminalRan, [cwd]: true } });
+  const claude = mcpConfig ? `claude --mcp-config ${sq(mcpConfig)}` : "claude";
   /* The marker is set on launch, so a session that never became a
    * conversation (declined trust prompt, immediate exit) would leave
    * `--continue` with nothing to continue — it exits 1, and we fall back
    * to a fresh session. The exit-code guard keeps an interrupted resumed
    * session (130) from unexpectedly relaunching. */
-  const command = resumed ? "claude --continue || { [ $? -eq 1 ] && claude; }" : "claude";
+  const command = resumed ? `${claude} --continue || { [ $? -eq 1 ] && ${claude}; }` : claude;
   return { command, resumed };
 }
 
@@ -67,7 +70,7 @@ function clearRan(cwd) {
   saveSettings({ terminalRan });
 }
 
-export function registerTerminal(ipcMain, win, { getCwd, getEnv }) {
+export function registerTerminal(ipcMain, win, { getCwd, getEnv, getMcpConfig }) {
   /** showcase id → { proc, buffer } */
   const sessions = new Map();
 
@@ -106,7 +109,7 @@ export function registerTerminal(ipcMain, win, { getCwd, getEnv }) {
     const cwd = path.join(getCwd(), id);
     if (!existsSync(cwd)) return { ok: false, error: `No showcase folder named "${id}"` };
 
-    const { command, resumed } = claudeCommand(cwd);
+    const { command, resumed } = claudeCommand(cwd, getMcpConfig?.());
     const args = command ? ["-ilc", command] : ["-il"];
     const proc = pty.spawn(shellPath(), args, {
       name: "xterm-256color",
@@ -141,8 +144,7 @@ export function registerTerminal(ipcMain, win, { getCwd, getEnv }) {
     }
     const cwd = path.join(getCwd(), id);
     if (!existsSync(cwd)) return { ok: false, error: `No showcase folder named "${id}"` };
-    const { command } = claudeCommand(cwd);
-    const sq = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
+    const { command } = claudeCommand(cwd, getMcpConfig?.());
     const exports = Object.entries(getEnv?.() ?? {})
       .map(([name, value]) => `export ${name}=${sq(value)}`)
       .join(" && ");

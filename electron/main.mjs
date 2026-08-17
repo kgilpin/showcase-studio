@@ -26,6 +26,7 @@ import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.m
 import { exportScreens, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
+import { createMcpHandler } from "./mcp.mjs";
 import { studioGuide } from "./showcase-guide.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -86,6 +87,20 @@ function ensureShowcasesDir() {
     path.join(showcasesDir, ".studio", "GUIDE.md"),
     studioGuide({ version: appVersion, srcDir: repoRoot, ffmpegPath, showcasesDir }),
   );
+  /* The studio's MCP tools; studio-opened terminals load this via
+   * --mcp-config, and a user-started `claude` can point at it too. */
+  writeFileSync(
+    path.join(showcasesDir, ".studio", "mcp.json"),
+    JSON.stringify(
+      {
+        mcpServers: {
+          "showcase-studio": { type: "http", url: `http://127.0.0.1:${dataPort}/mcp` },
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
   if (!existsSync(path.join(showcasesDir, "README.md"))) {
     writeFileSync(path.join(showcasesDir, "README.md"), FOLDER_README);
   }
@@ -117,10 +132,15 @@ add notes specific to this library below, and the studio won't touch them.
 }
 
 function serveData() {
+  const mcp = createMcpHandler({ appUrl, version: appVersion });
   const server = http.createServer((req, res) => {
     const url = (req.url ?? "").split("?")[0] ?? "";
     res.setHeader("Access-Control-Allow-Origin", "*");
-    handleShowcaseRequest(showcasesDir, url).then(
+    if (url === "/mcp") {
+      void mcp(req, res);
+      return;
+    }
+    handleShowcaseRequest(showcasesDir, url, { range: req.headers.range }).then(
       (result) => {
         if (!result) {
           res.statusCode = 404;
@@ -129,6 +149,9 @@ function serveData() {
         }
         res.statusCode = result.status;
         res.setHeader("Content-Type", result.type);
+        for (const [name, value] of Object.entries(result.headers ?? {})) {
+          res.setHeader(name, value);
+        }
         res.end(result.body);
       },
       (error) => {
@@ -364,6 +387,7 @@ scenes:
   const terminal = registerTerminal(ipcMain, win, {
     getCwd: () => showcasesDir,
     getEnv: studioEnv,
+    getMcpConfig: () => path.join(showcasesDir, ".studio", "mcp.json"),
   });
   app.on("before-quit", () => terminal.dispose());
 
