@@ -69,9 +69,16 @@ graphics/). The library root is ${showcasesDir}.
   slide — use it after editing a slide, theme, or TSX diagram to see your
   work; validate reports which showcases load and the error for any that
   don't — use it after YAML edits.
-- Exports (App Store screenshots, MP4 renders) run from the studio — the
-  File menu's Export items or the showcase's export page. They take
-  minutes; ask the user to trigger them there.
+- Exports run through the MCP export tools as background jobs: export
+  {showcaseId, kind} starts one and returns a jobId immediately; poll
+  export_status {jobId} while you keep working, and export_cancel stops
+  it. Kinds: "video-draft" — a fast, small MP4 (12fps, half size) for
+  checking your own work, use it freely while iterating; "video" — the
+  full-quality 1320×2868 render, takes minutes, confirm with the user
+  before starting; "screens" — the App Store screenshot set. Output
+  lands in ~/Downloads/showcase-exports/<id>. One export runs at a
+  time. (The repo's npm export scripts only cover the showcases bundled
+  in the app repo — for this folder, use the MCP tools.)
 
 ${SHOWCASE_GUIDE}
 `;

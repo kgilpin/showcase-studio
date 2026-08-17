@@ -34,16 +34,21 @@ const ffmpeg = require_("ffmpeg-static");
 const WIDTH = 1320;
 const HEIGHT = 2868;
 
-function studioWindow() {
+function studioWindow(width = WIDTH, height = HEIGHT) {
   const scale = screen.getPrimaryDisplay().scaleFactor || 1;
   return new BrowserWindow({
     show: false,
-    width: Math.round(WIDTH / scale),
-    height: Math.round(HEIGHT / scale),
+    width: Math.round(width / scale),
+    height: Math.round(height / scale),
     frame: false,
     enableLargerThanScreen: true,
     webPreferences: { offscreen: true },
   });
+}
+
+/** Cooperative cancellation: exports check the signal between captures. */
+function checkAborted(signal) {
+  if (signal?.aborted) throw new Error("Export canceled");
 }
 
 async function loadPage(win, url) {
@@ -93,7 +98,14 @@ function soundtrackInput({ showcasesDir, showcaseId, appUrl, soundtrack }) {
   }
 }
 
-export async function exportScreens({ showcasesDir, showcaseId, appUrl, outDir, progress }) {
+export async function exportScreens({
+  showcasesDir,
+  showcaseId,
+  appUrl,
+  outDir,
+  progress,
+  signal,
+}) {
   const doc = readDoc(showcasesDir, showcaseId);
   // footage scenes default out of the screenshot set (export: true opts in).
   const scenes = doc.scenes.filter(
@@ -103,6 +115,7 @@ export async function exportScreens({ showcasesDir, showcaseId, appUrl, outDir, 
   const win = studioWindow();
   try {
     for (const [i, scene] of scenes.entries()) {
+      checkAborted(signal);
       const name = `${String(i + 1).padStart(2, "0")}-${scene.id}.png`;
       await loadPage(win, `${appUrl}/showcase/${showcaseId}/export/${scene.id}`);
       const image = await win.webContents.capturePage();
@@ -121,7 +134,10 @@ export async function exportVideo({
   appUrl,
   outDir,
   fps = 30,
+  /** Draft mode: half size, meant for low fps — a fast check render. */
+  draft = false,
   progress,
+  signal,
 }) {
   const doc = readDoc(showcasesDir, showcaseId);
   const totalMs = doc.scenes.reduce(
@@ -131,7 +147,7 @@ export async function exportVideo({
   const frameCount = Math.round((totalMs / 1000) * fps);
   mkdirSync(outDir, { recursive: true });
   const framesDir = await mkdtemp(path.join(os.tmpdir(), `studio-${showcaseId}-`));
-  const win = studioWindow();
+  const win = draft ? studioWindow(660, 1434) : studioWindow();
   win.webContents.setFrameRate(60);
   try {
     await win.loadURL(`${appUrl}/showcase/${showcaseId}/record?controlled=1`);
@@ -139,6 +155,7 @@ export async function exportVideo({
       while (window.__record?.ready !== true) await new Promise((r) => setTimeout(r, 100));
     })()`);
     for (let frame = 0; frame < frameCount; frame++) {
+      checkAborted(signal);
       const ms = Math.min((frame / fps) * 1000, totalMs);
       const image = await seekAndCapture(win, ms);
       writeFileSync(
@@ -149,8 +166,9 @@ export async function exportVideo({
         progress?.(`frame ${frame + 1}/${frameCount} (${Math.round(ms / 1000)}s)`);
       }
     }
+    checkAborted(signal);
     progress?.(`encoding ${frameCount} frames…`);
-    const outPath = path.join(outDir, "video.mp4");
+    const outPath = path.join(outDir, draft ? "video-draft.mp4" : "video.mp4");
     const audio = soundtrackInput({
       showcasesDir,
       showcaseId,
@@ -172,16 +190,12 @@ export async function exportVideo({
         "-pix_fmt",
         "yuv420p",
         ...(audio
-          ? [
-              "-shortest",
-              "-af",
-              `volume=${doc.meta.soundtrack?.volume ?? 1}`,
-              "-c:a",
-              "aac",
-              "-b:a",
-              "192k",
-            ]
+          ? ["-af", `volume=${doc.meta.soundtrack?.volume ?? 1}`, "-c:a", "aac", "-b:a", "192k"]
           : []),
+        /* Explicit output duration — `-shortest` with an infinitely
+         * looped audio input can keep ffmpeg reading forever. */
+        "-t",
+        (totalMs / 1000).toFixed(3),
         outPath,
       ];
       const proc = spawn(ffmpeg, args, { stdio: ["ignore", "ignore", "pipe"] });

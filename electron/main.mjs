@@ -26,6 +26,7 @@ import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.m
 import { exportScreens, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
+import { createExportJobs } from "./export-jobs.mjs";
 import { createMcpHandler } from "./mcp.mjs";
 import { whisperPath } from "./transcribe.mjs";
 import { studioGuide } from "./showcase-guide.mjs";
@@ -132,11 +133,19 @@ add notes specific to this library below, and the studio won't touch them.
   }
 }
 
+/* Export jobs run in this process against the main window (progress also
+ * streams to the export page); MCP is the control surface. */
+let mainWindow;
+const exportJobs = createExportJobs((kind, showcaseId, { onProgress, signal }) =>
+  runExport(kind, showcaseId, mainWindow, { onProgress, signal }),
+);
+
 function serveData() {
   const mcp = createMcpHandler({
     appUrl,
     version: appVersion,
     getShowcasesDir: () => showcasesDir,
+    exportJobs,
   });
   const server = http.createServer((req, res) => {
     const url = (req.url ?? "").split("?")[0] ?? "";
@@ -210,35 +219,11 @@ async function chooseShowcasesFolder(win) {
   setShowcasesFolder(dir, win);
 }
 
-/* The File menu's Export items act on the showcase currently on screen —
- * the renderer reports route changes over IPC ("menu-showcase"), and the
- * menu is rebuilt so the items enable/disable to match. */
-let currentShowcaseId = null;
-let exporting = false;
-
-async function runMenuExport(kind, win) {
-  const showcaseId = currentShowcaseId;
-  if (!showcaseId || exporting) return;
-  exporting = true;
-  buildMenu(win);
-  try {
-    shell.showItemInFolder(await runExport(kind, showcaseId, win));
-  } catch (error) {
-    dialog.showErrorBox("Export failed", String(error?.message ?? error));
-  } finally {
-    exporting = false;
-    buildMenu(win);
-  }
-}
-
+/* Exports are driven by Claude through the MCP export tools (and the
+ * showcase's export page) — no File menu items while that flow settles. */
 function buildMenu(win) {
   const home = app.getPath("home");
   const recents = (loadSettings().recentFolders ?? []).filter((dir) => dir !== showcasesDir);
-  const exportItem = (label, kind) => ({
-    label,
-    enabled: Boolean(currentShowcaseId) && !exporting,
-    click: () => void runMenuExport(kind, win),
-  });
   const template = [
     ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
     {
@@ -271,9 +256,6 @@ function buildMenu(win) {
           label: process.platform === "darwin" ? "Reveal in Finder" : "Show in File Manager",
           click: () => void shell.openPath(showcasesDir),
         },
-        { type: "separator" },
-        exportItem("Export App Screens", "screens"),
-        exportItem("Export Video", "video"),
         ...(process.platform === "darwin" ? [] : [{ type: "separator" }, { role: "quit" }]),
       ],
     },
@@ -284,21 +266,25 @@ function buildMenu(win) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-/** Runs one export, streaming progress to the studio window when open. */
-async function runExport(kind, showcaseId, win) {
+/** Runs one export, streaming progress to the studio window when open.
+ *  Kinds: screens, video, video-draft (12fps, half size — a fast check). */
+async function runExport(kind, showcaseId, win, { onProgress, signal } = {}) {
   const progress = (label) => {
     // The window can be gone (quit mid-export) — sending then throws.
     if (win && !win.isDestroyed()) {
       win.webContents.send("export-progress", { showcaseId, kind, label });
     }
+    onProgress?.(label);
     if (process.env.ELECTRON_EXPORT) console.log(`${kind} ${showcaseId}: ${label}`);
   };
   const outDir = path.join(app.getPath("downloads"), "showcase-exports", showcaseId);
-  const options = { showcasesDir, showcaseId, appUrl, outDir, progress };
+  const options = { showcasesDir, showcaseId, appUrl, outDir, progress, signal };
   const out =
     kind === "screens"
       ? await exportScreens(options)
-      : await exportVideo({ ...options, fps: Number(process.env.EXPORT_FPS ?? 30) });
+      : kind === "video-draft"
+        ? await exportVideo({ ...options, draft: true, fps: Number(process.env.EXPORT_FPS ?? 12) })
+        : await exportVideo({ ...options, fps: Number(process.env.EXPORT_FPS ?? 30) });
   if (win && !win.isDestroyed()) {
     win.webContents.send("export-progress", { showcaseId, kind, label: "done", done: true, out });
   }
@@ -332,6 +318,7 @@ app.whenReady().then(async () => {
       preload: path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.cjs"),
     },
   });
+  mainWindow = win;
 
   ipcMain.handle("export-screens", async (_event, showcaseId) => {
     const out = await runExport("screens", showcaseId, win);
@@ -342,15 +329,6 @@ app.whenReady().then(async () => {
     const out = await runExport("video", showcaseId, win);
     shell.showItemInFolder(out);
     return out;
-  });
-
-  /* The renderer reports which showcase is on screen so the File menu's
-   * Export items can target it (and gray out on the list pages). */
-  ipcMain.on("menu-showcase", (_event, id) => {
-    const next = typeof id === "string" && id ? id : null;
-    if (next === currentShowcaseId) return;
-    currentShowcaseId = next;
-    buildMenu(win);
   });
 
   /* Scaffolds a new showcase folder (the home page's "+" card). */

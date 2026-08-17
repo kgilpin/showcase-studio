@@ -69,6 +69,44 @@ const TOOLS = [
       required: ["file"],
     },
   },
+  {
+    name: "export",
+    description:
+      "Start an export of a showcase as a background job — returns a jobId immediately; poll " +
+      'export_status (you can keep working meanwhile). Kinds: "video-draft" renders a fast, ' +
+      "small MP4 (12fps, half size) — use it freely to check your work while iterating; " +
+      '"video" is the full-quality 1320×2868 render and takes minutes — confirm with the user ' +
+      'before starting one; "screens" captures the App Store screenshot set. Output lands in ' +
+      "~/Downloads/showcase-exports/<id>. One export runs at a time.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        kind: { type: "string", enum: ["screens", "video", "video-draft"] },
+      },
+      required: ["showcaseId", "kind"],
+    },
+  },
+  {
+    name: "export_status",
+    description:
+      "Check on an export job: status (running | done | failed | canceled), the current " +
+      "progress label, and the output path once done.",
+    inputSchema: {
+      type: "object",
+      properties: { jobId: { type: "string" } },
+      required: ["jobId"],
+    },
+  },
+  {
+    name: "export_cancel",
+    description: "Cancel a running export job.",
+    inputSchema: {
+      type: "object",
+      properties: { jobId: { type: "string" } },
+      required: ["jobId"],
+    },
+  },
 ];
 
 /** Resolves a tool-supplied file path against the library layout. */
@@ -185,7 +223,22 @@ async function validateShowcases(appUrl) {
  * model and a long recording takes real time. */
 const TRANSCRIBE_TIMEOUT_MS = 300_000;
 
-async function callTool(appUrl, getShowcasesDir, { name, arguments: args = {} } = {}) {
+const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
+
+async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: args = {} } = {}) {
+  if (name === "export") {
+    const kind = String(args.kind ?? "");
+    if (!["screens", "video", "video-draft"].includes(kind)) {
+      throw new Error(`Unknown export kind "${kind}" — use screens, video, or video-draft`);
+    }
+    return json(exportJobs.start(kind, String(args.showcaseId ?? "")));
+  }
+  if (name === "export_status" || name === "export_cancel") {
+    const jobId = String(args.jobId ?? "");
+    const result = name === "export_cancel" ? exportJobs.cancel(jobId) : exportJobs.status(jobId);
+    if (!result) throw new Error(`No export job named "${jobId}"`);
+    return json(result);
+  }
   if (name === "transcribe") {
     const file = String(args.file ?? "");
     const audioPath = file && resolveAudio(file, getShowcasesDir());
@@ -205,7 +258,7 @@ async function callTool(appUrl, getShowcasesDir, { name, arguments: args = {} } 
         );
       }),
     ]).finally(() => clearTimeout(timer));
-    return { content: [{ type: "text", text: JSON.stringify({ file: audioPath, ...result }) }] };
+    return json({ file: audioPath, ...result });
   }
   if (name === "screenshot_slide") {
     const data = await screenshotSlide(appUrl, args);
@@ -227,7 +280,7 @@ async function callTool(appUrl, getShowcasesDir, { name, arguments: args = {} } 
 }
 
 /** The /mcp request handler for the data server. */
-export function createMcpHandler({ appUrl, version, getShowcasesDir }) {
+export function createMcpHandler({ appUrl, version, getShowcasesDir, exportJobs }) {
   const rpc = async ({ id, method, params }) => {
     const respond = (result) => ({ jsonrpc: "2.0", id, result });
     switch (method) {
@@ -245,7 +298,7 @@ export function createMcpHandler({ appUrl, version, getShowcasesDir }) {
         return respond({ tools: TOOLS });
       case "tools/call":
         try {
-          return respond(await callTool(appUrl, getShowcasesDir, params));
+          return respond(await callTool(appUrl, getShowcasesDir, exportJobs, params));
         } catch (error) {
           return respond({
             content: [{ type: "text", text: String(error?.message ?? error) }],

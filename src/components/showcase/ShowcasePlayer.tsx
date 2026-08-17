@@ -32,7 +32,9 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
     }
     return 0;
   });
-  const [paused, setPaused] = useState(false);
+  /* Showcases open paused — play is a choice (space, click, or the
+   * button), not an ambush. */
+  const [paused, setPaused] = useState(true);
   const [progress, setProgress] = useState(0);
   /* Two presentations, matching the two exports: "screens" (App Screens —
    * titles on the slide, captions beside it) and "video" (TikTok — captions

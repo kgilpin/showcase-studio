@@ -24,11 +24,6 @@ export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const showcaseId = /^\/showcase\/([^/]+)/.exec(pathname)?.[1];
 
-  /* The system File menu's Export items follow the same showcase. */
-  useEffect(() => {
-    studio()?.menu?.showcase(showcaseId ?? null);
-  }, [showcaseId]);
-
   useEffect(() => {
     setTermExited(null);
     setTermView("loading");
