@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Home, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { captionTimeline, getShowcase } from "@/content/showcases";
 import { dataMode } from "@/content/source";
+import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { MediaThumb } from "@/components/script/MediaThumb";
 import { ScriptPlayer } from "@/components/script/ScriptPlayer";
 
@@ -56,21 +57,7 @@ function ScriptScreen() {
     >
       <div className="mx-auto max-w-4xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-5">
-            <Link
-              to="/showcase/$showcaseId"
-              params={{ showcaseId }}
-              className="inline-flex items-center gap-2 text-sm text-support transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" /> Back to the showcase
-            </Link>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 text-sm text-support transition-colors hover:text-foreground"
-            >
-              <Home className="size-4" /> All showcases
-            </Link>
-          </div>
+          <HomeBackNav showcaseId={showcaseId} backLabel="Back to the showcase" />
           <button
             type="button"
             onClick={() => setPrompter(true)}

@@ -83,9 +83,19 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   return (
     <main
       onClick={() => setPaused((p) => !p)}
-      className="flex h-dvh w-full flex-col select-none overflow-hidden"
+      className="relative flex h-dvh w-full flex-col select-none overflow-hidden"
       style={{ background: "var(--gradient-stage)" }}
     >
+      {/* Persistent top-left Home, over the stage. */}
+      <div className="absolute left-4 top-4 z-30" onClick={(e) => e.stopPropagation()}>
+        <Link
+          to="/"
+          aria-label="All showcases"
+          className="inline-flex rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <Home className="size-4" />
+        </Link>
+      </div>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5">
         <div className="relative h-full min-h-0 shrink-0" style={{ aspectRatio: FIXED_ASPECT }}>
           <SceneView
@@ -153,14 +163,6 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
           >
             <FileText className="size-4" />
-          </Link>
-          <Link
-            to="/"
-            aria-label="All showcases"
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <Home className="size-4" />
           </Link>
         </div>
       </div>
