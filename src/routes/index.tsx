@@ -100,7 +100,6 @@ function HomeScreen() {
         </header>
 
         <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          <NewShowcaseCard />
           {showcases.map((showcase) => {
             const cover = coverUrl(showcase);
             const runtime = showcase.scenes.reduce((sum, s) => sum + s.durationMs, 0);
@@ -133,6 +132,7 @@ function HomeScreen() {
               </Link>
             );
           })}
+          <NewShowcaseCard />
         </div>
       </div>
     </main>
