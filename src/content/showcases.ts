@@ -127,6 +127,11 @@ export type Scene = {
   title: string;
   /** Overlay lines shown in order across the slide. */
   captions: SceneCaption[];
+  /** "video" restricts this scene's captions to the video (overlay)
+   *  presentation — subtitles for media that carries its own speech, like
+   *  an on-camera segment. App Screens then shows no caption for the
+   *  scene; the script and teleprompter still include the lines. */
+  captionsIn?: "video";
   /** Convenience alias for the first caption. */
   body?: string | undefined;
   media: SceneMedia;
@@ -137,6 +142,10 @@ export type Scene = {
   titleMs: number;
   /** Set false to leave this scene out of the exported screenshot set. */
   export?: boolean;
+  /** Entrance animation when the slide appears. Off by default so scenes
+   *  (especially video footage) cut cleanly; `rise` opts in to the
+   *  rise/drift-in entrance. */
+  transition?: "rise" | "none";
   /** Smaller supporting paragraph shown under `body` (statement theme). */
   support?: string;
   /** Small, low-emphasis line shown under the call to action. */
@@ -158,7 +167,11 @@ export type Showcase = {
   description: string;
   /** Loop back to the first scene when the last one finishes. */
   loop: boolean;
-  soundtrack: { src: string; volume: number };
+  /** `sync: true` marks the track as a voiceover locked to the scene
+   *  timeline — the player keeps the audio clock at the timeline position
+   *  (across skips, loops, and unmuting). Leave unset for music beds,
+   *  which free-run and loop independently. */
+  soundtrack: { src: string; volume: number; sync?: boolean };
   /** Asset key for the home-page card image (defaults to the app mark). */
   cover?: string | undefined;
   /** Resolved styling: CSS-variable overrides (names without the leading
@@ -204,7 +217,7 @@ type RawDoc = {
     title: string;
     description: string;
     loop: boolean;
-    soundtrack: { src: string; volume: number };
+    soundtrack: { src: string; volume: number; sync?: boolean };
     cover?: string;
     /** Reading speed in words per second for derived timing (default 3). */
     pace?: number;
@@ -486,6 +499,14 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
   return resolved;
 }
 
+/** `soundtrack.src` may be an asset key (like scene media), a root-relative
+ *  path, or a full URL. Asset keys resolve to the served asset URL; anything
+ *  else passes through untouched. */
+function resolveSoundtrack(showcaseId: string, soundtrack: RawDoc["meta"]["soundtrack"]) {
+  const asset = soundtrack?.src ? assetsByShowcase.get(showcaseId)?.get(soundtrack.src) : undefined;
+  return asset ? { ...soundtrack, src: asset.url } : soundtrack;
+}
+
 function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
   const scenes: Scene[] = doc.scenes.map((raw) => {
     const { titleDurationMs: _, ...scene } = raw;
@@ -500,6 +521,7 @@ function buildShowcase(showcaseId: string, doc: RawDoc): Showcase {
   return {
     id: showcaseId,
     ...doc.meta,
+    soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
     theme: resolveTheme(showcaseId),
     scenes,
     exportScenes: scenes.filter((scene) => scene.export !== false),

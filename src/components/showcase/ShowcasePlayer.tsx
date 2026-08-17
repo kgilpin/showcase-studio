@@ -80,8 +80,14 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const elapsedMs = progress * scene.durationMs;
   const caption = activeCaption(scene, elapsedMs);
   const captionText = caption?.text ?? scene.body;
+  /* captionsIn: video — the captions subtitle the media's own speech
+   * (on-camera footage), so App Screens shows them nowhere. */
+  const subtitlesOnly = scene.captionsIn === "video";
   const sideCaptions =
-    presentation === "screens" && scene.media.kind !== "none" && scene.theme !== "title";
+    presentation === "screens" &&
+    !subtitlesOnly &&
+    scene.media.kind !== "none" &&
+    scene.theme !== "title";
 
   return (
     <main
@@ -98,7 +104,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             scene={scene}
             paused={paused}
             elapsedMs={elapsedMs}
-            hideCaption={sideCaptions}
+            hideCaption={sideCaptions || (presentation === "screens" && subtitlesOnly)}
             hideTitle={presentation === "video"}
           />
         </div>
@@ -135,7 +141,13 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           <Control label="Next scene" onClick={() => advanceRef.current()}>
             <SkipForward className="size-4" />
           </Control>
-          <Soundtrack paused={paused} soundtrack={showcase.soundtrack} />
+          <Soundtrack
+            paused={paused}
+            soundtrack={showcase.soundtrack}
+            timelineMs={
+              scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
+            }
+          />
           <Control
             label={
               presentation === "screens"
