@@ -41,11 +41,12 @@ npm run electron:dev               # the desktop shell: starts a dev server in
                                    # reading showcases from a user-chosen
                                    # folder (File > Choose Showcases Folder…;
                                    # SHOWCASES_DIR overrides; default
-                                   # ~/Showcases, seeded from src/showcases/
-                                   # with a README + .gitignore so the user
-                                   # can git-manage it; live-reloads on every
-                                   # change, including TSX graphics compiled
-                                   # from <id>/graphics/ at runtime)
+                                   # ~/Showcases, scaffolded with a README,
+                                   # .gitignore and CLAUDE.md — no sample
+                                   # content — so the user can git-manage it;
+                                   # live-reloads on every change, including
+                                   # TSX graphics compiled from
+                                   # <id>/graphics/ at runtime)
 ```
 
 ## Where things live

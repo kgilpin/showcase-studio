@@ -2,8 +2,8 @@
  *
  * On launch it:
  *   1. Ensures the user's showcases folder exists (~/Showcases, or
- *      SHOWCASES_DIR), seeding it from src/showcases/ on first run so
- *      the app opens with content.
+ *      SHOWCASES_DIR), scaffolding README/.gitignore/CLAUDE.md on first
+ *      run — showcases are created in-app, not seeded from samples.
  *   2. Serves that folder on 127.0.0.1:8123 in the data shape the app's
  *      httpSource consumes (scripts/showcase-data.mjs), with CORS open
  *      so the app can fetch it from the dev-server origin.
@@ -18,7 +18,7 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import http from "node:http";
-import { cpSync, existsSync, mkdirSync, watch, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, watch, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
@@ -27,7 +27,6 @@ import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { SHOWCASE_GUIDE } from "./showcase-guide.mjs";
 
-const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
 const appUrl = process.env.ELECTRON_APP_URL ?? "http://localhost:8092";
 
@@ -55,12 +54,10 @@ to version: run \`git init\` here and commit as you like — the app never
 runs git itself, and switching branches reloads the app automatically.
 `;
 
-function ensureShowcasesDir(seedContent = true) {
+/* New folders start with scaffolding only — no sample showcases; the
+ * samples live in the app repo, and the "+" card creates real content. */
+function ensureShowcasesDir() {
   mkdirSync(showcasesDir, { recursive: true });
-  if (seedContent && showcaseIndex(showcasesDir).showcases.length === 0) {
-    const seed = path.join(repoRoot, "src/showcases");
-    if (existsSync(seed)) cpSync(seed, showcasesDir, { recursive: true });
-  }
   // Make the folder self-describing and git-friendly, without clobbering.
   if (!existsSync(path.join(showcasesDir, "README.md"))) {
     writeFileSync(path.join(showcasesDir, "README.md"), FOLDER_README);
@@ -146,18 +143,7 @@ async function chooseShowcasesFolder(win) {
   if (picked.canceled || !dir) return;
   showcasesDir = dir;
   saveSettings({ showcasesDir: dir });
-  let seed = false;
-  if (showcaseIndex(dir).showcases.length === 0) {
-    const answer = await dialog.showMessageBox(win, {
-      type: "question",
-      message: "This folder has no showcases yet.",
-      detail: "Copy the sample showcases into it, or start empty?",
-      buttons: ["Copy Samples", "Start Empty"],
-      defaultId: 0,
-    });
-    seed = answer.response === 0;
-  }
-  ensureShowcasesDir(seed);
+  ensureShowcasesDir();
   watchShowcases(win);
   win.webContents.reloadIgnoringCache();
 }
