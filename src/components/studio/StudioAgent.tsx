@@ -31,7 +31,7 @@ type TermView = "loading" | "chooser" | "integrated" | "external";
  *     Code.
  * Renders nothing in a plain browser — the bridge only exists inside
  * Electron. */
-export function StudioAgent() {
+export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"terminal" | "chat">("chat");
@@ -110,6 +110,14 @@ export function StudioAgent() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [entries]);
+
+  /* The integrated terminal docks as a full-height right sidebar; tell
+   * the root layout to pad the content over. */
+  const docked = open && mode === "terminal" && Boolean(showcaseId);
+  useEffect(() => {
+    onDock?.(docked ? 640 : 0);
+    return () => onDock?.(0);
+  }, [docked, onDock]);
 
   /* The agent runs within a showcase — no button on the list pages. */
   if (!available || !showcaseId) return null;
@@ -192,8 +200,10 @@ export function StudioAgent() {
   return (
     <div
       className={cn(
-        "fixed bottom-6 right-6 z-50 flex max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl",
-        mode === "terminal" ? "h-[32rem] w-[44rem]" : "h-[32rem] w-[24rem]",
+        "fixed z-50 flex flex-col bg-background",
+        mode === "terminal"
+          ? "bottom-0 right-0 top-0 w-[40rem] max-w-[100vw] border-l border-border"
+          : "bottom-6 right-6 h-[32rem] w-[24rem] max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-border shadow-2xl",
       )}
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">

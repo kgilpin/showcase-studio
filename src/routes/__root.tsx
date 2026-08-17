@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -136,13 +136,21 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  /* When the studio agent docks (integrated terminal), the app content
+   * pads over to the left — VS Code style — instead of being overlapped. */
+  const [dockWidth, setDockWidth] = useState(0);
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <div
+        className="min-h-dvh transition-[padding-right] duration-200"
+        style={{ paddingRight: dockWidth }}
+      >
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </div>
       {/* Desktop studio only — renders nothing in a plain browser. */}
-      <StudioAgent />
+      <StudioAgent onDock={setDockWidth} />
     </QueryClientProvider>
   );
 }

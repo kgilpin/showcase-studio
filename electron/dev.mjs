@@ -14,7 +14,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const appPort = 8092;
+// Both ports are overridable so a second studio (e.g. automated smoke
+// runs) can coexist with a live one.
+const appPort = Number(process.env.STUDIO_APP_PORT ?? 8092);
 const dataUrl = `http://127.0.0.1:${process.env.SHOWCASES_PORT ?? 8123}`;
 
 const vite = spawn("npm", ["run", "dev", "--", "--port", String(appPort), "--strictPort"], {
