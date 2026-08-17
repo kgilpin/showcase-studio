@@ -130,32 +130,95 @@ function watchShowcases(win) {
   });
 }
 
-/** Menu → Choose Showcases Folder…: point the studio at any directory —
- *  typically a git repo the user manages. Persisted across launches. */
+/** Points the studio at a showcases directory — typically a git repo the
+ *  user manages. Persisted across launches, and remembered in Open Recent. */
+function setShowcasesFolder(dir, win) {
+  showcasesDir = dir;
+  const recents = [dir, ...(loadSettings().recentFolders ?? []).filter((d) => d !== dir)];
+  saveSettings({ showcasesDir: dir, recentFolders: recents.slice(0, 8) });
+  ensureShowcasesDir();
+  watchShowcases(win);
+  win.webContents.reloadIgnoringCache();
+  buildMenu(win);
+}
+
+/** File → Open Folder…: the directory picker in front of setShowcasesFolder. */
 async function chooseShowcasesFolder(win) {
   const picked = await dialog.showOpenDialog(win, {
-    title: "Choose Showcases Folder",
-    buttonLabel: "Use Folder",
+    title: "Open Showcases Folder",
+    buttonLabel: "Open Folder",
     properties: ["openDirectory", "createDirectory"],
     defaultPath: showcasesDir,
   });
   const dir = picked.filePaths[0];
   if (picked.canceled || !dir) return;
-  showcasesDir = dir;
-  saveSettings({ showcasesDir: dir });
-  ensureShowcasesDir();
-  watchShowcases(win);
-  win.webContents.reloadIgnoringCache();
+  setShowcasesFolder(dir, win);
+}
+
+/* The File menu's Export items act on the showcase currently on screen —
+ * the renderer reports route changes over IPC ("menu-showcase"), and the
+ * menu is rebuilt so the items enable/disable to match. */
+let currentShowcaseId = null;
+let exporting = false;
+
+async function runMenuExport(kind, win) {
+  const showcaseId = currentShowcaseId;
+  if (!showcaseId || exporting) return;
+  exporting = true;
+  buildMenu(win);
+  try {
+    shell.showItemInFolder(await runExport(kind, showcaseId, win));
+  } catch (error) {
+    dialog.showErrorBox("Export failed", String(error?.message ?? error));
+  } finally {
+    exporting = false;
+    buildMenu(win);
+  }
 }
 
 function buildMenu(win) {
+  const home = app.getPath("home");
+  const recents = (loadSettings().recentFolders ?? []).filter((dir) => dir !== showcasesDir);
+  const exportItem = (label, kind) => ({
+    label,
+    enabled: Boolean(currentShowcaseId) && !exporting,
+    click: () => void runMenuExport(kind, win),
+  });
   const template = [
     ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
     {
       label: "File",
       submenu: [
-        { label: "Choose Showcases Folder…", click: () => void chooseShowcasesFolder(win) },
-        { label: "Reveal Showcases Folder", click: () => void shell.openPath(showcasesDir) },
+        {
+          label: "Open Folder…",
+          accelerator: "CmdOrCtrl+O",
+          click: () => void chooseShowcasesFolder(win),
+        },
+        {
+          label: "Open Recent",
+          submenu: [
+            ...recents.map((dir) => ({
+              label: dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir,
+              click: () => setShowcasesFolder(dir, win),
+            })),
+            ...(recents.length ? [{ type: "separator" }] : []),
+            {
+              label: "Clear Menu",
+              enabled: recents.length > 0,
+              click: () => {
+                saveSettings({ recentFolders: [] });
+                buildMenu(win);
+              },
+            },
+          ],
+        },
+        {
+          label: process.platform === "darwin" ? "Reveal in Finder" : "Show in File Manager",
+          click: () => void shell.openPath(showcasesDir),
+        },
+        { type: "separator" },
+        exportItem("Export App Screens", "screens"),
+        exportItem("Export Video", "video"),
         ...(process.platform === "darwin" ? [] : [{ type: "separator" }, { role: "quit" }]),
       ],
     },
@@ -221,10 +284,14 @@ app.whenReady().then(async () => {
     return out;
   });
 
-  /* Folder actions, callable from the in-app menu (HomeBackNav) as well
-   * as the system File menu. */
-  ipcMain.handle("folder-choose", () => chooseShowcasesFolder(win));
-  ipcMain.handle("folder-reveal", () => shell.openPath(showcasesDir));
+  /* The renderer reports which showcase is on screen so the File menu's
+   * Export items can target it (and gray out on the list pages). */
+  ipcMain.on("menu-showcase", (_event, id) => {
+    const next = typeof id === "string" && id ? id : null;
+    if (next === currentShowcaseId) return;
+    currentShowcaseId = next;
+    buildMenu(win);
+  });
 
   /* Scaffolds a new showcase folder (the home page's "+" card). */
   ipcMain.handle("showcase-create", (_event, name) => {
@@ -284,11 +351,7 @@ scenes:
             JSON.stringify(await exec("window.showcaseStudio.terminal.available()")),
           );
           if (process.env.ELECTRON_SMOKE_MENU) {
-            // Open the in-app menu instead of the agent panel.
-            await exec(
-              `document.querySelector('[aria-label="App menu"]')?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))`,
-            );
-            await new Promise((r) => setTimeout(r, 600));
+            // Menu mode: capture the page as-is, then exercise creation below.
           } else {
             await exec(`document.querySelector('[aria-label="Open the studio agent"]')?.click()`);
             // Pick the integrated terminal from the chooser, then give

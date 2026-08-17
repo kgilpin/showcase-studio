@@ -39,7 +39,9 @@ npm run export:script -- <id>      # (or one) as plain text to stdout — the
 npm run electron:dev               # the desktop shell: starts a dev server in
                                    # data mode and opens the app in Electron,
                                    # reading showcases from a user-chosen
-                                   # folder (File > Choose Showcases Folder…;
+                                   # folder (File > Open Folder… / Open
+                                   # Recent; Export items act on the
+                                   # showcase on screen;
                                    # SHOWCASES_DIR overrides; default
                                    # ~/Showcases, scaffolded with a README,
                                    # .gitignore and CLAUDE.md — no sample

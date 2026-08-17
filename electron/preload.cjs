@@ -11,9 +11,9 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
     ipcRenderer.on("export-progress", listener);
     return () => ipcRenderer.removeListener("export-progress", listener);
   },
-  folder: {
-    choose: () => ipcRenderer.invoke("folder-choose"),
-    reveal: () => ipcRenderer.invoke("folder-reveal"),
+  menu: {
+    // Which showcase is on screen — drives the File menu's Export items.
+    showcase: (id) => ipcRenderer.send("menu-showcase", id),
   },
   showcases: {
     create: (name) => ipcRenderer.invoke("showcase-create", name),

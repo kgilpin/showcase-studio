@@ -43,12 +43,11 @@ export type ShowcaseStudio = {
   onExportProgress(callback: (progress: StudioExportProgress) => void): () => void;
   /** Per-showcase terminals running the user's own Claude Code. */
   terminal: StudioTerminal;
-  /** Showcases-folder actions (also in the system File menu). */
-  folder: {
-    /** Opens the folder picker; the app reloads on a new choice. */
-    choose(): Promise<void>;
-    /** Reveals the current showcases folder in the system file manager. */
-    reveal(): Promise<void>;
+  /** Keeps the system menus in sync with the app's navigation. */
+  menu: {
+    /** Reports the showcase on screen (null on list pages) so the File
+     *  menu's Export items can target it, or gray out. */
+    showcase(id: string | null): void;
   };
   /** Scaffolding for new showcases (the home page's "+" card). */
   showcases: {
