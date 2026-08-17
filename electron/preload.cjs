@@ -11,6 +11,23 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
     ipcRenderer.on("export-progress", listener);
     return () => ipcRenderer.removeListener("export-progress", listener);
   },
+  terminal: {
+    available: () => ipcRenderer.invoke("terminal-available"),
+    start: (size) => ipcRenderer.invoke("terminal-start", size),
+    stop: () => ipcRenderer.invoke("terminal-stop"),
+    input: (data) => ipcRenderer.send("terminal-input", data),
+    resize: (size) => ipcRenderer.send("terminal-resize", size),
+    onData: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on("terminal-data", listener);
+      return () => ipcRenderer.removeListener("terminal-data", listener);
+    },
+    onExit: (callback) => {
+      const listener = (_event, code) => callback(code);
+      ipcRenderer.on("terminal-exit", listener);
+      return () => ipcRenderer.removeListener("terminal-exit", listener);
+    },
+  },
   agent: {
     status: () => ipcRenderer.invoke("agent-status"),
     setKey: (key) => ipcRenderer.invoke("agent-set-key", key),

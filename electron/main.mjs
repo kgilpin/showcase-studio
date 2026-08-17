@@ -24,7 +24,9 @@ import path from "node:path";
 import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
 import { exportScreens, exportVideo } from "./exporter.mjs";
 import { registerAgent } from "./agent.mjs";
+import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
+import { SHOWCASE_GUIDE } from "./showcase-guide.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
@@ -66,6 +68,24 @@ function ensureShowcasesDir(seedContent = true) {
   }
   if (!existsSync(path.join(showcasesDir, ".gitignore"))) {
     writeFileSync(path.join(showcasesDir, ".gitignore"), ".DS_Store\n");
+  }
+  /* CLAUDE.md teaches any Claude Code session in this folder the showcase
+   * model — including the studio's embedded terminal. */
+  if (!existsSync(path.join(showcasesDir, "CLAUDE.md"))) {
+    writeFileSync(
+      path.join(showcasesDir, "CLAUDE.md"),
+      `# Showcase authoring guide
+
+This folder is a Showcase Studio library: auto-playing, video-style
+product tours defined as data. The studio app live-reloads whenever a
+file here changes, so edits appear immediately.
+
+${SHOWCASE_GUIDE}
+
+Exports (App Store screenshots, MP4 renders) are run from the studio's
+export page — ask the user to trigger them there.
+`,
+    );
   }
 }
 
@@ -210,33 +230,44 @@ app.whenReady().then(async () => {
     showcasesDir: () => showcasesDir,
     runExport: (kind, showcaseId) => runExport(kind, showcaseId, win),
   });
+  const terminal = registerTerminal(ipcMain, win, { getCwd: () => showcasesDir });
+  app.on("before-quit", () => terminal.dispose());
 
   buildMenu(win);
-  await win.loadURL(appUrl + (process.env.ELECTRON_SMOKE_PATH ?? ""));
+  try {
+    await win.loadURL(appUrl + (process.env.ELECTRON_SMOKE_PATH ?? ""));
+  } catch (error) {
+    console.error(`Failed to load ${appUrl}:`, error.message ?? error);
+    if (process.env.ELECTRON_SMOKE) app.exit(1);
+  }
   watchShowcases(win);
 
   if (process.env.ELECTRON_SMOKE) {
     setTimeout(async () => {
-      /* ELECTRON_SMOKE_AGENT=1 additionally exercises the agent bridge:
-       * reports key status, verifies a bogus key is rejected, and opens
-       * the panel so the capture shows it. */
-      if (process.env.ELECTRON_SMOKE_AGENT) {
-        const exec = (code) => win.webContents.executeJavaScript(code);
-        console.log(
-          "smoke agent status:",
-          JSON.stringify(await exec("window.showcaseStudio.agent.status()")),
-        );
-        console.log(
-          "smoke agent setKey(invalid):",
-          JSON.stringify(await exec("window.showcaseStudio.agent.setKey('sk-ant-invalid-key')")),
-        );
-        await exec(`document.querySelector('[aria-label="Open the studio agent"]')?.click()`);
-        await new Promise((r) => setTimeout(r, 400));
+      try {
+        /* ELECTRON_SMOKE_AGENT=1 additionally exercises the agent bridge:
+         * reports key status, verifies a bogus key is rejected, and opens
+         * the panel so the capture shows it. */
+        if (process.env.ELECTRON_SMOKE_AGENT) {
+          const exec = (code) => win.webContents.executeJavaScript(code);
+          console.log(
+            "smoke agent status:",
+            JSON.stringify(await exec("window.showcaseStudio.agent.status()")),
+          );
+          console.log(
+            "smoke terminal available:",
+            JSON.stringify(await exec("window.showcaseStudio.terminal.available()")),
+          );
+          await exec(`document.querySelector('[aria-label="Open the studio agent"]')?.click()`);
+          // Give the terminal (Claude Code boot) time to render before capturing.
+          await new Promise((r) => setTimeout(r, 4000));
+        }
+        const image = await win.webContents.capturePage();
+        writeFileSync(process.env.ELECTRON_SMOKE, image.toPNG());
+        console.log(`smoke: captured ${process.env.ELECTRON_SMOKE} from ${appUrl}`);
+      } catch (error) {
+        console.error("smoke failed:", error);
       }
-      const image = await win.webContents.capturePage();
-      const { writeFileSync } = await import("node:fs");
-      writeFileSync(process.env.ELECTRON_SMOKE, image.toPNG());
-      console.log(`smoke: captured ${process.env.ELECTRON_SMOKE} from ${appUrl}`);
       app.quit();
     }, 4000);
   }

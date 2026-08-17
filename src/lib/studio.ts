@@ -25,6 +25,22 @@ export type StudioAgent = {
   onEvent(callback: (event: AgentEvent) => void): () => void;
 };
 
+export type StudioTerminal = {
+  /** Whether the PTY host loaded and Claude Code is installed. */
+  available(): Promise<{ ptyReady: boolean; claude: boolean }>;
+  /** Starts a session in the showcases folder — Claude Code when
+   *  installed, a plain login shell otherwise. */
+  start(size: {
+    cols: number;
+    rows: number;
+  }): Promise<{ ok: boolean; claude?: boolean; error?: string }>;
+  stop(): Promise<{ ok: boolean }>;
+  input(data: string): void;
+  resize(size: { cols: number; rows: number }): void;
+  onData(callback: (data: string) => void): () => void;
+  onExit(callback: (code: number) => void): () => void;
+};
+
 export type ShowcaseStudio = {
   /** Exports App Store screenshots; resolves to the output folder. */
   exportScreens(showcaseId: string): Promise<string>;
@@ -33,6 +49,8 @@ export type ShowcaseStudio = {
   onExportProgress(callback: (progress: StudioExportProgress) => void): () => void;
   /** The BYOK Claude agent that edits the showcases folder. */
   agent: StudioAgent;
+  /** The embedded terminal running the user's own Claude Code. */
+  terminal: StudioTerminal;
 };
 
 declare global {
