@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { coverUrl, showcases } from "@/content/showcases";
+import { coverUrl, showcaseErrors, showcases } from "@/content/showcases";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { studio } from "@/lib/studio";
 import { cn } from "@/lib/utils";
@@ -132,6 +132,20 @@ function HomeScreen() {
               </Link>
             );
           })}
+          {showcaseErrors.map((error) => (
+            <div
+              key={error.id}
+              className="flex min-h-56 flex-col rounded-2xl border border-red-400/40 bg-card/40 p-7"
+            >
+              <h2 className="font-display text-2xl leading-snug tracking-tight text-foreground">
+                {error.id}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-red-400">{error.message}</p>
+              <p className="mt-auto pt-5 text-xs uppercase tracking-[0.28em] text-support">
+                Didn't load — fix the file and save
+              </p>
+            </div>
+          ))}
           <NewShowcaseCard />
         </div>
       </div>

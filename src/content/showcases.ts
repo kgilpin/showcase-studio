@@ -513,19 +513,40 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   resolvedThemes.clear();
   assetsByShowcase.clear();
   dataGraphicsByShowcase.clear();
+  /* One broken showcase must not take down the library — with live
+   * reload, the app would otherwise blank out on every YAML typo. A
+   * showcase that fails to parse or build is set aside with its error;
+   * the home page shows it as a fix-me card. */
+  const errors: ShowcaseError[] = [];
+  const fail = (id: string, error: unknown) => {
+    errors.push({ id, message: error instanceof Error ? error.message : String(error) });
+    console.error(`Showcase "${id}" failed to load:`, error);
+  };
   for (const entry of data) {
-    rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
-    if (entry.themeYaml != null) {
-      const doc = (parse(entry.themeYaml) ?? {}) as RawTheme;
-      validateThemeDoc(entry.id, doc);
-      themeDocs.set(entry.id, doc);
-    }
     assetsByShowcase.set(entry.id, entry.assets);
     dataGraphicsByShowcase.set(entry.id, entry.graphics);
+    try {
+      rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
+      if (entry.themeYaml != null) {
+        const doc = (parse(entry.themeYaml) ?? {}) as RawTheme;
+        validateThemeDoc(entry.id, doc);
+        themeDocs.set(entry.id, doc);
+      }
+    } catch (error) {
+      rawDocs.delete(entry.id);
+      fail(entry.id, error);
+    }
   }
-  showcases = [...rawDocs.entries()]
-    .map(([showcaseId, doc]) => buildShowcase(showcaseId, doc))
-    .sort((a, b) => a.title.localeCompare(b.title));
+  const built: Showcase[] = [];
+  for (const [showcaseId, doc] of rawDocs) {
+    try {
+      built.push(buildShowcase(showcaseId, doc));
+    } catch (error) {
+      fail(showcaseId, error);
+    }
+  }
+  showcases = built.sort((a, b) => a.title.localeCompare(b.title));
+  showcaseErrors = errors;
   return showcases;
 }
 
@@ -533,6 +554,11 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
  * it, so components can keep reading synchronously. (With the bundled
  * source the promise resolves immediately from build-time data.) */
 export let showcases: Showcase[] = [];
+
+/** Showcases that failed to parse or build this load, with their errors —
+ *  shown as fix-me cards on the home page. */
+export type ShowcaseError = { id: string; message: string };
+export let showcaseErrors: ShowcaseError[] = [];
 
 export const showcasesReady: Promise<Showcase[]> = loadFromSource(activeSource());
 

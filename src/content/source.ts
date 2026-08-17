@@ -41,18 +41,25 @@ export type ShowcaseData = {
 
 export type ShowcaseSource = { load(): Promise<ShowcaseData[]> };
 
-/** Builds the key→asset map, enforcing unique keys per showcase. */
+/** Builds the key→asset map. Every file is reachable by its full name;
+ *  the bare name (without extension) is a convenience key. When two files
+ *  share a bare name (say a .mov and an .MP3), the first keeps it and the
+ *  others stay reachable by full file name — a warning, not a failure. */
 function assetMap(showcaseId: string, files: { name: string; url: string; file: string }[]) {
   const assets = new Map<string, ShowcaseAsset>();
   for (const { name, url, file } of files) {
+    if (!assets.has(name)) assets.set(name, { url, file });
     const key = name.replace(/\.[^.]+$/, "");
-    if (assets.has(key)) {
-      throw new Error(
-        `Showcase "${showcaseId}" has two assets named "${key}" (different extensions). ` +
-          `Asset keys are file names without extension, so they must be unique.`,
+    if (key === name) continue;
+    const existing = assets.get(key);
+    if (!existing) {
+      assets.set(key, { url, file });
+    } else if (existing.file !== file) {
+      console.warn(
+        `Showcase "${showcaseId}": several assets share the name "${key}" — ` +
+          `"${key}" resolves to ${existing.file}; reference the others by full file name.`,
       );
     }
-    assets.set(key, { url, file });
   }
   return assets;
 }
