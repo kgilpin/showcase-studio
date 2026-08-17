@@ -56,8 +56,8 @@ function ScriptScreen() {
       style={{ background: "var(--gradient-stage)" }}
     >
       <div className="mx-auto max-w-4xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <HomeBackNav showcaseId={showcaseId} backLabel="Back to the showcase" />
+        <HomeBackNav showcaseId={showcaseId} backLabel="Back to the showcase" />
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={() => setPrompter(true)}
