@@ -12,7 +12,7 @@
  *                  <base>/index.json, <base>/<id>/showcase.yaml,
  *                  <base>/<id>/assets/<file>. Selected by setting
  *                  VITE_SHOWCASES_URL (the vite dev server serves
- *                  /showcases in this shape — see vite.config.ts); a
+ *                  /showcase-data in this shape — see vite.config.ts); a
  *                  desktop shell can point it at a user folder instead.
  *
  * TSX graphics travel both ways: the bundled source compiles repo

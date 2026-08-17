@@ -12,17 +12,19 @@ import type { Plugin } from "vite";
 // @ts-ignore plain JS module shared with the Electron shell
 import { handleShowcaseRequest } from "./scripts/showcase-data.mjs";
 
-/* Serves the repo's showcases/ as plain data at /showcases — the shape the
- * httpSource in src/content/source.ts consumes (index.json, yaml, assets,
- * and TSX graphics compiled on request). Run the dev server with
- * VITE_SHOWCASES_URL=/showcases to exercise data mode; the Electron shell
- * serves a user folder in this same shape. */
+/* Serves the repo's showcases/ as plain data at /showcase-data — the
+ * shape the httpSource in src/content/source.ts consumes (index.json,
+ * yaml, assets, and TSX graphics compiled on request). Run the dev
+ * server with VITE_SHOWCASES_URL=/showcase-data to exercise data mode;
+ * the Electron shell serves a user folder in this same shape. The route
+ * must NOT be /showcases — that's the real directory, so vite's own
+ * module URLs for bundled graphics live under that path. */
 function showcaseData(): Plugin {
   const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "showcases");
   return {
     name: "showcase-data",
     configureServer(server) {
-      server.middlewares.use("/showcases", (req, res, next) => {
+      server.middlewares.use("/showcase-data", (req, res, next) => {
         const url = (req.url ?? "").split("?")[0] ?? "";
         void handleShowcaseRequest(dir, url, { range: req.headers.range }).then(
           (
