@@ -8,9 +8,12 @@ import { Volume2, VolumeX } from "lucide-react";
 export function Soundtrack({
   paused,
   soundtrack,
+  timelineMs = 0,
 }: {
   paused: boolean;
-  soundtrack: { src: string; volume: number };
+  soundtrack: { src: string; volume: number; sync?: boolean };
+  /** The player's position on the overall scene timeline. */
+  timelineMs?: number;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [muted, setMuted] = useState(true);
@@ -26,6 +29,20 @@ export function Soundtrack({
       void audio.play().catch(() => undefined);
     }
   }, [paused, muted, src, soundtrack.volume]);
+
+  /* A synced track (a voiceover) follows the scene timeline: whenever the
+   * audio clock drifts past the threshold — a scene skip, the loop wrapping
+   * to 0, or unmuting after the timeline moved on — snap it back. Music
+   * beds (no `sync`) keep free-running. */
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !src || !soundtrack.sync || paused || muted) return;
+    // Can't seek before metadata arrives; don't interrupt a seek in flight.
+    if (audio.readyState < HTMLMediaElement.HAVE_METADATA || audio.seeking) return;
+    if (Math.abs(audio.currentTime * 1000 - timelineMs) > 300) {
+      audio.currentTime = timelineMs / 1000;
+    }
+  }, [src, soundtrack.sync, paused, muted, timelineMs]);
 
   if (!src) return null;
 

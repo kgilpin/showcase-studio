@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { MediaAlign, SceneMedia as SceneMediaType, SceneMotion } from "@/content/showcases";
 
@@ -23,6 +24,18 @@ type Props = {
 };
 
 export function SceneMedia({ media, durationMs, paused, className }: Props) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoSrc = media.kind === "video" ? media.src : undefined;
+
+  /* The `paused` prop freezes CSS animations via animationPlayState, but a
+   * <video> runs on its own clock — pause and resume it explicitly. */
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (paused) video.pause();
+    else void video.play().catch(() => undefined);
+  }, [paused, videoSrc]);
+
   if (media.kind === "none") return null;
 
   /* TSX-authored diagram: the component fills the media area and animates
@@ -51,7 +64,9 @@ export function SceneMedia({ media, durationMs, paused, className }: Props) {
     );
   }
 
-  const motion = motionClass[media.motion ?? "zoom-in"];
+  /* Images get a slow zoom by default to keep stills alive; footage already
+   * moves, so video plays plain unless a motion is asked for. */
+  const motion = motionClass[media.motion ?? (media.kind === "video" ? "still" : "zoom-in")];
   const fit = media.frame === "mark" || media.fit === "contain" ? "object-contain" : "object-cover";
   const align = alignClass[media.align ?? "center"];
   const fadeAlign = alignClass[media.fadeTo?.align ?? media.align ?? "center"];
@@ -71,6 +86,7 @@ export function SceneMedia({ media, durationMs, paused, className }: Props) {
       {media.kind === "video" ? (
         <video
           key={media.src}
+          ref={videoRef}
           src={media.src}
           autoPlay
           muted

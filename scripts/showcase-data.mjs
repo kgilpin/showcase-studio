@@ -69,9 +69,48 @@ export function showcaseFile(dir, urlPath) {
   return file && existsSync(file) ? file : undefined;
 }
 
+/** Byte-range slice of a media file. Media elements seek by issuing Range
+ *  requests — without 206 responses, audio/video served here would play
+ *  from the start but never seek (a timeline-synced voiceover goes silent
+ *  the moment the player jumps to a later scene). */
+function rangeResponse(body, type, range) {
+  const size = body.length;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+  if (!match || (match[1] === "" && match[2] === "")) {
+    return {
+      status: 416,
+      type: "text/plain; charset=utf-8",
+      body: "invalid range",
+      headers: { "Content-Range": `bytes */${size}` },
+    };
+  }
+  const start = match[1] === "" ? Math.max(0, size - Number(match[2])) : Number(match[1]);
+  const end = match[1] !== "" && match[2] !== "" ? Math.min(Number(match[2]), size - 1) : size - 1;
+  if (start > end || start >= size) {
+    return {
+      status: 416,
+      type: "text/plain; charset=utf-8",
+      body: "range not satisfiable",
+      headers: { "Content-Range": `bytes */${size}` },
+    };
+  }
+  return {
+    status: 206,
+    type,
+    body: body.subarray(start, end + 1),
+    headers: {
+      "Accept-Ranges": "bytes",
+      "Content-Range": `bytes ${start}-${end}/${size}`,
+      "Content-Length": String(end - start + 1),
+    },
+  };
+}
+
 /** Handles one data-shape request against `dir`. Returns undefined when the
- *  path is not part of the shape (callers fall through to their 404). */
-export async function handleShowcaseRequest(dir, urlPath) {
+ *  path is not part of the shape (callers fall through to their 404).
+ *  `range` is the request's Range header, honoured for files; results may
+ *  carry extra `headers` for the caller to set. */
+export async function handleShowcaseRequest(dir, urlPath, { range } = {}) {
   if (urlPath === "/index.json") {
     return {
       status: 200,
@@ -109,9 +148,13 @@ export async function handleShowcaseRequest(dir, urlPath) {
 
   const file = showcaseFile(dir, urlPath);
   if (!file) return undefined;
+  const type = MIME[path.extname(file)] ?? "application/octet-stream";
+  const body = readFileSync(file);
+  if (range) return rangeResponse(body, type, range);
   return {
     status: 200,
-    type: MIME[path.extname(file)] ?? "application/octet-stream",
-    body: readFileSync(file),
+    type,
+    body,
+    headers: { "Accept-Ranges": "bytes", "Content-Length": String(body.length) },
   };
 }
