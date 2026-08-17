@@ -23,7 +23,6 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
 import { exportScreens, exportVideo } from "./exporter.mjs";
-import { registerAgent } from "./agent.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { SHOWCASE_GUIDE } from "./showcase-guide.mjs";
@@ -274,10 +273,6 @@ scenes:
     return { ok: true, id };
   });
 
-  registerAgent(ipcMain, win, {
-    showcasesDir: () => showcasesDir,
-    runExport: (kind, showcaseId) => runExport(kind, showcaseId, win),
-  });
   const terminal = registerTerminal(ipcMain, win, { getCwd: () => showcasesDir });
   app.on("before-quit", () => terminal.dispose());
 
@@ -298,10 +293,6 @@ scenes:
          * the panel so the capture shows it. */
         if (process.env.ELECTRON_SMOKE_AGENT) {
           const exec = (code) => win.webContents.executeJavaScript(code);
-          console.log(
-            "smoke agent status:",
-            JSON.stringify(await exec("window.showcaseStudio.agent.status()")),
-          );
           console.log(
             "smoke terminal available:",
             JSON.stringify(await exec("window.showcaseStudio.terminal.available()")),

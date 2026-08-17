@@ -10,21 +10,6 @@ export type StudioExportProgress = {
   out?: string;
 };
 
-export type AgentEvent =
-  | { type: "text"; text: string }
-  | { type: "tool"; name: string; input: Record<string, unknown> }
-  | { type: "done" }
-  | { type: "error"; message: string };
-
-export type StudioAgent = {
-  status(): Promise<{ hasKey: boolean; model: string }>;
-  setKey(key: string): Promise<{ ok: boolean; error?: string }>;
-  clearKey(): Promise<{ ok: boolean }>;
-  reset(): Promise<{ ok: boolean }>;
-  send(text: string): Promise<{ ok: boolean; error?: string }>;
-  onEvent(callback: (event: AgentEvent) => void): () => void;
-};
-
 export type StudioTerminal = {
   /** Whether the PTY host loaded and Claude Code is installed. */
   available(): Promise<{ ptyReady: boolean; claude: boolean }>;
@@ -56,9 +41,7 @@ export type ShowcaseStudio = {
   /** Renders the showcase to an MP4; resolves to the output file. */
   exportVideo(showcaseId: string): Promise<string>;
   onExportProgress(callback: (progress: StudioExportProgress) => void): () => void;
-  /** The BYOK Claude agent that edits the showcases folder. */
-  agent: StudioAgent;
-  /** The embedded terminal running the user's own Claude Code. */
+  /** Per-showcase terminals running the user's own Claude Code. */
   terminal: StudioTerminal;
   /** Showcases-folder actions (also in the system File menu). */
   folder: {

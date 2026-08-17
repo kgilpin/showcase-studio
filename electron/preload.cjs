@@ -37,16 +37,4 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
       return () => ipcRenderer.removeListener("terminal-exit", listener);
     },
   },
-  agent: {
-    status: () => ipcRenderer.invoke("agent-status"),
-    setKey: (key) => ipcRenderer.invoke("agent-set-key", key),
-    clearKey: () => ipcRenderer.invoke("agent-clear-key"),
-    reset: () => ipcRenderer.invoke("agent-reset"),
-    send: (text) => ipcRenderer.invoke("agent-send", text),
-    onEvent: (callback) => {
-      const listener = (_event, agentEvent) => callback(agentEvent);
-      ipcRenderer.on("agent-event", listener);
-      return () => ipcRenderer.removeListener("agent-event", listener);
-    },
-  },
 });
