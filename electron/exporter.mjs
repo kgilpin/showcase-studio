@@ -175,6 +175,7 @@ export async function exportVideo({
       appUrl,
       soundtrack: doc.meta.soundtrack,
     });
+    const seconds = (totalMs / 1000).toFixed(3);
     await new Promise((resolve, reject) => {
       const args = [
         "-y",
@@ -182,7 +183,12 @@ export async function exportVideo({
         String(fps),
         "-i",
         path.join(framesDir, "frame-%06d.png"),
-        ...(audio ? ["-stream_loop", "-1", "-i", audio] : []),
+        /* NEVER -stream_loop -1: this ffmpeg build finishes the file and
+         * then hangs at exit forever (survives SIGTERM), leaving the
+         * export job stuck at "encoding" and the process leaked. The
+         * audio is read once and looped in the filter graph instead —
+         * a finite input always exits. */
+        ...(audio ? ["-i", audio] : []),
         "-c:v",
         "libx264",
         "-crf",
@@ -190,15 +196,22 @@ export async function exportVideo({
         "-pix_fmt",
         "yuv420p",
         ...(audio
-          ? ["-af", `volume=${doc.meta.soundtrack?.volume ?? 1}`, "-c:a", "aac", "-b:a", "192k"]
+          ? [
+              "-af",
+              `aloop=loop=-1:size=2147483647,volume=${doc.meta.soundtrack?.volume ?? 1}`,
+              "-c:a",
+              "aac",
+              "-b:a",
+              "192k",
+            ]
           : []),
-        /* Explicit output duration — `-shortest` with an infinitely
-         * looped audio input can keep ffmpeg reading forever. */
         "-t",
-        (totalMs / 1000).toFixed(3),
+        seconds,
         outPath,
       ];
-      const proc = spawn(ffmpeg, args, { stdio: ["ignore", "ignore", "pipe"] });
+      // The abort signal kills ffmpeg itself — cancellation between frame
+      // captures is cooperative, but a spawned encode needs a real kill.
+      const proc = spawn(ffmpeg, args, { stdio: ["ignore", "ignore", "pipe"], signal });
       let stderr = "";
       proc.stderr.on("data", (chunk) => (stderr += chunk));
       proc.on("error", reject);
