@@ -14,9 +14,9 @@
  * Both tools read through the running dev server, so they see the current
  * on-disk state (the same files Claude just edited). */
 import { BrowserWindow, screen } from "electron";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { parse } from "yaml";
+import { scriptText } from "./exporter.mjs";
 import { transcribe, whisperPath } from "./transcribe.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
@@ -90,13 +90,15 @@ const TOOLS = [
       'export_status (you can keep working meanwhile). Kinds: "video-draft" renders a fast, ' +
       "small MP4 (12fps, half size) — use it freely to check your work while iterating; " +
       '"video" is the full-quality 1320×2868 render and takes minutes — confirm with the user ' +
-      'before starting one; "screens" captures the App Store screenshot set. Output lands in ' +
-      "~/Downloads/showcase-exports/<id>. One export runs at a time.",
+      'before starting one; "screens" captures the App Store screenshot set; "script" writes ' +
+      "the narration as <id>_script.txt (instant). Output lands in " +
+      "~/Downloads/showcase-exports/<id> — videos are named <id>.mp4 / <id>_draft.mp4. " +
+      "One export runs at a time.",
     inputSchema: {
       type: "object",
       properties: {
         showcaseId: { type: "string", description: "The showcase's folder name" },
-        kind: { type: "string", enum: ["screens", "video", "video-draft"] },
+        kind: { type: "string", enum: ["screens", "video", "video-draft", "script"] },
       },
       required: ["showcaseId", "kind"],
     },
@@ -122,28 +124,6 @@ const TOOLS = [
     },
   },
 ];
-
-/** The narration script as plain text, straight from the YAML. */
-function scriptText(showcasesDir, showcaseId) {
-  const yamlPath = path.join(showcasesDir, showcaseId, "showcase.yaml");
-  if (!existsSync(yamlPath)) {
-    throw new Error(`No showcase named "${showcaseId}" in ${showcasesDir}`);
-  }
-  const doc = parse(readFileSync(yamlPath, "utf8"));
-  const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
-  const title = oneLine(doc.meta?.title ?? showcaseId).toUpperCase();
-  const out = [title, "=".repeat(title.length)];
-  if (doc.meta?.description) out.push("", oneLine(doc.meta.description));
-  (doc.scenes ?? []).forEach((scene, i) => {
-    const header = [`Scene ${i + 1}`, scene.theme, scene.eyebrow, scene.title]
-      .filter(Boolean)
-      .map(oneLine);
-    out.push("", `--- ${header.join(" · ")}`);
-    for (const caption of scene.captions ?? []) out.push(`    ${oneLine(caption.text)}`);
-    if (scene.support) out.push(`    ${oneLine(scene.support)}`);
-  });
-  return out.join("\n") + "\n";
-}
 
 /** Resolves a tool-supplied file path against the library layout. */
 function resolveAudio(file, showcasesDir) {
@@ -271,8 +251,8 @@ async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: 
   }
   if (name === "export") {
     const kind = String(args.kind ?? "");
-    if (!["screens", "video", "video-draft"].includes(kind)) {
-      throw new Error(`Unknown export kind "${kind}" — use screens, video, or video-draft`);
+    if (!["screens", "video", "video-draft", "script"].includes(kind)) {
+      throw new Error(`Unknown export kind "${kind}" — use screens, video, video-draft, or script`);
     }
     return json(exportJobs.start(kind, String(args.showcaseId ?? "")));
   }

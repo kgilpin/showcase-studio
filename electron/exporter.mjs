@@ -20,7 +20,7 @@
  */
 import { BrowserWindow, screen } from "electron";
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -77,6 +77,38 @@ async function seekAndCapture(win, ms) {
 
 function readDoc(showcasesDir, showcaseId) {
   return parse(readFileSync(path.join(showcasesDir, showcaseId, "showcase.yaml"), "utf8"));
+}
+
+/** The narration script as share-ready plain text, straight from the
+ *  YAML: title header, description, then one block per scene —
+ *  "--- Scene N · theme · eyebrow · title" over the indented spoken
+ *  lines. Shared by the script MCP tool and the script export. */
+export function scriptText(showcasesDir, showcaseId) {
+  if (!existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))) {
+    throw new Error(`No showcase named "${showcaseId}" in ${showcasesDir}`);
+  }
+  const doc = readDoc(showcasesDir, showcaseId);
+  const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
+  const title = oneLine(doc.meta?.title ?? showcaseId).toUpperCase();
+  const out = [title, "=".repeat(title.length)];
+  if (doc.meta?.description) out.push("", oneLine(doc.meta.description));
+  (doc.scenes ?? []).forEach((scene, i) => {
+    const header = [`Scene ${i + 1}`, scene.theme, scene.eyebrow, scene.title]
+      .filter(Boolean)
+      .map(oneLine);
+    out.push("", `--- ${header.join(" · ")}`);
+    for (const caption of scene.captions ?? []) out.push(`    ${oneLine(caption.text)}`);
+    if (scene.support) out.push(`    ${oneLine(scene.support)}`);
+  });
+  return out.join("\n") + "\n";
+}
+
+/** Writes the narration script as <id>_script.txt — the instant export. */
+export async function exportScript({ showcasesDir, showcaseId, outDir }) {
+  mkdirSync(outDir, { recursive: true });
+  const outPath = path.join(outDir, `${showcaseId}_script.txt`);
+  writeFileSync(outPath, scriptText(showcasesDir, showcaseId));
+  return outPath;
 }
 
 /** Resolves meta.soundtrack.src to something ffmpeg can read: an asset key
@@ -168,7 +200,8 @@ export async function exportVideo({
     }
     checkAborted(signal);
     progress?.(`encoding ${frameCount} frames…`);
-    const outPath = path.join(outDir, draft ? "video-draft.mp4" : "video.mp4");
+    // Artifacts are named to survive leaving their folder.
+    const outPath = path.join(outDir, draft ? `${showcaseId}_draft.mp4` : `${showcaseId}.mp4`);
     const audio = soundtrackInput({
       showcasesDir,
       showcaseId,

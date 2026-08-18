@@ -23,7 +23,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
-import { exportScreens, exportVideo } from "./exporter.mjs";
+import { exportScreens, exportScript, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
@@ -287,9 +287,15 @@ async function runExport(kind, showcaseId, win, { onProgress, signal } = {}) {
   const out =
     kind === "screens"
       ? await exportScreens(options)
-      : kind === "video-draft"
-        ? await exportVideo({ ...options, draft: true, fps: Number(process.env.EXPORT_FPS ?? 12) })
-        : await exportVideo({ ...options, fps: Number(process.env.EXPORT_FPS ?? 30) });
+      : kind === "script"
+        ? await exportScript(options)
+        : kind === "video-draft"
+          ? await exportVideo({
+              ...options,
+              draft: true,
+              fps: Number(process.env.EXPORT_FPS ?? 12),
+            })
+          : await exportVideo({ ...options, fps: Number(process.env.EXPORT_FPS ?? 30) });
   if (win && !win.isDestroyed()) {
     win.webContents.send("export-progress", { showcaseId, kind, label: "done", done: true, out });
   }

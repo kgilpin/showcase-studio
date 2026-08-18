@@ -76,9 +76,11 @@ graphics/). The library root is ${showcasesDir}.
   it. Kinds: "video-draft" — a fast, small MP4 (12fps, half size) for
   checking your own work, use it freely while iterating; "video" — the
   full-quality 1320×2868 render, takes minutes, confirm with the user
-  before starting; "screens" — the App Store screenshot set. Output
-  lands in ~/Downloads/showcase-exports/<id>. One export runs at a
-  time. (The repo's npm export scripts only cover the showcases bundled
+  before starting; "screens" — the App Store screenshot set; "script" —
+  the narration as plain text (instant). Output lands in
+  ~/Downloads/showcase-exports/<id>, named for the showcase:
+  <id>.mp4, <id>_draft.mp4, <id>_script.txt, and numbered scene PNGs.
+  One export runs at a time. (The repo's npm export scripts only cover the showcases bundled
   in the app repo — for this folder, use the MCP tools.)
 
 ${SHOWCASE_GUIDE}
