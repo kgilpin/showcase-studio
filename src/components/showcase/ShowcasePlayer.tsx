@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Columns2, FileText, Layers, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import {
+  Columns2,
+  FileText,
+  Layers,
+  Pause,
+  Play,
+  RectangleHorizontal,
+  SkipBack,
+  SkipForward,
+  Smartphone,
+} from "lucide-react";
 import { HomeBackNav } from "./HomeBackNav";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
 import { activeCaption, type Showcase } from "@/content/showcases";
 import { FIXED_ASPECT, SceneView } from "./SceneView";
+import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
 import { ProgressRail } from "./ProgressRail";
 import { Soundtrack } from "./Soundtrack";
 import { useMediaPreload } from "./useMediaPreload";
@@ -40,6 +51,10 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
    * titles on the slide, captions beside it) and "video" (TikTok — captions
    * over the media, no titles competing with them). */
   const [presentation, setPresentation] = useState<"screens" | "video">("screens");
+  /* The canvas: portrait (TikTok / App Store) or the 4:3 embed rendition
+   * (YouTube / desktop). Embed composes its own captions, so the
+   * presentation toggle only applies to portrait. */
+  const [canvas, setCanvas] = useState<"portrait" | "embed">("portrait");
   const scene = scenes[index] ?? scenes[0]!;
 
   const go = useCallback((next: number) => {
@@ -125,17 +140,27 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
       {/* Persistent top-left Home, over the stage. */}
       <HomeBackNav />
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5">
-        <div className="relative h-full min-h-0 shrink-0" style={{ aspectRatio: FIXED_ASPECT }}>
-          <SceneView
-            key={scene.id}
-            scene={scene}
-            paused={paused}
-            elapsedMs={elapsedMs}
-            /* The transcript column always shows the caption; the toggle
-             * only decides whether it ALSO overlays the media. */
-            hideCaption={presentation === "screens"}
-            hideTitle={presentation === "video"}
-          />
+        <div
+          className={cn(
+            "relative h-full min-h-0 shrink-0",
+            canvas === "embed" && "overflow-hidden rounded-xl border border-border",
+          )}
+          style={{ aspectRatio: canvas === "embed" ? EMBED_ASPECT : FIXED_ASPECT }}
+        >
+          {canvas === "embed" ? (
+            <EmbedSceneView key={scene.id} scene={scene} paused={paused} elapsedMs={elapsedMs} />
+          ) : (
+            <SceneView
+              key={scene.id}
+              scene={scene}
+              paused={paused}
+              elapsedMs={elapsedMs}
+              /* The transcript column always shows the caption; the toggle
+               * only decides whether it ALSO overlays the media. */
+              hideCaption={presentation === "screens"}
+              hideTitle={presentation === "video"}
+            />
+          )}
         </div>
         <div className="hidden shrink-0 flex-col self-stretch py-8 sm:flex sm:w-56 md:w-60 lg:w-64">
           {/* Scene identity, pinned to the top: how to refer to this
@@ -195,18 +220,34 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
               scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
             }
           />
+          {canvas === "portrait" && (
+            <Control
+              label={
+                presentation === "screens"
+                  ? "Video presentation: overlay captions on the media, hide titles"
+                  : "App Screens presentation: titles on the slide, captions in the transcript column only"
+              }
+              onClick={() => setPresentation((p) => (p === "screens" ? "video" : "screens"))}
+            >
+              {presentation === "screens" ? (
+                <Columns2 className="size-4" />
+              ) : (
+                <Layers className="size-4" />
+              )}
+            </Control>
+          )}
           <Control
             label={
-              presentation === "screens"
-                ? "Video presentation: overlay captions on the media, hide titles"
-                : "App Screens presentation: titles on the slide, captions in the transcript column only"
+              canvas === "portrait"
+                ? "4:3 embed canvas (YouTube / desktop)"
+                : "Portrait canvas (TikTok / App Store)"
             }
-            onClick={() => setPresentation((p) => (p === "screens" ? "video" : "screens"))}
+            onClick={() => setCanvas((c) => (c === "portrait" ? "embed" : "portrait"))}
           >
-            {presentation === "screens" ? (
-              <Columns2 className="size-4" />
+            {canvas === "portrait" ? (
+              <RectangleHorizontal className="size-4" />
             ) : (
-              <Layers className="size-4" />
+              <Smartphone className="size-4" />
             )}
           </Control>
           <Link
