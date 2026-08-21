@@ -118,7 +118,9 @@ export function SceneView({
   const body = spoken === scene.title ? undefined : spoken;
   const captionKey = caption?.text ?? "body";
   const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
-  const stageCaptionClass = "text-[5.2cqw] leading-relaxed";
+  /* Bold white text in per-line chips — captioning, not interface. The
+   * generous line-height spaces the cloned chips apart. */
+  const stageCaptionClass = "text-[5.2cqw] font-semibold leading-[1.55] text-white";
 
   /* THEME: statement — centered display text; optional app-mark media
    * above the title, or full-bleed media as a dimmed backdrop behind it. */
@@ -232,14 +234,12 @@ export function SceneView({
               {media}
             </div>
             {body && !hideCaption && (
-              <div key={captionKey} className="caption-fade absolute inset-x-3 bottom-5">
-                <p
-                  className={cn(
-                    "rounded-2xl border border-border bg-background/80 px-4 py-3 text-center text-muted-foreground backdrop-blur-md",
-                    stageCaptionClass,
-                  )}
-                >
-                  {body}
+              <div
+                key={captionKey}
+                className="caption-fade absolute inset-x-6 bottom-5 text-center"
+              >
+                <p className={stageCaptionClass}>
+                  <span className="caption-chip">{body}</span>
                 </p>
               </div>
             )}
@@ -258,15 +258,10 @@ export function SceneView({
             {body && !hideCaption && (
               <div
                 key={captionKey}
-                className={cn("caption-fade absolute inset-x-3", captionPlacement)}
+                className={cn("caption-fade absolute inset-x-6 text-center", captionPlacement)}
               >
-                <p
-                  className={cn(
-                    "rounded-2xl border border-border bg-background/80 px-4 py-3 text-center text-muted-foreground backdrop-blur-md",
-                    stageCaptionClass,
-                  )}
-                >
-                  {body}
+                <p className={stageCaptionClass}>
+                  <span className="caption-chip">{body}</span>
                 </p>
               </div>
             )}

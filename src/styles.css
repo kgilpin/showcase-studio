@@ -269,6 +269,16 @@
 @utility caption-fade {
   animation: caption-fade 0.2s ease-out both;
 }
+/* Overlay captions: per-line lozenges (the TikTok/Reels caption idiom) —
+ * the dark chip hugs each wrapped line via box-decoration-break: clone,
+ * so short lines get short chips instead of a full-width panel. */
+@utility caption-chip {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  background: rgb(8 11 20 / 0.72);
+  padding: 0.14em 0.5em;
+  border-radius: 0.32em;
+}
 
 @keyframes cross-fade-in {
   0%,
