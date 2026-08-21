@@ -109,7 +109,8 @@ export type SceneMedia =
   | { kind: "none" };
 
 /** Where an overlay caption sits on the slide.
- *  "bottom" (default) pinned near the bottom edge,
+ *  "bottom" (default) floats 18% up from the bottom edge — clear of the
+ *  UI TikTok lays over the bottom fifth of the frame,
  *  "center" vertically centered, "lower" 60% of the way down,
  *  "top" near the top of the screenshot. */
 export type CaptionPosition = "top" | "center" | "lower" | "bottom";
@@ -316,9 +317,7 @@ function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
     }
   }
   if (doc.extends != null && typeof doc.extends !== "string") {
-    throw new Error(
-      `"extends" in ${file} must be a showcase id (folder name under showcases/)`,
-    );
+    throw new Error(`"extends" in ${file} must be a showcase id (folder name under showcases/)`);
   }
   for (const [group, keys] of Object.entries(THEME_GROUPS)) {
     const section = doc[group as keyof RawTheme];

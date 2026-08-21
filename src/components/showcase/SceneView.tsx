@@ -33,12 +33,15 @@ function CtaContent({
 /** iPhone 16 Pro Max screen aspect ratio (1320 x 2868). */
 export const FIXED_ASPECT = "1320 / 2868";
 
-/** Vertical placement of the overlay caption on a slide. */
+/** Vertical placement of the overlay caption on a slide. The default
+ *  "bottom" floats 18% up from the edge — clear of TikTok's caption
+ *  block, music bar, and seekbar, which own the bottom fifth of the
+ *  frame in the overlay (video) presentation. */
 const captionPositionClass: Record<CaptionPosition, string> = {
   top: "top-5",
   center: "top-1/2 -translate-y-1/2",
   lower: "top-[60%] -translate-y-1/2",
-  bottom: "bottom-5",
+  bottom: "bottom-[18%]",
 };
 
 function FixedStage({
