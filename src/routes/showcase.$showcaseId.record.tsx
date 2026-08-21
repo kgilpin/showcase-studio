@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { createFileRoute } from "@tanstack/react-router";
 import { getShowcase, type Scene, type Showcase } from "@/content/showcases";
 import { FIXED_ASPECT, SceneView } from "@/components/showcase/SceneView";
+import { EMBED_ASPECT, EmbedSceneView } from "@/components/showcase/EmbedSceneView";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
 
 /* The whole showcase as a playable, phone-shaped frame with no device chrome
@@ -19,11 +20,16 @@ import { collectSceneSources } from "@/components/showcase/useMediaPreload";
  *   done     true once playback (or a seek) reaches the end
  *
  * `?controlled=1` disables the real-time clock so `seek` fully owns time.
+ * `?canvas=embed` renders the 4:3 embed canvas (EmbedSceneView) instead
+ * of the portrait phone frame.
  */
 export const Route = createFileRoute("/showcase/$showcaseId/record")({
-  validateSearch: (search: Record<string, unknown>): { controlled: boolean } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { controlled: boolean; canvas: "portrait" | "embed" } => ({
     controlled:
       search["controlled"] === 1 || search["controlled"] === "1" || search["controlled"] === true,
+    canvas: search["canvas"] === "embed" ? "embed" : "portrait",
   }),
   head: ({ params }) => ({
     meta: [{ title: `Record — ${params.showcaseId}` }],
@@ -83,13 +89,21 @@ function scrubToVirtualTime(nowMs: number) {
 
 function RecordPage() {
   const { showcaseId } = Route.useParams();
-  const { controlled } = Route.useSearch();
+  const { controlled, canvas } = Route.useSearch();
   const showcase = getShowcase(showcaseId);
   if (!showcase) return null; // the layout route renders the not-found message
-  return <Recorder showcase={showcase} controlled={controlled} />;
+  return <Recorder showcase={showcase} controlled={controlled} canvas={canvas} />;
 }
 
-function Recorder({ showcase, controlled }: { showcase: Showcase; controlled: boolean }) {
+function Recorder({
+  showcase,
+  controlled,
+  canvas,
+}: {
+  showcase: Showcase;
+  controlled: boolean;
+  canvas: "portrait" | "embed";
+}) {
   const scenes = showcase.scenes;
   const totalMs = scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
   const [clock, setClock] = useState<Clock>({
@@ -166,17 +180,30 @@ function Recorder({ showcase, controlled }: { showcase: Showcase; controlled: bo
   }, [controlled, scenes]);
 
   const scene = scenes[clock.index] ?? scenes[0]!;
+  const paused = controlled ? true : !clock.started;
   return (
     <main className="flex h-dvh w-full items-center justify-center overflow-hidden bg-background">
-      <div className="relative h-full max-w-full" style={{ aspectRatio: FIXED_ASPECT }}>
-        <SceneView
-          key={scene.id}
-          scene={scene}
-          paused={controlled ? true : !clock.started}
-          elapsedMs={clock.elapsedMs}
-          frameless
-          hideTitle
-        />
+      <div
+        className="relative h-full max-w-full"
+        style={{ aspectRatio: canvas === "embed" ? EMBED_ASPECT : FIXED_ASPECT }}
+      >
+        {canvas === "embed" ? (
+          <EmbedSceneView
+            key={scene.id}
+            scene={scene}
+            paused={paused}
+            elapsedMs={clock.elapsedMs}
+          />
+        ) : (
+          <SceneView
+            key={scene.id}
+            scene={scene}
+            paused={paused}
+            elapsedMs={clock.elapsedMs}
+            frameless
+            hideTitle
+          />
+        )}
       </div>
     </main>
   );

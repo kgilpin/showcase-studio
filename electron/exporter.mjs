@@ -168,6 +168,8 @@ export async function exportVideo({
   fps = 30,
   /** Draft mode: half size, meant for low fps — a fast check render. */
   draft = false,
+  /** "embed" renders the 4:3 canvas (1440×1080) instead of portrait. */
+  canvas = "portrait",
   progress,
   signal,
 }) {
@@ -179,10 +181,19 @@ export async function exportVideo({
   const frameCount = Math.round((totalMs / 1000) * fps);
   mkdirSync(outDir, { recursive: true });
   const framesDir = await mkdtemp(path.join(os.tmpdir(), `studio-${showcaseId}-`));
-  const win = draft ? studioWindow(660, 1434) : studioWindow();
+  const embed = canvas === "embed";
+  const win = embed
+    ? draft
+      ? studioWindow(720, 540)
+      : studioWindow(1440, 1080)
+    : draft
+      ? studioWindow(660, 1434)
+      : studioWindow();
   win.webContents.setFrameRate(60);
   try {
-    await win.loadURL(`${appUrl}/showcase/${showcaseId}/record?controlled=1`);
+    await win.loadURL(
+      `${appUrl}/showcase/${showcaseId}/record?controlled=1${embed ? "&canvas=embed" : ""}`,
+    );
     await win.webContents.executeJavaScript(`(async () => {
       while (window.__record?.ready !== true) await new Promise((r) => setTimeout(r, 100));
     })()`);
@@ -201,7 +212,8 @@ export async function exportVideo({
     checkAborted(signal);
     progress?.(`encoding ${frameCount} frames…`);
     // Artifacts are named to survive leaving their folder.
-    const outPath = path.join(outDir, draft ? `${showcaseId}_draft.mp4` : `${showcaseId}.mp4`);
+    const suffix = `${embed ? "_43" : ""}${draft ? "_draft" : ""}`;
+    const outPath = path.join(outDir, `${showcaseId}${suffix}.mp4`);
     const audio = soundtrackInput({
       showcasesDir,
       showcaseId,

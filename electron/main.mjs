@@ -272,7 +272,8 @@ function buildMenu(win) {
 }
 
 /** Runs one export, streaming progress to the studio window when open.
- *  Kinds: screens, video, video-draft (12fps, half size — a fast check). */
+ *  Kinds: screens, script, video, video-draft, and the 4:3 embed canvas
+ *  video-43 / video-43-draft. Drafts run 12fps at half size. */
 async function runExport(kind, showcaseId, win, { onProgress, signal } = {}) {
   const progress = (label) => {
     // The window can be gone (quit mid-export) — sending then throws.
@@ -284,18 +285,15 @@ async function runExport(kind, showcaseId, win, { onProgress, signal } = {}) {
   };
   const outDir = path.join(app.getPath("downloads"), "showcase-exports", showcaseId);
   const options = { showcasesDir, showcaseId, appUrl, outDir, progress, signal };
+  const draft = kind.endsWith("-draft");
+  const canvas = kind.startsWith("video-43") ? "embed" : "portrait";
+  const fps = Number(process.env.EXPORT_FPS ?? (draft ? 12 : 30));
   const out =
     kind === "screens"
       ? await exportScreens(options)
       : kind === "script"
         ? await exportScript(options)
-        : kind === "video-draft"
-          ? await exportVideo({
-              ...options,
-              draft: true,
-              fps: Number(process.env.EXPORT_FPS ?? 12),
-            })
-          : await exportVideo({ ...options, fps: Number(process.env.EXPORT_FPS ?? 30) });
+        : await exportVideo({ ...options, draft, canvas, fps });
   if (win && !win.isDestroyed()) {
     win.webContents.send("export-progress", { showcaseId, kind, label: "done", done: true, out });
   }

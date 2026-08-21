@@ -90,15 +90,19 @@ const TOOLS = [
       'export_status (you can keep working meanwhile). Kinds: "video-draft" renders a fast, ' +
       "small MP4 (12fps, half size) — use it freely to check your work while iterating; " +
       '"video" is the full-quality 1320×2868 render and takes minutes — confirm with the user ' +
-      'before starting one; "screens" captures the App Store screenshot set; "script" writes ' +
-      "the narration as <id>_script.txt (instant). Output lands in " +
-      "~/Downloads/showcase-exports/<id> — videos are named <id>.mp4 / <id>_draft.mp4. " +
-      "One export runs at a time.",
+      'before starting one; "video-43" / "video-43-draft" render the 4:3 embed canvas ' +
+      "(1440×1080, for YouTube and desktop embeds — feature scenes show text beside the phone, " +
+      'footage centers the clip); "screens" captures the App Store screenshot set; "script" ' +
+      "writes the narration as <id>_script.txt (instant). Output lands in " +
+      "~/Downloads/showcase-exports/<id>, named <id>[_43][_draft].mp4. One export runs at a time.",
     inputSchema: {
       type: "object",
       properties: {
         showcaseId: { type: "string", description: "The showcase's folder name" },
-        kind: { type: "string", enum: ["screens", "video", "video-draft", "script"] },
+        kind: {
+          type: "string",
+          enum: ["screens", "video", "video-draft", "video-43", "video-43-draft", "script"],
+        },
       },
       required: ["showcaseId", "kind"],
     },
@@ -251,8 +255,13 @@ async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: 
   }
   if (name === "export") {
     const kind = String(args.kind ?? "");
-    if (!["screens", "video", "video-draft", "script"].includes(kind)) {
-      throw new Error(`Unknown export kind "${kind}" — use screens, video, video-draft, or script`);
+    if (
+      !["screens", "video", "video-draft", "video-43", "video-43-draft", "script"].includes(kind)
+    ) {
+      throw new Error(
+        `Unknown export kind "${kind}" — use screens, video, video-draft, video-43, ` +
+          `video-43-draft, or script`,
+      );
     }
     return json(exportJobs.start(kind, String(args.showcaseId ?? "")));
   }

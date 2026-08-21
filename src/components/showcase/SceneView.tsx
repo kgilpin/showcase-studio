@@ -4,8 +4,9 @@ import { SceneMedia } from "./SceneMedia";
 import appStoreBadge from "@/assets/app-store-badge.svg";
 
 /** CTA content: the App Store badge by default, or a labeled pill button
- *  for `kind: link` (products with no store listing). */
-function CtaContent({
+ *  for `kind: link` (products with no store listing). Shared with the
+ *  4:3 embed canvas (EmbedSceneView). */
+export function CtaContent({
   cta,
   badgeClass,
   pillClass = "px-7 py-3 text-sm",
