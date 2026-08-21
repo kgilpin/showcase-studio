@@ -91,8 +91,8 @@ const TOOLS = [
       "small MP4 (12fps, half size) — use it freely to check your work while iterating; " +
       '"video" is the full-quality 1320×2868 render and takes minutes — confirm with the user ' +
       'before starting one; "video-43" / "video-43-draft" render the 4:3 embed canvas ' +
-      "(1440×1080, for YouTube and desktop embeds — feature scenes show text beside the phone, " +
-      'footage centers the clip); "screens" captures the App Store screenshot set; "script" ' +
+      "(1440×1080, for YouTube and desktop embeds — feature and footage scenes show text " +
+      'beside the media); "screens" captures the App Store screenshot set; "script" ' +
       "writes the narration as <id>_script.txt (instant). Output lands in " +
       "~/Downloads/showcase-exports/<id>, named <id>[_43][_draft].mp4. One export runs at a time.",
     inputSchema: {

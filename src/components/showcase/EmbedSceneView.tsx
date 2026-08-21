@@ -9,8 +9,8 @@ import { CtaContent } from "./SceneView";
  *   statement  centered column, as portrait (wider measure)
  *   feature    text panel (eyebrow, title, caption) beside the
  *              full-height phone media
- *   footage    the portrait clip centered at full height, stage
- *              gradient filling the sides, caption chips on the clip
+ *   footage    the spoken line in a text panel beside the full-height
+ *              clip — no text over the speaker
  *   console    title header over the landscape media band — the canvas
  *              this theme always wanted
  *
@@ -113,14 +113,32 @@ export function EmbedSceneView({
   }
 
   if (scene.theme === "footage") {
+    /* Side-by-side, like feature: the spoken line gets the panel instead
+     * of covering the speaker. */
     return (
       <Stage>
-        <div
-          className="absolute inset-y-0 left-1/2 -translate-x-1/2 overflow-hidden"
-          style={{ aspectRatio: "9 / 16" }}
-        >
-          <div className="relative h-full w-full">{media}</div>
-          {chips}
+        <div className="flex h-full w-full">
+          {/* Eyebrows stay off slides (they label the script pages). */}
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-[1.8cqw] px-[5cqw] text-left">
+            {body && (
+              <p
+                key={captionKey}
+                className="caption-fade text-[3.2cqw] leading-relaxed text-foreground"
+              >
+                {body}
+              </p>
+            )}
+          </div>
+          {scene.media.kind !== "none" && (
+            <div className="flex h-full shrink-0 items-center py-[3cqh] pr-[3.5cqw]">
+              <div
+                className="relative h-full overflow-hidden rounded-[1.6cqw] border border-border bg-card"
+                style={{ aspectRatio: "9 / 16" }}
+              >
+                {media}
+              </div>
+            </div>
+          )}
         </div>
       </Stage>
     );
@@ -151,11 +169,6 @@ export function EmbedSceneView({
     <Stage>
       <div className="flex h-full w-full">
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-[1.6cqw] px-[5cqw] text-left">
-          {scene.eyebrow && (
-            <p className="text-[1.7cqw] uppercase tracking-[0.42em] text-primary">
-              {scene.eyebrow}
-            </p>
-          )}
           {scene.title && (
             <h2 className="font-display text-[4.6cqw] leading-[1.08] tracking-tight text-foreground">
               {scene.title}

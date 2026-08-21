@@ -78,7 +78,7 @@ graphics/). The library root is ${showcasesDir}.
   full-quality 1320×2868 portrait render (TikTok), takes minutes,
   confirm with the user before starting; "video-43" / "video-43-draft" —
   the 4:3 embed canvas (1440×1080, for YouTube and desktop embeds:
-  feature scenes put text beside the phone, footage centers the clip);
+  feature and footage scenes put the text beside the media);
   "screens" — the App Store screenshot set; "script" — the narration as
   plain text (instant). Output lands in ~/Downloads/showcase-exports/<id>,
   named for the showcase: <id>[_43][_draft].mp4, <id>_script.txt, and
