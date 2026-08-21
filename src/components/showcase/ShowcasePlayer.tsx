@@ -140,56 +140,77 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
       {/* Persistent top-left Home, over the stage. */}
       <HomeBackNav />
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5">
-        <div
-          className={cn(
-            "relative h-full min-h-0 shrink-0",
-            canvas === "embed" && "overflow-hidden rounded-xl border border-border",
-          )}
-          style={{ aspectRatio: canvas === "embed" ? EMBED_ASPECT : FIXED_ASPECT }}
-        >
-          {canvas === "embed" ? (
-            <EmbedSceneView key={scene.id} scene={scene} paused={paused} elapsedMs={elapsedMs} />
-          ) : (
-            <SceneView
-              key={scene.id}
-              scene={scene}
-              paused={paused}
-              elapsedMs={elapsedMs}
-              /* The transcript column always shows the caption; the toggle
-               * only decides whether it ALSO overlays the media. */
-              hideCaption={presentation === "screens"}
-              hideTitle={presentation === "video"}
-            />
-          )}
-        </div>
-        <div className="hidden shrink-0 flex-col self-stretch py-8 sm:flex sm:w-56 md:w-60 lg:w-64">
-          {/* Scene identity, pinned to the top: how to refer to this
-           * scene — in conversation and in the YAML (the id). The title
-           * stays out; the slide itself displays it. */}
-          <div className="shrink-0">
-            {scene.eyebrow && (
-              <p className="text-xs uppercase tracking-[0.42em] text-primary">{scene.eyebrow}</p>
-            )}
-            <p className="mt-2 font-mono text-[0.65rem] text-support">{scene.id}</p>
+        {canvas === "embed" ? (
+          /* The embed canvas composes its own captions, so no transcript
+           * column — the scene identity sits in a strip above the frame.
+           * The stage's width derives from a definite height (as the
+           * portrait stage does); aspect-ratio on a flex-sized box
+           * collapses instead. */
+          <div className="flex h-full min-h-0 flex-col justify-center">
+            <div className="flex h-7 shrink-0 items-baseline gap-4 px-1">
+              {scene.eyebrow && (
+                <p className="text-xs uppercase tracking-[0.42em] text-primary">{scene.eyebrow}</p>
+              )}
+              <p className="font-mono text-[0.65rem] text-support">{scene.id}</p>
+              {scene.warnings?.map((warning, i) => (
+                <p key={i} className="text-xs text-amber-400/90">
+                  ⚠ {warning}
+                </p>
+              ))}
+            </div>
+            <div
+              className="relative overflow-hidden rounded-xl border border-border"
+              style={{ height: "calc(100% - 1.75rem)", aspectRatio: EMBED_ASPECT }}
+            >
+              <EmbedSceneView key={scene.id} scene={scene} paused={paused} elapsedMs={elapsedMs} />
+            </div>
           </div>
-          <div className="flex flex-1 flex-col justify-center gap-4">
-            {captionText && (
-              <p
-                key={captionText}
-                className="caption-fade text-left text-lg leading-snug text-muted-foreground md:text-xl"
-              >
-                {captionText}
-              </p>
-            )}
-            {scene.warnings && (
-              <ul className="space-y-1.5 text-xs leading-relaxed text-amber-400/90">
-                {scene.warnings.map((warning, i) => (
-                  <li key={i}>⚠ {warning}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="relative h-full min-h-0 shrink-0" style={{ aspectRatio: FIXED_ASPECT }}>
+              <SceneView
+                key={scene.id}
+                scene={scene}
+                paused={paused}
+                elapsedMs={elapsedMs}
+                /* The transcript column always shows the caption; the toggle
+                 * only decides whether it ALSO overlays the media. */
+                hideCaption={presentation === "screens"}
+                hideTitle={presentation === "video"}
+              />
+            </div>
+            <div className="hidden shrink-0 flex-col self-stretch py-8 sm:flex sm:w-56 md:w-60 lg:w-64">
+              {/* Scene identity, pinned to the top: how to refer to this
+               * scene — in conversation and in the YAML (the id). The title
+               * stays out; the slide itself displays it. */}
+              <div className="shrink-0">
+                {scene.eyebrow && (
+                  <p className="text-xs uppercase tracking-[0.42em] text-primary">
+                    {scene.eyebrow}
+                  </p>
+                )}
+                <p className="mt-2 font-mono text-[0.65rem] text-support">{scene.id}</p>
+              </div>
+              <div className="flex flex-1 flex-col justify-center gap-4">
+                {captionText && (
+                  <p
+                    key={captionText}
+                    className="caption-fade text-left text-lg leading-snug text-muted-foreground md:text-xl"
+                  >
+                    {captionText}
+                  </p>
+                )}
+                {scene.warnings && (
+                  <ul className="space-y-1.5 text-xs leading-relaxed text-amber-400/90">
+                    {scene.warnings.map((warning, i) => (
+                      <li key={i}>⚠ {warning}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div
