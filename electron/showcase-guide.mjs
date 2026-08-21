@@ -20,7 +20,7 @@ theme.yaml (optional): whitelisted styling — colors, fonts {display, body, loa
 Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram; style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
 
 ## Working rules
-- Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed.
+- Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed. Referencing an asset or graphic that doesn't exist yet is fine: the slide renders a "missing asset" placeholder with a linter warning, and heals when the file lands in assets/.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, then reference them by key.
 - Keep narration natural to read aloud, and slides focused — one idea per slide.
 - This folder may be a git repository the user manages themselves — never run destructive git operations; your job is the content files.`;

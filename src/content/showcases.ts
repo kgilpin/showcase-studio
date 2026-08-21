@@ -417,21 +417,59 @@ function resolveAsset(showcaseId: string, key: string): ShowcaseAsset {
   return entry;
 }
 
-function resolveMedia(showcaseId: string, media?: RawMedia): SceneMedia {
+/** A stand-in image for a missing asset or graphic: renders the missing
+ *  key on a dashed frame, so the slide keeps working while its files are
+ *  still arriving (a new showcase's YAML often lands before its media). */
+function placeholderAsset(key: string): ShowcaseAsset {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="660" height="1434" viewBox="0 0 660 1434">` +
+    `<rect width="660" height="1434" fill="#0b101d"/>` +
+    `<rect x="40" y="40" width="580" height="1354" fill="none" stroke="#3a4358" ` +
+    `stroke-width="3" stroke-dasharray="16 14" rx="24"/>` +
+    `<text x="330" y="690" fill="#8b93a7" font-family="ui-monospace,Menlo,monospace" ` +
+    `font-size="30" text-anchor="middle">missing asset</text>` +
+    `<text x="330" y="740" fill="#c7cddb" font-family="ui-monospace,Menlo,monospace" ` +
+    `font-size="34" text-anchor="middle">${key.replace(/[<>&]/g, "")}</text>` +
+    `</svg>`;
+  return { url: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, file: `${key} (missing)` };
+}
+
+function resolveMedia(
+  showcaseId: string,
+  media: RawMedia | undefined,
+  warn: (message: string) => void,
+): SceneMedia {
   if (!media || media.kind === "none") return { kind: "none" };
+  /* A missing asset or graphic renders as a placeholder with a linter
+   * warning, not a broken showcase. */
+  const assetOr = (key: string): ShowcaseAsset => {
+    try {
+      return resolveAsset(showcaseId, key);
+    } catch (error) {
+      warn(String(error instanceof Error ? error.message : error));
+      return placeholderAsset(key);
+    }
+  };
   if (media.kind === "graphic") {
-    const graphic = resolveGraphic(showcaseId, media.graphic);
-    return {
-      kind: "graphic",
-      graphic: media.graphic,
-      component: graphic.component,
-      file: graphic.file,
-      alt: media.alt,
-      ...(media.motion ? { motion: media.motion } : {}),
-      ...(media.frame ? { frame: media.frame } : {}),
-    };
+    try {
+      const graphic = resolveGraphic(showcaseId, media.graphic);
+      return {
+        kind: "graphic",
+        graphic: media.graphic,
+        component: graphic.component,
+        file: graphic.file,
+        alt: media.alt,
+        ...(media.motion ? { motion: media.motion } : {}),
+        ...(media.frame ? { frame: media.frame } : {}),
+      };
+    } catch (error) {
+      warn(String(error instanceof Error ? error.message : error));
+      const stand = placeholderAsset(media.graphic);
+      return { kind: "image", src: stand.url, file: stand.file, alt: media.alt };
+    }
   }
-  const asset = resolveAsset(showcaseId, media.asset);
+  const asset = assetOr(media.asset);
+  const fadeTo = media.fadeTo ? assetOr(media.fadeTo.asset) : undefined;
   return {
     kind: media.kind,
     src: asset.url,
@@ -442,15 +480,16 @@ function resolveMedia(showcaseId: string, media?: RawMedia): SceneMedia {
     ...(media.frame ? { frame: media.frame } : {}),
     ...(media.align ? { align: media.align } : {}),
     ...(media.fit ? { fit: media.fit } : {}),
-    fadeTo: media.fadeTo
-      ? {
-          src: resolveAsset(showcaseId, media.fadeTo.asset).url,
-          alt: media.fadeTo.alt,
-          asset: media.fadeTo.asset,
-          file: resolveAsset(showcaseId, media.fadeTo.asset).file,
-          ...(media.fadeTo.align ? { align: media.fadeTo.align } : {}),
-        }
-      : undefined,
+    fadeTo:
+      media.fadeTo && fadeTo
+        ? {
+            src: fadeTo.url,
+            alt: media.fadeTo.alt,
+            asset: media.fadeTo.asset,
+            file: fadeTo.file,
+            ...(media.fadeTo.align ? { align: media.fadeTo.align } : {}),
+          }
+        : undefined,
   };
 }
 
@@ -577,6 +616,7 @@ function buildShowcase(
   const scenes: Scene[] = doc.scenes.map((raw) => {
     const { titleDurationMs: _titleDurationMs, captionsIn: _captionsIn, ...scene } = raw;
     const { theme, warnings } = lintScene(raw);
+    const media = resolveMedia(showcaseId, scene.media, (message) => warnings.push(message));
     warnings.forEach((message) => warn(raw.id, message));
     const timing = resolveSceneTiming(raw, doc.meta.pace);
     return {
@@ -584,7 +624,7 @@ function buildShowcase(
       ...timing,
       theme,
       body: timing.captions[0]?.text,
-      media: resolveMedia(showcaseId, scene.media),
+      media,
       ...(warnings.length > 0 ? { warnings } : {}),
     };
   });
@@ -677,7 +717,14 @@ export function getShowcase(id: string): Showcase | undefined {
 /** The home-page card image: `meta.cover` if set, else the first
  *  mark-framed asset, else the first image in the showcase. */
 export function coverUrl(showcase: Showcase): string | undefined {
-  if (showcase.cover) return resolveAsset(showcase.id, showcase.cover).url;
+  if (showcase.cover) {
+    // A missing cover is a card without an image, not a broken home page.
+    try {
+      return resolveAsset(showcase.id, showcase.cover).url;
+    } catch {
+      return undefined;
+    }
+  }
   const mark = showcase.scenes.find((s) => s.media.kind === "image" && s.media.frame === "mark");
   if (mark && mark.media.kind === "image") return mark.media.src;
   const image = showcase.scenes.find((s) => s.media.kind === "image");
