@@ -184,9 +184,13 @@ export function SceneView({
    * stage edge-to-edge with no header — the media IS the slide. */
   const hasMedia = scene.media.kind !== "none";
   const isConsole = scene.theme === "console";
-  const fullBleed =
-    scene.media.kind !== "none" && (scene.theme === "footage" || scene.media.frame === "full");
-  const dropHeader = hasMedia && (hideTitle || fullBleed || !scene.title);
+  /* footage is the only theme that never shows a title. `frame: full`
+   * elsewhere is a visual treatment — media edge-to-edge, no phone
+   * chrome — and the header follows the presentation like any other
+   * scene (shown in App Screens, hidden in the overlay presentation). */
+  const isFootage = scene.theme === "footage";
+  const fullBleed = scene.media.kind !== "none" && (isFootage || scene.media.frame === "full");
+  const dropHeader = hasMedia && (isFootage || hideTitle || !scene.title);
   return (
     <FixedStage compact={hasMedia} frameless={frameless}>
       <div
@@ -252,7 +256,10 @@ export function SceneView({
             className={cn(
               "relative min-h-0 flex-1 overflow-hidden",
               drift,
-              !dropHeader && "mt-7 rounded-t-[1.6rem] border-x border-t border-border",
+              !dropHeader &&
+                !fullBleed &&
+                "mt-7 rounded-t-[1.6rem] border-x border-t border-border",
+              !dropHeader && fullBleed && "mt-7",
             )}
           >
             {media}
