@@ -159,7 +159,7 @@ function AssetDetails({
   const [status, setStatus] = useState<string | null>(null);
   if (!asset) {
     return (
-      <aside className="w-full shrink-0 lg:w-80">
+      <aside className="w-full shrink-0 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:w-[26rem] lg:self-start lg:overflow-y-auto xl:w-[30rem]">
         <p className="text-sm text-support">Select an asset to see its details.</p>
       </aside>
     );
@@ -181,15 +181,15 @@ function AssetDetails({
   };
 
   return (
-    <aside className="w-full shrink-0 lg:w-80">
+    <aside className="w-full shrink-0 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:w-[26rem] lg:self-start lg:overflow-y-auto xl:w-[30rem]">
       <div className="rounded-2xl border border-border bg-card/40 p-5">
-        <div className="flex max-h-72 items-center justify-center overflow-hidden rounded-lg bg-background/40">
+        <div className="flex max-h-96 items-center justify-center overflow-hidden rounded-lg bg-background/40">
           {asset.kind === "video" ? (
-            <video src={asset.url} controls playsInline className="max-h-72 w-full" />
+            <video src={asset.url} controls playsInline className="max-h-96 w-full" />
           ) : asset.kind === "audio" ? (
             <audio src={asset.url} controls className="w-full p-4" />
           ) : (
-            <Thumb asset={asset} className="max-h-72 w-full" />
+            <Thumb asset={asset} className="max-h-96 w-full" />
           )}
         </div>
         <dl className="mt-5 space-y-3 text-sm">
