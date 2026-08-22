@@ -119,11 +119,11 @@ export type CaptionPosition = "top" | "center" | "lower" | "bottom";
  *  timing.mjs: all timing derives from the copy unless pinned explicitly. */
 export type SceneCaption = { text: string; durationMs?: number; position?: CaptionPosition };
 
-/* Presentation is not configurable per showcase. There are two, matching
- * the two exports: "App Screens" (titles on the slide, captions beside it
- * — the screenshot export) and "video" (captions over the media with no
- * titles competing — the video export). The player starts on App Screens
- * and the viewer can toggle between them. Caption text always uses the
+/* Presentation is not configurable per showcase. The player previews the
+ * export destinations as three view modes: "App Screens" (titles on the
+ * slide, captions beside — the screenshot export), "TikTok" (portrait,
+ * captions overlaid, titles hidden — the video export), and "4:3" (the
+ * embed canvas — the video-43 export). Caption text always uses the
  * large size. */
 
 export type Scene = {

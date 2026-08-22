@@ -5,6 +5,7 @@ import { captionTimeline, getShowcase } from "@/content/showcases";
 import { dataMode } from "@/content/source";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
+import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { MediaThumb } from "@/components/script/MediaThumb";
 import { ScriptPlayer } from "@/components/script/ScriptPlayer";
 
@@ -57,7 +58,8 @@ function ScriptScreen() {
       style={{ background: "var(--gradient-stage)" }}
     >
       <div className="mx-auto max-w-4xl">
-        <HomeBackNav showcaseId={showcaseId} backLabel="Back to the showcase" />
+        <HomeBackNav />
+        <ShowcaseNav showcaseId={showcaseId} current="script" />
         <div className="flex justify-end">
           <button
             type="button"

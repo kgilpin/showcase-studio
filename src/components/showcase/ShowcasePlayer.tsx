@@ -1,18 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import {
-  Columns2,
-  FileText,
-  Images,
-  Layers,
-  Pause,
-  Play,
-  RectangleHorizontal,
-  SkipBack,
-  SkipForward,
-  Smartphone,
-} from "lucide-react";
+import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { HomeBackNav } from "./HomeBackNav";
+import { ShowcaseNav } from "./ShowcaseNav";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
@@ -48,14 +37,14 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
    * button), not an ambush. */
   const [paused, setPaused] = useState(true);
   const [progress, setProgress] = useState(0);
-  /* Two presentations, matching the two exports: "screens" (App Screens —
-   * titles on the slide, captions beside it) and "video" (TikTok — captions
-   * over the media, no titles competing with them). */
-  const [presentation, setPresentation] = useState<"screens" | "video">("screens");
-  /* The canvas: portrait (TikTok / App Store) or the 4:3 embed rendition
-   * (YouTube / desktop). Embed composes its own captions, so the
-   * presentation toggle only applies to portrait. */
-  const [canvas, setCanvas] = useState<"portrait" | "embed">("portrait");
+  /* Three exclusive view modes, each previewing an export destination:
+   * "screens" (App Screens — titles on the slide, captions beside),
+   * "tiktok" (portrait, captions overlaid, titles hidden), and "embed"
+   * (the 4:3 canvas for YouTube/desktop, which composes its own
+   * captions). */
+  const [view, setView] = useState<"screens" | "tiktok" | "embed">("screens");
+  const canvas = view === "embed" ? "embed" : "portrait";
+  const presentation = view === "tiktok" ? "video" : "screens";
   const scene = scenes[index] ?? scenes[0]!;
 
   const go = useCallback((next: number) => {
@@ -138,8 +127,9 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
       className="relative flex h-dvh w-full flex-col select-none overflow-hidden"
       style={{ background: "var(--gradient-stage)" }}
     >
-      {/* Persistent top-left Home, over the stage. */}
+      {/* Persistent top-left Home; sibling views top-right. */}
       <HomeBackNav />
+      <ShowcaseNav showcaseId={showcase.id} current="player" />
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5">
         {canvas === "embed" ? (
           /* The embed canvas composes its own captions, so no transcript
@@ -225,71 +215,51 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           durations={scenes.map((s) => s.durationMs / 1000)}
           onSelect={(i) => go(i)}
         />
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Control label="Previous scene" onClick={() => go(Math.max(0, index - 1))}>
-            <SkipBack className="size-4" />
-          </Control>
-          <Control label={paused ? "Play" : "Pause"} onClick={() => setPaused((p) => !p)}>
-            {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
-          </Control>
-          <Control label="Next scene" onClick={() => advanceRef.current()}>
-            <SkipForward className="size-4" />
-          </Control>
-          <Soundtrack
-            paused={paused}
-            soundtrack={showcase.soundtrack}
-            timelineMs={
-              scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
-            }
-          />
-          {canvas === "portrait" && (
-            <Control
-              label={
-                presentation === "screens"
-                  ? "Video presentation: overlay captions on the media, hide titles"
-                  : "App Screens presentation: titles on the slide, captions in the transcript column only"
-              }
-              onClick={() => setPresentation((p) => (p === "screens" ? "video" : "screens"))}
-            >
-              {presentation === "screens" ? (
-                <Columns2 className="size-4" />
-              ) : (
-                <Layers className="size-4" />
-              )}
+        <div className="flex items-center gap-6 text-muted-foreground">
+          {/* View mode: which export destination this screen previews. */}
+          <div className="flex rounded-full border border-border bg-card/60 p-1 text-xs">
+            {(
+              [
+                ["screens", "App Screens"],
+                ["tiktok", "TikTok"],
+                ["embed", "4:3"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                aria-pressed={view === key}
+                className={cn(
+                  "rounded-full px-3 py-1.5 transition-colors",
+                  view === key
+                    ? "bg-secondary text-foreground"
+                    : "text-support hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Transport. */}
+          <div className="flex items-center gap-2">
+            <Control label="Previous scene" onClick={() => go(Math.max(0, index - 1))}>
+              <SkipBack className="size-4" />
             </Control>
-          )}
-          <Control
-            label={
-              canvas === "portrait"
-                ? "4:3 embed canvas (YouTube / desktop)"
-                : "Portrait canvas (TikTok / App Store)"
-            }
-            onClick={() => setCanvas((c) => (c === "portrait" ? "embed" : "portrait"))}
-          >
-            {canvas === "portrait" ? (
-              <RectangleHorizontal className="size-4" />
-            ) : (
-              <Smartphone className="size-4" />
-            )}
-          </Control>
-          <Link
-            to="/showcase/$showcaseId/assets"
-            params={{ showcaseId: showcase.id }}
-            aria-label="Manage assets"
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <Images className="size-4" />
-          </Link>
-          <Link
-            to="/showcase/$showcaseId/script"
-            params={{ showcaseId: showcase.id }}
-            aria-label="View the script"
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <FileText className="size-4" />
-          </Link>
+            <Control label={paused ? "Play" : "Pause"} onClick={() => setPaused((p) => !p)}>
+              {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
+            </Control>
+            <Control label="Next scene" onClick={() => advanceRef.current()}>
+              <SkipForward className="size-4" />
+            </Control>
+            <Soundtrack
+              paused={paused}
+              soundtrack={showcase.soundtrack}
+              timelineMs={
+                scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
+              }
+            />
+          </div>
         </div>
       </div>
       <DiagnosticsTray />

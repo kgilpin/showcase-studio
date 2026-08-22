@@ -4,6 +4,7 @@ import { FileQuestion, Music, TriangleAlert } from "lucide-react";
 import { getShowcase, showcaseAssets, type AssetInfo } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
+import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { studio } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +67,8 @@ function AssetsScreen() {
       style={{ background: "var(--gradient-stage)" }}
     >
       <div className="mx-auto max-w-6xl">
-        <HomeBackNav showcaseId={showcaseId} backLabel="Back to the showcase" />
+        <HomeBackNav />
+        <ShowcaseNav showcaseId={showcaseId} current="assets" />
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Assets</p>
           <h1 className="mt-4 font-display text-5xl leading-tight tracking-tight text-foreground">
