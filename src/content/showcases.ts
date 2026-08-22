@@ -714,6 +714,107 @@ export function getShowcase(id: string): Showcase | undefined {
   return showcases.find((showcase) => showcase.id === id);
 }
 
+/* -------------------------------------------------------------
+ * ASSET INVENTORY — the media collection behind a showcase, with usage,
+ * for the assets page.
+ * ------------------------------------------------------------- */
+
+export type AssetKind = "image" | "video" | "audio" | "other";
+
+export type AssetInfo = {
+  /** The file name — always a valid reference key. */
+  name: string;
+  /** The bare key (name without extension) when it resolves to this file. */
+  key: string;
+  url: string;
+  file: string;
+  kind: AssetKind;
+  /** Scene ids referencing it, plus "soundtrack" / "cover" when applicable. */
+  usedBy: string[];
+};
+
+const ASSET_KINDS: Record<string, AssetKind> = {
+  png: "image",
+  jpg: "image",
+  jpeg: "image",
+  webp: "image",
+  gif: "image",
+  svg: "image",
+  mp4: "video",
+  mov: "video",
+  webm: "video",
+  m4v: "video",
+  mp3: "audio",
+  m4a: "audio",
+  wav: "audio",
+  aac: "audio",
+  ogg: "audio",
+};
+
+/** Every file in the showcase's assets folder with what references it,
+ *  plus the keys that are referenced but have no file (rendering as
+ *  placeholders). */
+export function showcaseAssets(showcase: Showcase): {
+  assets: AssetInfo[];
+  missing: { key: string; usedBy: string[] }[];
+} {
+  const entries = assetsByShowcase.get(showcase.id) ?? new Map<string, ShowcaseAsset>();
+  const usedBy = new Map<string, string[]>();
+  const missing = new Map<string, string[]>();
+  const mark = (map: Map<string, string[]>, key: string, by: string) => {
+    const list = map.get(key) ?? [];
+    if (!list.includes(by)) list.push(by);
+    map.set(key, list);
+  };
+  const markFile = (file: string | undefined, by: string) => {
+    if (!file) return;
+    const gone = / \(missing\)$/.test(file);
+    if (gone) mark(missing, file.replace(/ \(missing\)$/, ""), by);
+    else mark(usedBy, file, by);
+  };
+  for (const scene of showcase.scenes) {
+    const media = scene.media;
+    if (media.kind === "image" || media.kind === "video") {
+      markFile(media.file, scene.id);
+      markFile(media.fadeTo?.file, scene.id);
+    } else if (media.kind === "graphic") {
+      markFile(media.file, scene.id);
+    }
+  }
+  for (const [, entry] of entries) {
+    if (showcase.soundtrack.src && entry.url === showcase.soundtrack.src) {
+      mark(usedBy, entry.file, "soundtrack");
+      break;
+    }
+  }
+  if (showcase.cover) {
+    const cover = entries.get(showcase.cover);
+    if (cover) mark(usedBy, cover.file, "cover");
+    else mark(missing, showcase.cover, "cover");
+  }
+
+  const assets: AssetInfo[] = [];
+  for (const [key, entry] of entries) {
+    const name = entry.file.split("/").at(-1)!;
+    if (key !== name) continue; // bare-key aliases point at the same file
+    const bare = name.replace(/\.[^.]+$/, "");
+    const ext = (name.split(".").at(-1) ?? "").toLowerCase();
+    assets.push({
+      name,
+      key: entries.get(bare)?.file === entry.file ? bare : name,
+      url: entry.url,
+      file: entry.file,
+      kind: ASSET_KINDS[ext] ?? "other",
+      usedBy: usedBy.get(entry.file) ?? [],
+    });
+  }
+  assets.sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    assets,
+    missing: [...missing.entries()].map(([key, by]) => ({ key, usedBy: by })),
+  };
+}
+
 /** The home-page card image: `meta.cover` if set, else the first
  *  mark-framed asset, else the first image in the showcase. */
 export function coverUrl(showcase: Showcase): string | undefined {

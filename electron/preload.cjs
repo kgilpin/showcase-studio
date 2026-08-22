@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
   showcases: {
     create: (name) => ipcRenderer.invoke("showcase-create", name),
   },
+  assets: {
+    rename: (payload) => ipcRenderer.invoke("asset-rename", payload),
+  },
   terminal: {
     // Renderer File objects carry no path — resolve it here for
     // drag-and-drop into the terminal.

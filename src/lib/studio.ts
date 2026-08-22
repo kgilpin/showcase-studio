@@ -49,6 +49,17 @@ export type ShowcaseStudio = {
   showcases: {
     create(name: string): Promise<{ ok: boolean; id?: string; error?: string }>;
   };
+  /** Asset-collection operations (the assets page). */
+  assets: {
+    /** Renames an asset file and updates the showcase.yaml references
+     *  (asset:/src:/cover: fields, bare and full-name forms). */
+    rename(payload: { showcaseId: string; from: string; to: string }): Promise<{
+      ok: boolean;
+      name?: string;
+      updatedReferences?: number;
+      error?: string;
+    }>;
+  };
 };
 
 declare global {

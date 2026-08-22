@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import {
   Columns2,
   FileText,
+  Images,
   Layers,
   Pause,
   Play,
@@ -271,6 +272,15 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
               <Smartphone className="size-4" />
             )}
           </Control>
+          <Link
+            to="/showcase/$showcaseId/assets"
+            params={{ showcaseId: showcase.id }}
+            aria-label="Manage assets"
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Images className="size-4" />
+          </Link>
           <Link
             to="/showcase/$showcaseId/script"
             params={{ showcaseId: showcase.id }}

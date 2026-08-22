@@ -18,7 +18,15 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import http from "node:http";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, watch, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  watch,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -388,6 +396,54 @@ scenes:
     ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
     ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
   });
+  /* Renames an asset file and updates every YAML reference to it — the
+   * bare key and the full file name, in asset:/src:/cover: fields only,
+   * so narration text mentioning the same word is left alone. */
+  ipcMain.handle("asset-rename", (_event, { showcaseId, from, to } = {}) => {
+    try {
+      const id = String(showcaseId ?? "");
+      const oldName = String(from ?? "");
+      const bad = (s) => !s || s.includes("/") || s.includes("\\") || s.includes("..");
+      if (bad(id) || bad(oldName)) return { ok: false, error: "Bad name" };
+      let newName = String(to ?? "").trim();
+      if (!newName) return { ok: false, error: "Give the asset a name" };
+      if (!path.extname(newName)) newName += path.extname(oldName);
+      if (bad(newName)) return { ok: false, error: "Bad name" };
+      const dir = path.join(showcasesDir, id, "assets");
+      if (!existsSync(path.join(dir, oldName))) {
+        return { ok: false, error: `No file named "${oldName}" in ${id}/assets` };
+      }
+      if (newName !== oldName && existsSync(path.join(dir, newName))) {
+        return { ok: false, error: `"${newName}" already exists` };
+      }
+
+      let updatedReferences = 0;
+      const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
+      if (existsSync(yamlPath)) {
+        const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const strip = (s) => s.replace(/\.[^.]+$/, "");
+        let text = readFileSync(yamlPath, "utf8");
+        const renames = [[oldName, newName]];
+        if (strip(oldName) !== oldName) renames.push([strip(oldName), strip(newName)]);
+        for (const [o, n] of renames) {
+          const re = new RegExp(
+            `(^\\s*(?:asset|src|cover):\\s*["']?)${esc(o)}(["']?\\s*(?:#.*)?)$`,
+            "gm",
+          );
+          text = text.replace(re, (_all, head, tail) => {
+            updatedReferences += 1;
+            return `${head}${n}${tail}`;
+          });
+        }
+        if (updatedReferences > 0) writeFileSync(yamlPath, text);
+      }
+      renameSync(path.join(dir, oldName), path.join(dir, newName));
+      return { ok: true, name: newName, updatedReferences };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    }
+  });
+
   const terminal = registerTerminal(ipcMain, win, {
     getCwd: () => showcasesDir,
     getEnv: studioEnv,
