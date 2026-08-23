@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { applySceneEdit } from "./edit-yaml.mjs";
+import { applyThemeEdit } from "./edit-theme.mjs";
 
 export const contentHash = (content) => createHash("sha256").update(content).digest("hex");
 
@@ -23,6 +24,22 @@ export function applySceneEditToFolder(dir, payload, { beforeWrite } = {}) {
     const showcaseId = String(payload?.showcaseId ?? "");
     if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) {
       return { ok: false, error: "Bad showcase id" };
+    }
+    /* Style-panel edits land in theme.yaml (created on first use); the
+     * baseHash gate below is showcase.yaml's, so it doesn't apply here. */
+    if (payload?.field === "theme") {
+      if (!existsSync(path.join(dir, showcaseId))) {
+        return { ok: false, error: `No showcase named "${showcaseId}"` };
+      }
+      const file = path.join(dir, showcaseId, "theme.yaml");
+      const text = applyThemeEdit(existsSync(file) ? readFileSync(file, "utf8") : undefined, {
+        group: payload.group,
+        name: payload.name,
+        value: payload.value,
+      });
+      beforeWrite?.(file, text);
+      writeFileSync(file, text);
+      return { ok: true, hash: contentHash(text) };
     }
     const file = path.join(dir, showcaseId, "showcase.yaml");
     if (!existsSync(file)) return { ok: false, error: `No showcase named "${showcaseId}"` };

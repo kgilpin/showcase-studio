@@ -107,6 +107,94 @@ export function wordTimeline(entry, pace = DEFAULT_PACE_WPS) {
   });
 }
 
+function normalizeWord(text) {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+}
+
+/** Flattens a voiceover transcript into [{text, startMs, endMs}] words.
+ *  Accepts the studio transcribe tool's shape ({segments: [{words}]}), a
+ *  bare segments array, or an already-flat word list. */
+function transcriptWords(transcript) {
+  const segments = Array.isArray(transcript) ? transcript : (transcript?.segments ?? []);
+  const flat = [];
+  for (const segment of segments) {
+    if (segment && Array.isArray(segment.words)) flat.push(...segment.words);
+    else if (segment) flat.push(segment);
+  }
+  return flat.filter(
+    (word) =>
+      typeof word?.text === "string" &&
+      typeof word.startMs === "number" &&
+      typeof word.endMs === "number",
+  );
+}
+
+/** Attaches exact per-word reveal windows (`caption.words`) from a
+ *  voiceover transcript with word timestamps — the whisper-exact tier of
+ *  the karaoke/reveal caption styles (WordLine prefers `words` over the
+ *  synthetic wordTimeline). Captions are the narration read in order, so
+ *  transcript words are matched greedily in sequence; unmatched words
+ *  interpolate between their matched neighbours, and a caption keeps
+ *  synthetic pacing unless at least half its words match. Transcript
+ *  times are voiceover-absolute; they come back slide-relative, clamped
+ *  to the slide. */
+export function alignCaptionWords(scenes, transcript) {
+  const spoken = transcriptWords(transcript);
+  let ti = 0;
+  let slideStart = 0;
+  for (const scene of scenes) {
+    for (const caption of scene.captions ?? []) {
+      const tokens = caption.text.trim().split(/\s+/).filter(Boolean);
+      if (tokens.length === 0) continue;
+      const anchors = new Array(tokens.length);
+      let cursor = ti;
+      let matched = 0;
+      for (let i = 0; i < tokens.length; i++) {
+        const target = normalizeWord(tokens[i]);
+        if (!target) continue;
+        for (let j = cursor; j < Math.min(cursor + 8, spoken.length); j++) {
+          if (normalizeWord(spoken[j].text) === target) {
+            anchors[i] = { start: spoken[j].startMs, end: spoken[j].endMs };
+            cursor = j + 1;
+            matched += 1;
+            break;
+          }
+        }
+      }
+      if (matched < Math.ceil(tokens.length / 2)) continue;
+      ti = cursor;
+      /* Fill unmatched runs by splitting the span between their matched
+       * neighbours (or extrapolating a beat at the edges). */
+      for (let i = 0; i < tokens.length;) {
+        if (anchors[i]) {
+          i += 1;
+          continue;
+        }
+        let j = i;
+        while (j < tokens.length && !anchors[j]) j += 1;
+        const prevEnd = i > 0 ? anchors[i - 1].end : (anchors[j]?.start ?? 0) - 300 * (j - i);
+        const nextStart = j < tokens.length ? anchors[j].start : prevEnd + 300 * (j - i);
+        const step = Math.max(0, nextStart - prevEnd) / (j - i);
+        for (let k = i; k < j; k++) {
+          anchors[k] = { start: prevEnd + (k - i) * step, end: prevEnd + (k - i + 1) * step };
+        }
+        i = j;
+      }
+      let floor = 0;
+      caption.words = tokens.map((word, i) => {
+        const startMs = Math.min(
+          Math.max(anchors[i].start - slideStart, floor, 0),
+          scene.durationMs,
+        );
+        const endMs = Math.min(Math.max(anchors[i].end - slideStart, startMs), scene.durationMs);
+        floor = startMs;
+        return { word, startMs, endMs };
+      });
+    }
+    slideStart += scene.durationMs;
+  }
+}
+
 /** Which caption is visible at `elapsedMs` into the slide. */
 export function activeCaption(scene, elapsedMs) {
   const timeline = captionTimeline(scene);

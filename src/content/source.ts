@@ -32,6 +32,10 @@ export type ShowcaseData = {
   themeYaml?: string | undefined;
   /** Asset key (file name without extension) → URL + display name. */
   assets: Map<string, ShowcaseAsset>;
+  /** Voiceover word-timestamp sidecars: `assets/<name>.words.json` raw
+   *  text, keyed by `<name>` (the audio's asset key). Used to sync
+   *  worded caption styles exactly to a recorded voiceover. */
+  words: Map<string, string>;
   /** Graphic key → URL of the server-compiled component module. Empty for
    *  the bundled source, whose graphics are compiled into the app; the
    *  HTTP source serves folder TSX compiled on request (see
@@ -82,6 +86,12 @@ const assetModules = import.meta.glob("../../showcases/*/assets/*", {
   eager: true,
 }) as Record<string, string>;
 
+const wordsModules = import.meta.glob("../../showcases/*/assets/*.words.json", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
 export const bundledSource: ShowcaseSource = {
   load() {
     const data = Object.entries(yamlModules).map(([yamlPath, yaml]) => {
@@ -95,11 +105,23 @@ export const bundledSource: ShowcaseSource = {
       const themeYaml = Object.entries(themeModules).find(
         ([path]) => path.split("/").at(-2) === id,
       )?.[1];
+      const words = new Map(
+        Object.entries(wordsModules)
+          .filter(([path]) => path.split("/").at(-3) === id)
+          .map(([path, json]) => [
+            path
+              .split("/")
+              .at(-1)!
+              .replace(/\.words\.json$/, ""),
+            json,
+          ]),
+      );
       return {
         id,
         yaml,
         themeYaml,
         assets: assetMap(id, files),
+        words,
         graphics: new Map<string, string>(),
       };
     });
@@ -132,6 +154,19 @@ export function httpSource(base: string): ShowcaseSource {
               url: `${base}/${id}/assets/${name}`,
               file: `${id}/assets/${name}`,
             })),
+          ),
+          words: new Map(
+            await Promise.all(
+              assets
+                .filter((name) => name.endsWith(".words.json"))
+                .map(
+                  async (name) =>
+                    [
+                      name.replace(/\.words\.json$/, ""),
+                      await text(`${base}/${id}/assets/${name}`),
+                    ] as const,
+                ),
+            ),
           ),
           graphics: new Map(
             (graphics ?? []).map((name) => {

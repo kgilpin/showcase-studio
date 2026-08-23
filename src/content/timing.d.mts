@@ -51,3 +51,11 @@ export function wordTimeline(
   entry: { text: string; startMs: number; durationMs: number },
   pace?: number,
 ): WordWindow[];
+
+/** Attaches exact `words` windows to captions from a voiceover
+ *  transcript with word timestamps (the transcribe tool's shape, a bare
+ *  segments array, or a flat word list). Mutates the scenes in place. */
+export function alignCaptionWords(
+  scenes: { durationMs: number; captions?: { text: string; words?: WordWindow[] }[] }[],
+  transcript: unknown,
+): void;

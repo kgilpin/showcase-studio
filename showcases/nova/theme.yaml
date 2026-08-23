@@ -18,6 +18,7 @@ colors:
   muted: "#0a0f19"
   muted-foreground: "#b7c8d3" # --hud-dim: secondary text
   accent: "#34e7d6"
+  caption-word: "#34e7d6" # the word being spoken, in the brand cyan
   accent-foreground: "#04060c"
   border: "rgba(120, 205, 255, 0.26)" # --edge: cool hairline borders
   support: "#91a3af" # --hud-faint: tertiary text

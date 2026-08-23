@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
-import { activeCaption, wordTimeline, type CaptionPosition, type Scene } from "@/content/showcases";
+import {
+  activeCaption,
+  wordTimeline,
+  type CaptionPosition,
+  type Scene,
+  type WordWindow,
+} from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
 import { EditableText } from "@/components/studio/EditableText";
 import appStoreBadge from "@/assets/app-store-badge.svg";
@@ -35,27 +41,41 @@ export function CtaContent({
 /** iPhone 16 Pro Max screen aspect ratio (1320 x 2868). */
 export const FIXED_ASPECT = "1320 / 2868";
 
-/** Karaoke caption painting (`captionStyle: karaoke`): the whole line
- *  sits dimmed in its chip and each word brightens on its wordTimeline
- *  window — no reflow, the chip is laid out once from the full text.
- *  Time-driven (not animated), so the live player, TikTok view, and the
- *  frame-by-frame video export all land on identical frames. */
-export function KaraokeLine({
+/** Word-by-word caption painting. The full line is laid out once in its
+ *  chip so nothing reflows; each word changes state on its wordTimeline
+ *  window (or exact voiceover word timestamps when the caption carries
+ *  them). "karaoke" dims unspoken words; "reveal" hides them. The word
+ *  being spoken takes `--caption-word` (defaults to the caption text
+ *  color). Time-driven (not animated), so the live player, TikTok view,
+ *  and the frame-by-frame video export all land on identical frames. */
+export function WordLine({
   entry,
   elapsedMs,
+  mode,
 }: {
-  entry: { text: string; startMs: number; durationMs: number };
+  entry: { text: string; startMs: number; durationMs: number; words?: WordWindow[] };
   elapsedMs: number;
+  mode: "karaoke" | "reveal";
 }) {
-  const words = wordTimeline(entry);
+  const words = entry.words ?? wordTimeline(entry);
   return (
     <>
-      {words.map((word, i) => (
-        <span key={i} className={elapsedMs >= word.startMs ? undefined : "opacity-30"}>
-          {word.word}
-          {i < words.length - 1 ? " " : ""}
-        </span>
-      ))}
+      {words.map((word, i) => {
+        const state =
+          elapsedMs >= word.startMs ? (elapsedMs < word.endMs ? "current" : "spoken") : "unspoken";
+        return (
+          <span
+            key={i}
+            className={
+              state === "unspoken" ? (mode === "reveal" ? "invisible" : "opacity-30") : undefined
+            }
+            style={state === "current" ? { color: "var(--caption-word, currentColor)" } : undefined}
+          >
+            {word.word}
+            {i < words.length - 1 ? " " : ""}
+          </span>
+        );
+      })}
     </>
   );
 }
@@ -180,16 +200,20 @@ export function SceneView({
   const body = spoken === scene.title ? undefined : spoken;
   const captionKey = caption?.text ?? "body";
   const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
-  /* What goes inside the chip: the plain line, or its karaoke painting. */
+  /* What goes inside the chip: the plain line, or its worded painting. */
   const captionBody =
-    body != null && caption != null && scene.captionStyle === "karaoke" ? (
-      <KaraokeLine entry={caption} elapsedMs={elapsedMs} />
+    body != null &&
+    caption != null &&
+    (scene.captionStyle === "karaoke" || scene.captionStyle === "reveal") ? (
+      <WordLine entry={caption} elapsedMs={elapsedMs} mode={scene.captionStyle} />
     ) : (
       body
     );
   /* Bold white text in per-line chips — captioning, not interface. The
-   * generous line-height spaces the cloned chips apart. */
-  const stageCaptionClass = "text-[5.2cqw] font-semibold leading-[1.55] text-white";
+   * generous line-height spaces the cloned chips apart. Chip, text, and
+   * spoken-word colors are themeable (colors.caption-* in theme.yaml). */
+  const stageCaptionClass =
+    "text-[5.2cqw] font-semibold leading-[1.55] text-[color:var(--caption-text,#fff)]";
 
   /* THEME: statement — centered display text; optional app-mark media
    * above the title, or full-bleed media as a dimmed backdrop behind it. */

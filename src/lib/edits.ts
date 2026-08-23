@@ -14,7 +14,7 @@
  * page, which clears these stacks — undo honestly means "undo my in-app
  * edits since the last outside change". */
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { applySceneEditLocal, showcaseYamlText } from "@/content/showcases";
+import { applySceneEditLocal, applyThemeEditLocal, showcaseYamlText } from "@/content/showcases";
 import { studio, type SceneEdit } from "./studio";
 import { isTypingTarget } from "./typing-target";
 
@@ -94,8 +94,13 @@ async function apply(
 ): Promise<SceneEdit | undefined> {
   const bridge = studio()?.scenes;
   if (!bridge) return undefined;
-  const baseHash = await editBaseHash(showcaseId);
-  const inverse = applySceneEditLocal(showcaseId, sceneId, edit);
+  /* Theme edits write theme.yaml — showcase.yaml's baseHash gate doesn't
+   * apply to them. */
+  const baseHash = edit.field === "theme" ? undefined : await editBaseHash(showcaseId);
+  const inverse =
+    edit.field === "theme"
+      ? applyThemeEditLocal(showcaseId, edit)
+      : applySceneEditLocal(showcaseId, sceneId, edit);
   if (!inverse) {
     reportEditFailure({ showcaseId, sceneId, message: "the edit could not be applied" });
     return undefined;
@@ -108,7 +113,7 @@ async function apply(
     applySceneEditLocal(showcaseId, sceneId, inverse);
     return undefined;
   }
-  if (result.hash) baseHashes.set(showcaseId, result.hash);
+  if (result.hash && edit.field !== "theme") baseHashes.set(showcaseId, result.hash);
   if (editFailures.length > 0) setEditFailures(NO_FAILURES);
   return inverse;
 }

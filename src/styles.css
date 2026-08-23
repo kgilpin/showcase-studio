@@ -275,7 +275,7 @@
 @utility caption-chip {
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
-  background: rgb(8 11 20 / 0.72);
+  background: var(--caption-chip, rgb(8 11 20 / 0.72));
   padding: 0.14em 0.5em;
   border-radius: 0.32em;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeCaption,
+  alignCaptionWords,
   captionTimeline,
   CLAUSE_BEAT_MS,
   DEFAULT_PACE_WPS,
@@ -165,5 +166,85 @@ describe("wordTimeline", () => {
 
   it("returns nothing for empty text", () => {
     expect(wordTimeline({ text: "  ", startMs: 0, durationMs: 1000 })).toEqual([]);
+  });
+});
+
+describe("alignCaptionWords", () => {
+  it("attaches slide-relative word windows from a transcript", () => {
+    const scenes = [
+      {
+        durationMs: 4000,
+        captions: [{ text: "Hello there" }] as {
+          text: string;
+          words?: { word: string; startMs: number; endMs: number }[];
+        }[],
+      },
+      {
+        durationMs: 4000,
+        captions: [{ text: "Fleets fly, fast." }] as {
+          text: string;
+          words?: { word: string; startMs: number; endMs: number }[];
+        }[],
+      },
+    ];
+    const transcript = {
+      segments: [
+        {
+          words: [
+            { text: " Hello", startMs: 200, endMs: 600 },
+            { text: " there.", startMs: 600, endMs: 1000 },
+            { text: " Fleets", startMs: 4200, endMs: 4600 },
+            { text: " fly", startMs: 4600, endMs: 5000 },
+            { text: " fast", startMs: 5200, endMs: 5600 },
+          ],
+        },
+      ],
+    };
+    alignCaptionWords(scenes, transcript);
+    expect(scenes[0]!.captions[0]!.words).toEqual([
+      { word: "Hello", startMs: 200, endMs: 600 },
+      { word: "there", startMs: 600, endMs: 1000 },
+    ]);
+    const second = scenes[1]!.captions[0]!.words!;
+    expect(second.map((w) => w.word)).toEqual(["Fleets", "fly,", "fast."]);
+    expect(second[0]).toEqual({ word: "Fleets", startMs: 200, endMs: 600 });
+  });
+
+  it("interpolates unmatched words between their matched neighbours", () => {
+    const scenes = [
+      {
+        durationMs: 5000,
+        captions: [{ text: "one um two" }] as {
+          text: string;
+          words?: { word: string; startMs: number; endMs: number }[];
+        }[],
+      },
+    ];
+    alignCaptionWords(scenes, [
+      { text: "one", startMs: 0, endMs: 400 },
+      { text: "two", startMs: 1400, endMs: 1800 },
+    ]);
+    const words = scenes[0]!.captions[0]!.words as {
+      word: string;
+      startMs: number;
+      endMs: number;
+    }[];
+    expect(words[1]).toEqual({ word: "um", startMs: 400, endMs: 1400 });
+  });
+
+  it("keeps synthetic pacing when the transcript doesn't match", () => {
+    const scenes = [
+      {
+        durationMs: 3000,
+        captions: [{ text: "Completely different words" }] as {
+          text: string;
+          words?: { word: string; startMs: number; endMs: number }[];
+        }[],
+      },
+    ];
+    alignCaptionWords(scenes, {
+      segments: [{ words: [{ text: "nope", startMs: 0, endMs: 100 }] }],
+    });
+    expect(scenes[0]!.captions[0]!.words).toBeUndefined();
   });
 });

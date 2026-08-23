@@ -17,12 +17,33 @@
  *                                                   new asset is a video
  *                                                   and the old an image,
  *                                                   or vice versa)
+ *   { field: "meta.captionStyle", value }           showcase-wide caption
+ *                                                   painting, chip|karaoke
+ *                                                   (empty deletes; no
+ *                                                   sceneId — it's meta)
  */
 import { isMap, isSeq, parseDocument } from "yaml";
+
+const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 
 /** Applies one scene edit to showcase.yaml text and returns the new text.
  *  Throws with a plain message when the edit can't be applied. */
 export function applySceneEdit(text, { sceneId, field, captionIndex, value, mediaKind } = {}) {
+  if (typeof value !== "string") throw new Error("Missing value");
+
+  /* Meta edits address the showcase, not a scene. */
+  if (field === "meta.captionStyle") {
+    if (value !== "" && !CAPTION_STYLES.includes(value)) {
+      throw new Error(`captionStyle must be one of: ${CAPTION_STYLES.join(", ")}`);
+    }
+    const doc = parseDocument(text);
+    if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
+    if (!isMap(doc.get("meta"))) throw new Error("showcase.yaml has no meta section");
+    if (value) doc.setIn(["meta", "captionStyle"], value);
+    else doc.deleteIn(["meta", "captionStyle"]);
+    return doc.toString({ lineWidth: 0 });
+  }
+
   if (sceneId != null && sceneId !== "" && typeof sceneId !== "string") {
     /* YAML read the id as a number or boolean (id: 2024, id: on) — the
      * scene renders fine but can't be addressed. Name the real problem. */
@@ -31,7 +52,6 @@ export function applySceneEdit(text, { sceneId, field, captionIndex, value, medi
     );
   }
   if (typeof sceneId !== "string" || !sceneId) throw new Error("Missing scene id");
-  if (typeof value !== "string") throw new Error("Missing value");
   const doc = parseDocument(text);
   if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
   const scenes = doc.get("scenes");

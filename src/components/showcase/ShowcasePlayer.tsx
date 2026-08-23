@@ -8,6 +8,7 @@ import { isTypingTarget } from "@/lib/typing-target";
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { EditableText } from "@/components/studio/EditableText";
 import { MediaPicker } from "@/components/studio/MediaPicker";
+import { StylePanel } from "@/components/studio/StylePanel";
 import { captionTimeline, type Showcase } from "@/content/showcases";
 import { FIXED_ASPECT, SceneView } from "./SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
@@ -307,6 +308,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
                 scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
               }
             />
+            {canEdit && <StylePanel showcase={showcase} />}
           </div>
         </div>
       </div>

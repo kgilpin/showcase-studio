@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { activeCaption, type CaptionPosition, type Scene } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
-import { CtaContent, KaraokeLine } from "./SceneView";
+import { CtaContent, WordLine } from "./SceneView";
 
 /* The 4:3 embed canvas — the YouTube/desktop rendition of a showcase.
  * Same scene model, compositions arranged for a wide frame:
@@ -51,10 +51,11 @@ export function EmbedSceneView({
         chipPlacement[caption?.position ?? "bottom"],
       )}
     >
-      <p className="text-[2.6cqw] font-semibold leading-[1.55] text-white">
+      <p className="text-[2.6cqw] font-semibold leading-[1.55] text-[color:var(--caption-text,#fff)]">
         <span className="caption-chip">
-          {caption != null && scene.captionStyle === "karaoke" ? (
-            <KaraokeLine entry={caption} elapsedMs={elapsedMs} />
+          {caption != null &&
+          (scene.captionStyle === "karaoke" || scene.captionStyle === "reveal") ? (
+            <WordLine entry={caption} elapsedMs={elapsedMs} mode={scene.captionStyle} />
           ) : (
             body
           )}

@@ -15,7 +15,7 @@
 
 import { parse } from "yaml";
 import { useSyncExternalStore, type ComponentType } from "react";
-import { resolveSceneTiming } from "./timing.mjs";
+import { alignCaptionWords, resolveSceneTiming, type WordWindow } from "./timing.mjs";
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
 import type { SceneEdit } from "@/lib/studio";
@@ -23,6 +23,7 @@ import type { SceneEdit } from "@/lib/studio";
 /* Caption/title timing is shared with the export scripts — the model and
  * implementation live in timing.mjs. */
 export { activeCaption, captionTimeline, readingTime, wordTimeline } from "./timing.mjs";
+export type { WordWindow } from "./timing.mjs";
 
 /* -------------------------------------------------------------
  * THEMES — the fixed set of slide layouts. A theme names where text and
@@ -117,15 +118,24 @@ export type SceneMedia =
 export type CaptionPosition = "top" | "center" | "lower" | "bottom";
 
 /** One overlay line. `durationMs` is optional — see the TIMING model in
- *  timing.mjs: all timing derives from the copy unless pinned explicitly. */
-export type SceneCaption = { text: string; durationMs?: number; position?: CaptionPosition };
+ *  timing.mjs: all timing derives from the copy unless pinned explicitly.
+ *  `words` (exact per-word reveal windows) is attached at build time when
+ *  the showcase has a voiceover word-timestamp sidecar — never authored. */
+export type SceneCaption = {
+  text: string;
+  durationMs?: number;
+  position?: CaptionPosition;
+  words?: WordWindow[];
+};
 
 /** How an overlay caption paints its line (TikTok view, video exports).
  *  "chip" (default) fades the whole line in; "karaoke" shows the line
- *  dimmed and brightens word by word, paced by the reading-time model
- *  (wordTimeline in timing.mjs). Set per scene, or for the whole
- *  showcase with `meta.captionStyle`. */
-export type CaptionStyle = "chip" | "karaoke";
+ *  dimmed and brightens word by word; "reveal" makes each word appear on
+ *  its cue (layout reserved up front, so nothing reflows). Both worded
+ *  styles pace with the reading-time model (wordTimeline in timing.mjs),
+ *  or with exact voiceover word timestamps when the showcase has them.
+ *  Set per scene, or for the whole showcase with `meta.captionStyle`. */
+export type CaptionStyle = "chip" | "karaoke" | "reveal";
 
 /* Presentation is not configurable per showcase. The player previews the
  * export destinations as three view modes: "App Screens" (titles on the
@@ -185,6 +195,9 @@ export type Showcase = {
   description: string;
   /** Loop back to the first scene when the last one finishes. */
   loop: boolean;
+  /** Raw meta.captionStyle as authored (scenes carry the validated,
+   *  resolved value) — the style panel reads and writes this. */
+  captionStyle?: string;
   /** `sync: true` marks the track as a voiceover locked to the scene
    *  timeline — the player keeps the audio clock at the timeline position
    *  (across skips, loops, and unmuting). Leave unset for music beds,
@@ -295,6 +308,11 @@ const THEME_GROUPS: Record<string, Record<string, string>> = {
       "accent-foreground",
       "border",
       "support",
+      /* Overlay caption painting: the chip background, the text, and the
+       * word being spoken (karaoke/reveal styles). */
+      "caption-chip",
+      "caption-text",
+      "caption-word",
     ].map((name) => [name, name]),
   ),
   fonts: { display: "font-display", body: "font-body" },
@@ -423,6 +441,8 @@ function resolveGraphic(showcaseId: string, key: string): GraphicEntry {
 }
 
 const assetsByShowcase = new Map<string, Map<string, ShowcaseAsset>>();
+/** Voiceover word-timestamp sidecars, keyed by audio asset key. */
+const wordTimingsByShowcase = new Map<string, Map<string, string>>();
 
 function resolveAsset(showcaseId: string, key: string): ShowcaseAsset {
   const entry = assetsByShowcase.get(showcaseId)?.get(key);
@@ -627,7 +647,7 @@ function lintScene(raw: RawScene): { theme: SceneTheme; warnings: string[] } {
   return { theme, warnings };
 }
 
-const CAPTION_STYLES = new Set<CaptionStyle>(["chip", "karaoke"]);
+const CAPTION_STYLES = new Set<CaptionStyle>(["chip", "karaoke", "reveal"]);
 
 /** Validates an authored captionStyle; unknown values warn and fall back
  *  to the default painting. */
@@ -637,7 +657,7 @@ function resolveCaptionStyle(
 ): CaptionStyle | undefined {
   if (authored == null) return undefined;
   if (CAPTION_STYLES.has(authored as CaptionStyle)) return authored as CaptionStyle;
-  warn(`unknown captionStyle "${authored}" — using "chip" (styles: chip, karaoke)`);
+  warn(`unknown captionStyle "${authored}" — using "chip" (styles: chip, karaoke, reveal)`);
   return undefined;
 }
 
@@ -665,6 +685,21 @@ function buildShowcase(
       ...(warnings.length > 0 ? { warnings } : {}),
     };
   });
+  /* Whisper-exact caption words: when the soundtrack has a
+   * word-timestamp sidecar (assets/<src>.words.json — the transcribe
+   * tool's output), align it to the narration so worded caption styles
+   * follow the actual voiceover instead of the synthetic pacing. */
+  const wordsJson = wordTimingsByShowcase.get(showcaseId)?.get(doc.meta.soundtrack?.src ?? "");
+  if (wordsJson) {
+    try {
+      alignCaptionWords(scenes, JSON.parse(wordsJson));
+    } catch (error) {
+      warn(
+        "",
+        `voiceover word timings ignored: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
   return {
     id: showcaseId,
     ...doc.meta,
@@ -686,6 +721,7 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   themeDocs.clear();
   resolvedThemes.clear();
   assetsByShowcase.clear();
+  wordTimingsByShowcase.clear();
   dataGraphicsByShowcase.clear();
   /* One broken showcase must not take down the library — with live
    * reload, the app would otherwise blank out on every YAML typo. A
@@ -698,6 +734,7 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   };
   for (const entry of data) {
     assetsByShowcase.set(entry.id, entry.assets);
+    wordTimingsByShowcase.set(entry.id, entry.words);
     dataGraphicsByShowcase.set(entry.id, entry.graphics);
     try {
       rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
@@ -808,6 +845,33 @@ export function showcaseYamlText(showcaseId: string): string | undefined {
   return rawTexts.get(showcaseId);
 }
 
+/** Applies one style-panel theme edit to the in-memory model (see the
+ *  "theme" SceneEdit variant) and returns the inverse edit, or undefined
+ *  when the rebuild fails. The resolved-theme cache is invalidated so
+ *  the layout route re-applies the CSS variables in place. */
+export function applyThemeEditLocal(
+  showcaseId: string,
+  edit: { group: "colors" | "atmosphere"; name: string; value: string },
+): SceneEdit | undefined {
+  if (!rawDocs.has(showcaseId)) return undefined;
+  const doc = themeDocs.get(showcaseId) ?? {};
+  const group = (doc[edit.group] ?? {}) as Record<string, unknown>;
+  const previous = typeof group[edit.name] === "string" ? (group[edit.name] as string) : "";
+  const put = (value: string) => {
+    if (value) group[edit.name] = value;
+    else delete group[edit.name];
+    doc[edit.group] = group;
+    themeDocs.set(showcaseId, doc);
+    resolvedThemes.clear();
+  };
+  put(edit.value);
+  if (rebuildShowcase(showcaseId)) {
+    return { field: "theme", group: edit.group, name: edit.name, value: previous };
+  }
+  put(previous);
+  return undefined;
+}
+
 /** Applies one whitelisted scene edit to the in-memory model (see
  *  SceneEdit in src/lib/studio.ts) and returns the inverse edit — the
  *  undo entry — or undefined when the target doesn't exist. Derived data
@@ -818,8 +882,21 @@ export function applySceneEditLocal(
   edit: SceneEdit,
 ): SceneEdit | undefined {
   const doc = rawDocs.get(showcaseId);
-  const raw = doc?.scenes.find((scene) => scene.id === sceneId);
-  if (!doc || !raw) return undefined;
+  if (!doc) return undefined;
+  /* Meta edits address the showcase, not a scene (sceneId is ignored). */
+  if (edit.field === "meta.captionStyle") {
+    const previous = (doc.meta.captionStyle ?? "") as "" | "chip" | "karaoke" | "reveal";
+    if (edit.value) doc.meta.captionStyle = edit.value;
+    else delete doc.meta.captionStyle;
+    if (rebuildShowcase(showcaseId)) return { field: "meta.captionStyle", value: previous };
+    if (previous) doc.meta.captionStyle = previous;
+    else delete doc.meta.captionStyle;
+    return undefined;
+  }
+  /* Theme edits are routed to applyThemeEditLocal, never here. */
+  if (edit.field === "theme") return undefined;
+  const raw = doc.scenes.find((scene) => scene.id === sceneId);
+  if (!raw) return undefined;
   /* If the rebuild below fails, the doc must roll back too — the model
    * keeps its last good state, and a lingering mutation would resurface
    * with the next successful edit. */

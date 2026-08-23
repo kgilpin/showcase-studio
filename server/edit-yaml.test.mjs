@@ -78,6 +78,20 @@ describe("applySceneEdit", () => {
     expect(out).toContain("asset: shot-one");
   });
 
+  it("sets and clears meta.captionStyle without touching scenes", () => {
+    const out = applySceneEdit(DOC, { field: "meta.captionStyle", value: "karaoke" });
+    expect(out).toContain("captionStyle: karaoke");
+    expect(out).toContain("# Scene one keeps its comment.");
+    const cleared = applySceneEdit(out, { field: "meta.captionStyle", value: "" });
+    expect(cleared).not.toContain("captionStyle");
+  });
+
+  it("rejects an unknown captionStyle value", () => {
+    expect(() => applySceneEdit(DOC, { field: "meta.captionStyle", value: "typewriter" })).toThrow(
+      "captionStyle must be one of",
+    );
+  });
+
   it("rejects a duplicate scene id instead of editing the first match", () => {
     const doc = DOC.replace("id: closing", "id: intro");
     expect(() => applySceneEdit(doc, { sceneId: "intro", field: "title", value: "x" })).toThrow(

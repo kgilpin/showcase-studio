@@ -44,7 +44,14 @@ export type StudioTerminal = {
 export type SceneEdit =
   | { field: "title"; value: string }
   | { field: "caption"; captionIndex: number; value: string }
-  | { field: "media.asset"; value: string; mediaKind?: "image" | "video" | undefined };
+  | { field: "media.asset"; value: string; mediaKind?: "image" | "video" | undefined }
+  /** Showcase-wide overlay caption painting (meta; sceneId is ignored —
+   *  pass ""). Empty value deletes, restoring the default. */
+  | { field: "meta.captionStyle"; value: "" | "chip" | "karaoke" | "reveal" }
+  /** Style-panel edits to theme.yaml (sceneId is ignored — pass "").
+   *  Whitelisted keys only (server/edit-theme.mjs); empty value deletes,
+   *  restoring the default. */
+  | { field: "theme"; group: "colors" | "atmosphere"; name: string; value: string };
 
 /** `baseHash` names the file content the edit was made against (sha256
  *  hex); the shell refuses the write when the file no longer matches. */
