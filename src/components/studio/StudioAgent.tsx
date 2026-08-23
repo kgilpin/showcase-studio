@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { ExternalLink, Minus, RotateCcw, Sparkles, TerminalSquare, X } from "lucide-react";
 import { studio } from "@/lib/studio";
@@ -35,6 +35,21 @@ export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
       sessionStorage.removeItem("studio-open-agent");
       setOpen(true);
     }
+  }, []);
+
+  /* Live reload (an outside write to showcase.yaml reloads the page)
+   * must not close the panel: an open panel re-marks the same flag on
+   * beforeunload — which only fires on real reloads, never in-app
+   * navigation — and the effect above re-opens it. The pty lives on in
+   * the main process, so the session reattaches where it left off. */
+  const openRef = useRef(open);
+  openRef.current = open;
+  useEffect(() => {
+    const save = () => {
+      if (openRef.current) sessionStorage.setItem("studio-open-agent", "1");
+    };
+    window.addEventListener("beforeunload", save);
+    return () => window.removeEventListener("beforeunload", save);
   }, []);
 
   useEffect(() => {
