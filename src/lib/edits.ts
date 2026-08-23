@@ -14,7 +14,12 @@
  * page, which clears these stacks — undo honestly means "undo my in-app
  * edits since the last outside change". */
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { applySceneEditLocal, applyThemeEditLocal, showcaseYamlText } from "@/content/showcases";
+import {
+  applySceneEditLocal,
+  applyThemeEditLocal,
+  showcaseThemeText,
+  showcaseYamlText,
+} from "@/content/showcases";
 import { studio, type SceneEdit } from "./studio";
 import { isTypingTarget } from "./typing-target";
 
@@ -52,22 +57,30 @@ export function useEditFailures(): readonly EditFailure[] {
   );
 }
 
-/* Every edit names the file content it was made against, so the shell
- * can refuse to patch a file that changed underneath the page (an agent
- * or hand edit landing in the same instant). The first edit hashes the
- * YAML the page loaded; each successful write returns the new file's
- * hash, which becomes the next edit's base. A page reload resets both. */
+/* Every edit names the content of the file it targets as it was when
+ * the edit was made — showcase.yaml, or theme.yaml for style-panel
+ * edits — so the shell can refuse to patch a file that changed
+ * underneath the page (an agent or hand edit landing in the same
+ * instant). The first edit to a file hashes the text the page loaded;
+ * each successful write returns the new file's hash, which becomes the
+ * next edit's base for that file. A page reload resets everything. */
 const baseHashes = new Map<string, string>();
+
+/** Which file an edit patches — the key of its stale-write protection. */
+function editTarget(showcaseId: string, edit: SceneEdit): string {
+  return `${showcaseId}/${edit.field === "theme" ? "theme" : "showcase"}`;
+}
 
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function editBaseHash(showcaseId: string): Promise<string | undefined> {
-  const known = baseHashes.get(showcaseId);
+async function editBaseHash(showcaseId: string, edit: SceneEdit): Promise<string | undefined> {
+  const known = baseHashes.get(editTarget(showcaseId, edit));
   if (known) return known;
-  const text = showcaseYamlText(showcaseId);
+  const text =
+    edit.field === "theme" ? showcaseThemeText(showcaseId) : showcaseYamlText(showcaseId);
   return text == null ? undefined : sha256Hex(text);
 }
 
@@ -94,9 +107,7 @@ async function apply(
 ): Promise<SceneEdit | undefined> {
   const bridge = studio()?.scenes;
   if (!bridge) return undefined;
-  /* Theme edits write theme.yaml — showcase.yaml's baseHash gate doesn't
-   * apply to them. */
-  const baseHash = edit.field === "theme" ? undefined : await editBaseHash(showcaseId);
+  const baseHash = await editBaseHash(showcaseId, edit);
   const inverse =
     edit.field === "theme"
       ? applyThemeEditLocal(showcaseId, edit)
@@ -113,7 +124,7 @@ async function apply(
     applySceneEditLocal(showcaseId, sceneId, inverse);
     return undefined;
   }
-  if (result.hash && edit.field !== "theme") baseHashes.set(showcaseId, result.hash);
+  if (result.hash) baseHashes.set(editTarget(showcaseId, edit), result.hash);
   if (editFailures.length > 0) setEditFailures(NO_FAILURES);
   return inverse;
 }

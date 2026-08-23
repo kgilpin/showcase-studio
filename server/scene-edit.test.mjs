@@ -94,3 +94,49 @@ describe("applySceneEditToFolder", () => {
     expect(readFileSync(file, "utf8")).toBe(DOC);
   });
 });
+
+describe("applySceneEditToFolder with theme edits", () => {
+  const THEME = "colors:\n  caption-text: '#ffffff'\n";
+  const themeEdit = (payload, hooks) =>
+    applySceneEditToFolder(
+      dir,
+      {
+        showcaseId: "demo",
+        sceneId: "",
+        field: "theme",
+        group: "colors",
+        name: "caption-text",
+        value: "#ffd166",
+        ...payload,
+      },
+      hooks,
+    );
+  const themeFile = () => path.join(dir, "demo", "theme.yaml");
+
+  it("creates theme.yaml on first use and returns its hash", () => {
+    const result = themeEdit({});
+    expect(result.ok).toBe(true);
+    const written = readFileSync(themeFile(), "utf8");
+    expect(written).toContain("#ffd166");
+    expect(result.hash).toBe(contentHash(written));
+  });
+
+  it("shares the stale-base gate: a matching hash passes, a stale one refuses", () => {
+    writeFileSync(themeFile(), THEME);
+    const stale = themeEdit({ baseHash: contentHash("something else") });
+    expect(stale).toEqual({
+      ok: false,
+      error: expect.stringContaining("theme.yaml changed on disk"),
+    });
+    expect(readFileSync(themeFile(), "utf8")).toBe(THEME);
+    const good = themeEdit({ baseHash: contentHash(THEME) });
+    expect(good.ok).toBe(true);
+    expect(readFileSync(themeFile(), "utf8")).toContain("#ffd166");
+  });
+
+  it("refuses a baseHash whose file was deleted under the page", () => {
+    const result = themeEdit({ baseHash: contentHash(THEME) });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("theme.yaml changed on disk");
+  });
+});

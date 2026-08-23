@@ -53,8 +53,9 @@ export type SceneEdit =
    *  restoring the default. */
   | { field: "theme"; group: "colors" | "atmosphere"; name: string; value: string };
 
-/** `baseHash` names the file content the edit was made against (sha256
- *  hex); the shell refuses the write when the file no longer matches. */
+/** `baseHash` names the target file's content the edit was made against
+ *  (sha256 hex; showcase.yaml, or theme.yaml for theme edits); the shell
+ *  refuses the write when the file no longer matches. */
 export type SceneEditPayload = {
   showcaseId: string;
   sceneId: string;

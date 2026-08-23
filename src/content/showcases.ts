@@ -540,6 +540,7 @@ function resolveMedia(
 const rawDocs = new Map<string, RawDoc>();
 const rawTexts = new Map<string, string>();
 const themeDocs = new Map<string, RawTheme>();
+const rawThemeTexts = new Map<string, string>();
 const resolvedThemes = new Map<string, ResolvedTheme>();
 
 function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
@@ -719,6 +720,7 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   rawDocs.clear();
   rawTexts.clear();
   themeDocs.clear();
+  rawThemeTexts.clear();
   resolvedThemes.clear();
   assetsByShowcase.clear();
   wordTimingsByShowcase.clear();
@@ -743,10 +745,12 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
         const doc = (parse(entry.themeYaml) ?? {}) as RawTheme;
         validateThemeDoc(entry.id, doc);
         themeDocs.set(entry.id, doc);
+        rawThemeTexts.set(entry.id, entry.themeYaml);
       }
     } catch (error) {
       rawDocs.delete(entry.id);
       rawTexts.delete(entry.id);
+      rawThemeTexts.delete(entry.id);
       fail(entry.id, error);
     }
   }
@@ -843,6 +847,12 @@ function rebuildShowcase(showcaseId: string): boolean {
  *  the shell's returned hash tracks the file). */
 export function showcaseYamlText(showcaseId: string): string | undefined {
   return rawTexts.get(showcaseId);
+}
+
+/** Same, for theme.yaml (style-panel edits); undefined when the showcase
+ *  has no theme file yet. */
+export function showcaseThemeText(showcaseId: string): string | undefined {
+  return rawThemeTexts.get(showcaseId);
 }
 
 /** Applies one style-panel theme edit to the in-memory model (see the
