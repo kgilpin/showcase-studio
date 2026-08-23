@@ -136,7 +136,12 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
    * script ends (or on demand), and downloads the take as a video file. */
   const [camera, setCamera] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  /* The 3-2-1 countdown, and what it counts into: every press of Play
+   * gets one (time to look up and settle before the scroll starts), and
+   * a camera take gets one before the recorder rolls. */
+  const [countdown, setCountdown] = useState<{ left: number; action: "play" | "take" } | null>(
+    null,
+  );
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const takeCount = useRef(0);
@@ -144,7 +149,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
   /* Phones: the side column is hidden below sm, so the framing preview
    * floats as a small picture-in-picture instead. */
   const previewPipRef = useRef<HTMLVideoElement>(null);
-  const taking = recording || countdown != null;
+  const taking = recording || countdown?.action === "take";
   const takingRef = useRef(false);
   takingRef.current = taking;
 
@@ -165,8 +170,12 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
       return;
     }
     try {
+      /* 720p, not 1080p: encoding 1080p while the prompter animates is
+       * more than phone Safari sustains — its video track stalls twenty-
+       * odd seconds in while the audio keeps recording, and the saved
+       * take freezes there. 720p is plenty for a talking-head take. */
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
         audio: true,
       });
       setCameraError(null);
@@ -178,11 +187,25 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
 
   const startTake = useCallback(() => {
     if (!camera || takingRef.current) return;
+    setCameraError(null);
     setPlaying(false);
     holdRef.current = 0;
     setElapsed(0);
-    setCountdown(3);
+    setCountdown({ left: 3, action: "take" });
   }, [camera]);
+
+  /* The Play control: pause is immediate, but starting always runs the
+   * countdown so the narrator can settle before the scroll moves. A press
+   * during the countdown cancels it. Record mode (window.__record.start)
+   * bypasses this — exports drive the clock themselves. */
+  const togglePlay = useCallback(() => {
+    if (countdown != null) {
+      setCountdown(null);
+      return;
+    }
+    if (playing) setPlaying(false);
+    else setCountdown({ left: 3, action: "play" });
+  }, [countdown, playing]);
 
   useEffect(() => {
     if (previewRef.current) previewRef.current.srcObject = camera;
@@ -221,11 +244,20 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
   }, [playing, taking]);
 
   useEffect(() => {
-    if (countdown == null || camera == null) return;
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    if (countdown == null) return;
+    if (countdown.left > 0) {
+      const timer = setTimeout(
+        () => setCountdown({ ...countdown, left: countdown.left - 1 }),
+        1000,
+      );
       return () => clearTimeout(timer);
     }
+    if (countdown.action === "play") {
+      setCountdown(null);
+      setPlaying(true);
+      return undefined;
+    }
+    if (camera == null) return;
     // Countdown finished: roll the camera, then start the script.
     const mimeType = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].find((m) =>
       MediaRecorder.isTypeSupported(m),
@@ -246,7 +278,10 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     };
-    recorder.start();
+    /* Timeslice, not one chunk at stop: Safari truncates the video of
+     * long single-chunk recordings, and a one-second cadence also keeps
+     * everything up to a mid-take failure. */
+    recorder.start(1000);
     recorderRef.current = recorder;
     setCountdown(null);
     setRecording(true);
@@ -258,6 +293,26 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
   useEffect(() => {
     if (recording && elapsed >= total) stopTake();
   }, [recording, elapsed, total, stopTake]);
+
+  /* If the OS interrupts the camera mid-take (lock, call, app switch),
+   * the video track mutes but the mic keeps going — the saved file would
+   * freeze at that point with the audio running on. Say so. */
+  useEffect(() => {
+    if (!recording || !camera) return;
+    const track = camera.getVideoTracks()[0];
+    if (!track) return;
+    const onStall = () =>
+      setCameraError(
+        "The camera stopped sending video mid-take — the saved file may freeze there. " +
+          "Keep the page in the foreground while recording.",
+      );
+    track.addEventListener("mute", onStall);
+    track.addEventListener("ended", onStall);
+    return () => {
+      track.removeEventListener("mute", onStall);
+      track.removeEventListener("ended", onStall);
+    };
+  }, [recording, camera]);
 
   let activeIndex = 0;
   for (let i = 0; i < lines.length; i++) {
@@ -352,13 +407,13 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
       if (isTypingTarget(e)) return;
       if (e.key === " ") {
         e.preventDefault();
-        setPlaying((p) => !p);
+        togglePlay();
       } else if (e.key === "ArrowRight") jumpToNextLine();
       else if (e.key === "Escape") onExit();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onExit, jumpToNextLine]);
+  }, [onExit, jumpToNextLine, togglePlay]);
 
   const media = scene.media;
 
@@ -508,9 +563,9 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
         </div>
       )}
 
-      {countdown != null && countdown > 0 && (
+      {countdown != null && countdown.left > 0 && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
-          <p className="font-display text-9xl text-foreground">{countdown}</p>
+          <p className="font-display text-9xl text-foreground">{countdown.left}</p>
         </div>
       )}
 
@@ -527,12 +582,16 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
         </button>
         <button
           type="button"
-          onClick={() => setPlaying((p) => !p)}
-          aria-label={playing ? "Pause" : "Play"}
-          title={playing ? "Pause" : "Play"}
+          onClick={togglePlay}
+          aria-label={playing ? "Pause" : countdown != null ? "Cancel the countdown" : "Play"}
+          title={playing ? "Pause" : countdown != null ? "Cancel the countdown" : "Play"}
           className="rounded-full border border-transparent bg-primary p-3 text-primary-foreground transition-colors hover:bg-primary/85"
         >
-          {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+          {playing || countdown != null ? (
+            <Pause className="size-4" />
+          ) : (
+            <Play className="size-4" />
+          )}
         </button>
         <button
           type="button"
