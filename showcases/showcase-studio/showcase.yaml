@@ -1,0 +1,121 @@
+# =============================================================
+# SHOWCASE STUDIO — the studio, showcased by itself.
+#
+# Every screenshot here is the app capturing its own screens, and the
+# diagrams are TSX graphics from this showcase's graphics/ folder —
+# exactly the workflow the narration describes.
+# =============================================================
+
+meta:
+  title: Showcase Studio
+  description: >
+    Showcase videos as code - create, edit, and version your app's video tours inside your own repo, with Claude Code embedded, git for history, and a teleprompter that travels to your phone.
+  loop: true
+  soundtrack: { src: "", volume: 0.2 }
+
+scenes:
+  # ---- THE IDEA -------------------------------------------------
+  - id: intro
+    theme: statement
+    title: "Showcase: Videos as code"
+    captions:
+      - text: ""
+      - text: What if your app's video tours lived in your repo - written, edited, and shipped like the rest of it?
+    media:
+      kind: none
+
+  # ---- THE SOURCE -----------------------------------------------
+  - id: yaml
+    theme: console
+    eyebrow: The source
+    title: A showcase is a YAML file
+    captions:
+      - text: Every slide is a scene in showcase.yaml - title, narration, media, timing.
+      - text: Write the words, and the video paces itself - timing derives from the copy.
+    media:
+      kind: graphic
+      graphic: yaml-pipeline
+      alt: A showcase.yaml file flowing into App Store, TikTok, and YouTube renditions
+
+  # ---- THE PLAYER -----------------------------------------------
+  - id: player
+    theme: console
+    eyebrow: The player
+    title: One script, three renditions
+    captions:
+      - text: The studio plays your script as an auto-playing product tour.
+      - text: Preview App Store screens, TikTok captions, or a 4:3 embed - all from one source.
+    media:
+      kind: image
+      asset: shot-player
+      alt: The Showcase Studio player with the App Screens, TikTok, and 4:3 view switch
+      motion: still
+      frame: full
+      fadeTo:
+        asset: shot-script
+        alt: The script page listing every scene with derived timings
+
+  # ---- THE AGENT ------------------------------------------------
+  - id: claude
+    theme: console
+    eyebrow: The agent
+    title: Claude Code, built in
+    captions:
+      - text: Every showcase opens its own Claude Code terminal, right in its folder.
+      - text: Claude screenshots slides, transcribes your voiceover, and runs the exports.
+    media:
+      kind: graphic
+      graphic: claude-terminal
+      alt: An embedded Claude Code session editing a scene, checking it, and exporting a draft
+
+  # ---- THE MEDIA ------------------------------------------------
+  - id: assets
+    theme: console
+    eyebrow: The media
+    title: Every asset, accounted for
+    captions:
+      - text: Screenshots, clips, and voiceovers live beside the script.
+      - text: The studio tracks what each file is used by - and flags what's referenced but missing.
+    media:
+      kind: image
+      asset: shot-assets
+      alt: The assets page showing the media collection with usage details
+      motion: still
+      frame: full
+
+  # ---- VERSIONING -----------------------------------------------
+  - id: git
+    theme: console
+    eyebrow: Versioning
+    title: Branch it. Diff it. Review it.
+    captions:
+      - text: It's all plain files, so git just works.
+      - text: Branch a new cut, diff a caption change, and review your video like code.
+    media:
+      kind: graphic
+      graphic: git-lanes
+      alt: A git commit graph of a showcase folder, with a new-cut branch merging back
+
+  # ---- RECORDING ------------------------------------------------
+  - id: prompter
+    theme: feature
+    eyebrow: Recording
+    title: Read it on your phone
+    captions:
+      - text: Share the teleprompter to the web and open it anywhere.
+      - text: The script scrolls at speaking pace while you record your take.
+    media:
+      kind: image
+      asset: shot-prompter
+      alt: The teleprompter on a phone, scrolling the script with pacing controls
+      motion: still
+      frame: phone
+
+  # ---- OUTRO ----------------------------------------------------
+  - id: outro
+    theme: statement
+    title: Your repo is the studio
+    captions:
+      - text: "Showcase: Videos as code. Your repo is the studio."
+    media:
+      kind: none
