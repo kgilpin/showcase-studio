@@ -12,6 +12,7 @@ meta:
     Showcase videos as code - create, edit, and version your app's video tours inside your own repo, with Claude Code embedded, git for history, and a teleprompter that travels to your phone.
   loop: true
   soundtrack: { src: "", volume: 0.2 }
+  captionStyle: karaoke
 
 scenes:
   # ---- THE IDEA -------------------------------------------------
@@ -24,18 +25,18 @@ scenes:
     media:
       kind: none
 
-  # ---- THE SOURCE -----------------------------------------------
-  - id: yaml
+  # ---- THE CONCEPT ----------------------------------------------
+  - id: diff
     theme: console
-    eyebrow: The source
-    title: A showcase is a YAML file
+    eyebrow: Videos as code
+    title: Change one word. Ship a new video.
     captions:
-      - text: Every slide is a scene in showcase.yaml - title, narration, media, timing.
-      - text: Write the words, and the video paces itself - timing derives from the copy.
+      - text: A caption fix is a one-line diff - the video re-renders itself.
+      - text: The words are the timeline - rewrite a line and it re-paces.
     media:
       kind: graphic
-      graphic: yaml-pipeline
-      alt: A showcase.yaml file flowing into App Store, TikTok, and YouTube renditions
+      graphic: caption-diff
+      alt: A one-line git diff of a caption re-rendering the slide beneath it
 
   # ---- THE PLAYER -----------------------------------------------
   - id: player
@@ -43,8 +44,8 @@ scenes:
     eyebrow: The player
     title: One script, three renditions
     captions:
-      - text: The studio plays your script as an auto-playing product tour.
-      - text: Preview App Store screens, TikTok captions, or a 4:3 embed - all from one source.
+      - text: The script plays as an auto-running product tour.
+      - text: App Store, TikTok, or a 4:3 embed - one source, three renditions.
     media:
       kind: image
       asset: shot-player
@@ -61,8 +62,8 @@ scenes:
     eyebrow: The agent
     title: Claude Code, built in
     captions:
-      - text: Every showcase opens its own Claude Code terminal, right in its folder.
-      - text: Claude screenshots slides, transcribes your voiceover, and runs the exports.
+      - text: No bolted-on AI - Claude Code is the editor, on the subscription you already have.
+      - text: It sees your slides, hears your voiceover, and runs your exports.
     media:
       kind: graphic
       graphic: claude-terminal
@@ -74,8 +75,7 @@ scenes:
     eyebrow: The media
     title: Every asset, accounted for
     captions:
-      - text: Screenshots, clips, and voiceovers live beside the script.
-      - text: The studio tracks what each file is used by - and flags what's referenced but missing.
+      - text: Screenshots and voiceovers live beside the script - usage tracked, strays flagged.
     media:
       kind: image
       asset: shot-assets
@@ -89,8 +89,8 @@ scenes:
     eyebrow: Versioning
     title: Branch it. Diff it. Review it.
     captions:
-      - text: It's all plain files, so git just works.
-      - text: Branch a new cut, diff a caption change, and review your video like code.
+      - text: Plain files - so git just works.
+      - text: Branch a new cut, and review the video like code.
     media:
       kind: graphic
       graphic: git-lanes
@@ -102,8 +102,8 @@ scenes:
     eyebrow: Recording
     title: Read it on your phone
     captions:
-      - text: Share the teleprompter to the web and open it anywhere.
-      - text: The script scrolls at speaking pace while you record your take.
+      - text: Share the teleprompter to the web, and read it from your phone.
+      - text: It scrolls at speaking pace while you record your take.
     media:
       kind: image
       asset: shot-prompter
@@ -116,6 +116,6 @@ scenes:
     theme: statement
     title: Your repo is the studio
     captions:
-      - text: "Showcase: Videos as code. Your repo is the studio."
+      - text: Free and open source. Your repo is the studio.
     media:
       kind: none
