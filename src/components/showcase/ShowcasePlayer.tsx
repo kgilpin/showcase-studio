@@ -20,23 +20,25 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const scenes = showcase.scenes;
   useMediaPreload(scenes);
   /* Live reload (the studio watcher reloads the page on every file save)
-   * must not lose the viewer's place. The position is saved in
-   * beforeunload — which only fires on real page reloads, never on
-   * in-app navigation — and consumed once here, so opening a showcase
-   * fresh still starts at the top. */
-  const [index, setIndex] = useState(() => {
-    if (typeof window === "undefined") return 0;
+   * must not lose the viewer's place: the slide AND the view mode are
+   * saved in beforeunload — which only fires on real page reloads, never
+   * on in-app navigation — and consumed once here, so opening a showcase
+   * fresh still starts at the top in App Screens. */
+  const [resume] = useState<{ id: string; index?: number; view?: string } | null>(() => {
+    if (typeof window === "undefined") return null;
     const saved = sessionStorage.getItem("player-resume");
-    if (!saved) return 0;
+    if (!saved) return null;
     sessionStorage.removeItem("player-resume");
     try {
-      const pos = JSON.parse(saved) as { id: string; index: number };
-      if (pos.id === showcase.id && pos.index > 0 && pos.index < scenes.length) return pos.index;
+      const pos = JSON.parse(saved) as { id: string; index?: number; view?: string };
+      return pos.id === showcase.id ? pos : null;
     } catch {
-      /* stale value */
+      return null; /* stale value */
     }
-    return 0;
   });
+  const [index, setIndex] = useState(() =>
+    resume?.index != null && resume.index > 0 && resume.index < scenes.length ? resume.index : 0,
+  );
   /* Showcases open paused — play is a choice (space, click, or the
    * button), not an ambush. */
   const [paused, setPaused] = useState(true);
@@ -46,7 +48,9 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
    * "tiktok" (portrait, captions overlaid, titles hidden), and "embed"
    * (the 4:3 canvas for YouTube/desktop, which composes its own
    * captions). */
-  const [view, setView] = useState<"screens" | "tiktok" | "embed">("screens");
+  const [view, setView] = useState<"screens" | "tiktok" | "embed">(() =>
+    resume?.view === "tiktok" || resume?.view === "embed" ? resume.view : "screens",
+  );
   const canvas = view === "embed" ? "embed" : "portrait";
   const presentation = view === "tiktok" ? "video" : "screens";
   const scene = scenes[index] ?? scenes[0]!;
@@ -78,12 +82,14 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   advanceRef.current = advance;
   const indexRef = useRef(index);
   indexRef.current = index;
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   useEffect(() => {
     const save = () =>
       sessionStorage.setItem(
         "player-resume",
-        JSON.stringify({ id: showcase.id, index: indexRef.current }),
+        JSON.stringify({ id: showcase.id, index: indexRef.current, view: viewRef.current }),
       );
     window.addEventListener("beforeunload", save);
     return () => window.removeEventListener("beforeunload", save);
