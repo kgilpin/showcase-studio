@@ -23,7 +23,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
    * must not lose the viewer's place: the slide AND the view mode are
    * saved in beforeunload — which only fires on real page reloads, never
    * on in-app navigation — and consumed once here, so opening a showcase
-   * fresh still starts at the top in App Screens. */
+   * fresh still starts at the top in TikTok view. */
   const [resume] = useState<{ id: string; index?: number; view?: string } | null>(() => {
     if (typeof window === "undefined") return null;
     const saved = sessionStorage.getItem("player-resume");
@@ -44,12 +44,12 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const [paused, setPaused] = useState(true);
   const [progress, setProgress] = useState(0);
   /* Three exclusive view modes, each previewing an export destination:
-   * "screens" (App Screens — titles on the slide, captions beside),
-   * "tiktok" (portrait, captions overlaid, titles hidden), and "embed"
-   * (the 4:3 canvas for YouTube/desktop, which composes its own
-   * captions). */
+   * "tiktok" (portrait, captions overlaid, titles hidden — the default:
+   * it's the finished-video look), "screens" (App Screens — titles on
+   * the slide, captions beside), and "embed" (the 4:3 canvas for
+   * YouTube/desktop, which composes its own captions). */
   const [view, setView] = useState<"screens" | "tiktok" | "embed">(() =>
-    resume?.view === "tiktok" || resume?.view === "embed" ? resume.view : "screens",
+    resume?.view === "screens" || resume?.view === "embed" ? resume.view : "tiktok",
   );
   const canvas = view === "embed" ? "embed" : "portrait";
   const presentation = view === "tiktok" ? "video" : "screens";
@@ -274,8 +274,8 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           <div className="flex rounded-full border border-border bg-card/60 p-1 text-xs">
             {(
               [
-                ["screens", "App Screens"],
                 ["tiktok", "TikTok"],
+                ["screens", "App Screens"],
                 ["embed", "4:3"],
               ] as const
             ).map(([key, label]) => (
