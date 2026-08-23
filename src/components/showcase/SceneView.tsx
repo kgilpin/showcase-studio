@@ -335,18 +335,35 @@ export function SceneView({
         {hasMedia && isConsole && (
           <div className="relative mt-4 flex min-h-0 w-full flex-1 flex-col justify-center">
             {/* Screenshots keep the 16:10 landscape band; TSX graphics are
-             * drawn portrait-first and fill the whole remaining height. */}
+             * drawn portrait-first and fill the whole remaining height.
+             * With no header (overlay presentation) the band rides in the
+             * upper third of the free space instead of the middle — the
+             * lower zone belongs to the overlaid captions. */}
+            {hideTitle && scene.media.kind !== "graphic" && (
+              <div aria-hidden className="min-h-0 flex-1" />
+            )}
             <div
               className={cn(
-                "relative w-full overflow-hidden border-y border-border bg-card",
+                "relative w-full overflow-hidden",
                 drift,
+                /* With no header a graphic band spans nearly the whole
+                 * stage over its own stage-gradient background, so the
+                 * frame would show as two orphaned rules — drop it. In
+                 * App Screens the top border divides band from title. */
+                (scene.media.kind !== "graphic" || !hideTitle) && "border-y border-border bg-card",
                 scene.media.kind === "graphic" && "min-h-0 flex-1",
+                /* Graphics center their own content; ceding the bottom of
+                 * the band keeps them in the upper zone too. */
+                scene.media.kind === "graphic" && hideTitle && "mb-[36cqw]",
               )}
               style={scene.media.kind === "graphic" ? undefined : { aspectRatio: "16 / 10" }}
             >
               {media}
               {pickMedia}
             </div>
+            {hideTitle && scene.media.kind !== "graphic" && (
+              <div aria-hidden className="min-h-0 flex-[2]" />
+            )}
             {body && !hideCaption && (
               <div
                 key={captionKey}
