@@ -18,6 +18,7 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import http from "node:http";
+import { createHash } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
@@ -31,6 +32,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
+import { applySceneEdit } from "./edit-yaml.mjs";
 import { exportScreens, exportScript, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
@@ -197,13 +199,44 @@ function serveData() {
   return server;
 }
 
+/* Self-write suppression. Edits made through the app's own scene-edit
+ * IPC are already applied to the renderer's in-page model, so the
+ * watcher must not answer them with a full page reload (the "flash").
+ * Each such write records the content hash it produced; when every file
+ * in a watch burst still matches its recorded hash, the burst is the
+ * echo of our own writes and is swallowed. Anything else — agent edits,
+ * hand edits, git checkouts — reloads the window as before. */
+const selfWrites = new Map();
+const contentHash = (content) => createHash("sha256").update(content).digest("hex");
+function recordSelfWrite(file, content) {
+  const hash = contentHash(content);
+  selfWrites.set(file, { hash, at: Date.now() });
+  return hash;
+}
+function isSelfWriteEcho(file) {
+  const entry = selfWrites.get(file);
+  if (!entry || Date.now() - entry.at > 10_000) return false;
+  try {
+    return contentHash(readFileSync(file)) === entry.hash;
+  } catch {
+    return false;
+  }
+}
+
 let watcher;
 function watchShowcases(win) {
   watcher?.close();
   let timer;
-  watcher = watch(showcasesDir, { recursive: true }, () => {
+  const pending = new Set();
+  watcher = watch(showcasesDir, { recursive: true }, (_event, filename) => {
+    pending.add(filename == null ? null : path.join(showcasesDir, filename));
     clearTimeout(timer);
-    timer = setTimeout(() => win.webContents.reloadIgnoringCache(), 250);
+    timer = setTimeout(() => {
+      const changed = [...pending];
+      pending.clear();
+      if (changed.every((file) => file != null && isSelfWriteEcho(file))) return;
+      win.webContents.reloadIgnoringCache();
+    }, 250);
   });
 }
 
@@ -396,6 +429,37 @@ scenes:
     ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
     ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
   });
+  /* One whitelisted field edit on a scene in showcase.yaml — the write
+   * path behind in-app editing (titles, captions, scene media). The edit
+   * is applied comment-preservingly (edit-yaml.mjs), and the write is
+   * recorded before it lands so the watcher recognizes its echo — the
+   * renderer has already applied the change to its own model. */
+  ipcMain.handle("scene-edit", (_event, payload) => {
+    try {
+      const showcaseId = String(payload?.showcaseId ?? "");
+      if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) {
+        return { ok: false, error: "Bad showcase id" };
+      }
+      const file = path.join(showcasesDir, showcaseId, "showcase.yaml");
+      if (!existsSync(file)) return { ok: false, error: `No showcase named "${showcaseId}"` };
+      const current = readFileSync(file, "utf8");
+      /* The page names the content its edit was made against. A mismatch
+       * means something else wrote the file in the meantime — refuse
+       * rather than patch on top of unseen changes; the outside write
+       * reloads the page with the truth. */
+      if (payload?.baseHash && contentHash(current) !== payload.baseHash) {
+        console.warn(`scene-edit refused: ${showcaseId}/showcase.yaml changed on disk`);
+        return { ok: false, error: "showcase.yaml changed on disk — the edit was not applied" };
+      }
+      const text = applySceneEdit(current, payload);
+      const hash = recordSelfWrite(file, text);
+      writeFileSync(file, text);
+      return { ok: true, hash };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    }
+  });
+
   /* Renames an asset file and updates every YAML reference to it — the
    * bare key and the full file name, in asset:/src:/cover: fields only,
    * so narration text mentioning the same word is left alone. */
@@ -463,6 +527,39 @@ scenes:
   if (process.env.ELECTRON_SMOKE) {
     setTimeout(async () => {
       try {
+        /* Routes are client-only (ssr: false) — on a cold dev server
+         * hydration can outlast any fixed delay, so wait for real
+         * content (up to 15s) before doing anything else. */
+        await win.webContents.executeJavaScript(`(async () => {
+          for (let i = 0; i < 150 && !document.body.innerText.trim(); i++) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        })()`);
+        /* ELECTRON_SMOKE_EDIT=1 exercises in-app editing end to end:
+         * a scenes.edit through the bridge must land in showcase.yaml,
+         * and the watcher must swallow its echo (no page reload). */
+        if (process.env.ELECTRON_SMOKE_EDIT) {
+          const exec = (code) => win.webContents.executeJavaScript(code);
+          const first = showcaseIndex(showcasesDir).showcases[0];
+          const yamlPath = path.join(showcasesDir, first.id, "showcase.yaml");
+          const sceneId = /\n\s*-\s+id:\s*([\w-]+)/.exec(readFileSync(yamlPath, "utf8"))?.[1];
+          await exec("window.__stayed = true");
+          const edited = await exec(
+            `window.showcaseStudio.scenes.edit(${JSON.stringify({
+              showcaseId: first.id,
+              sceneId,
+              field: "title",
+              value: "Edited by smoke",
+            })})`,
+          );
+          await new Promise((r) => setTimeout(r, 1500)); // outlive the watcher debounce
+          console.log("smoke edit:", JSON.stringify(edited));
+          console.log(
+            "smoke edit written:",
+            readFileSync(yamlPath, "utf8").includes("Edited by smoke"),
+          );
+          console.log("smoke edit no reload:", await exec("window.__stayed === true"));
+        }
         /* ELECTRON_SMOKE_AGENT=1 additionally exercises the agent bridge:
          * reports key status, verifies a bogus key is rejected, and opens
          * the panel so the capture shows it. */

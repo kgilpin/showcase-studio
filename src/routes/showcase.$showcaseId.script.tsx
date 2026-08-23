@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Play } from "lucide-react";
-import { captionTimeline, getShowcase } from "@/content/showcases";
+import { captionTimeline, getShowcase, useShowcase } from "@/content/showcases";
 import { dataMode } from "@/content/source";
+import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
+import { EditableText } from "@/components/studio/EditableText";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
@@ -38,8 +40,15 @@ const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 function ScriptScreen() {
   const { showcaseId } = Route.useParams();
   const { record } = Route.useSearch();
-  const showcase = getShowcase(showcaseId);
+  /* Subscribed, not just read: in-app edits rebuild the showcase in
+   * place and this listing must re-render without a page reload. */
+  const showcase = useShowcase(showcaseId);
   const [prompter, setPrompter] = useState(false);
+  /* Studio editing: the title and every caption line are click-to-edit
+   * (this page is the script editor — captions are transient in the
+   * player). Cmd/Ctrl+Z undoes committed edits. */
+  const canEdit = useCanEditScenes();
+  useEditShortcuts(showcaseId);
   if (!showcase) return null; // the layout route renders the not-found message
 
   const scenes = showcase.scenes;
@@ -60,21 +69,23 @@ function ScriptScreen() {
       <div className="mx-auto max-w-4xl">
         <HomeBackNav />
         <ShowcaseNav showcaseId={showcaseId} current="script" />
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setPrompter(true)}
-            className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-5 py-2.5 text-sm text-foreground transition-colors hover:bg-card"
-          >
-            <Play className="size-4" /> Play script
-          </button>
-        </div>
 
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Script</p>
-          <h1 className="mt-4 font-display text-5xl leading-tight tracking-tight text-foreground">
-            {showcase.title}
-          </h1>
+          {/* The page's one action sits with the title — filled primary
+           * marks "does something" (nav pills stay outlined). */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+            <h1 className="font-display text-5xl leading-tight tracking-tight text-foreground">
+              {showcase.title}
+            </h1>
+            <button
+              type="button"
+              onClick={() => setPrompter(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-transparent bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85"
+            >
+              <Play className="size-4" /> Play script
+            </button>
+          </div>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             {showcase.description}
           </p>
@@ -145,10 +156,26 @@ function ScriptScreen() {
                         {scene.eyebrow}
                       </p>
                     )}
-                    {scene.title && (
-                      <h2 className="mt-3 font-display text-2xl leading-snug tracking-tight text-foreground">
-                        {scene.title}
-                      </h2>
+                    {/* While editable, a missing title still gets the
+                     * editor (ghost "Add a title") — except on footage,
+                     * which never shows titles. */}
+                    {canEdit && scene.theme !== "footage" ? (
+                      <EditableText
+                        as="h2"
+                        value={scene.title ?? ""}
+                        onCommit={(value) =>
+                          void commitEdit(showcase.id, scene.id, { field: "title", value })
+                        }
+                        label="Click to edit the title"
+                        placeholder="Add a title"
+                        className="mt-3 font-display text-2xl leading-snug tracking-tight text-foreground"
+                      />
+                    ) : (
+                      scene.title && (
+                        <h2 className="mt-3 font-display text-2xl leading-snug tracking-tight text-foreground">
+                          {scene.title}
+                        </h2>
+                      )
                     )}
                     {scene.warnings && (
                       <ul className="mt-3 space-y-1 text-xs leading-relaxed text-amber-400/90">
@@ -166,7 +193,21 @@ function ScriptScreen() {
                               {seconds(caption.startMs)}–{seconds(caption.endMs)}
                             </span>
                             <span className="text-sm leading-relaxed text-muted-foreground">
-                              {caption.text}
+                              {canEdit ? (
+                                <EditableText
+                                  value={caption.text}
+                                  onCommit={(value) =>
+                                    void commitEdit(showcase.id, scene.id, {
+                                      field: "caption",
+                                      captionIndex: ci,
+                                      value,
+                                    })
+                                  }
+                                  label="Click to edit this caption"
+                                />
+                              ) : (
+                                caption.text
+                              )}
                               {caption.durationMs !== scene.durationMs && (
                                 <span className="ml-2 text-[0.7rem] text-support">
                                   ({seconds(caption.durationMs)})

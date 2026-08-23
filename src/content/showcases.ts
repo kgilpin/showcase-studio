@@ -14,10 +14,11 @@
  * ============================================================= */
 
 import { parse } from "yaml";
-import type { ComponentType } from "react";
+import { useSyncExternalStore, type ComponentType } from "react";
 import { resolveSceneTiming } from "./timing.mjs";
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
+import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
  * implementation live in timing.mjs. */
@@ -500,6 +501,7 @@ function resolveMedia(
  * ------------------------------------------------------------- */
 
 const rawDocs = new Map<string, RawDoc>();
+const rawTexts = new Map<string, string>();
 const themeDocs = new Map<string, RawTheme>();
 const resolvedThemes = new Map<string, ResolvedTheme>();
 
@@ -645,6 +647,7 @@ function buildShowcase(
 async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   const data = await source.load();
   rawDocs.clear();
+  rawTexts.clear();
   themeDocs.clear();
   resolvedThemes.clear();
   assetsByShowcase.clear();
@@ -663,6 +666,7 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
     dataGraphicsByShowcase.set(entry.id, entry.graphics);
     try {
       rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
+      rawTexts.set(entry.id, entry.yaml);
       if (entry.themeYaml != null) {
         const doc = (parse(entry.themeYaml) ?? {}) as RawTheme;
         validateThemeDoc(entry.id, doc);
@@ -670,6 +674,7 @@ async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
       }
     } catch (error) {
       rawDocs.delete(entry.id);
+      rawTexts.delete(entry.id);
       fail(entry.id, error);
     }
   }
@@ -712,6 +717,99 @@ export const showcasesReady: Promise<Showcase[]> = loadFromSource(activeSource()
 
 export function getShowcase(id: string): Showcase | undefined {
   return showcases.find((showcase) => showcase.id === id);
+}
+
+/* -------------------------------------------------------------
+ * IN-APP EDITING — the surgical update path.
+ *
+ * External file changes still arrive as a full page reload (the studio
+ * watcher). In-app edits must not: they are known patches, so they are
+ * applied straight to the model here — mutate the raw doc, rebuild just
+ * that showcase, notify subscribers — while the desktop shell writes the
+ * same edit to showcase.yaml and swallows the watcher echo. Mounted
+ * components re-render through useShowcase; nothing reloads, nothing
+ * flashes.
+ * ------------------------------------------------------------- */
+
+let editRevision = 0;
+const editListeners = new Set<() => void>();
+
+function subscribeShowcases(listener: () => void): () => void {
+  editListeners.add(listener);
+  return () => editListeners.delete(listener);
+}
+
+const readEditRevision = () => editRevision;
+
+/** The showcase, re-read whenever an in-app edit rebuilds it. */
+export function useShowcase(id: string): Showcase | undefined {
+  useSyncExternalStore(subscribeShowcases, readEditRevision, readEditRevision);
+  return getShowcase(id);
+}
+
+function rebuildShowcase(showcaseId: string): boolean {
+  const doc = rawDocs.get(showcaseId);
+  if (!doc) return false;
+  const warnings = showcaseWarnings.filter((warning) => warning.showcaseId !== showcaseId);
+  try {
+    const built = buildShowcase(showcaseId, doc, (sceneId, message) =>
+      warnings.push({ showcaseId, sceneId, message }),
+    );
+    showcases = showcases.map((showcase) => (showcase.id === showcaseId ? built : showcase));
+    showcaseWarnings = warnings;
+    editRevision += 1;
+    for (const listener of editListeners) listener();
+    return true;
+  } catch (error) {
+    console.error(`Showcase "${showcaseId}" failed to rebuild after an edit:`, error);
+    return false;
+  }
+}
+
+/** The YAML text this page loaded for a showcase — the base its first
+ *  in-app edit is made against (src/lib/edits.ts hashes it; after that,
+ *  the shell's returned hash tracks the file). */
+export function showcaseYamlText(showcaseId: string): string | undefined {
+  return rawTexts.get(showcaseId);
+}
+
+/** Applies one whitelisted scene edit to the in-memory model (see
+ *  SceneEdit in src/lib/studio.ts) and returns the inverse edit — the
+ *  undo entry — or undefined when the target doesn't exist. Derived data
+ *  (caption timing, slide durations, warnings) recomputes on the way. */
+export function applySceneEditLocal(
+  showcaseId: string,
+  sceneId: string,
+  edit: SceneEdit,
+): SceneEdit | undefined {
+  const doc = rawDocs.get(showcaseId);
+  const raw = doc?.scenes.find((scene) => scene.id === sceneId);
+  if (!doc || !raw) return undefined;
+  /* If the rebuild below fails, the doc must roll back too — the model
+   * keeps its last good state, and a lingering mutation would resurface
+   * with the next successful edit. */
+  const snapshot = structuredClone(raw);
+  let inverse: SceneEdit;
+  if (edit.field === "title") {
+    inverse = { field: "title", value: raw.title ?? "" };
+    const title = edit.value.trim();
+    if (title) raw.title = title;
+    else delete raw.title;
+  } else if (edit.field === "caption") {
+    const caption = raw.captions?.[edit.captionIndex];
+    if (!caption) return undefined;
+    inverse = { field: "caption", captionIndex: edit.captionIndex, value: caption.text };
+    caption.text = edit.value.trim();
+  } else {
+    const media = raw.media;
+    if (!media || media.kind === "none" || media.kind === "graphic") return undefined;
+    inverse = { field: "media.asset", value: media.asset, mediaKind: media.kind };
+    media.asset = edit.value;
+    if (edit.mediaKind) media.kind = edit.mediaKind;
+  }
+  if (rebuildShowcase(showcaseId)) return inverse;
+  doc.scenes[doc.scenes.indexOf(raw)] = snapshot;
+  return undefined;
 }
 
 /* -------------------------------------------------------------

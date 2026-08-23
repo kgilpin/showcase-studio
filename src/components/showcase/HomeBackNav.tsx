@@ -20,6 +20,7 @@ export function HomeBackNav({
       <Link
         to="/"
         aria-label="All showcases"
+        title="All showcases"
         className="inline-flex rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 backdrop-blur-sm transition-colors hover:bg-secondary hover:text-foreground"
       >
         <Home className="size-4" />

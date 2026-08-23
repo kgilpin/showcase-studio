@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShowcaseShowcaseIdRouteImport } from './routes/showcase.$showcaseId'
 import { Route as ShowcaseShowcaseIdIndexRouteImport } from './routes/showcase.$showcaseId.index'
+import { Route as ShowcaseShowcaseIdAssetsRouteImport } from './routes/showcase.$showcaseId.assets'
 import { Route as ShowcaseShowcaseIdRecordRouteImport } from './routes/showcase.$showcaseId.record'
 import { Route as ShowcaseShowcaseIdScriptRouteImport } from './routes/showcase.$showcaseId.script'
 import { Route as ShowcaseShowcaseIdExportIndexRouteImport } from './routes/showcase.$showcaseId.export.index'
@@ -32,6 +33,12 @@ const ShowcaseShowcaseIdIndexRoute = ShowcaseShowcaseIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ShowcaseShowcaseIdRoute,
 } as any)
+const ShowcaseShowcaseIdAssetsRoute =
+  ShowcaseShowcaseIdAssetsRouteImport.update({
+    id: '/assets',
+    path: '/assets',
+    getParentRoute: () => ShowcaseShowcaseIdRoute,
+  } as any)
 const ShowcaseShowcaseIdRecordRoute =
   ShowcaseShowcaseIdRecordRouteImport.update({
     id: '/record',
@@ -60,6 +67,7 @@ const ShowcaseShowcaseIdExportSceneIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/showcase/$showcaseId': typeof ShowcaseShowcaseIdRouteWithChildren
+  '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
   '/showcase/$showcaseId/': typeof ShowcaseShowcaseIdIndexRoute
@@ -68,6 +76,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
   '/showcase/$showcaseId': typeof ShowcaseShowcaseIdIndexRoute
@@ -78,6 +87,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/showcase/$showcaseId': typeof ShowcaseShowcaseIdRouteWithChildren
+  '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
   '/showcase/$showcaseId/': typeof ShowcaseShowcaseIdIndexRoute
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/showcase/$showcaseId'
+    | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
     | '/showcase/$showcaseId/script'
     | '/showcase/$showcaseId/'
@@ -97,6 +108,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
     | '/showcase/$showcaseId/script'
     | '/showcase/$showcaseId'
@@ -106,6 +118,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/showcase/$showcaseId'
+    | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
     | '/showcase/$showcaseId/script'
     | '/showcase/$showcaseId/'
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShowcaseShowcaseIdIndexRouteImport
       parentRoute: typeof ShowcaseShowcaseIdRoute
     }
+    '/showcase/$showcaseId/assets': {
+      id: '/showcase/$showcaseId/assets'
+      path: '/assets'
+      fullPath: '/showcase/$showcaseId/assets'
+      preLoaderRoute: typeof ShowcaseShowcaseIdAssetsRouteImport
+      parentRoute: typeof ShowcaseShowcaseIdRoute
+    }
     '/showcase/$showcaseId/record': {
       id: '/showcase/$showcaseId/record'
       path: '/record'
@@ -173,6 +193,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface ShowcaseShowcaseIdRouteChildren {
+  ShowcaseShowcaseIdAssetsRoute: typeof ShowcaseShowcaseIdAssetsRoute
   ShowcaseShowcaseIdRecordRoute: typeof ShowcaseShowcaseIdRecordRoute
   ShowcaseShowcaseIdScriptRoute: typeof ShowcaseShowcaseIdScriptRoute
   ShowcaseShowcaseIdIndexRoute: typeof ShowcaseShowcaseIdIndexRoute
@@ -181,6 +202,7 @@ interface ShowcaseShowcaseIdRouteChildren {
 }
 
 const ShowcaseShowcaseIdRouteChildren: ShowcaseShowcaseIdRouteChildren = {
+  ShowcaseShowcaseIdAssetsRoute: ShowcaseShowcaseIdAssetsRoute,
   ShowcaseShowcaseIdRecordRoute: ShowcaseShowcaseIdRecordRoute,
   ShowcaseShowcaseIdScriptRoute: ShowcaseShowcaseIdScriptRoute,
   ShowcaseShowcaseIdIndexRoute: ShowcaseShowcaseIdIndexRoute,

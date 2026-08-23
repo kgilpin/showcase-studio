@@ -5,7 +5,10 @@ import { ShowcaseNav } from "./ShowcaseNav";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
-import { activeCaption, type Showcase } from "@/content/showcases";
+import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
+import { EditableText } from "@/components/studio/EditableText";
+import { MediaPicker } from "@/components/studio/MediaPicker";
+import { captionTimeline, type Showcase } from "@/content/showcases";
 import { FIXED_ASPECT, SceneView } from "./SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
 import { ProgressRail } from "./ProgressRail";
@@ -46,6 +49,15 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const canvas = view === "embed" ? "embed" : "portrait";
   const presentation = view === "tiktok" ? "video" : "screens";
   const scene = scenes[index] ?? scenes[0]!;
+
+  /* Studio editing: pause to edit. While paused in the App Screens view,
+   * the slide's title is click-to-edit and the media area opens the asset
+   * picker; edits apply to the model in place (no reload, no flash) while
+   * the shell writes them into showcase.yaml. Cmd/Ctrl+Z undoes. */
+  const canEdit = useCanEditScenes();
+  useEditShortcuts(showcase.id);
+  const editing = canEdit && paused && view === "screens";
+  const [picker, setPicker] = useState(false);
 
   const go = useCallback((next: number) => {
     setProgress(0);
@@ -102,7 +114,9 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTypingTarget(e)) return;
+      /* While the media picker is open the scene must not move — a
+       * thumbnail click writes to the scene it was opened for. */
+      if (picker || isTypingTarget(e)) return;
       if (e.key === " ") {
         e.preventDefault();
         setPaused((p) => !p);
@@ -112,10 +126,20 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, go]);
+  }, [index, go, picker]);
 
   const elapsedMs = progress * scene.durationMs;
-  const caption = activeCaption(scene, elapsedMs);
+  /* One timeline pass gives both the caption on screen and its index —
+   * the transcript column edits that same line in place while paused
+   * (the /script page lists and edits all of them). Deriving both from
+   * the same entry keeps the displayed text and the edited YAML line in
+   * lockstep. */
+  const timeline = captionTimeline(scene);
+  const captionIndex = (() => {
+    const active = timeline.findIndex((entry) => elapsedMs < entry.endMs);
+    return active >= 0 ? active : timeline.length - 1;
+  })();
+  const caption = captionIndex >= 0 ? timeline[captionIndex] : undefined;
   const captionText = caption?.text ?? scene.body;
 
   return (
@@ -168,6 +192,16 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
                  * only decides whether it ALSO overlays the media. */
                 hideCaption={presentation === "screens"}
                 hideTitle={presentation === "video"}
+                onEditTitle={
+                  editing && scene.theme !== "footage"
+                    ? (value) => void commitEdit(showcase.id, scene.id, { field: "title", value })
+                    : undefined
+                }
+                onPickMedia={
+                  editing && (scene.media.kind === "image" || scene.media.kind === "video")
+                    ? () => setPicker(true)
+                    : undefined
+                }
               />
             </div>
             <div className="hidden shrink-0 flex-col self-stretch py-8 sm:flex sm:w-56 md:w-60 lg:w-64">
@@ -188,7 +222,21 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
                     key={captionText}
                     className="caption-fade text-left text-lg leading-snug text-muted-foreground md:text-xl"
                   >
-                    {captionText}
+                    {canEdit && paused && captionIndex >= 0 ? (
+                      <EditableText
+                        value={captionText}
+                        onCommit={(value) =>
+                          void commitEdit(showcase.id, scene.id, {
+                            field: "caption",
+                            captionIndex,
+                            value,
+                          })
+                        }
+                        label="Click to edit this caption"
+                      />
+                    ) : (
+                      captionText
+                    )}
                   </p>
                 )}
                 {scene.warnings && (
@@ -246,7 +294,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             <Control label="Previous scene" onClick={() => go(Math.max(0, index - 1))}>
               <SkipBack className="size-4" />
             </Control>
-            <Control label={paused ? "Play" : "Pause"} onClick={() => setPaused((p) => !p)}>
+            <Control label={paused ? "Play" : "Pause"} onClick={() => setPaused((p) => !p)} primary>
               {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
             </Control>
             <Control label="Next scene" onClick={() => advanceRef.current()}>
@@ -262,6 +310,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           </div>
         </div>
       </div>
+      {picker && <MediaPicker showcase={showcase} scene={scene} onClose={() => setPicker(false)} />}
       <DiagnosticsTray />
     </main>
   );
@@ -271,17 +320,27 @@ function Control({
   label,
   onClick,
   children,
+  primary = false,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
+  /** Filled primary marks the transport's main action (play/pause);
+   *  the quiet outline is for the secondary controls around it. */
+  primary?: boolean;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      title={label}
       onClick={onClick}
-      className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
+      className={cn(
+        "rounded-full p-2.5 transition-colors",
+        primary
+          ? "border border-transparent bg-primary text-primary-foreground hover:bg-primary/85"
+          : "border border-border bg-card/60 text-foreground/70 hover:bg-secondary hover:text-foreground",
+      )}
     >
       {children}
     </button>

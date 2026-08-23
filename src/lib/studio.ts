@@ -37,6 +37,23 @@ export type StudioTerminal = {
   onExit(callback: (payload: { id: string; code: number }) => void): () => void;
 };
 
+/* In-app editing writes exactly these fields and nothing else — a
+ * deliberate whitelist (like the theme keys), not a generic YAML patch.
+ * The main process applies each edit to showcase.yaml with
+ * comment-preserving targeted updates (electron/edit-yaml.mjs). */
+export type SceneEdit =
+  | { field: "title"; value: string }
+  | { field: "caption"; captionIndex: number; value: string }
+  | { field: "media.asset"; value: string; mediaKind?: "image" | "video" | undefined };
+
+/** `baseHash` names the file content the edit was made against (sha256
+ *  hex); the shell refuses the write when the file no longer matches. */
+export type SceneEditPayload = {
+  showcaseId: string;
+  sceneId: string;
+  baseHash?: string | undefined;
+} & SceneEdit;
+
 export type ShowcaseStudio = {
   /** Exports App Store screenshots; resolves to the output folder. */
   exportScreens(showcaseId: string): Promise<string>;
@@ -48,6 +65,12 @@ export type ShowcaseStudio = {
   /** Scaffolding for new showcases (the home page's "+" card). */
   showcases: {
     create(name: string): Promise<{ ok: boolean; id?: string; error?: string }>;
+  };
+  /** In-app editing: one whitelisted field edit on a scene's YAML.
+   *  On success, `hash` is the written file's content hash — the next
+   *  edit's base. */
+  scenes: {
+    edit(payload: SceneEditPayload): Promise<{ ok: boolean; hash?: string; error?: string }>;
   };
   /** Asset-collection operations (the assets page). */
   assets: {

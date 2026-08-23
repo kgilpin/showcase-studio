@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { activeCaption, type CaptionPosition, type Scene } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
+import { EditableText } from "@/components/studio/EditableText";
 import appStoreBadge from "@/assets/app-store-badge.svg";
 
 /** CTA content: the App Store badge by default, or a labeled pill button
@@ -92,6 +93,8 @@ export function SceneView({
   hideCaption = false,
   hideTitle = false,
   frameless = false,
+  onEditTitle,
+  onPickMedia,
 }: {
   scene: Scene;
   paused: boolean;
@@ -105,8 +108,41 @@ export function SceneView({
   hideTitle?: boolean;
   /** Drop the device chrome and fill the parent (screenshot export). */
   frameless?: boolean;
+  /** Studio editing (paused player only): the title becomes click-to-edit
+   *  and commits through this. */
+  onEditTitle?: ((value: string) => void) | undefined;
+  /** Studio editing: clicking the media area opens the asset picker. */
+  onPickMedia?: (() => void) | undefined;
 }) {
   const media = <SceneMedia media={scene.media} durationMs={scene.durationMs} paused={paused} />;
+  /* Editing affordances, rendered inside the slide so they inherit its
+   * exact look. The title keeps its element and classes either way; the
+   * media areas get an invisible click layer over the whole surface. */
+  const title = (className: string) =>
+    onEditTitle ? (
+      <EditableText
+        as="h2"
+        value={scene.title ?? ""}
+        onCommit={onEditTitle}
+        label="Click to edit the title"
+        placeholder="Add a title"
+        className={className}
+      />
+    ) : scene.title ? (
+      <h2 className={className}>{scene.title}</h2>
+    ) : null;
+  const pickMedia = onPickMedia ? (
+    <button
+      type="button"
+      aria-label="Choose this scene's media"
+      title="Choose media…"
+      onClick={(event) => {
+        event.stopPropagation();
+        onPickMedia();
+      }}
+      className="absolute inset-0 z-10 cursor-pointer transition-colors hover:bg-foreground/10"
+    />
+  ) : null;
   /* Entrance animation is opt-in (`transition: rise`) — by default scenes
    * cut cleanly, which footage-to-footage sequences need. */
   const rise = scene.transition === "rise" ? "scene-rise" : undefined;
@@ -132,26 +168,43 @@ export function SceneView({
         <div className="relative h-full w-full" style={{ background: "var(--gradient-stage)" }}>
           {backdrop && (
             <>
-              <div className="absolute inset-0">{media}</div>
+              <div className="absolute inset-0">
+                {media}
+                {pickMedia}
+              </div>
               <div aria-hidden className="absolute inset-0 bg-background/70" />
             </>
           )}
-          <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-            <div className={cn("flex max-w-3xl flex-col items-center", rise)}>
+          <div
+            className={cn(
+              "absolute inset-0 flex items-center justify-center px-6 text-center",
+              /* While editing a backdrop scene the media's click layer sits
+               * over the whole slide — the text column lifts above it and
+               * takes back its own pointer events, so the title stays
+               * editable and everywhere else picks media. */
+              backdrop && pickMedia && "pointer-events-none z-20",
+            )}
+          >
+            <div
+              className={cn(
+                "flex max-w-3xl flex-col items-center",
+                rise,
+                backdrop && pickMedia && "pointer-events-auto",
+              )}
+            >
               {!backdrop && scene.media.kind !== "none" && (
                 <div className="relative mb-10">
                   <div
                     aria-hidden
                     className="scene-glow absolute -inset-8 rounded-full bg-[var(--gradient-accent)] opacity-40 blur-[60px]"
                   />
-                  <div className="relative size-[36cqw] bg-transparent">{media}</div>
+                  <div className="relative size-[36cqw] bg-transparent">
+                    {media}
+                    {pickMedia}
+                  </div>
                 </div>
               )}
-              {scene.title && (
-                <h2 className="font-display text-[10.5cqw] leading-[1.05] tracking-tight text-foreground">
-                  {scene.title}
-                </h2>
-              )}
+              {title("font-display text-[10.5cqw] leading-[1.05] tracking-tight text-foreground")}
               {body && <p className="mt-4 text-[5cqw] text-muted-foreground">{body}</p>}
               {scene.support && (
                 <p className="mt-6 text-[4.2cqw] leading-relaxed text-support">{scene.support}</p>
@@ -190,7 +243,10 @@ export function SceneView({
    * scene (shown in App Screens, hidden in the overlay presentation). */
   const isFootage = scene.theme === "footage";
   const fullBleed = scene.media.kind !== "none" && (isFootage || scene.media.frame === "full");
-  const dropHeader = hasMedia && (isFootage || hideTitle || !scene.title);
+  /* A missing title only drops the header when it can't be edited —
+   * while editing, the header stays so "Add a title" remains clickable
+   * (clearing a title must not remove the way to type a new one). */
+  const dropHeader = hasMedia && (isFootage || hideTitle || (!scene.title && !onEditTitle));
   return (
     <FixedStage compact={hasMedia} frameless={frameless}>
       <div
@@ -205,15 +261,11 @@ export function SceneView({
               hasMedia || scene.cta ? "pt-10" : "pb-6",
             )}
           >
-            {scene.title && (
-              <h2
-                className={cn(
-                  "font-display leading-[1.08] tracking-tight text-foreground",
-                  hasMedia ? "text-[9cqw]" : "text-[10.5cqw]",
-                )}
-              >
-                {scene.title}
-              </h2>
+            {title(
+              cn(
+                "font-display leading-[1.08] tracking-tight text-foreground",
+                hasMedia ? "text-[9cqw]" : "text-[10.5cqw]",
+              ),
             )}
             {!hasMedia && body && (
               <p className="mt-5 text-[5.4cqw] leading-relaxed text-muted-foreground">{body}</p>
@@ -237,6 +289,7 @@ export function SceneView({
               style={scene.media.kind === "graphic" ? undefined : { aspectRatio: "16 / 10" }}
             >
               {media}
+              {pickMedia}
             </div>
             {body && !hideCaption && (
               <div
@@ -263,6 +316,7 @@ export function SceneView({
             )}
           >
             {media}
+            {pickMedia}
             {body && !hideCaption && (
               <div
                 key={captionKey}

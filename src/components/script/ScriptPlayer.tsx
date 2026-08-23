@@ -339,6 +339,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
           type="button"
           onClick={onExit}
           aria-label="Exit script player"
+          title="Exit script player"
           className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
         >
           <X className="size-4" />
@@ -465,6 +466,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
           type="button"
           onClick={() => jumpTo(0)}
           aria-label="Restart script"
+          title="Restart script"
           className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
         >
           <RotateCcw className="size-4" />
@@ -473,7 +475,8 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
           type="button"
           onClick={() => setPlaying((p) => !p)}
           aria-label={playing ? "Pause" : "Play"}
-          className="rounded-full border border-border p-3 text-foreground transition-colors hover:bg-card"
+          title={playing ? "Pause" : "Play"}
+          className="rounded-full border border-transparent bg-primary p-3 text-primary-foreground transition-colors hover:bg-primary/85"
         >
           {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
         </button>
@@ -481,6 +484,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
           type="button"
           onClick={jumpToNextLine}
           aria-label="Jump to the next line"
+          title="Jump to the next line"
           className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
         >
           <SkipForward className="size-4" />
@@ -490,6 +494,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
             type="button"
             onClick={() => setSpeed((s) => Math.max(0.5, Math.round((s - 0.1) * 10) / 10))}
             aria-label="Read slower"
+            title="Read slower"
             className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
           >
             <Minus className="size-3.5" />
@@ -501,6 +506,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
             type="button"
             onClick={() => setSpeed((s) => Math.min(2, Math.round((s + 0.1) * 10) / 10))}
             aria-label="Read faster"
+            title="Read faster"
             className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
           >
             <Plus className="size-3.5" />
@@ -510,6 +516,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
           type="button"
           onClick={() => (holdRef.current += 1000)}
           aria-label="Hold this line for one more second"
+          title="Hold this line for one more second"
           className="rounded-full border border-border px-3 py-2 text-xs tabular-nums text-support transition-colors hover:text-foreground"
         >
           +1s
@@ -519,6 +526,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
             type="button"
             onClick={() => void toggleCamera()}
             aria-label={camera ? "Turn the camera off" : "Turn the camera on to film a take"}
+            title={camera ? "Turn the camera off" : "Turn the camera on to film a take"}
             className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
           >
             {camera ? <VideoOff className="size-4" /> : <Video className="size-4" />}
@@ -529,6 +537,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
             type="button"
             onClick={taking ? stopTake : startTake}
             aria-label={taking ? "Stop recording and save the take" : "Record a take from the top"}
+            title={taking ? "Stop recording and save the take" : "Record a take from the top"}
             className="rounded-full border border-border p-2 transition-colors hover:bg-card"
           >
             {taking ? (

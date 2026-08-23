@@ -52,6 +52,7 @@ export function Soundtrack({
       <button
         type="button"
         aria-label={muted ? "Unmute soundtrack" : "Mute soundtrack"}
+        title={muted ? "Unmute soundtrack" : "Mute soundtrack"}
         onClick={() => setMuted((m) => !m)}
         className="rounded-full border border-border bg-card/60 p-2.5 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground"
       >

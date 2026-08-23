@@ -1,13 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import { FileText, Images, Play } from "lucide-react";
+import { FileText, Images, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* The showcase's sibling views as labeled pills, pinned top-right on all
  * three screens — one navigation habit everywhere. Player transport and
  * view configuration stay in the player's own bottom bar; going
- * somewhere else lives up here. */
+ * somewhere else lives up here. Tab icons are nouns (what the screen
+ * shows) — the play triangle is reserved for actions that start
+ * playback, so it never labels a place. */
 const TABS = [
-  { key: "player", label: "Showcase", to: "/showcase/$showcaseId", icon: Play },
+  { key: "player", label: "Showcase", to: "/showcase/$showcaseId", icon: Smartphone },
   { key: "script", label: "Script", to: "/showcase/$showcaseId/script", icon: FileText },
   { key: "assets", label: "Assets", to: "/showcase/$showcaseId/assets", icon: Images },
 ] as const;
