@@ -4,13 +4,14 @@
 //     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
+/// <reference types="vitest/config" />
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import type { Plugin } from "vite";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore plain JS module shared with the Electron shell
-import { handleShowcaseRequest } from "./scripts/showcase-data.mjs";
+import { handleShowcaseRequest } from "./server/showcase-data.mjs";
 
 /* Serves the repo's showcases/ as plain data at /showcase-data — the
  * shape the httpSource in src/content/source.ts consumes (index.json,

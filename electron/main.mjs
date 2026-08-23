@@ -5,7 +5,7 @@
  *      SHOWCASES_DIR), scaffolding README/.gitignore/CLAUDE.md on first
  *      run — showcases are created in-app, not seeded from samples.
  *   2. Serves that folder on 127.0.0.1:8123 in the data shape the app's
- *      httpSource consumes (scripts/showcase-data.mjs), with CORS open
+ *      httpSource consumes (server/showcase-data.mjs), with CORS open
  *      so the app can fetch it from the dev-server origin.
  *   3. Opens a window on ELECTRON_APP_URL — a vite dev server started
  *      with VITE_SHOWCASES_URL=http://127.0.0.1:8123 (npm run
@@ -30,15 +30,15 @@ import {
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
-import { applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
+import { handleShowcaseRequest, showcaseIndex } from "../server/showcase-data.mjs";
+import { applySceneEditToFolder, contentHash } from "../server/scene-edit.mjs";
 import { exportScreens, exportScript, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
-import { createExportJobs } from "./export-jobs.mjs";
+import { createExportJobs } from "../server/export-jobs.mjs";
 import { createMcpHandler } from "./mcp.mjs";
 import { whisperPath } from "./transcribe.mjs";
-import { studioGuide } from "./showcase-guide.mjs";
+import { studioGuide } from "../server/showcase-guide.mjs";
 
 /* In dev the macOS menu-bar TITLE still reads "Electron" (it comes from
  * the binary's Info.plist and can't change at runtime — a packaged build

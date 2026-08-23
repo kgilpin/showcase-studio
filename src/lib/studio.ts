@@ -40,7 +40,7 @@ export type StudioTerminal = {
 /* In-app editing writes exactly these fields and nothing else — a
  * deliberate whitelist (like the theme keys), not a generic YAML patch.
  * The main process applies each edit to showcase.yaml with
- * comment-preserving targeted updates (electron/edit-yaml.mjs). */
+ * comment-preserving targeted updates (server/edit-yaml.mjs). */
 export type SceneEdit =
   | { field: "title"; value: string }
   | { field: "caption"; captionIndex: number; value: string }

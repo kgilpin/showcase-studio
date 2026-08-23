@@ -4,6 +4,7 @@ name: showcase_demo
 language: javascript
 appmap_dir: tmp/appmap
 packages:
+  - path: server
   - path: scripts
   - path: electron
   - path: src
