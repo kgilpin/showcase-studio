@@ -60,5 +60,10 @@ export default defineConfig({
   },
   vite: {
     plugins: [showcaseData()],
+    /* Keep vitest off the vendored skills (their engine tests run under
+     * node --test, and the .claude/skills symlinks would double them). */
+    test: {
+      exclude: ["**/node_modules/**", "**/dist/**", "vendor/**", ".claude/**"],
+    },
   },
 });
