@@ -14,13 +14,32 @@ meta:
   soundtrack: { src: "voiceover", volume: 1, sync: true }
 
 scenes:
-  # ---- THE IDEA -------------------------------------------------
-  - id: intro
-    theme: statement
-    title: "Showcase Studio"
+  # ---- ON CAMERA - THE SETUP ------------------------------------
+  # The narrator setting up the video, on camera. The clips aren't
+  # recorded yet, so media stays "none" for now — when the takes exist
+  # (the phone teleprompter is the tool for exactly this: these
+  # captions are the lines to read), drop them in assets/ and switch
+  # each scene's media to {kind: video, asset: <clip>, alt: ...},
+  # pinning durationMs to the clip's real length.
+  #
+  # NOTE: the voiceover track still opens with the old intro line
+  # ("Your repo is the video") - once the takes are in, their own
+  # audio is the narration for these two scenes, so re-cut
+  # assets/voiceover.mp3 to start after that line and re-pin the
+  # later captions.
+  - id: setup
+    theme: footage
+    eyebrow: On camera
     captions:
-      - text: Your repo is the video.
-        durationMs: 3500
+      - text: I make video tours of my apps - and I was tired of re-editing them every time one word changed.
+    media:
+      kind: none
+
+  - id: handoff
+    theme: footage
+    eyebrow: On camera
+    captions:
+      - text: So now my videos are code, living in my repo. Let me show you how that works.
     media:
       kind: none
 
