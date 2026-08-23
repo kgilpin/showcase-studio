@@ -244,7 +244,9 @@ function setShowcasesFolder(dir, win) {
   saveSettings({ showcasesDir: dir, recentFolders: recents.slice(0, 8) });
   ensureShowcasesDir();
   watchShowcases(win);
-  win.webContents.reloadIgnoringCache();
+  /* A new library means the current route may not exist anymore — land
+   * on Home rather than a "no such showcase" page. */
+  void win.loadURL(appUrl);
   buildMenu(win);
 }
 
