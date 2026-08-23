@@ -1,0 +1,9 @@
+# AppMap recording config (appmap-node). Recordings land in tmp/appmap
+# (gitignored); the blessed gold-trace baselines live in gold_traces/.
+name: showcase_demo
+language: javascript
+appmap_dir: tmp/appmap
+packages:
+  - path: scripts
+  - path: electron
+  - path: src
