@@ -37,7 +37,10 @@ export default function CaptionDiff() {
           git diff — showcase.yaml
         </p>
         {context.map(([key, value], i) => (
-          <p key={i} style={{ fontSize: "2.65cqw", lineHeight: 1.8, whiteSpace: "pre", opacity: 0.6 }}>
+          <p
+            key={i}
+            style={{ fontSize: "2.65cqw", lineHeight: 1.8, whiteSpace: "pre", opacity: 0.6 }}
+          >
             <span style={{ color: "var(--primary)" }}>{key}</span>
             <span style={{ color: "var(--foreground)" }}>{value}</span>
           </p>
@@ -86,8 +89,7 @@ export default function CaptionDiff() {
           aspectRatio: "9 / 16",
           borderRadius: "2cqw",
           border: "1px solid var(--border)",
-          background:
-            "linear-gradient(160deg, var(--secondary, var(--card)) 0%, var(--card) 70%)",
+          background: "linear-gradient(160deg, var(--secondary, var(--card)) 0%, var(--card) 70%)",
           overflow: "hidden",
         }}
       >

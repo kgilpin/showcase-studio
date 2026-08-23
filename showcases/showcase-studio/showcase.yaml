@@ -11,17 +11,16 @@ meta:
   description: >
     Showcase videos as code - create, edit, and version your app's video tours inside your own repo, with Claude Code embedded, git for history, and a teleprompter that travels to your phone.
   loop: true
-  soundtrack: { src: "", volume: 0.2 }
-  captionStyle: karaoke
+  soundtrack: { src: "voiceover", volume: 1, sync: true }
 
 scenes:
   # ---- THE IDEA -------------------------------------------------
   - id: intro
     theme: statement
-    title: "Showcase: Videos as code"
+    title: "Showcase Studio"
     captions:
-      - text: ""
-      - text: What if your app's video tours lived in your repo - written, edited, and shipped like the rest of it?
+      - text: Your repo is the video.
+        durationMs: 3500
     media:
       kind: none
 
@@ -31,8 +30,10 @@ scenes:
     eyebrow: Videos as code
     title: Change one word. Ship a new video.
     captions:
-      - text: A caption fix is a one-line diff - the video re-renders itself.
-      - text: The words are the timeline - rewrite a line and it re-paces.
+      - text: Imagine fixing a typo in one caption, and the video re-renders itself.
+        durationMs: 4890
+      - text: There's no timeline to drag around - the words are the timing.
+        durationMs: 4080
     media:
       kind: graphic
       graphic: caption-diff
@@ -42,28 +43,27 @@ scenes:
   - id: player
     theme: console
     eyebrow: The player
-    title: One script, three renditions
+    title: One script - three output formats
     captions:
-      - text: The script plays as an auto-running product tour.
-      - text: App Store, TikTok, or a 4:3 embed - one source, three renditions.
+      - text: Your script plays as a product tour that runs itself
+        durationMs: 3350
+      - text: And exports to App Store, TikTok, and YouTube
+        durationMs: 4040
     media:
-      kind: image
-      asset: shot-player
-      alt: The Showcase Studio player with the App Screens, TikTok, and 4:3 view switch
-      motion: still
-      frame: full
-      fadeTo:
-        asset: shot-script
-        alt: The script page listing every scene with derived timings
+      kind: graphic
+      graphic: player-formats
+      alt: One showcase.yaml fanning out to the App Store, TikTok, and YouTube renditions
 
   # ---- THE AGENT ------------------------------------------------
   - id: claude
     theme: console
     eyebrow: The agent
-    title: Claude Code, built in
+    title: Built-in Claude Code
     captions:
-      - text: No bolted-on AI - Claude Code is the editor, on the subscription you already have.
-      - text: It sees your slides, hears your voiceover, and runs your exports.
+      - text: Claude Code is built-in for advanced editing - using the subscription you already have.
+        durationMs: 5170
+      - text: It can perform advanced operations - like analyzing your speech and video, and suggesting edits.
+        durationMs: 6340
     media:
       kind: graphic
       graphic: claude-terminal
@@ -71,26 +71,28 @@ scenes:
 
   # ---- THE MEDIA ------------------------------------------------
   - id: assets
-    theme: console
+    theme: feature
     eyebrow: The media
-    title: Every asset, accounted for
+    title: Integrated asset catalog
     captions:
-      - text: Screenshots and voiceovers live beside the script - usage tracked, strays flagged.
+      - text: You can manage media assets, like screenshots, voiceovers, and video clips, using drag and drop.
+        durationMs: 7080
     media:
       kind: image
-      asset: shot-assets
+      asset: shot-assets-portrait
       alt: The assets page showing the media collection with usage details
       motion: still
-      frame: full
 
   # ---- VERSIONING -----------------------------------------------
   - id: git
     theme: console
     eyebrow: Versioning
-    title: Branch it. Diff it. Review it.
+    title: Diff, review, commit
     captions:
-      - text: Plain files - so git just works.
-      - text: Branch a new cut, and review the video like code.
+      - text: Your entire video is git-managed files. Review, commit, and revert as you wish.
+        durationMs: 6110
+      - text: Want to try a different cut? Branch it, and review the video the way you'd review code.
+        durationMs: 5960
     media:
       kind: graphic
       graphic: git-lanes
@@ -100,10 +102,12 @@ scenes:
   - id: prompter
     theme: feature
     eyebrow: Recording
-    title: Read it on your phone
+    title: Switch to your phone for video recording
     captions:
-      - text: Share the teleprompter to the web, and read it from your phone.
-      - text: It scrolls at speaking pace while you record your take.
+      - text: When it's time to record yourself, send the script to your phone.
+        durationMs: 3880
+      - text: The teleprompter scrolls at speaking pace while you film your take — wherever you are.
+        durationMs: 5330
     media:
       kind: image
       asset: shot-prompter
@@ -114,8 +118,9 @@ scenes:
   # ---- OUTRO ----------------------------------------------------
   - id: outro
     theme: statement
-    title: Your repo is the studio
+    title: Showcase Studio
     captions:
-      - text: Free and open source. Your repo is the studio.
+      - text: Your repo is the video.
+        durationMs: 3500
     media:
       kind: none

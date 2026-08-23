@@ -45,11 +45,35 @@ export default function GitLanes() {
             style={{ width: "11cqw", height: `${(height / 64) * 11}cqw`, flexShrink: 0 }}
             aria-hidden
           >
-            <line x1={laneX[0]} y1="10" x2={laneX[0]} y2={height - 10} stroke="var(--border)" strokeWidth="3" />
-            <line x1={laneX[1]} y1={rowH * 1.5} x2={laneX[1]} y2={rowH * 3.5} stroke="var(--border)" strokeWidth="3" />
+            <line
+              x1={laneX[0]}
+              y1="10"
+              x2={laneX[0]}
+              y2={height - 10}
+              stroke="var(--border)"
+              strokeWidth="3"
+            />
+            <line
+              x1={laneX[1]}
+              y1={rowH * 1.5}
+              x2={laneX[1]}
+              y2={rowH * 3.5}
+              stroke="var(--border)"
+              strokeWidth="3"
+            />
             {/* branch + merge elbows */}
-            <path d={`M ${laneX[0]} ${rowH * 1.5} Q ${laneX[1]} ${rowH * 1.5} ${laneX[1]} ${rowH * 2}`} fill="none" stroke="var(--border)" strokeWidth="3" />
-            <path d={`M ${laneX[1]} ${rowH * 3.5} Q ${laneX[1]} ${rowH * 4.4} ${laneX[0]} ${rowH * 4.5}`} fill="none" stroke="var(--border)" strokeWidth="3" />
+            <path
+              d={`M ${laneX[0]} ${rowH * 1.5} Q ${laneX[1]} ${rowH * 1.5} ${laneX[1]} ${rowH * 2}`}
+              fill="none"
+              stroke="var(--border)"
+              strokeWidth="3"
+            />
+            <path
+              d={`M ${laneX[1]} ${rowH * 3.5} Q ${laneX[1]} ${rowH * 4.4} ${laneX[0]} ${rowH * 4.5}`}
+              fill="none"
+              stroke="var(--border)"
+              strokeWidth="3"
+            />
             {commits.map((commit, i) => (
               <circle
                 key={i}
