@@ -294,7 +294,7 @@ export function SceneView({
             {body && !hideCaption && (
               <div
                 key={captionKey}
-                className="caption-fade absolute inset-x-6 bottom-5 text-center"
+                className={cn("caption-fade absolute inset-x-6 text-center", captionPlacement)}
               >
                 <p className={stageCaptionClass}>
                   <span className="caption-chip">{body}</span>
