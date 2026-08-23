@@ -441,14 +441,14 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
                   onClick={() => jumpTo(line.startMs)}
                   title="Jump to this line"
                   className={cn(
-                    "flex cursor-pointer gap-5 transition-all duration-500",
+                    "flex cursor-pointer gap-3 transition-all duration-500 sm:gap-5",
                     isActive ? "opacity-100" : isPast ? "opacity-25" : "opacity-45",
                   )}
                 >
                   {/* Pacing gutter: allotted seconds; the active line counts
                    *  down with a pie. Zero-width windows (a title that shares
                    *  its time with the first caption) get no indicator. */}
-                  <div className="w-20 shrink-0 pt-2 text-right">
+                  <div className="w-16 shrink-0 pt-2 text-right sm:w-20">
                     {allottedMs >= 400 &&
                       (isActive ? (
                         <LinePie remainingMs={line.endMs - elapsed} allottedMs={allottedMs} />
@@ -472,13 +472,16 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
                       /* Active emphasis via transform, not font size: a size
                        * change reflows the list and makes the pinned scroll
                        * position jump at every line change. Scale doesn't
-                       * touch layout, so the glide stays seamless. */
+                       * touch layout, so the glide stays seamless. Idle lines
+                       * shrink instead of the active line growing — an
+                       * enlarged line overflows the column and clips at the
+                       * right edge on phones. */
                       <p
                         className={cn(
                           "origin-left text-2xl leading-snug transition-[transform,color] duration-300 sm:text-3xl",
                           isActive
-                            ? "scale-105 text-foreground sm:scale-110"
-                            : "text-muted-foreground",
+                            ? "text-foreground"
+                            : "scale-95 text-muted-foreground sm:scale-[0.91]",
                         )}
                       >
                         {line.text}
