@@ -19,6 +19,18 @@ entries:
     appmap_path: vitest/sums_the_captions_and_returns_them_with_concrete_times.appmap.json
     summary: Derived-mode slide timing — caption pricing through readingTime into concrete windows.
 
+  - feature: timing
+    test_file: src/content/timing.test.ts
+    test_name: attaches slide-relative word windows from a transcript
+    appmap_path: vitest/attaches_slide-relative_word_windows_from_a_transcript.appmap.json
+    summary: Whisper-exact caption sync — transcript words matched to the narration in order.
+
+  - feature: scene-edit
+    test_file: server/scene-edit.test.mjs
+    test_name: creates theme.yaml on first use and returns its hash
+    appmap_path: vitest/creates_theme.yaml_on_first_use_and_returns_its_hash.appmap.json
+    summary: The style panel's theme.yaml write path — whitelisted edit on a file created on demand.
+
   - feature: scene-edit
     test_file: server/scene-edit.test.mjs
     test_name: applies the edit and returns the written file's content hash
