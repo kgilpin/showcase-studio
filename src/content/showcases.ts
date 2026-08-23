@@ -22,7 +22,7 @@ import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
  * implementation live in timing.mjs. */
-export { activeCaption, captionTimeline, readingTime } from "./timing.mjs";
+export { activeCaption, captionTimeline, readingTime, wordTimeline } from "./timing.mjs";
 
 /* -------------------------------------------------------------
  * THEMES — the fixed set of slide layouts. A theme names where text and
@@ -120,6 +120,13 @@ export type CaptionPosition = "top" | "center" | "lower" | "bottom";
  *  timing.mjs: all timing derives from the copy unless pinned explicitly. */
 export type SceneCaption = { text: string; durationMs?: number; position?: CaptionPosition };
 
+/** How an overlay caption paints its line (TikTok view, video exports).
+ *  "chip" (default) fades the whole line in; "karaoke" shows the line
+ *  dimmed and brightens word by word, paced by the reading-time model
+ *  (wordTimeline in timing.mjs). Set per scene, or for the whole
+ *  showcase with `meta.captionStyle`. */
+export type CaptionStyle = "chip" | "karaoke";
+
 /* Presentation is not configurable per showcase. The player previews the
  * export destinations as three view modes: "App Screens" (titles on the
  * slide, captions beside — the screenshot export), "TikTok" (portrait,
@@ -154,6 +161,9 @@ export type Scene = {
    *  (especially video footage) cut cleanly; `rise` opts in to the
    *  rise/drift-in entrance. */
   transition?: "rise" | "none";
+  /** Overlay caption painting (see CaptionStyle); resolved from the
+   *  scene, else meta.captionStyle, else "chip". */
+  captionStyle?: CaptionStyle | undefined;
   /** Smaller supporting paragraph shown under `body` (statement theme). */
   support?: string;
   /** Small, low-emphasis line shown under the call to action. */
@@ -213,12 +223,17 @@ type RawMedia =
       frame?: "phone" | "full" | "mark";
     };
 
-type RawScene = Omit<Scene, "media" | "captions" | "body" | "durationMs" | "theme" | "warnings"> & {
+type RawScene = Omit<
+  Scene,
+  "media" | "captions" | "body" | "durationMs" | "theme" | "warnings" | "captionStyle"
+> & {
   /** As authored — normalized (with linter warnings) in buildShowcase. */
   theme?: string;
   media?: RawMedia;
   captions?: SceneCaption[];
   durationMs?: number;
+  /** As authored — validated (with a linter warning) in buildShowcase. */
+  captionStyle?: string;
   /** Obsolete (titles are no longer spoken) — linted. */
   titleDurationMs?: number;
   /** Obsolete (captions always show in the transcript column) — linted. */
@@ -234,6 +249,8 @@ type RawDoc = {
     cover?: string;
     /** Reading speed in words per second for derived timing (default 3). */
     pace?: number;
+    /** Default overlay caption painting for every scene (see CaptionStyle). */
+    captionStyle?: string;
     theme?: Record<string, string>;
   };
   scenes: RawScene[];
@@ -610,6 +627,20 @@ function lintScene(raw: RawScene): { theme: SceneTheme; warnings: string[] } {
   return { theme, warnings };
 }
 
+const CAPTION_STYLES = new Set<CaptionStyle>(["chip", "karaoke"]);
+
+/** Validates an authored captionStyle; unknown values warn and fall back
+ *  to the default painting. */
+function resolveCaptionStyle(
+  authored: string | undefined,
+  warn: (message: string) => void,
+): CaptionStyle | undefined {
+  if (authored == null) return undefined;
+  if (CAPTION_STYLES.has(authored as CaptionStyle)) return authored as CaptionStyle;
+  warn(`unknown captionStyle "${authored}" — using "chip" (styles: chip, karaoke)`);
+  return undefined;
+}
+
 function buildShowcase(
   showcaseId: string,
   doc: RawDoc,
@@ -619,6 +650,9 @@ function buildShowcase(
     const { titleDurationMs: _titleDurationMs, captionsIn: _captionsIn, ...scene } = raw;
     const { theme, warnings } = lintScene(raw);
     const media = resolveMedia(showcaseId, scene.media, (message) => warnings.push(message));
+    const captionStyle = resolveCaptionStyle(raw.captionStyle ?? doc.meta.captionStyle, (message) =>
+      warnings.push(message),
+    );
     warnings.forEach((message) => warn(raw.id, message));
     const timing = resolveSceneTiming(raw, doc.meta.pace);
     return {
@@ -627,6 +661,7 @@ function buildShowcase(
       theme,
       body: timing.captions[0]?.text,
       media,
+      captionStyle,
       ...(warnings.length > 0 ? { warnings } : {}),
     };
   });

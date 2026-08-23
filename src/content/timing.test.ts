@@ -9,6 +9,7 @@ import {
   readingTime,
   resolveSceneTiming,
   SENTENCE_BEAT_MS,
+  wordTimeline,
 } from "./timing.mjs";
 
 describe("readingTime", () => {
@@ -128,5 +129,41 @@ describe("activeCaption", () => {
 
   it("holds the last caption at the end of the slide", () => {
     expect(activeCaption(scene, 9999)?.text).toBe("second");
+  });
+});
+
+describe("wordTimeline", () => {
+  const entry = { text: "Fleets fly, battles resolve.", startMs: 1000, durationMs: 4000 };
+
+  it("tiles the caption window in order, settling before the swap", () => {
+    const words = wordTimeline(entry);
+    expect(words.map((w) => w.word)).toEqual(["Fleets", "fly,", "battles", "resolve."]);
+    expect(words[0]!.startMs).toBe(1000);
+    for (let i = 1; i < words.length; i++) {
+      expect(words[i]!.startMs).toBe(words[i - 1]!.endMs);
+    }
+    // The line-settle share is left after the last word.
+    const last = words[words.length - 1]!;
+    expect(last.endMs).toBeLessThan(5000);
+    expect(last.endMs).toBeGreaterThan(4000);
+  });
+
+  it("holds clause-punctuated words longer, like readingTime does", () => {
+    const words = wordTimeline(entry);
+    const plain = words[0]!.endMs - words[0]!.startMs;
+    const clause = words[1]!.endMs - words[1]!.startMs;
+    const wordMs = 1000 / DEFAULT_PACE_WPS;
+    expect(clause / plain).toBeCloseTo((wordMs + CLAUSE_BEAT_MS) / wordMs, 5);
+  });
+
+  it("gives the final word no sentence beat — the settle is its hold", () => {
+    const words = wordTimeline({ text: "One. Two.", startMs: 0, durationMs: 2000 });
+    const first = words[0]!.endMs - words[0]!.startMs;
+    const last = words[1]!.endMs - words[1]!.startMs;
+    expect(first).toBeGreaterThan(last);
+  });
+
+  it("returns nothing for empty text", () => {
+    expect(wordTimeline({ text: "  ", startMs: 0, durationMs: 1000 })).toEqual([]);
   });
 });

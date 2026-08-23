@@ -82,6 +82,31 @@ export function captionTimeline(scene) {
   });
 }
 
+/** Per-word reveal windows inside one caption's window — the karaoke
+ *  caption style. Words are priced like readingTime prices the line
+ *  (clause and sentence punctuation hold their word a beat longer),
+ *  then scaled to the window with the line-settle share left after the
+ *  last word, so the line completes just before the caption swaps.
+ *  `entry` is a captionTimeline() entry; times are slide-relative. */
+export function wordTimeline(entry, pace = DEFAULT_PACE_WPS) {
+  const words = entry.text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const wordMs = 1000 / pace;
+  const costs = words.map((word, i) => {
+    let cost = wordMs;
+    if (/[,;:]$/.test(word) || /^[—–-]+$/.test(word)) cost += CLAUSE_BEAT_MS;
+    if (i < words.length - 1 && /[.!?]+$/.test(word)) cost += SENTENCE_BEAT_MS;
+    return cost;
+  });
+  const scale = entry.durationMs / (costs.reduce((sum, cost) => sum + cost, 0) + LINE_SETTLE_MS);
+  let at = entry.startMs;
+  return words.map((word, i) => {
+    const startMs = at;
+    at += costs[i] * scale;
+    return { word, startMs, endMs: at };
+  });
+}
+
 /** Which caption is visible at `elapsedMs` into the slide. */
 export function activeCaption(scene, elapsedMs) {
   const timeline = captionTimeline(scene);

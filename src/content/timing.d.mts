@@ -43,3 +43,11 @@ export function activeCaption<C extends { text: string; durationMs?: number }>(
   scene: TimedScene<C>,
   elapsedMs: number,
 ): TimelineEntry<C> | undefined;
+
+/** One word's reveal window (karaoke caption style), slide-relative. */
+export type WordWindow = { word: string; startMs: number; endMs: number };
+
+export function wordTimeline(
+  entry: { text: string; startMs: number; durationMs: number },
+  pace?: number,
+): WordWindow[];

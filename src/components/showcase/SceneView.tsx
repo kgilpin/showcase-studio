@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { activeCaption, type CaptionPosition, type Scene } from "@/content/showcases";
+import { activeCaption, wordTimeline, type CaptionPosition, type Scene } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
 import { EditableText } from "@/components/studio/EditableText";
 import appStoreBadge from "@/assets/app-store-badge.svg";
@@ -34,6 +34,31 @@ export function CtaContent({
 
 /** iPhone 16 Pro Max screen aspect ratio (1320 x 2868). */
 export const FIXED_ASPECT = "1320 / 2868";
+
+/** Karaoke caption painting (`captionStyle: karaoke`): the whole line
+ *  sits dimmed in its chip and each word brightens on its wordTimeline
+ *  window — no reflow, the chip is laid out once from the full text.
+ *  Time-driven (not animated), so the live player, TikTok view, and the
+ *  frame-by-frame video export all land on identical frames. */
+export function KaraokeLine({
+  entry,
+  elapsedMs,
+}: {
+  entry: { text: string; startMs: number; durationMs: number };
+  elapsedMs: number;
+}) {
+  const words = wordTimeline(entry);
+  return (
+    <>
+      {words.map((word, i) => (
+        <span key={i} className={elapsedMs >= word.startMs ? undefined : "opacity-30"}>
+          {word.word}
+          {i < words.length - 1 ? " " : ""}
+        </span>
+      ))}
+    </>
+  );
+}
 
 /** Vertical placement of the overlay caption on a slide. The default
  *  "bottom" floats 18% up from the edge — clear of TikTok's caption
@@ -155,6 +180,13 @@ export function SceneView({
   const body = spoken === scene.title ? undefined : spoken;
   const captionKey = caption?.text ?? "body";
   const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
+  /* What goes inside the chip: the plain line, or its karaoke painting. */
+  const captionBody =
+    body != null && caption != null && scene.captionStyle === "karaoke" ? (
+      <KaraokeLine entry={caption} elapsedMs={elapsedMs} />
+    ) : (
+      body
+    );
   /* Bold white text in per-line chips — captioning, not interface. The
    * generous line-height spaces the cloned chips apart. */
   const stageCaptionClass = "text-[5.2cqw] font-semibold leading-[1.55] text-white";
@@ -297,7 +329,7 @@ export function SceneView({
                 className={cn("caption-fade absolute inset-x-6 text-center", captionPlacement)}
               >
                 <p className={stageCaptionClass}>
-                  <span className="caption-chip">{body}</span>
+                  <span className="caption-chip">{captionBody}</span>
                 </p>
               </div>
             )}
@@ -323,7 +355,7 @@ export function SceneView({
                 className={cn("caption-fade absolute inset-x-6 text-center", captionPlacement)}
               >
                 <p className={stageCaptionClass}>
-                  <span className="caption-chip">{body}</span>
+                  <span className="caption-chip">{captionBody}</span>
                 </p>
               </div>
             )}

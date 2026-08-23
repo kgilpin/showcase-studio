@@ -38,6 +38,8 @@ meta:
   title: NOVA — Space Strategy Game
   description: An auto-playing showcase of NOVA, a real-time game of galactic conquest.
   loop: true
+  # Overlay captions brighten word by word (TikTok view + video exports).
+  captionStyle: karaoke
   soundtrack:
     src: ""
     volume: 0.18
