@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
   scenes: {
     edit: (payload) => ipcRenderer.invoke("scene-edit", payload),
   },
+  prompter: {
+    publish: (showcaseId) => ipcRenderer.invoke("prompter-publish", showcaseId),
+  },
   assets: {
     rename: (payload) => ipcRenderer.invoke("asset-rename", payload),
   },

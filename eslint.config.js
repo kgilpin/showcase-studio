@@ -6,7 +6,20 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi", "vendor", ".claude", "gold_traces", "tmp"] },
+  {
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      "vendor",
+      ".claude",
+      "gold_traces",
+      "tmp",
+      "cdk/node_modules",
+      "cdk/cdk.out",
+      "web/prompter/dist",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

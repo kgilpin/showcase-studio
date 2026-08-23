@@ -13,7 +13,12 @@ import {
   VideoOff,
   X,
 } from "lucide-react";
-import { captionTimeline, type Scene } from "@/content/showcases";
+/* The timing model is imported directly (not via showcases.ts) so the
+ * standalone prompter page (web/prompter) can bundle this component
+ * without dragging in the whole content layer — YAML parsing, theme
+ * resolution, and the glob of bundled showcase assets. */
+import { captionTimeline } from "@/content/timing.mjs";
+import type { Scene } from "@/content/showcases";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
 import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
@@ -136,6 +141,9 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
   const recorderRef = useRef<MediaRecorder | null>(null);
   const takeCount = useRef(0);
   const previewRef = useRef<HTMLVideoElement>(null);
+  /* Phones: the side column is hidden below sm, so the framing preview
+   * floats as a small picture-in-picture instead. */
+  const previewPipRef = useRef<HTMLVideoElement>(null);
   const taking = recording || countdown != null;
   const takingRef = useRef(false);
   takingRef.current = taking;
@@ -178,10 +186,39 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
 
   useEffect(() => {
     if (previewRef.current) previewRef.current.srcObject = camera;
+    if (previewPipRef.current) previewPipRef.current.srcObject = camera;
   }, [camera]);
 
   // Release the camera when it changes or the prompter unmounts.
   useEffect(() => () => camera?.getTracks().forEach((track) => track.stop()), [camera]);
+
+  /* Reading takes minutes — a phone would dim and lock mid-script. Hold a
+   * screen wake lock while the script runs or a take rolls, re-acquiring
+   * when the tab comes back (the OS drops locks on visibility loss). */
+  useEffect(() => {
+    if (!playing && !taking) return undefined;
+    let lock: WakeLockSentinel | null = null;
+    let disposed = false;
+    const acquire = async () => {
+      try {
+        const acquired = await navigator.wakeLock?.request("screen");
+        if (acquired && disposed) void acquired.release().catch(() => undefined);
+        else if (acquired) lock = acquired;
+      } catch {
+        /* unsupported or denied — the prompter still works */
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    void acquire();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      void lock?.release().catch(() => undefined);
+    };
+  }, [playing, taking]);
 
   useEffect(() => {
     if (countdown == null || camera == null) return;
@@ -455,13 +492,27 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
         </div>
       </div>
 
+      {/* Phone framing preview: the side column (with the desktop preview)
+       * is hidden below sm, so the camera floats here instead. */}
+      {camera && (
+        <div className="fixed bottom-28 left-4 z-20 w-28 overflow-hidden rounded-xl border border-border bg-card shadow-lg sm:hidden">
+          <video ref={previewPipRef} autoPlay muted playsInline className="w-full -scale-x-100" />
+          {recording && (
+            <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[0.65rem] text-foreground">
+              <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> REC
+            </span>
+          )}
+        </div>
+      )}
+
       {countdown != null && countdown > 0 && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
           <p className="font-display text-9xl text-foreground">{countdown}</p>
         </div>
       )}
 
-      <div className="flex items-center justify-center gap-4 border-t border-border px-6 py-4">
+      {/* Touch-friendly below sm: wrap instead of overflow, larger targets. */}
+      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border px-4 py-4 max-sm:[&>button]:p-3 sm:gap-4 sm:px-6">
         <button
           type="button"
           onClick={() => jumpTo(0)}

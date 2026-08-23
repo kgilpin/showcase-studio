@@ -5,6 +5,7 @@ import { captionTimeline, getShowcase, useShowcase } from "@/content/showcases";
 import { dataMode } from "@/content/source";
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { EditableText } from "@/components/studio/EditableText";
+import { SharePrompter } from "@/components/studio/SharePrompter";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
@@ -78,13 +79,16 @@ function ScriptScreen() {
             <h1 className="font-display text-5xl leading-tight tracking-tight text-foreground">
               {showcase.title}
             </h1>
-            <button
-              type="button"
-              onClick={() => setPrompter(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-transparent bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85"
-            >
-              <Play className="size-4" /> Play script
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <SharePrompter showcaseId={showcase.id} />
+              <button
+                type="button"
+                onClick={() => setPrompter(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-transparent bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85"
+              >
+                <Play className="size-4" /> Play script
+              </button>
+            </div>
           </div>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             {showcase.description}

@@ -61,6 +61,15 @@ export default defineConfig({
   },
   vite: {
     plugins: [showcaseData()],
+    /* Folders the app never imports from must not wake the dev server's
+     * watcher: cdk/ (npm installs and synth churn thousands of files),
+     * web/ (the prompter site runs its own vite), exports and gold
+     * traces (written by tooling while the app is up). */
+    server: {
+      watch: {
+        ignored: ["**/cdk/**", "**/web/**", "**/exports/**", "**/gold_traces/**", "**/tmp/**"],
+      },
+    },
     /* Keep vitest off the vendored skills (their engine tests run under
      * node --test, and the .claude/skills symlinks would double them). */
     test: {

@@ -1,0 +1,4 @@
+/* The app's design system, plus this entry's own files as a Tailwind
+ * source (the app stylesheet only scans src/). */
+@import "../../src/styles.css";
+@source ".";

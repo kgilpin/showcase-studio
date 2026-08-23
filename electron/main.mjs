@@ -30,8 +30,10 @@ import {
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import { handleShowcaseRequest, showcaseIndex } from "../server/showcase-data.mjs";
 import { applySceneEditToFolder, contentHash } from "../server/scene-edit.mjs";
+import { prompterScript } from "../server/prompter-script.mjs";
 import { exportScreens, exportScript, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
@@ -436,6 +438,49 @@ scenes:
     applySceneEditToFolder(showcasesDir, payload, { beforeWrite: recordSelfWrite }),
   );
 
+  /* Shares a showcase's script as a phone teleprompter: derives the
+   * snapshot (server/prompter-script.mjs) and POSTs it to the prompter
+   * site's publish endpoint (cdk/). The token — the capability in the
+   * URL — is generated once per showcase and remembered, so publishing
+   * again updates the same link the narrator already has. Configure with
+   * PROMPTER_PUBLISH_URL / PROMPTER_PUBLISH_KEY, or prompterPublishUrl /
+   * prompterPublishKey in settings.json. */
+  ipcMain.handle("prompter-publish", async (_event, showcaseId) => {
+    try {
+      const id = String(showcaseId ?? "");
+      if (!id || /[/\\]|\.\./.test(id)) return { ok: false, error: "Bad showcase id" };
+      const settings = loadSettings();
+      const publishUrl = process.env.PROMPTER_PUBLISH_URL ?? settings.prompterPublishUrl;
+      const publishKey = process.env.PROMPTER_PUBLISH_KEY ?? settings.prompterPublishKey;
+      if (!publishUrl || !publishKey) {
+        return {
+          ok: false,
+          error:
+            "Prompter sharing is not configured — set prompterPublishUrl and " +
+            "prompterPublishKey in the studio settings (or the PROMPTER_PUBLISH_* env vars)",
+        };
+      }
+      const tokens = settings.prompterTokens ?? {};
+      const token = tokens[id] ?? randomBytes(16).toString("base64url");
+      const script = prompterScript(showcasesDir, id, {
+        publishedAt: new Date().toISOString(),
+      });
+      const response = await fetch(publishUrl, {
+        method: "POST",
+        headers: { authorization: `Bearer ${publishKey}`, "content-type": "application/json" },
+        body: JSON.stringify({ token, script }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return { ok: false, error: result.error ?? `Publish failed (${response.status})` };
+      }
+      saveSettings({ prompterTokens: { ...tokens, [id]: token } });
+      return { ok: true, url: result.url };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    }
+  });
+
   /* Renames an asset file and updates every YAML reference to it — the
    * bare key and the full file name, in asset:/src:/cover: fields only,
    * so narration text mentioning the same word is left alone. */
@@ -535,6 +580,16 @@ scenes:
             readFileSync(yamlPath, "utf8").includes("Edited by smoke"),
           );
           console.log("smoke edit no reload:", await exec("window.__stayed === true"));
+        }
+        /* ELECTRON_SMOKE_SHARE=1 publishes the first showcase's prompter
+         * snapshot through the real bridge and logs the share URL —
+         * needs the publish endpoint configured (settings or env). */
+        if (process.env.ELECTRON_SMOKE_SHARE) {
+          const first = showcaseIndex(showcasesDir).showcases[0];
+          const shared = await win.webContents.executeJavaScript(
+            `window.showcaseStudio.prompter.publish(${JSON.stringify(first.id)})`,
+          );
+          console.log("smoke share:", JSON.stringify(shared));
         }
         /* ELECTRON_SMOKE_AGENT=1 additionally exercises the agent bridge:
          * reports key status, verifies a bogus key is rejected, and opens

@@ -80,6 +80,12 @@ export type ShowcaseStudio = {
   scenes: {
     edit(payload: SceneEditPayload): Promise<{ ok: boolean; hash?: string; error?: string }>;
   };
+  /** Shares the script as a phone teleprompter: publishes the narration
+   *  snapshot to the prompter site and returns the capability URL. The
+   *  URL is stable per showcase — publishing again updates it in place. */
+  prompter: {
+    publish(showcaseId: string): Promise<{ ok: boolean; url?: string; error?: string }>;
+  };
   /** Asset-collection operations (the assets page). */
   assets: {
     /** Renames an asset file and updates the showcase.yaml references
