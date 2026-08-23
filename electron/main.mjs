@@ -18,7 +18,6 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import http from "node:http";
-import { createHash } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
@@ -32,7 +31,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { handleShowcaseRequest, showcaseIndex } from "../scripts/showcase-data.mjs";
-import { applySceneEdit } from "./edit-yaml.mjs";
+import { applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
 import { exportScreens, exportScript, exportVideo } from "./exporter.mjs";
 import { registerTerminal } from "./terminal.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
@@ -207,11 +206,8 @@ function serveData() {
  * echo of our own writes and is swallowed. Anything else — agent edits,
  * hand edits, git checkouts — reloads the window as before. */
 const selfWrites = new Map();
-const contentHash = (content) => createHash("sha256").update(content).digest("hex");
 function recordSelfWrite(file, content) {
-  const hash = contentHash(content);
-  selfWrites.set(file, { hash, at: Date.now() });
-  return hash;
+  selfWrites.set(file, { hash: contentHash(content), at: Date.now() });
 }
 function isSelfWriteEcho(file) {
   const entry = selfWrites.get(file);
@@ -430,35 +426,13 @@ scenes:
     ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
   });
   /* One whitelisted field edit on a scene in showcase.yaml — the write
-   * path behind in-app editing (titles, captions, scene media). The edit
-   * is applied comment-preservingly (edit-yaml.mjs), and the write is
-   * recorded before it lands so the watcher recognizes its echo — the
-   * renderer has already applied the change to its own model. */
-  ipcMain.handle("scene-edit", (_event, payload) => {
-    try {
-      const showcaseId = String(payload?.showcaseId ?? "");
-      if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) {
-        return { ok: false, error: "Bad showcase id" };
-      }
-      const file = path.join(showcasesDir, showcaseId, "showcase.yaml");
-      if (!existsSync(file)) return { ok: false, error: `No showcase named "${showcaseId}"` };
-      const current = readFileSync(file, "utf8");
-      /* The page names the content its edit was made against. A mismatch
-       * means something else wrote the file in the meantime — refuse
-       * rather than patch on top of unseen changes; the outside write
-       * reloads the page with the truth. */
-      if (payload?.baseHash && contentHash(current) !== payload.baseHash) {
-        console.warn(`scene-edit refused: ${showcaseId}/showcase.yaml changed on disk`);
-        return { ok: false, error: "showcase.yaml changed on disk — the edit was not applied" };
-      }
-      const text = applySceneEdit(current, payload);
-      const hash = recordSelfWrite(file, text);
-      writeFileSync(file, text);
-      return { ok: true, hash };
-    } catch (error) {
-      return { ok: false, error: String(error?.message ?? error) };
-    }
-  });
+   * path behind in-app editing (titles, captions, scene media), all in
+   * scene-edit.mjs. The write is recorded before it lands so the watcher
+   * recognizes its echo — the renderer has already applied the change to
+   * its own model. */
+  ipcMain.handle("scene-edit", (_event, payload) =>
+    applySceneEditToFolder(showcasesDir, payload, { beforeWrite: recordSelfWrite }),
+  );
 
   /* Renames an asset file and updates every YAML reference to it — the
    * bare key and the full file name, in asset:/src:/cover: fields only,

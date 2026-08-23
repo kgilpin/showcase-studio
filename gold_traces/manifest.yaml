@@ -19,17 +19,23 @@ entries:
     appmap_path: vitest/sums_the_captions_and_returns_them_with_concrete_times.appmap.json
     summary: Derived-mode slide timing — caption pricing through readingTime into concrete windows.
 
-  - feature: yaml-edit
-    test_file: electron/edit-yaml.test.mjs
-    test_name: sets a title and preserves everything else byte-for-byte
-    appmap_path: vitest/sets_a_title_and_preserves_everything_else_byte-for-byte.appmap.json
-    summary: The in-app edit write path's happy case — one field set, file otherwise untouched.
+  - feature: scene-edit
+    test_file: electron/scene-edit.test.mjs
+    test_name: applies the edit and returns the written file's content hash
+    appmap_path: "vitest/applies_the_edit_and_returns_the_written_file's_content_hash.appmap.json"
+    summary: The full backend write path — resolve, hash-gate, patch, write, return the new hash.
 
-  - feature: yaml-edit
-    test_file: electron/edit-yaml.test.mjs
-    test_name: rejects a duplicate scene id instead of editing the first match
-    appmap_path: vitest/rejects_a_duplicate_scene_id_instead_of_editing_the_first_match.appmap.json
-    summary: The edit validation gate's negative branch — duplicate ids throw instead of writing.
+  - feature: scene-edit
+    test_file: electron/scene-edit.test.mjs
+    test_name: refuses a stale baseHash and leaves the file untouched
+    appmap_path: vitest/refuses_a_stale_baseHash_and_leaves_the_file_untouched.appmap.json
+    summary: The stale-base gate's negative branch — refusal before the patch is even computed.
+
+  - feature: scene-edit
+    test_file: electron/scene-edit.test.mjs
+    test_name: returns the edit error when the YAML rejects the edit, leaving the file untouched
+    appmap_path: "vitest/returns_the_edit_error_when_the_YAML_rejects_the_edit,_leaving_the_file_untouched.appmap.json"
+    summary: The whitelist gate's negative branch — the YAML edit throws and nothing is written.
 
   - feature: data-server
     test_file: scripts/showcase-data.test.mjs
