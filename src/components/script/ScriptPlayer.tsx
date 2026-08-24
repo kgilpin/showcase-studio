@@ -20,6 +20,7 @@ import {
 import { captionTimeline } from "@/content/timing.mjs";
 import type { Scene } from "@/content/showcases";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
+import { startTakeRecorder, type TakeRecorderHandle } from "./take-recorder";
 import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
 
@@ -147,9 +148,10 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
    * take discovered after the read-through is the real cost, so failures
    * must be visible the moment they happen. */
   const [takeWarning, setTakeWarning] = useState<string | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  /* Tears down the canvas capture pipeline of the current take. */
-  const captureCleanupRef = useRef<(() => void) | null>(null);
+  /* The post-take summary (pipeline, frames, size) — the narrator's
+   * receipt that the take is whole, and our field diagnostics. */
+  const [takeReport, setTakeReport] = useState<string | null>(null);
+  const takeRecorderRef = useRef<TakeRecorderHandle | null>(null);
   const takeCount = useRef(0);
   const previewRef = useRef<HTMLVideoElement>(null);
   /* Phones: the side column is hidden below sm, so the framing preview
@@ -162,15 +164,22 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
   const stopTake = useCallback(() => {
     setCountdown(null);
     setRecording(false);
-    const recorder = recorderRef.current;
-    recorderRef.current = null;
-    if (recorder && recorder.state !== "inactive") recorder.stop();
-    // After the recorder flushes — stopping the synthetic track first
-    // would cut the tail off the final chunk.
-    captureCleanupRef.current?.();
-    captureCleanupRef.current = null;
     setPlaying(false);
-  }, []);
+    const handle = takeRecorderRef.current;
+    takeRecorderRef.current = null;
+    if (!handle) return;
+    void handle.stop().then((take) => {
+      if (!take) return;
+      takeCount.current += 1;
+      const url = URL.createObjectURL(take.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${takeName}-take-${takeCount.current}.${take.extension}`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setTakeReport(take.report);
+    });
+  }, [takeName]);
 
   const toggleCamera = useCallback(async () => {
     if (camera) {
@@ -199,6 +208,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
     if (!camera || takingRef.current) return;
     setCameraError(null);
     setTakeWarning(null);
+    setTakeReport(null);
     setPlaying(false);
     holdRef.current = 0;
     setElapsed(0);
@@ -269,122 +279,29 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
       return undefined;
     }
     if (camera == null) return;
-    // Countdown finished: roll the camera, then start the script.
-    /* The recorder gets a canvas-composited video track, not the camera
-     * track. iOS Safari's camera→encoder path silently stops consuming
-     * frames partway into a long recording — the mic keeps going and the
-     * saved video freezes — while the very same stream keeps painting
-     * the on-screen preview. So record what the preview shows: repaint
-     * each camera frame onto a canvas (requestVideoFrameCallback fires
-     * per delivered frame) and feed the encoder captureStream's
-     * synthetic track, taking WebKit's fragile direct path out of the
-     * circuit. Painting needs a rendered element — iOS won't decode
-     * into a display:none video — so the source is whichever preview is
-     * on screen: the side column on desktop, the floating PiP on phones. */
-    const source = ([previewPipRef.current, previewRef.current].find(
-      (el) => el && el.offsetWidth > 0,
-    ) ?? null) as
-      (HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }) | null;
-    const canvas = document.createElement("canvas");
-    const size = camera.getVideoTracks()[0]?.getSettings() ?? {};
-    canvas.width = size.width || source?.videoWidth || 1280;
-    canvas.height = size.height || source?.videoHeight || 720;
-    const ctx = canvas.getContext("2d");
-    const composited = Boolean(source && ctx);
-    let stopped = false;
-    let lastFrameAt = performance.now();
-    const paint = () => {
-      if (!source || !ctx) return;
-      const sw = source.videoWidth;
-      const sh = source.videoHeight;
-      if (!sw || !sh) return;
-      // Aspect-fit, so a mid-take rotation letterboxes instead of
-      // stretching into the fixed-size canvas.
-      const scale = Math.min(canvas.width / sw, canvas.height / sh);
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(
-        source,
-        (canvas.width - sw * scale) / 2,
-        (canvas.height - sh * scale) / 2,
-        sw * scale,
-        sh * scale,
-      );
-    };
-    const onFrame = () => {
-      if (stopped) return;
-      paint();
-      lastFrameAt = performance.now();
-      schedule();
-    };
-    const schedule = () => {
-      if (!source) return;
-      if (source.requestVideoFrameCallback) source.requestVideoFrameCallback(onFrame);
-      else requestAnimationFrame(onFrame);
-    };
-    /* Keepalive + input tripwire: repaint twice a second so
-     * captureStream keeps emitting even through a camera hiccup, and
-     * shout the moment camera frames stop arriving. */
-    const watchdog = setInterval(() => {
-      if (stopped || !composited) return;
-      paint();
-      if (performance.now() - lastFrameAt > 2000) {
-        setTakeWarning(
-          "The camera stopped delivering frames — stop this take and record it again.",
-        );
+    /* Countdown finished: start the recorder, then the script. The
+     * pipeline (WebCodecs + mediabunny mp4 where the browser has the
+     * full stack, canvas + MediaRecorder otherwise) lives in
+     * take-recorder.ts. The paint source must be the preview that is
+     * actually on screen — the side column on desktop, the floating PiP
+     * on phones — because iOS won't decode into a hidden element. */
+    const source =
+      [previewPipRef.current, previewRef.current].find((el) => el && el.offsetWidth > 0) ?? null;
+    let cancelled = false;
+    void startTakeRecorder({ camera, source, onWarning: setTakeWarning }).then((handle) => {
+      if (cancelled) {
+        void handle.stop();
+        return;
       }
-    }, 500);
-    let canvasStream: MediaStream | null = null;
-    let recorded: MediaStream = camera;
-    if (composited) {
-      paint();
-      schedule();
-      canvasStream = canvas.captureStream(30);
-      recorded = new MediaStream([...canvasStream.getVideoTracks(), ...camera.getAudioTracks()]);
-    }
-    captureCleanupRef.current = () => {
-      stopped = true;
-      clearInterval(watchdog);
-      canvasStream?.getTracks().forEach((track) => track.stop());
+      takeRecorderRef.current = handle;
+      setCountdown(null);
+      setRecording(true);
+      setPlaying(true);
+    });
+    return () => {
+      cancelled = true;
     };
-    const mimeType = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].find((m) =>
-      MediaRecorder.isTypeSupported(m),
-    );
-    const recorder = new MediaRecorder(recorded, mimeType ? { mimeType } : undefined);
-    const chunks: Blob[] = [];
-    let leanChunks = 0;
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
-      /* Output tripwire: a one-second chunk without video is a few KB of
-       * audio where video runs hundreds. A run of them means the file is
-       * freezing right now — say so, instead of letting the narrator
-       * find out after the read-through. */
-      leanChunks = e.data.size > 0 && e.data.size < 25_000 ? leanChunks + 1 : 0;
-      if (chunks.length > 3 && leanChunks >= 3) {
-        setTakeWarning("Video has stalled mid-take — stop this take and record it again.");
-      }
-    };
-    recorder.onstop = () => {
-      if (chunks.length === 0) return;
-      takeCount.current += 1;
-      const extension = recorder.mimeType.includes("mp4") ? "mp4" : "webm";
-      const url = URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${takeName}-take-${takeCount.current}.${extension}`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    };
-    /* Timeslice, not one chunk at stop: Safari truncates the video of
-     * long single-chunk recordings, and a one-second cadence also keeps
-     * everything up to a mid-take failure. */
-    recorder.start(1000);
-    recorderRef.current = recorder;
-    setCountdown(null);
-    setRecording(true);
-    setPlaying(true);
-    return undefined;
-  }, [countdown, camera, takeName]);
+  }, [countdown, camera]);
 
   // A take ends with the script: stop and save instead of looping.
   useEffect(() => {
@@ -666,6 +583,20 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
         <div className="absolute inset-x-4 top-14 z-30 rounded-xl border border-red-500/60 bg-background/90 px-4 py-3 text-center text-sm font-medium text-red-400 sm:inset-x-auto sm:left-1/2 sm:w-auto sm:max-w-xl sm:-translate-x-1/2">
           {takeWarning}
         </div>
+      )}
+
+      {/* The take receipt: what was recorded and by which pipeline —
+       * proof the file is whole, and field diagnostics when it isn't.
+       * Tap to dismiss. */}
+      {takeReport && !taking && (
+        <button
+          type="button"
+          onClick={() => setTakeReport(null)}
+          title="Dismiss"
+          className="absolute bottom-24 left-1/2 z-30 max-w-[90vw] -translate-x-1/2 rounded-xl border border-border bg-card/95 px-4 py-2.5 text-center font-mono text-[0.7rem] text-support shadow-lg"
+        >
+          {takeReport}
+        </button>
       )}
 
       {countdown != null && countdown.left > 0 && (
