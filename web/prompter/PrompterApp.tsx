@@ -4,10 +4,10 @@
  * snapshot the studio published (server/prompter-script.mjs) — and runs
  * the same ScriptPlayer the studio uses, camera takes included. The
  * recording downloads straight to this device; nothing goes back to the
- * studio. A cover screen fronts the prompter so reading (and the camera
- * permission prompt) starts from a deliberate tap. */
+ * studio. The page lands directly in the prompter, paused — playing and
+ * recording each start from their own deliberate tap (with a 3-2-1
+ * countdown), so no cover screen fronts it. */
 import { useEffect, useState } from "react";
-import { Play } from "lucide-react";
 import { ScriptPlayer } from "@/components/script/ScriptPlayer";
 import type { Scene, SceneCaption } from "@/content/showcases";
 
@@ -45,7 +45,6 @@ function tokenFromLocation(): string | undefined {
 type State =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "cover"; script: PrompterScript }
   | { kind: "reading"; script: PrompterScript };
 
 export function PrompterApp() {
@@ -75,7 +74,7 @@ export function PrompterApp() {
           setState({ kind: "error", message: "This script was published by a newer studio." });
           return;
         }
-        setState({ kind: "cover", script });
+        setState({ kind: "reading", script });
       } catch {
         setState({
           kind: "error",
@@ -86,13 +85,8 @@ export function PrompterApp() {
   }, []);
 
   if (state.kind === "reading") {
-    return (
-      <ScriptPlayer
-        scenes={toScenes(state.script)}
-        takeName={state.script.id}
-        onExit={() => setState({ kind: "cover", script: state.script })}
-      />
-    );
+    // No onExit: the prompter is this page — there is nowhere to exit to.
+    return <ScriptPlayer scenes={toScenes(state.script)} takeName={state.script.id} />;
   }
 
   return (
@@ -103,26 +97,6 @@ export function PrompterApp() {
       {state.kind === "loading" && <p className="text-sm text-support">Loading the script…</p>}
       {state.kind === "error" && (
         <p className="max-w-sm text-base leading-relaxed text-muted-foreground">{state.message}</p>
-      )}
-      {state.kind === "cover" && (
-        <>
-          <p className="text-xs uppercase tracking-[0.42em] text-primary">Teleprompter</p>
-          <h1 className="mt-5 font-display text-4xl leading-tight tracking-tight text-foreground">
-            {state.script.title}
-          </h1>
-          <p className="mt-4 text-sm text-support">
-            {state.script.scenes.length} slides ·{" "}
-            {Math.round(state.script.scenes.reduce((sum, s) => sum + s.durationMs, 0) / 1000)}s ·
-            turn on the camera in the prompter to film a take — recordings save on this device
-          </p>
-          <button
-            type="button"
-            onClick={() => setState({ kind: "reading", script: state.script })}
-            className="mt-10 inline-flex items-center gap-2 rounded-full border border-transparent bg-primary px-7 py-3.5 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/85"
-          >
-            <Play className="size-5" /> Start reading
-          </button>
-        </>
       )}
     </main>
   );

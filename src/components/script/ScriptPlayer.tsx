@@ -26,7 +26,10 @@ import { isTypingTarget } from "@/lib/typing-target";
 
 type Props = {
   scenes: Scene[];
-  onExit: () => void;
+  /** Where the close button and Escape lead. The standalone prompter
+   *  page omits it — the prompter is the whole page — and then no exit
+   *  control is shown. */
+  onExit?: () => void;
   record?: boolean;
   /** File-name stem for camera takes (usually the showcase id). */
   takeName?: string;
@@ -111,7 +114,9 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
   const lines = useMemo(() => buildLines(scenes), [scenes]);
   const total = useMemo(() => scenes.reduce((s, x) => s + x.durationMs, 0), [scenes]);
   const [elapsed, setElapsed] = useState(0);
-  const [playing, setPlaying] = useState(!record);
+  /* The prompter opens paused — reading starts from the narrator's own
+   * tap (through the 3-2-1 countdown), never by ambush on page load. */
+  const [playing, setPlaying] = useState(false);
   /* Reading-speed multiplier on the script clock: 1.2 means the windows
    * pass 20% faster than the showcase's real timing. */
   const [speed, setSpeed] = useState(1);
@@ -423,7 +428,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
         e.preventDefault();
         togglePlay();
       } else if (e.key === "ArrowRight") jumpToNextLine();
-      else if (e.key === "Escape") onExit();
+      else if (e.key === "Escape") onExit?.();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -441,15 +446,17 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
           Slide {active.sceneIndex + 1} / {scenes.length} · {Math.floor(elapsed / 1000)}s /{" "}
           {Math.round(total / 1000)}s
         </p>
-        <button
-          type="button"
-          onClick={onExit}
-          aria-label="Exit script player"
-          title="Exit script player"
-          className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
+        {onExit && (
+          <button
+            type="button"
+            onClick={onExit}
+            aria-label="Exit script player"
+            title="Exit script player"
+            className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 gap-8 px-6 pb-4 sm:px-12">
