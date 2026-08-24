@@ -143,7 +143,13 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
     null,
   );
   const [recording, setRecording] = useState(false);
+  /* A loud mid-take alarm (video stall, camera interruption): a ruined
+   * take discovered after the read-through is the real cost, so failures
+   * must be visible the moment they happen. */
+  const [takeWarning, setTakeWarning] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  /* Tears down the canvas capture pipeline of the current take. */
+  const captureCleanupRef = useRef<(() => void) | null>(null);
   const takeCount = useRef(0);
   const previewRef = useRef<HTMLVideoElement>(null);
   /* Phones: the side column is hidden below sm, so the framing preview
@@ -159,6 +165,10 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
     const recorder = recorderRef.current;
     recorderRef.current = null;
     if (recorder && recorder.state !== "inactive") recorder.stop();
+    // After the recorder flushes — stopping the synthetic track first
+    // would cut the tail off the final chunk.
+    captureCleanupRef.current?.();
+    captureCleanupRef.current = null;
     setPlaying(false);
   }, []);
 
@@ -188,6 +198,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
   const startTake = useCallback(() => {
     if (!camera || takingRef.current) return;
     setCameraError(null);
+    setTakeWarning(null);
     setPlaying(false);
     holdRef.current = 0;
     setElapsed(0);
@@ -259,13 +270,99 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
     }
     if (camera == null) return;
     // Countdown finished: roll the camera, then start the script.
+    /* The recorder gets a canvas-composited video track, not the camera
+     * track. iOS Safari's camera→encoder path silently stops consuming
+     * frames partway into a long recording — the mic keeps going and the
+     * saved video freezes — while the very same stream keeps painting
+     * the on-screen preview. So record what the preview shows: repaint
+     * each camera frame onto a canvas (requestVideoFrameCallback fires
+     * per delivered frame) and feed the encoder captureStream's
+     * synthetic track, taking WebKit's fragile direct path out of the
+     * circuit. Painting needs a rendered element — iOS won't decode
+     * into a display:none video — so the source is whichever preview is
+     * on screen: the side column on desktop, the floating PiP on phones. */
+    const source = ([previewPipRef.current, previewRef.current].find(
+      (el) => el && el.offsetWidth > 0,
+    ) ?? null) as
+      (HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }) | null;
+    const canvas = document.createElement("canvas");
+    const size = camera.getVideoTracks()[0]?.getSettings() ?? {};
+    canvas.width = size.width || source?.videoWidth || 1280;
+    canvas.height = size.height || source?.videoHeight || 720;
+    const ctx = canvas.getContext("2d");
+    const composited = Boolean(source && ctx);
+    let stopped = false;
+    let lastFrameAt = performance.now();
+    const paint = () => {
+      if (!source || !ctx) return;
+      const sw = source.videoWidth;
+      const sh = source.videoHeight;
+      if (!sw || !sh) return;
+      // Aspect-fit, so a mid-take rotation letterboxes instead of
+      // stretching into the fixed-size canvas.
+      const scale = Math.min(canvas.width / sw, canvas.height / sh);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(
+        source,
+        (canvas.width - sw * scale) / 2,
+        (canvas.height - sh * scale) / 2,
+        sw * scale,
+        sh * scale,
+      );
+    };
+    const onFrame = () => {
+      if (stopped) return;
+      paint();
+      lastFrameAt = performance.now();
+      schedule();
+    };
+    const schedule = () => {
+      if (!source) return;
+      if (source.requestVideoFrameCallback) source.requestVideoFrameCallback(onFrame);
+      else requestAnimationFrame(onFrame);
+    };
+    /* Keepalive + input tripwire: repaint twice a second so
+     * captureStream keeps emitting even through a camera hiccup, and
+     * shout the moment camera frames stop arriving. */
+    const watchdog = setInterval(() => {
+      if (stopped || !composited) return;
+      paint();
+      if (performance.now() - lastFrameAt > 2000) {
+        setTakeWarning(
+          "The camera stopped delivering frames — stop this take and record it again.",
+        );
+      }
+    }, 500);
+    let canvasStream: MediaStream | null = null;
+    let recorded: MediaStream = camera;
+    if (composited) {
+      paint();
+      schedule();
+      canvasStream = canvas.captureStream(30);
+      recorded = new MediaStream([...canvasStream.getVideoTracks(), ...camera.getAudioTracks()]);
+    }
+    captureCleanupRef.current = () => {
+      stopped = true;
+      clearInterval(watchdog);
+      canvasStream?.getTracks().forEach((track) => track.stop());
+    };
     const mimeType = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].find((m) =>
       MediaRecorder.isTypeSupported(m),
     );
-    const recorder = new MediaRecorder(camera, mimeType ? { mimeType } : undefined);
+    const recorder = new MediaRecorder(recorded, mimeType ? { mimeType } : undefined);
     const chunks: Blob[] = [];
+    let leanChunks = 0;
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
+      /* Output tripwire: a one-second chunk without video is a few KB of
+       * audio where video runs hundreds. A run of them means the file is
+       * freezing right now — say so, instead of letting the narrator
+       * find out after the read-through. */
+      leanChunks = e.data.size > 0 && e.data.size < 25_000 ? leanChunks + 1 : 0;
+      if (chunks.length > 3 && leanChunks >= 3) {
+        setTakeWarning("Video has stalled mid-take — stop this take and record it again.");
+      }
     };
     recorder.onstop = () => {
       if (chunks.length === 0) return;
@@ -302,8 +399,8 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
     const track = camera.getVideoTracks()[0];
     if (!track) return;
     const onStall = () =>
-      setCameraError(
-        "The camera stopped sending video mid-take — the saved file may freeze there. " +
+      setTakeWarning(
+        "The camera was interrupted mid-take — the saved file may freeze there. " +
           "Keep the page in the foreground while recording.",
       );
     track.addEventListener("mute", onStall);
@@ -560,6 +657,14 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
               <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> REC
             </span>
           )}
+        </div>
+      )}
+
+      {/* The take alarm stays up until the next take starts, so it's
+       * seen even if the narrator only looks over at the end. */}
+      {takeWarning && (
+        <div className="absolute inset-x-4 top-14 z-30 rounded-xl border border-red-500/60 bg-background/90 px-4 py-3 text-center text-sm font-medium text-red-400 sm:inset-x-auto sm:left-1/2 sm:w-auto sm:max-w-xl sm:-translate-x-1/2">
+          {takeWarning}
         </div>
       )}
 
