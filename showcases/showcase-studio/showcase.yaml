@@ -31,7 +31,7 @@ scenes:
     theme: footage
     eyebrow: On camera
     captions:
-      - text: I make video tours of my apps - and I was tired of re-editing them every time one word changed.
+      - text: Are you frustrated with video editors like CapCut? A video demo is a great way to show off your app - but creating and refining these videos is tedious.
     media:
       kind: none
 
@@ -39,7 +39,7 @@ scenes:
     theme: footage
     eyebrow: On camera
     captions:
-      - text: So now my videos are code, living in my repo. Let me show you how that works.
+      - text: I've integrated video production into your code repo - so the whole process is streamlined, and it's powered by the Claude Code subscription you already have.
     media:
       kind: none
 
@@ -49,7 +49,7 @@ scenes:
     eyebrow: Videos as code
     title: Change one word. Ship a new video.
     captions:
-      - text: Imagine fixing a typo in one caption, and the video re-renders itself.
+      - text: You can update a screenshot, and re-render the video automatically.
         durationMs: 4890
       - text: There's no timeline to drag around - the words are the timing.
         durationMs: 4080
@@ -64,9 +64,9 @@ scenes:
     eyebrow: The player
     title: One script - three output formats
     captions:
-      - text: Your script plays as a product tour that runs itself
+      - text: Video, screenshots, and captions all auto-play together.
         durationMs: 3350
-      - text: And exports to App Store, TikTok, and YouTube
+      - text: And you can export to App Store, TikTok, and YouTube.
         durationMs: 4040
     media:
       kind: graphic
@@ -81,7 +81,7 @@ scenes:
     captions:
       - text: Claude Code is built-in for advanced editing - using the subscription you already have.
         durationMs: 5170
-      - text: It can perform advanced operations - like analyzing your speech and video, and suggesting edits.
+      - text: ""
         durationMs: 6340
     media:
       kind: graphic
