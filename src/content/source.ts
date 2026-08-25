@@ -185,5 +185,12 @@ export const dataMode = Boolean(import.meta.env["VITE_SHOWCASES_URL"]);
 
 export function activeSource(): ShowcaseSource {
   const base = import.meta.env["VITE_SHOWCASES_URL"] as string | undefined;
-  return base ? httpSource(base.replace(/\/$/, "")) : bundledSource;
+  if (!base) return bundledSource;
+  /* A relative base (the packaged shell's front door) only resolves in
+   * the browser. Every route is client-only, so during SSR serve an
+   * empty library instead of a fetch that has no origin to go to. */
+  if (base.startsWith("/") && typeof window === "undefined") {
+    return { load: () => Promise.resolve([]) };
+  }
+  return httpSource(base.replace(/\/$/, ""));
 }

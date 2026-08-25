@@ -54,6 +54,9 @@ function showcaseData(): Plugin {
 }
 
 export default defineConfig({
+  /* Build a plain Node server (.output/server/index.mjs) — the packaged
+   * desktop shell runs it in-process. NITRO_PRESET still overrides. */
+  nitro: { preset: process.env["NITRO_PRESET"] ?? "node-server" },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
@@ -67,7 +70,14 @@ export default defineConfig({
      * traces (written by tooling while the app is up). */
     server: {
       watch: {
-        ignored: ["**/cdk/**", "**/web/**", "**/exports/**", "**/gold_traces/**", "**/tmp/**"],
+        ignored: [
+          "**/cdk/**",
+          "**/web/**",
+          "**/exports/**",
+          "**/gold_traces/**",
+          "**/tmp/**",
+          "**/dist-electron/**",
+        ],
       },
     },
     /* Keep vitest off the vendored skills (their engine tests run under

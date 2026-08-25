@@ -1,0 +1,20 @@
+# Packages the staged desktop app (scripts/package-desktop.mjs) into a
+# runnable binary. Run the whole chain with:  npm run package:desktop
+appId: ai.siteforward.showcase-studio
+productName: Showcase Studio
+directories:
+  app: dist-electron/app
+  output: dist-electron/dist
+files:
+  - "**/*"
+  - ".output/**/*"
+# No asar: the app server imports its own chunks from disk, ffmpeg and
+# esbuild are real executables, and node-pty's spawn-helper needs its
+# exec bit — plain files keep all of that working without unpack rules.
+asar: false
+# node-pty ships N-API prebuilds (ABI-stable, no Electron rebuild).
+npmRebuild: false
+# No identity configured: electron-builder falls back to ad-hoc signing,
+# which arm64 macOS requires to launch the binary at all.
+mac:
+  target: dir
