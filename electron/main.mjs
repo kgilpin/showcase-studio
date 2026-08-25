@@ -4,13 +4,16 @@
  *   1. Ensures the user's showcases folder exists (~/Showcases, or
  *      SHOWCASES_DIR), scaffolding README/.gitignore/CLAUDE.md on first
  *      run — showcases are created in-app, not seeded from samples.
- *   2. Serves that folder on 127.0.0.1:8123 in the data shape the app's
- *      httpSource consumes (server/showcase-data.mjs), with CORS open
- *      so the app can fetch it from the dev-server origin.
- *   3. Opens a window on ELECTRON_APP_URL — a vite dev server started
- *      with VITE_SHOWCASES_URL=http://127.0.0.1:8123 (npm run
- *      electron:dev wires both up; a packaged build will load the built
- *      SPA shell instead).
+ *   2. Serves that folder in the data shape the app's httpSource
+ *      consumes (server/showcase-data.mjs), with CORS open so the app
+ *      can fetch it from the dev-server origin. Preferred port 8123;
+ *      self-host mode falls back to an OS-assigned port so several
+ *      studios can run at once.
+ *   3. Opens a window on the app itself: ELECTRON_APP_URL when set (npm
+ *      run electron:dev points it at a vite dev server started with
+ *      VITE_SHOWCASES_URL=http://127.0.0.1:8123), otherwise the built
+ *      app in .output/ (npm run build:desktop) served in-process behind
+ *      the data server's front door — how the packaged binary runs.
  *   4. Watches the folder and reloads the window when anything changes.
  *
  * ELECTRON_SMOKE=<path.png> captures the loaded window to a file and
@@ -18,20 +21,23 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import http from "node:http";
+import net from "node:net";
 import {
   appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   watch,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { handleShowcaseRequest, showcaseIndex } from "../server/showcase-data.mjs";
+import { showInRecent } from "../server/library-config.mjs";
 import { applySceneEditToFolder, contentHash } from "../server/scene-edit.mjs";
 import { prompterScript } from "../server/prompter-script.mjs";
 import { exportScreens, exportScript, exportVideo } from "./exporter.mjs";
@@ -59,8 +65,60 @@ try {
   /* exports degrade too; the guide says "(unavailable)" */
 }
 
-const dataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
-const appUrl = process.env.ELECTRON_APP_URL ?? "http://localhost:8092";
+/* Without ELECTRON_APP_URL (a dev server), serve the built app from
+ * .output/ (npm run build:desktop) in this process — the packaged
+ * binary's mode. One front-door server per instance serves the data
+ * shape and MCP and proxies everything else to the built app server,
+ * and the client is built with a relative data URL (/showcase-data), so
+ * several studios can run at once: the front door prefers SHOWCASES_PORT
+ * (8123, keeping existing .studio/mcp.json links stable) and falls back
+ * to an OS-assigned port when another studio holds it, and the built app
+ * server always takes an OS-assigned port (STUDIO_APP_PORT overrides).
+ * In dev mode the ports stay fixed and taken-port failures stay loud:
+ * the dev client bakes an absolute data URL, so a silent fallback would
+ * cross-wire two studios' libraries. */
+const requestedDataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
+let dataPort = requestedDataPort;
+
+const builtServer = path.join(repoRoot, ".output", "server", "index.mjs");
+const selfHost = !process.env.ELECTRON_APP_URL && existsSync(builtServer);
+let appPort = Number(process.env.STUDIO_APP_PORT ?? 0);
+/* Self-host: set once the front door is listening. */
+let appUrl = process.env.ELECTRON_APP_URL ?? null;
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.on("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+async function serveBuiltApp() {
+  if (!appPort) appPort = await freePort();
+  process.env.PORT = String(appPort);
+  process.env.HOST = "127.0.0.1";
+  await import(pathToFileURL(builtServer).href);
+}
+
+/** Streams a front-door request through to the built app server. */
+function proxyToBuiltApp(req, res) {
+  const upstream = http.request(
+    { host: "127.0.0.1", port: appPort, path: req.url, method: req.method, headers: req.headers },
+    (up) => {
+      res.writeHead(up.statusCode ?? 502, up.headers);
+      up.pipe(res);
+    },
+  );
+  upstream.on("error", () => {
+    if (!res.headersSent) res.statusCode = 502;
+    res.end("app server unavailable");
+  });
+  req.pipe(upstream);
+}
 
 /* The showcases folder is the user's content repo — a plain directory
  * they can `git init` and version themselves (the app never runs git;
@@ -80,6 +138,11 @@ This folder is managed by Showcase Studio. Each showcase is a folder:
     <id>/theme.yaml      optional styling (colors, fonts, atmosphere)
     <id>/assets/         screenshots and marks (asset keys = file names without extension)
     <id>/graphics/       optional TSX diagrams (default-export React components, CSS-only animation)
+
+A showcase.yaml at this top level (next to the showcase folders) holds
+library settings — currently just one:
+
+    show_in_recent: false   keep this folder out of File > Open Recent
 
 The studio live-reloads whenever files here change. The folder is yours
 to version: run \`git init\` here and commit as you like — the app never
@@ -157,20 +220,32 @@ const exportJobs = createExportJobs((kind, showcaseId, { onProgress, signal }) =
 );
 
 function serveData() {
-  const mcp = createMcpHandler({
-    appUrl,
-    version: appVersion,
-    getShowcasesDir: () => showcasesDir,
-    exportJobs,
-  });
+  let mcp;
   const server = http.createServer((req, res) => {
     const url = (req.url ?? "").split("?")[0] ?? "";
     res.setHeader("Access-Control-Allow-Origin", "*");
     if (url === "/mcp") {
+      if (!mcp) {
+        res.statusCode = 503;
+        res.end("starting");
+        return;
+      }
       void mcp(req, res);
       return;
     }
-    handleShowcaseRequest(showcasesDir, url, { range: req.headers.range }).then(
+    /* The data shape lives under /showcase-data (what the self-host
+     * client is built against) and, for the dev client's absolute URLs,
+     * at the root. In self-host mode every other path is the app's. */
+    const dataPath = url.startsWith("/showcase-data")
+      ? url.slice("/showcase-data".length) || "/"
+      : selfHost
+        ? null
+        : url;
+    if (dataPath == null) {
+      proxyToBuiltApp(req, res);
+      return;
+    }
+    handleShowcaseRequest(showcasesDir, dataPath, { range: req.headers.range }).then(
       (result) => {
         if (!result) {
           res.statusCode = 404;
@@ -190,14 +265,35 @@ function serveData() {
       },
     );
   });
-  server.on("error", (error) => {
-    // Fail loudly — a silent EADDRINUSE (e.g. a stray instance) otherwise
-    // leaves the app serving stale data from the old process.
-    console.error(`Showcase data server failed on port ${dataPort}: ${error.message}`);
-    app.exit(1);
+  let retried = false;
+  return new Promise((resolve) => {
+    server.on("error", (error) => {
+      /* Self-host: the preferred port being taken just means another
+       * studio is running — fall back to an OS-assigned port; the
+       * client's relative URLs follow the page. Everything else (and
+       * any dev-mode error) fails loudly — a silent EADDRINUSE would
+       * leave the dev app serving another instance's data. */
+      if (selfHost && error.code === "EADDRINUSE" && !retried) {
+        retried = true;
+        server.listen(0, "127.0.0.1");
+        return;
+      }
+      console.error(`Showcase data server failed on port ${dataPort}: ${error.message}`);
+      app.exit(1);
+    });
+    server.on("listening", () => {
+      dataPort = server.address().port;
+      appUrl ??= `http://127.0.0.1:${dataPort}`;
+      mcp = createMcpHandler({
+        appUrl,
+        version: appVersion,
+        getShowcasesDir: () => showcasesDir,
+        exportJobs,
+      });
+      resolve(server);
+    });
+    server.listen(dataPort, "127.0.0.1");
   });
-  server.listen(dataPort, "127.0.0.1");
-  return server;
 }
 
 /* Self-write suppression. Edits made through the app's own scene-edit
@@ -269,7 +365,12 @@ async function chooseShowcasesFolder(win) {
  * showcase's export page) — no File menu items while that flow settles. */
 function buildMenu(win) {
   const home = app.getPath("home");
-  const recents = (loadSettings().recentFolders ?? []).filter((dir) => dir !== showcasesDir);
+  /* A folder can opt out of Open Recent with show_in_recent: false in a
+   * root-level showcase.yaml (server/library-config.mjs). It stays in
+   * the persisted list — flipping the setting back brings it back. */
+  const recents = (loadSettings().recentFolders ?? []).filter(
+    (dir) => dir !== showcasesDir && showInRecent(dir),
+  );
   const template = [
     ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
     {
@@ -342,8 +443,19 @@ async function runExport(kind, showcaseId, win, { onProgress, signal } = {}) {
 }
 
 app.whenReady().then(async () => {
+  if (selfHost) {
+    try {
+      await serveBuiltApp();
+    } catch (error) {
+      dialog.showErrorBox("Showcase Studio", `The app server failed to start: ${error.message}`);
+      app.exit(1);
+      return;
+    }
+  }
+  /* The front door picks its real port here; ensureShowcasesDir writes
+   * .studio/mcp.json from it, so it must come after. */
+  await serveData();
   ensureShowcasesDir();
-  serveData();
 
   /* Headless export (also the automated-test hook):
    * ELECTRON_EXPORT=screens:<id> or video:<id> runs it and quits. */
@@ -524,6 +636,63 @@ scenes:
       }
       renameSync(path.join(dir, oldName), path.join(dir, newName));
       return { ok: true, name: newName, updatedReferences };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    }
+  });
+
+  /* Adds files to the showcase's assets/ folder — the drop target on
+   * the assets page. All files arrive in one call (base64) and are all
+   * written before the watcher's reload can interrupt; names are
+   * de-duplicated (name-2.png), never overwritten. */
+  ipcMain.handle("asset-add", (_event, { showcaseId, files } = {}) => {
+    try {
+      const id = String(showcaseId ?? "");
+      const bad = (s) => !s || s.includes("/") || s.includes("\\") || s.includes("..");
+      if (bad(id)) return { ok: false, error: "Bad showcase id" };
+      if (!Array.isArray(files) || files.length === 0) return { ok: false, error: "No files" };
+      const dir = path.join(showcasesDir, id, "assets");
+      if (!existsSync(path.join(showcasesDir, id))) {
+        return { ok: false, error: `No showcase named "${id}"` };
+      }
+      mkdirSync(dir, { recursive: true });
+      const written = [];
+      for (const file of files) {
+        const name = String(file?.name ?? "").trim();
+        if (bad(name)) return { ok: false, error: `Bad file name "${name}"` };
+        if (typeof file?.data !== "string" || !file.data) {
+          return { ok: false, error: `No data for "${name}"` };
+        }
+        const ext = path.extname(name);
+        const stem = name.slice(0, name.length - ext.length);
+        let candidate = name;
+        for (let n = 2; existsSync(path.join(dir, candidate)); n += 1) {
+          candidate = `${stem}-${n}${ext}`;
+        }
+        writeFileSync(path.join(dir, candidate), Buffer.from(file.data, "base64"));
+        written.push(candidate);
+      }
+      return { ok: true, names: written };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    }
+  });
+
+  /* Deletes one asset file (the page confirms first). YAML references
+   * are left alone — a dangling key shows up in the assets page's
+   * "referenced but missing" list, which is the honest state. */
+  ipcMain.handle("asset-delete", (_event, { showcaseId, name } = {}) => {
+    try {
+      const id = String(showcaseId ?? "");
+      const fileName = String(name ?? "");
+      const bad = (s) => !s || s.includes("/") || s.includes("\\") || s.includes("..");
+      if (bad(id) || bad(fileName)) return { ok: false, error: "Bad name" };
+      const file = path.join(showcasesDir, id, "assets", fileName);
+      if (!existsSync(file)) {
+        return { ok: false, error: `No file named "${fileName}" in ${id}/assets` };
+      }
+      unlinkSync(file);
+      return { ok: true };
     } catch (error) {
       return { ok: false, error: String(error?.message ?? error) };
     }

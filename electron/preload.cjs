@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld("showcaseStudio", {
   },
   assets: {
     rename: (payload) => ipcRenderer.invoke("asset-rename", payload),
+    add: (payload) => ipcRenderer.invoke("asset-add", payload),
+    remove: (payload) => ipcRenderer.invoke("asset-delete", payload),
   },
   terminal: {
     // Renderer File objects carry no path — resolve it here for

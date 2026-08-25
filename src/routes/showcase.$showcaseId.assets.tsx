@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { FileQuestion, Music, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FileQuestion, Music, Plus, Trash2, TriangleAlert, Upload, X } from "lucide-react";
 import { getShowcase, showcaseAssets, type AssetInfo } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
@@ -44,6 +44,17 @@ function Thumb({ asset, className }: { asset: AssetInfo; className?: string }) {
   );
 }
 
+/** ArrayBuffer → base64, chunked so large videos don't blow the call
+ *  stack with one giant String.fromCharCode spread. */
+function toBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
 function AssetsScreen() {
   const { showcaseId } = Route.useParams();
   const showcase = getShowcase(showcaseId);
@@ -51,6 +62,7 @@ function AssetsScreen() {
     typeof window === "undefined" ? null : sessionStorage.getItem(`assets-selected:${showcaseId}`),
   );
   const [inStudio, setInStudio] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   useEffect(() => setInStudio(Boolean(studio()?.assets)), []);
   if (!showcase) return null; // the layout route renders the not-found message
 
@@ -127,6 +139,17 @@ function AssetsScreen() {
                   </p>
                 </button>
               ))}
+              {inStudio && (
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  title="Add assets"
+                  className="flex min-h-[12rem] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border/70 bg-card/20 p-3 text-support transition-colors hover:border-foreground/40 hover:text-foreground"
+                >
+                  <Plus className="size-6" />
+                  <span className="text-xs">Add assets</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -139,10 +162,99 @@ function AssetsScreen() {
           />
         </div>
       </div>
+      {addOpen && <AddAssetsOverlay showcaseId={showcaseId} onClose={() => setAddOpen(false)} />}
       <div className="fixed inset-x-0 bottom-0">
         <DiagnosticsTray />
       </div>
     </main>
+  );
+}
+
+/** The drop target behind the "+" card: drag files in (or click to
+ *  browse) and they're written to the showcase's assets/ folder in one
+ *  call. The studio watcher then reloads the page with the fresh
+ *  inventory — that reload is the success path. */
+function AddAssetsOverlay({ showcaseId, onClose }: { showcaseId: string; onClose: () => void }) {
+  const [status, setStatus] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const addFiles = async (list: FileList | null) => {
+    const files = Array.from(list ?? []);
+    if (files.length === 0) return;
+    setStatus(`Adding ${files.length} file${files.length > 1 ? "s" : ""}…`);
+    const payload: { name: string; data: string }[] = [];
+    for (const file of files) {
+      payload.push({ name: file.name, data: toBase64(await file.arrayBuffer()) });
+    }
+    const result = await studio()!.assets.add({ showcaseId, files: payload });
+    setStatus(result.ok ? "Added — reloading…" : (result.error ?? "Adding failed"));
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add assets"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-6 backdrop-blur-sm"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-2xl"
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-foreground">Add assets</p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-full border border-border p-1.5 text-support transition-colors hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            void addFiles(e.dataTransfer.files);
+          }}
+          onClick={() => inputRef.current?.click()}
+          className={cn(
+            "mt-4 flex h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed transition-colors",
+            dragOver
+              ? "border-primary bg-primary/5 text-foreground"
+              : "border-border text-support hover:border-foreground/40 hover:text-foreground",
+          )}
+        >
+          <Upload className="size-6" />
+          <p className="text-sm">Drop files here, or click to browse</p>
+          <p className="text-xs opacity-70">They land in {showcaseId}/assets/</p>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => void addFiles(e.target.files)}
+        />
+        {status && <p className="mt-3 text-xs text-support">{status}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -159,6 +271,9 @@ function AssetDetails({
 }) {
   const [name, setName] = useState(asset?.key ?? "");
   const [status, setStatus] = useState<string | null>(null);
+  /* Two-step delete: the first click arms, the second deletes. The
+   * component is keyed by asset name, so switching assets disarms. */
+  const [confirmDelete, setConfirmDelete] = useState(false);
   if (!asset) {
     return (
       <aside className="w-full shrink-0 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:w-[26rem] lg:self-start lg:overflow-y-auto xl:w-[30rem]">
@@ -233,6 +348,42 @@ function AssetDetails({
               Renames the file and updates every reference in showcase.yaml.
             </p>
             {status && <p className="mt-2 text-xs text-amber-400/90">{status}</p>}
+
+            <p className="mt-6 text-xs uppercase tracking-[0.28em] text-support">Delete</p>
+            {asset.usedBy.length > 0 && (
+              <p className="mt-2 text-xs leading-relaxed text-amber-400/90">
+                Still referenced by {asset.usedBy.join(", ")} — deleting leaves those scenes
+                rendering a missing-media placeholder.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirmDelete) {
+                  setConfirmDelete(true);
+                  return;
+                }
+                void studio()!
+                  .assets.remove({ showcaseId, name: asset.name })
+                  .then((result) => {
+                    /* On success the studio watcher reloads the page
+                     * with the file gone — nothing more to do. */
+                    if (!result.ok) {
+                      setStatus(result.error ?? "Delete failed");
+                      setConfirmDelete(false);
+                    }
+                  });
+              }}
+              className={cn(
+                "mt-2 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
+                confirmDelete
+                  ? "border-red-500/60 bg-red-500/10 text-red-400"
+                  : "border-border bg-card text-foreground hover:bg-secondary",
+              )}
+            >
+              <Trash2 className="size-4" />{" "}
+              {confirmDelete ? "Really delete this file" : "Delete file…"}
+            </button>
           </div>
         )}
       </div>

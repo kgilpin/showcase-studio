@@ -114,6 +114,17 @@ export type ShowcaseStudio = {
       updatedReferences?: number;
       error?: string;
     }>;
+    /** Writes dropped files into the showcase's assets/ folder — all in
+     *  one call, so the watcher's reload can't interrupt a batch. Data
+     *  is base64; colliding names are de-duplicated, never overwritten. */
+    add(payload: {
+      showcaseId: string;
+      files: { name: string; data: string }[];
+    }): Promise<{ ok: boolean; names?: string[]; error?: string }>;
+    /** Deletes one asset file (the page confirms first). YAML
+     *  references are left alone — a dangling key shows in the
+     *  "referenced but missing" list. */
+    remove(payload: { showcaseId: string; name: string }): Promise<{ ok: boolean; error?: string }>;
   };
 };
 
