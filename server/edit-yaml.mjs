@@ -12,11 +12,24 @@
  *
  *   { field: "title",       value }                 set (empty deletes)
  *   { field: "caption",     captionIndex, value }   captions[i].text
+ *   { field: "caption.insert", captionIndex, caption }
+ *                                                   insert the caption
+ *                                                   object at the index
+ *   { field: "caption.delete", captionIndex }       remove captions[i]
+ *   { field: "scene.insert", index, scene }         insert the scene
+ *                                                   object at the index
+ *                                                   (no sceneId; the new
+ *                                                   scene's id must be
+ *                                                   unique)
+ *   { field: "scene.delete" }                       remove the scene
  *   { field: "media.asset", value, mediaKind? }     media.asset
  *                                                   (+ media.kind when the
  *                                                   new asset is a video
  *                                                   and the old an image,
  *                                                   or vice versa)
+ *   { field: "media.set",   media }                 replace the whole
+ *                                                   media mapping (the
+ *                                                   graphic ↔ asset swap)
  *   { field: "meta.captionStyle", value }           showcase-wide caption
  *                                                   painting, chip|karaoke
  *                                                   (empty deletes; no
@@ -28,8 +41,22 @@ const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 
 /** Applies one scene edit to showcase.yaml text and returns the new text.
  *  Throws with a plain message when the edit can't be applied. */
-export function applySceneEdit(text, { sceneId, field, captionIndex, value, mediaKind } = {}) {
-  if (typeof value !== "string") throw new Error("Missing value");
+export function applySceneEdit(
+  text,
+  {
+    sceneId,
+    field,
+    captionIndex,
+    value,
+    mediaKind,
+    caption,
+    index: insertIndex,
+    scene,
+    media,
+  } = {},
+) {
+  const needsValue = ["title", "caption", "media.asset", "meta.captionStyle"].includes(field);
+  if (needsValue && typeof value !== "string") throw new Error("Missing value");
 
   /* Meta edits address the showcase, not a scene. */
   if (field === "meta.captionStyle") {
@@ -41,6 +68,25 @@ export function applySceneEdit(text, { sceneId, field, captionIndex, value, medi
     if (!isMap(doc.get("meta"))) throw new Error("showcase.yaml has no meta section");
     if (value) doc.setIn(["meta", "captionStyle"], value);
     else doc.deleteIn(["meta", "captionStyle"]);
+    return doc.toString({ lineWidth: 0 });
+  }
+
+  /* Scene insertion addresses a position, not a scene. */
+  if (field === "scene.insert") {
+    if (typeof scene?.id !== "string" || !scene.id) {
+      throw new Error("The inserted scene needs a text id");
+    }
+    const doc = parseDocument(text);
+    if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
+    const scenes = doc.get("scenes");
+    if (!isSeq(scenes)) throw new Error("showcase.yaml has no scenes list");
+    if (scenes.items.some((item) => isMap(item) && item.get("id") === scene.id)) {
+      throw new Error(`A scene with the id "${scene.id}" already exists`);
+    }
+    if (!Number.isInteger(insertIndex) || insertIndex < 0 || insertIndex > scenes.items.length) {
+      throw new Error(`Scene index ${insertIndex} is out of range`);
+    }
+    scenes.items.splice(insertIndex, 0, doc.createNode(scene));
     return doc.toString({ lineWidth: 0 });
   }
 
@@ -88,6 +134,29 @@ export function applySceneEdit(text, { sceneId, field, captionIndex, value, medi
       isSeq(captions) && Number.isInteger(captionIndex) ? captions.items[captionIndex] : undefined;
     if (!isMap(line)) throw new Error(`Scene "${sceneId}" has no caption ${captionIndex}`);
     doc.setIn(["scenes", index, "captions", captionIndex, "text"], value.trim());
+  } else if (field === "caption.insert") {
+    if (typeof caption?.text !== "string") throw new Error("Missing caption text");
+    const captions = doc.getIn(["scenes", index, "captions"]);
+    if (captions != null && !isSeq(captions)) {
+      throw new Error(`Scene "${sceneId}" captions is not a list`);
+    }
+    const length = isSeq(captions) ? captions.items.length : 0;
+    if (!Number.isInteger(captionIndex) || captionIndex < 0 || captionIndex > length) {
+      throw new Error(`Caption index ${captionIndex} is out of range`);
+    }
+    if (isSeq(captions)) captions.items.splice(captionIndex, 0, doc.createNode(caption));
+    else doc.setIn(["scenes", index, "captions"], doc.createNode([caption]));
+  } else if (field === "caption.delete") {
+    const captions = doc.getIn(["scenes", index, "captions"]);
+    const exists =
+      isSeq(captions) &&
+      Number.isInteger(captionIndex) &&
+      captionIndex >= 0 &&
+      captionIndex < captions.items.length;
+    if (!exists) throw new Error(`Scene "${sceneId}" has no caption ${captionIndex}`);
+    captions.items.splice(captionIndex, 1);
+  } else if (field === "scene.delete") {
+    scenes.items.splice(index, 1);
   } else if (field === "media.asset") {
     if (!isMap(doc.getIn(["scenes", index, "media"]))) {
       throw new Error(`Scene "${sceneId}" has no media to point at an asset`);
@@ -96,6 +165,11 @@ export function applySceneEdit(text, { sceneId, field, captionIndex, value, medi
     if (mediaKind === "image" || mediaKind === "video") {
       doc.setIn(["scenes", index, "media", "kind"], mediaKind);
     }
+  } else if (field === "media.set") {
+    if (typeof media?.kind !== "string" || !media.kind) {
+      throw new Error("The media mapping needs a kind");
+    }
+    doc.setIn(["scenes", index, "media"], doc.createNode(media));
   } else {
     throw new Error(`Unknown field "${String(field)}"`);
   }

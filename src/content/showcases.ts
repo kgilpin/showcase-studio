@@ -905,8 +905,27 @@ export function applySceneEditLocal(
   }
   /* Theme edits are routed to applyThemeEditLocal, never here. */
   if (edit.field === "theme") return undefined;
+  /* Scene insertion addresses a position, not a scene. */
+  if (edit.field === "scene.insert") {
+    if (!Number.isInteger(edit.index) || edit.index < 0 || edit.index > doc.scenes.length) {
+      return undefined;
+    }
+    if (doc.scenes.some((scene) => scene.id === edit.scene.id)) return undefined;
+    doc.scenes.splice(edit.index, 0, structuredClone(edit.scene) as unknown as RawScene);
+    if (rebuildShowcase(showcaseId)) return { field: "scene.delete" };
+    doc.scenes.splice(edit.index, 1);
+    return undefined;
+  }
   const raw = doc.scenes.find((scene) => scene.id === sceneId);
   if (!raw) return undefined;
+  if (edit.field === "scene.delete") {
+    const index = doc.scenes.indexOf(raw);
+    const removed = structuredClone(raw) as unknown as { id: string } & Record<string, unknown>;
+    doc.scenes.splice(index, 1);
+    if (rebuildShowcase(showcaseId)) return { field: "scene.insert", index, scene: removed };
+    doc.scenes.splice(index, 0, raw);
+    return undefined;
+  }
   /* If the rebuild below fails, the doc must roll back too — the model
    * keeps its last good state, and a lingering mutation would resurface
    * with the next successful edit. */
@@ -922,6 +941,29 @@ export function applySceneEditLocal(
     if (!caption) return undefined;
     inverse = { field: "caption", captionIndex: edit.captionIndex, value: caption.text };
     caption.text = edit.value.trim();
+  } else if (edit.field === "caption.insert") {
+    const captions = (raw.captions ??= []);
+    if (edit.captionIndex < 0 || edit.captionIndex > captions.length) return undefined;
+    inverse = { field: "caption.delete", captionIndex: edit.captionIndex };
+    captions.splice(edit.captionIndex, 0, structuredClone(edit.caption) as SceneCaption);
+  } else if (edit.field === "caption.delete") {
+    const caption = raw.captions?.[edit.captionIndex];
+    if (!caption) return undefined;
+    inverse = {
+      field: "caption.insert",
+      captionIndex: edit.captionIndex,
+      caption: structuredClone(caption) as { text: string } & Record<string, unknown>,
+    };
+    raw.captions?.splice(edit.captionIndex, 1);
+  } else if (edit.field === "media.set") {
+    inverse = {
+      field: "media.set",
+      media: structuredClone(raw.media ?? { kind: "none" }) as { kind: string } & Record<
+        string,
+        unknown
+      >,
+    };
+    raw.media = structuredClone(edit.media) as unknown as RawMedia;
   } else {
     const media = raw.media;
     if (!media || media.kind === "none" || media.kind === "graphic") return undefined;

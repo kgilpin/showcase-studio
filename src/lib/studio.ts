@@ -44,7 +44,25 @@ export type StudioTerminal = {
 export type SceneEdit =
   | { field: "title"; value: string }
   | { field: "caption"; captionIndex: number; value: string }
+  /** Structural caption edits: insert a line at captionIndex (the
+   *  whole authored object, so a delete's inverse restores durations
+   *  and word timings too), or remove one. */
+  | {
+      field: "caption.insert";
+      captionIndex: number;
+      caption: { text: string } & Record<string, unknown>;
+    }
+  | { field: "caption.delete"; captionIndex: number }
+  /** Structural scene edits: insert a whole scene (the raw authored
+   *  shape) at index, or remove the addressed scene. sceneId on insert
+   *  is the new scene's id (payload.scene.id decides). Comments inside
+   *  a deleted scene are not restored by undo. */
+  | { field: "scene.insert"; index: number; scene: { id: string } & Record<string, unknown> }
+  | { field: "scene.delete" }
   | { field: "media.asset"; value: string; mediaKind?: "image" | "video" | undefined }
+  /** Replaces the scene's whole media mapping — the op behind swapping
+   *  a TSX graphic for an asset (and back, as its own inverse). */
+  | { field: "media.set"; media: { kind: string } & Record<string, unknown> }
   /** Showcase-wide overlay caption painting (meta; sceneId is ignored —
    *  pass ""). Empty value deletes, restoring the default. */
   | { field: "meta.captionStyle"; value: "" | "chip" | "karaoke" | "reveal" }

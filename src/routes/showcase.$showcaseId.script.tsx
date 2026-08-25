@@ -1,14 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Play } from "lucide-react";
-import { captionTimeline, getShowcase, useShowcase } from "@/content/showcases";
+import { ImagePlus, Play, Plus, Trash2, X } from "lucide-react";
+import { captionTimeline, getShowcase, useShowcase, type Scene } from "@/content/showcases";
 import { dataMode } from "@/content/source";
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { EditableText } from "@/components/studio/EditableText";
+import { MediaPicker } from "@/components/studio/MediaPicker";
 import { SharePrompter } from "@/components/studio/SharePrompter";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
+import { GraphicThumb } from "@/components/script/GraphicThumb";
 import { MediaThumb } from "@/components/script/MediaThumb";
 import { ScriptPlayer } from "@/components/script/ScriptPlayer";
 
@@ -50,11 +52,34 @@ function ScriptScreen() {
    * player). Cmd/Ctrl+Z undoes committed edits. */
   const canEdit = useCanEditScenes();
   useEditShortcuts(showcaseId);
+  /* One picker for the whole page: the scene whose media is being
+   * chosen from the assets library. */
+  const [pickerScene, setPickerScene] = useState<Scene | null>(null);
   if (!showcase) return null; // the layout route renders the not-found message
 
   const scenes = showcase.scenes;
   const total = scenes.reduce((sum, s) => sum + s.durationMs, 0);
   let runningStart = 0;
+
+  /* A fresh slide, inserted at `index` with a unique id — one editable
+   * caption, no media yet. */
+  const addSlide = (index: number) => {
+    const existing = new Set(scenes.map((s) => s.id));
+    let n = scenes.length + 1;
+    while (existing.has(`slide-${n}`)) n += 1;
+    const id = `slide-${n}`;
+    void commitEdit(showcase.id, id, {
+      field: "scene.insert",
+      index,
+      scene: {
+        id,
+        theme: "statement",
+        title: "New slide",
+        captions: [{ text: "New caption" }],
+        media: { kind: "none" },
+      },
+    });
+  };
 
   if (record) return <ScriptPlayer scenes={scenes} record onExit={() => {}} />;
   if (prompter)
@@ -114,25 +139,58 @@ function ScriptScreen() {
 
             return (
               <li key={scene.id} className="rounded-2xl border border-border bg-card/40 p-6 sm:p-8">
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs uppercase tracking-[0.32em] text-support">
                     Slide {i + 1} · {scene.theme} · {scene.id}
                   </p>
-                  <p className="text-xs tabular-nums text-support">
-                    {seconds(start)} → {seconds(start + scene.durationMs)} ·{" "}
-                    <span className="text-foreground/80">{seconds(scene.durationMs)}</span>
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs tabular-nums text-support">
+                      {seconds(start)} → {seconds(start + scene.durationMs)} ·{" "}
+                      <span className="text-foreground/80">{seconds(scene.durationMs)}</span>
+                    </p>
+                    {canEdit && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addSlide(i + 1)}
+                          aria-label="Add a slide after this one"
+                          title="Add a slide after this one"
+                          className="rounded-full border border-border p-1.5 text-support transition-colors hover:text-foreground"
+                        >
+                          <Plus className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void commitEdit(showcase.id, scene.id, { field: "scene.delete" })
+                          }
+                          aria-label="Delete this slide (Cmd/Ctrl+Z undoes)"
+                          title="Delete this slide (Cmd/Ctrl+Z undoes)"
+                          className="rounded-full border border-border p-1.5 text-support transition-colors hover:text-red-400"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-5 flex flex-col gap-6 sm:flex-row">
                   {media.kind === "graphic" && (
                     <div className="flex w-28 shrink-0 flex-col gap-2">
-                      <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg border border-border bg-card">
-                        <media.component />
-                      </div>
-                      <p className="break-all text-[0.65rem] leading-snug text-support">
-                        {media.file ?? media.graphic}
-                      </p>
+                      <GraphicThumb
+                        component={media.component}
+                        caption={media.file ?? media.graphic}
+                      />
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => setPickerScene(scene)}
+                          className="text-left text-[0.65rem] text-primary/80 transition-colors hover:text-primary"
+                        >
+                          Change media…
+                        </button>
+                      )}
                     </div>
                   )}
                   {media.kind !== "none" && media.kind !== "graphic" && (
@@ -151,6 +209,28 @@ function ScriptScreen() {
                           caption={`fades to ${media.fadeTo.file ?? media.fadeTo.asset}`}
                         />
                       )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => setPickerScene(scene)}
+                          className="text-left text-[0.65rem] text-primary/80 transition-colors hover:text-primary"
+                        >
+                          Change media…
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {media.kind === "none" && canEdit && (
+                    <div className="flex w-28 shrink-0 flex-col">
+                      <button
+                        type="button"
+                        onClick={() => setPickerScene(scene)}
+                        aria-label="Choose media from the assets library"
+                        title="Choose media from the assets library"
+                        className="flex aspect-[16/10] w-full items-center justify-center rounded-lg border border-dashed border-border/70 text-support transition-colors hover:border-foreground/40 hover:text-foreground"
+                      >
+                        <ImagePlus className="size-4" />
+                      </button>
                     </div>
                   )}
 
@@ -218,9 +298,40 @@ function ScriptScreen() {
                                 </span>
                               )}
                             </span>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void commitEdit(showcase.id, scene.id, {
+                                    field: "caption.delete",
+                                    captionIndex: ci,
+                                  })
+                                }
+                                aria-label="Delete this caption (Cmd/Ctrl+Z undoes)"
+                                title="Delete this caption (Cmd/Ctrl+Z undoes)"
+                                className="ml-auto shrink-0 self-start rounded-full p-1 text-support/60 transition-colors hover:text-red-400"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            )}
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void commitEdit(showcase.id, scene.id, {
+                            field: "caption.insert",
+                            captionIndex: scene.captions.length,
+                            caption: { text: "New caption" },
+                          })
+                        }
+                        className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-dashed border-border/70 px-3 py-1.5 text-xs text-support transition-colors hover:border-foreground/40 hover:text-foreground"
+                      >
+                        <Plus className="size-3" /> Add caption
+                      </button>
                     )}
 
                     {scene.support && (
@@ -242,8 +353,22 @@ function ScriptScreen() {
               </li>
             );
           })}
+          {canEdit && (
+            <li>
+              <button
+                type="button"
+                onClick={() => addSlide(scenes.length)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border/70 py-6 text-sm text-support transition-colors hover:border-foreground/40 hover:text-foreground"
+              >
+                <Plus className="size-4" /> Add slide
+              </button>
+            </li>
+          )}
         </ol>
       </div>
+      {pickerScene && (
+        <MediaPicker showcase={showcase} scene={pickerScene} onClose={() => setPickerScene(null)} />
+      )}
       <div className="fixed inset-x-0 bottom-0">
         <DiagnosticsTray />
       </div>

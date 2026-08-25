@@ -68,11 +68,26 @@ export function MediaPicker({
                 type="button"
                 onClick={() => {
                   if (asset.file !== current) {
-                    void commitEdit(showcase.id, scene.id, {
-                      field: "media.asset",
-                      value: asset.key,
-                      mediaKind: asset.kind === "video" ? "video" : "image",
-                    });
+                    const mediaKind = asset.kind === "video" ? "video" : "image";
+                    /* Image/video scenes patch just the asset (keeping
+                     * motion, frame, alt); a graphic or empty scene
+                     * swaps its whole media mapping — the inverse swaps
+                     * it back, so undo restores the graphic. */
+                    const edit =
+                      scene.media.kind === "image" || scene.media.kind === "video"
+                        ? ({ field: "media.asset", value: asset.key, mediaKind } as const)
+                        : ({
+                            field: "media.set",
+                            media: {
+                              kind: mediaKind,
+                              asset: asset.key,
+                              alt:
+                                "alt" in scene.media && typeof scene.media.alt === "string"
+                                  ? scene.media.alt
+                                  : asset.name,
+                            },
+                          } as const);
+                    void commitEdit(showcase.id, scene.id, edit);
                   }
                   onClose();
                 }}

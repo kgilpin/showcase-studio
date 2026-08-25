@@ -123,3 +123,105 @@ describe("applySceneEdit", () => {
     ).toThrow('Unknown field "durationMs"');
   });
 });
+
+/* Structural edits: inserting and deleting captions and whole scenes,
+ * and replacing a scene's media mapping — everything around the edit
+ * stays byte-level intact (comments, quoting, long lines). */
+describe("applySceneEdit structural ops", () => {
+  it("inserts a caption at the index, leaving neighbours and comments alone", () => {
+    const out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "caption.insert",
+      captionIndex: 2,
+      caption: { text: "A third line.", durationMs: 2500 },
+    });
+    expect(out).toContain("text: A third line.");
+    expect(out).toContain("durationMs: 2500");
+    expect(out).toContain("# trailing comment");
+    expect(out).toContain("# Scene one keeps its comment.");
+    expect(out.indexOf("A second line.")).toBeLessThan(out.indexOf("A third line."));
+  });
+
+  it("creates the captions list when the scene has none", () => {
+    const doc = DOC.replace(/    captions:\n      - text: The closing line\.\n/, "");
+    const out = applySceneEdit(doc, {
+      sceneId: "closing",
+      field: "caption.insert",
+      captionIndex: 0,
+      caption: { text: "A fresh line." },
+    });
+    expect(out).toContain("text: A fresh line.");
+  });
+
+  it("rejects an out-of-range caption insert", () => {
+    expect(() =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "caption.insert",
+        captionIndex: 5,
+        caption: { text: "x" },
+      }),
+    ).toThrow("out of range");
+  });
+
+  it("deletes one caption and keeps the rest", () => {
+    const out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "caption.delete",
+      captionIndex: 1,
+    });
+    expect(out).not.toContain("A second line.");
+    expect(out).toContain("The opening line");
+    expect(out).toContain("# Scene one keeps its comment.");
+  });
+
+  it("inserts a whole scene at the index", () => {
+    const out = applySceneEdit(DOC, {
+      field: "scene.insert",
+      index: 1,
+      scene: {
+        id: "fresh",
+        theme: "statement",
+        title: "New slide",
+        captions: [{ text: "New caption" }],
+        media: { kind: "none" },
+      },
+    });
+    expect(out).toContain("id: fresh");
+    expect(out.indexOf("id: intro")).toBeLessThan(out.indexOf("id: fresh"));
+    expect(out.indexOf("id: fresh")).toBeLessThan(out.indexOf("id: closing"));
+    expect(out).toContain("# FIXTURE — the header comment is load-bearing documentation.");
+  });
+
+  it("rejects a scene insert with a duplicate or missing id, or a bad index", () => {
+    const scene = { id: "intro", media: { kind: "none" } };
+    expect(() => applySceneEdit(DOC, { field: "scene.insert", index: 0, scene })).toThrow(
+      "already exists",
+    );
+    expect(() =>
+      applySceneEdit(DOC, { field: "scene.insert", index: 0, scene: { theme: "statement" } }),
+    ).toThrow("needs a text id");
+    expect(() =>
+      applySceneEdit(DOC, { field: "scene.insert", index: 9, scene: { id: "x" } }),
+    ).toThrow("out of range");
+  });
+
+  it("deletes a scene and keeps its siblings byte-for-byte", () => {
+    const out = applySceneEdit(DOC, { sceneId: "closing", field: "scene.delete" });
+    expect(out).not.toContain("id: closing");
+    expect(out).toContain("id: intro");
+    expect(out).toContain("# Scene one keeps its comment.");
+    expect(out).toContain("A second line. # trailing comment");
+  });
+
+  it("replaces the whole media mapping with media.set", () => {
+    const out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "media.set",
+      media: { kind: "image", asset: "shot-new", alt: "Swapped in" },
+    });
+    expect(out).toContain("asset: shot-new");
+    expect(out).not.toContain("asset: shot-one");
+    expect(out).toContain("asset: shot-two"); // the other scene is untouched
+  });
+});
