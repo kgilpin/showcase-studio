@@ -436,281 +436,309 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
 
   const media = scene.media;
 
+  /* Opened over another page (onExit set, not an export capture), the
+   * desktop prompter draws as a bounded modal — dimmed backdrop, tight
+   * box, border — so it's obvious a panel opened rather than the page
+   * mysteriously dimming. Phones and the standalone prompter page stay
+   * full-bleed. Clicking the backdrop exits, like any lightbox. */
+  const modal = Boolean(onExit) && !record;
+
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col"
-      style={{ background: "var(--gradient-stage)" }}
+      className={cn(
+        "fixed inset-0 z-40",
+        modal &&
+          "bg-background/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-8",
+      )}
+      onClick={modal ? onExit : undefined}
     >
-      <div className="flex items-center justify-between px-6 py-4">
-        <p className="text-xs uppercase tracking-[0.32em] text-support">
-          Slide {active.sceneIndex + 1} / {scenes.length} · {Math.floor(elapsed / 1000)}s /{" "}
-          {Math.round(total / 1000)}s
-        </p>
-        {onExit && (
-          <button
-            type="button"
-            onClick={onExit}
-            aria-label="Exit script player"
-            title="Exit script player"
-            className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
-          >
-            <X className="size-4" />
-          </button>
+      <div
+        onClick={modal ? (e) => e.stopPropagation() : undefined}
+        className={cn(
+          "relative flex h-full w-full flex-col overflow-hidden",
+          modal && "sm:max-w-3xl sm:rounded-2xl sm:border sm:border-border sm:shadow-2xl",
         )}
-      </div>
-
-      <div className="flex min-h-0 flex-1 gap-8 px-6 pb-4 sm:px-12">
-        <div className="hidden w-44 shrink-0 self-center sm:block lg:w-56">
-          {camera && (
-            <div className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card">
-              {/* Mirrored like a phone selfie view so the narrator can frame
-               * themselves; the recording itself is not mirrored. */}
-              <video ref={previewRef} autoPlay muted playsInline className="w-full -scale-x-100" />
-              {recording && (
-                <span className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-background/70 px-2.5 py-1 text-xs text-foreground">
-                  <span className="size-2 animate-pulse rounded-full bg-red-500" /> REC
-                </span>
-              )}
-            </div>
-          )}
-          {media.kind === "graphic" ? (
-            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-border bg-card">
-              <media.component />
-            </div>
-          ) : media.kind !== "none" ? (
-            <img
-              key={media.src}
-              src={media.src}
-              alt={media.alt}
-              className="w-full rounded-2xl border border-border object-contain"
-            />
-          ) : (
-            <div className="flex aspect-[9/19.5] w-full items-center justify-center rounded-2xl border border-dashed border-border/60 text-[0.65rem] uppercase tracking-[0.28em] text-support/60">
-              No media
-            </div>
+        style={{ background: "var(--gradient-stage)" }}
+      >
+        <div className="flex items-center justify-between px-6 py-4">
+          <p className="text-xs uppercase tracking-[0.32em] text-support">
+            Slide {active.sceneIndex + 1} / {scenes.length} · {Math.floor(elapsed / 1000)}s /{" "}
+            {Math.round(total / 1000)}s
+          </p>
+          {onExit && (
+            <button
+              type="button"
+              onClick={onExit}
+              aria-label="Exit script player"
+              title="Exit script player"
+              className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
           )}
         </div>
 
-        <div
-          ref={scrollRef}
-          className="relative min-w-0 flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_8%,black_70%,transparent)]"
-          /* Reading text, not showcase branding: a plain high-legibility
-           * sans stack instead of the theme's display font. */
-          style={{
-            fontFamily:
-              "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-          }}
-        >
-          {/* Narrow reading column: short lines keep the eyes near the pin
-           * instead of scanning the full window width. */}
-          <ul className="mx-auto w-full max-w-2xl space-y-6 pb-[60vh] pt-6">
-            {lines.map((line) => {
-              const isActive = line.key === active.key;
-              const isPast = line.endMs <= elapsed;
-              const allottedMs = line.endMs - line.startMs;
-              return (
-                <li
-                  key={line.key}
-                  ref={(el) => {
-                    lineRefs.current[line.key] = el;
-                  }}
-                  onClick={() => jumpTo(line.startMs)}
-                  title="Jump to this line"
-                  className={cn(
-                    "flex cursor-pointer gap-3 transition-all duration-500 sm:gap-5",
-                    isActive ? "opacity-100" : isPast ? "opacity-25" : "opacity-45",
-                  )}
-                >
-                  {/* Pacing gutter: allotted seconds; the active line counts
-                   *  down with a pie. Zero-width windows (a title that shares
-                   *  its time with the first caption) get no indicator. */}
-                  <div className="w-16 shrink-0 pt-2 text-right sm:w-20">
-                    {allottedMs >= 400 &&
-                      (isActive ? (
-                        <LinePie remainingMs={line.endMs - elapsed} allottedMs={allottedMs} />
-                      ) : (
-                        <span className="text-xs tabular-nums text-support/80">
-                          {(allottedMs / 1000).toFixed(1)}s
-                        </span>
-                      ))}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    {line.eyebrow && (
-                      <p className="mb-2 text-xs uppercase tracking-[0.42em] text-primary">
-                        {line.eyebrow}
-                      </p>
-                    )}
-                    {line.kind === "support" ? (
-                      <p className="text-lg leading-relaxed text-muted-foreground sm:text-xl">
-                        {line.text}
-                      </p>
-                    ) : (
-                      /* Active emphasis via transform, not font size: a size
-                       * change reflows the list and makes the pinned scroll
-                       * position jump at every line change. Scale doesn't
-                       * touch layout, so the glide stays seamless. Idle lines
-                       * shrink instead of the active line growing — an
-                       * enlarged line overflows the column and clips at the
-                       * right edge on phones. */
-                      <p
-                        className={cn(
-                          "origin-left text-2xl leading-snug transition-[transform,color] duration-300 sm:text-3xl",
-                          isActive
-                            ? "text-foreground"
-                            : "scale-95 text-muted-foreground sm:scale-[0.91]",
-                        )}
-                      >
-                        {line.text}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
-
-      {/* Phone framing preview: the side column (with the desktop preview)
-       * is hidden below sm, so the camera floats here instead. */}
-      {camera && (
-        <div className="fixed bottom-28 left-4 z-20 w-28 overflow-hidden rounded-xl border border-border bg-card shadow-lg sm:hidden">
-          <video ref={previewPipRef} autoPlay muted playsInline className="w-full -scale-x-100" />
-          {recording && (
-            <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[0.65rem] text-foreground">
-              <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> REC
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* The take alarm stays up until the next take starts, so it's
-       * seen even if the narrator only looks over at the end. */}
-      {takeWarning && (
-        <div className="absolute inset-x-4 top-14 z-30 rounded-xl border border-red-500/60 bg-background/90 px-4 py-3 text-center text-sm font-medium text-red-400 sm:inset-x-auto sm:left-1/2 sm:w-auto sm:max-w-xl sm:-translate-x-1/2">
-          {takeWarning}
-        </div>
-      )}
-
-      {/* The take receipt: what was recorded and by which pipeline —
-       * proof the file is whole, and field diagnostics when it isn't.
-       * Tap to dismiss. */}
-      {takeReport && !taking && (
-        <button
-          type="button"
-          onClick={() => setTakeReport(null)}
-          title="Dismiss"
-          className="absolute bottom-24 left-1/2 z-30 max-w-[90vw] -translate-x-1/2 rounded-xl border border-border bg-card/95 px-4 py-2.5 text-center font-mono text-[0.7rem] text-support shadow-lg"
-        >
-          {takeReport}
-        </button>
-      )}
-
-      {countdown != null && countdown.left > 0 && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
-          <p className="font-display text-9xl text-foreground">{countdown.left}</p>
-        </div>
-      )}
-
-      {/* Touch-friendly below sm: wrap instead of overflow, larger targets. */}
-      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border px-4 py-4 max-sm:[&>button]:p-3 sm:gap-4 sm:px-6">
-        <button
-          type="button"
-          onClick={() => jumpTo(0)}
-          aria-label="Restart script"
-          title="Restart script"
-          className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
-        >
-          <RotateCcw className="size-4" />
-        </button>
-        <button
-          type="button"
-          onClick={togglePlay}
-          aria-label={playing ? "Pause" : countdown != null ? "Cancel the countdown" : "Play"}
-          title={playing ? "Pause" : countdown != null ? "Cancel the countdown" : "Play"}
-          className="rounded-full border border-transparent bg-primary p-3 text-primary-foreground transition-colors hover:bg-primary/85"
-        >
-          {playing || countdown != null ? (
-            <Pause className="size-4" />
-          ) : (
-            <Play className="size-4" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={jumpToNextLine}
-          aria-label="Jump to the next line"
-          title="Jump to the next line"
-          className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
-        >
-          <SkipForward className="size-4" />
-        </button>
-        <div className="flex items-center gap-1 rounded-full border border-border px-1.5 py-1">
-          <button
-            type="button"
-            onClick={() => setSpeed((s) => Math.max(0.5, Math.round((s - 0.1) * 10) / 10))}
-            aria-label="Read slower"
-            title="Read slower"
-            className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
-          >
-            <Minus className="size-3.5" />
-          </button>
-          <span className="w-9 text-center text-xs tabular-nums text-muted-foreground">
-            {speed.toFixed(1)}×
-          </span>
-          <button
-            type="button"
-            onClick={() => setSpeed((s) => Math.min(2, Math.round((s + 0.1) * 10) / 10))}
-            aria-label="Read faster"
-            title="Read faster"
-            className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
-          >
-            <Plus className="size-3.5" />
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => (holdRef.current += 1000)}
-          aria-label="Hold this line for one more second"
-          title="Hold this line for one more second"
-          className="rounded-full border border-border px-3 py-2 text-xs tabular-nums text-support transition-colors hover:text-foreground"
-        >
-          +1s
-        </button>
-        {!record && (
-          <button
-            type="button"
-            onClick={() => void toggleCamera()}
-            aria-label={camera ? "Turn the camera off" : "Turn the camera on to film a take"}
-            title={camera ? "Turn the camera off" : "Turn the camera on to film a take"}
-            className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
-          >
-            {camera ? <VideoOff className="size-4" /> : <Video className="size-4" />}
-          </button>
-        )}
-        {!record && camera && (
-          <button
-            type="button"
-            onClick={taking ? stopTake : startTake}
-            aria-label={taking ? "Stop recording and save the take" : "Record a take from the top"}
-            title={taking ? "Stop recording and save the take" : "Record a take from the top"}
-            className="rounded-full border border-border p-2 transition-colors hover:bg-card"
-          >
-            {taking ? (
-              <Square className="size-4 fill-red-500 text-red-500" />
+        <div className="flex min-h-0 flex-1 gap-8 px-6 pb-4 sm:px-12">
+          <div className="hidden w-44 shrink-0 self-center sm:block lg:w-56">
+            {camera && (
+              <div className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card">
+                {/* Mirrored like a phone selfie view so the narrator can frame
+                 * themselves; the recording itself is not mirrored. */}
+                <video
+                  ref={previewRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full -scale-x-100"
+                />
+                {recording && (
+                  <span className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-background/70 px-2.5 py-1 text-xs text-foreground">
+                    <span className="size-2 animate-pulse rounded-full bg-red-500" /> REC
+                  </span>
+                )}
+              </div>
+            )}
+            {media.kind === "graphic" ? (
+              <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-border bg-card">
+                <media.component />
+              </div>
+            ) : media.kind !== "none" ? (
+              <img
+                key={media.src}
+                src={media.src}
+                alt={media.alt}
+                className="w-full rounded-2xl border border-border object-contain"
+              />
             ) : (
-              <Circle className="size-4 fill-red-500 text-red-500" />
+              <div className="flex aspect-[9/19.5] w-full items-center justify-center rounded-2xl border border-dashed border-border/60 text-[0.65rem] uppercase tracking-[0.28em] text-support/60">
+                No media
+              </div>
+            )}
+          </div>
+
+          <div
+            ref={scrollRef}
+            className="relative min-w-0 flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_8%,black_70%,transparent)]"
+            /* Reading text, not showcase branding: a plain high-legibility
+             * sans stack instead of the theme's display font. */
+            style={{
+              fontFamily:
+                "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+            }}
+          >
+            {/* Narrow reading column: short lines keep the eyes near the pin
+             * instead of scanning the full window width. */}
+            <ul className="mx-auto w-full max-w-2xl space-y-6 pb-[60vh] pt-6">
+              {lines.map((line) => {
+                const isActive = line.key === active.key;
+                const isPast = line.endMs <= elapsed;
+                const allottedMs = line.endMs - line.startMs;
+                return (
+                  <li
+                    key={line.key}
+                    ref={(el) => {
+                      lineRefs.current[line.key] = el;
+                    }}
+                    onClick={() => jumpTo(line.startMs)}
+                    title="Jump to this line"
+                    className={cn(
+                      "flex cursor-pointer gap-3 transition-all duration-500 sm:gap-5",
+                      isActive ? "opacity-100" : isPast ? "opacity-25" : "opacity-45",
+                    )}
+                  >
+                    {/* Pacing gutter: allotted seconds; the active line counts
+                     *  down with a pie. Zero-width windows (a title that shares
+                     *  its time with the first caption) get no indicator. */}
+                    <div className="w-16 shrink-0 pt-2 text-right sm:w-20">
+                      {allottedMs >= 400 &&
+                        (isActive ? (
+                          <LinePie remainingMs={line.endMs - elapsed} allottedMs={allottedMs} />
+                        ) : (
+                          <span className="text-xs tabular-nums text-support/80">
+                            {(allottedMs / 1000).toFixed(1)}s
+                          </span>
+                        ))}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {line.eyebrow && (
+                        <p className="mb-2 text-xs uppercase tracking-[0.42em] text-primary">
+                          {line.eyebrow}
+                        </p>
+                      )}
+                      {line.kind === "support" ? (
+                        <p className="text-lg leading-relaxed text-muted-foreground sm:text-xl">
+                          {line.text}
+                        </p>
+                      ) : (
+                        /* Active emphasis via transform, not font size: a size
+                         * change reflows the list and makes the pinned scroll
+                         * position jump at every line change. Scale doesn't
+                         * touch layout, so the glide stays seamless. Idle lines
+                         * shrink instead of the active line growing — an
+                         * enlarged line overflows the column and clips at the
+                         * right edge on phones. */
+                        <p
+                          className={cn(
+                            "origin-left text-2xl leading-snug transition-[transform,color] duration-300 sm:text-3xl",
+                            isActive
+                              ? "text-foreground"
+                              : "scale-95 text-muted-foreground sm:scale-[0.91]",
+                          )}
+                        >
+                          {line.text}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+
+        {/* Phone framing preview: the side column (with the desktop preview)
+         * is hidden below sm, so the camera floats here instead. */}
+        {camera && (
+          <div className="fixed bottom-28 left-4 z-20 w-28 overflow-hidden rounded-xl border border-border bg-card shadow-lg sm:hidden">
+            <video ref={previewPipRef} autoPlay muted playsInline className="w-full -scale-x-100" />
+            {recording && (
+              <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[0.65rem] text-foreground">
+                <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> REC
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* The take alarm stays up until the next take starts, so it's
+         * seen even if the narrator only looks over at the end. */}
+        {takeWarning && (
+          <div className="absolute inset-x-4 top-14 z-30 rounded-xl border border-red-500/60 bg-background/90 px-4 py-3 text-center text-sm font-medium text-red-400 sm:inset-x-auto sm:left-1/2 sm:w-auto sm:max-w-xl sm:-translate-x-1/2">
+            {takeWarning}
+          </div>
+        )}
+
+        {/* The take receipt: what was recorded and by which pipeline —
+         * proof the file is whole, and field diagnostics when it isn't.
+         * Tap to dismiss. */}
+        {takeReport && !taking && (
+          <button
+            type="button"
+            onClick={() => setTakeReport(null)}
+            title="Dismiss"
+            className="absolute bottom-24 left-1/2 z-30 max-w-[90vw] -translate-x-1/2 rounded-xl border border-border bg-card/95 px-4 py-2.5 text-center font-mono text-[0.7rem] text-support shadow-lg"
+          >
+            {takeReport}
+          </button>
+        )}
+
+        {countdown != null && countdown.left > 0 && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
+            <p className="font-display text-9xl text-foreground">{countdown.left}</p>
+          </div>
+        )}
+
+        {/* Touch-friendly below sm: wrap instead of overflow, larger targets. */}
+        <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border px-4 py-4 max-sm:[&>button]:p-3 sm:gap-4 sm:px-6">
+          <button
+            type="button"
+            onClick={() => jumpTo(0)}
+            aria-label="Restart script"
+            title="Restart script"
+            className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
+          >
+            <RotateCcw className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={togglePlay}
+            aria-label={playing ? "Pause" : countdown != null ? "Cancel the countdown" : "Play"}
+            title={playing ? "Pause" : countdown != null ? "Cancel the countdown" : "Play"}
+            className="rounded-full border border-transparent bg-primary p-3 text-primary-foreground transition-colors hover:bg-primary/85"
+          >
+            {playing || countdown != null ? (
+              <Pause className="size-4" />
+            ) : (
+              <Play className="size-4" />
             )}
           </button>
-        )}
-        {cameraError && <p className="text-xs text-support">{cameraError}</p>}
-      </div>
+          <button
+            type="button"
+            onClick={jumpToNextLine}
+            aria-label="Jump to the next line"
+            title="Jump to the next line"
+            className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
+          >
+            <SkipForward className="size-4" />
+          </button>
+          <div className="flex items-center gap-1 rounded-full border border-border px-1.5 py-1">
+            <button
+              type="button"
+              onClick={() => setSpeed((s) => Math.max(0.5, Math.round((s - 0.1) * 10) / 10))}
+              aria-label="Read slower"
+              title="Read slower"
+              className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
+            >
+              <Minus className="size-3.5" />
+            </button>
+            <span className="w-9 text-center text-xs tabular-nums text-muted-foreground">
+              {speed.toFixed(1)}×
+            </span>
+            <button
+              type="button"
+              onClick={() => setSpeed((s) => Math.min(2, Math.round((s + 0.1) * 10) / 10))}
+              aria-label="Read faster"
+              title="Read faster"
+              className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
+            >
+              <Plus className="size-3.5" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => (holdRef.current += 1000)}
+            aria-label="Hold this line for one more second"
+            title="Hold this line for one more second"
+            className="rounded-full border border-border px-3 py-2 text-xs tabular-nums text-support transition-colors hover:text-foreground"
+          >
+            +1s
+          </button>
+          {!record && (
+            <button
+              type="button"
+              onClick={() => void toggleCamera()}
+              aria-label={camera ? "Turn the camera off" : "Turn the camera on to film a take"}
+              title={camera ? "Turn the camera off" : "Turn the camera on to film a take"}
+              className="rounded-full border border-border p-2 text-support transition-colors hover:text-foreground"
+            >
+              {camera ? <VideoOff className="size-4" /> : <Video className="size-4" />}
+            </button>
+          )}
+          {!record && camera && (
+            <button
+              type="button"
+              onClick={taking ? stopTake : startTake}
+              aria-label={
+                taking ? "Stop recording and save the take" : "Record a take from the top"
+              }
+              title={taking ? "Stop recording and save the take" : "Record a take from the top"}
+              className="rounded-full border border-border p-2 transition-colors hover:bg-card"
+            >
+              {taking ? (
+                <Square className="size-4 fill-red-500 text-red-500" />
+              ) : (
+                <Circle className="size-4 fill-red-500 text-red-500" />
+              )}
+            </button>
+          )}
+          {cameraError && <p className="text-xs text-support">{cameraError}</p>}
+        </div>
 
-      <div className="h-1 w-full bg-muted-foreground/20">
-        <div
-          className="h-full bg-primary"
-          style={{ width: `${Math.min(100, (elapsed / total) * 100)}%` }}
-        />
+        <div className="h-1 w-full bg-muted-foreground/20">
+          <div
+            className="h-full bg-primary"
+            style={{ width: `${Math.min(100, (elapsed / total) * 100)}%` }}
+          />
+        </div>
       </div>
     </div>
   );
