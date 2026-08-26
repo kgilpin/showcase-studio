@@ -83,7 +83,19 @@ function scrubToVirtualTime(nowMs: number) {
     if (!videoStarts.has(video)) videoStarts.set(video, nowMs);
     video.pause();
     const seconds = (nowMs - videoStarts.get(video)!) / 1000;
-    video.currentTime = video.duration ? seconds % video.duration : seconds;
+    const duration = video.duration;
+    if (!duration) {
+      video.currentTime = seconds;
+    } else if (seconds >= duration && seconds < duration + 1 / 30) {
+      /* A scene pinned a hair longer than its clip puts the last frame
+       * of the capture grid at (or just past) the clip's duration; `%`
+       * would wrap that frame to the clip's START — a one-frame replay
+       * of the opening right before the scene cut. Hold the final frame
+       * instead, and keep the modulo for genuine loops. */
+      video.currentTime = duration;
+    } else {
+      video.currentTime = seconds % duration;
+    }
   }
 }
 

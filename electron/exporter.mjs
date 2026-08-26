@@ -70,6 +70,20 @@ async function loadPage(win, url) {
 async function seekAndCapture(win, ms) {
   await win.webContents.executeJavaScript(`(async () => {
     window.__record.seek(${ms});
+    /* A seek that crosses a scene boundary mounts a fresh <video>, and
+     * setting its currentTime decodes asynchronously — capture before it
+     * settles and the frame records the empty stage (a one-frame black
+     * flash at the cut). Wait until every video has its frame, with a
+     * deadline so a broken source degrades to the old behavior instead
+     * of hanging the export. */
+    const deadline = Date.now() + 2000;
+    const settled = (v) => v.readyState >= 2 && !v.seeking;
+    while (
+      !Array.from(document.querySelectorAll("video")).every(settled) &&
+      Date.now() < deadline
+    ) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   })()`);
   return win.webContents.capturePage();
