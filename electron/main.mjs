@@ -521,7 +521,7 @@ app.whenReady().then(async () => {
 
 scenes:
   - id: intro
-    theme: title
+    theme: statement
     title: ${title}
     captions:
       - text: Replace this narration with your opening line.
