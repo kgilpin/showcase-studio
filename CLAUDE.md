@@ -129,6 +129,15 @@ npm run electron:dev               # the desktop shell: starts a dev server in
   the YAML through the `scenes.edit` bridge. Undo is Cmd/Ctrl+Z
   (`src/lib/edits.ts`), per showcase and session-scoped — git commits stay
   the user's choice. External file changes still reload the whole page.
+- The showcase-authoring knowledge a Claude Code session gets inside a
+  showcases folder lives in `server/showcase-guide.mjs` (`SHOWCASE_GUIDE`,
+  written to `<folder>/.studio/GUIDE.md` on every launch). When a change
+  adds or alters something an author has to know — a theme, a media rule
+  (e.g. footage video is always muted, so voice comes from a synced
+  soundtrack), a caption style, or a whole workflow such as the
+  recorded-pitch recipe — update that guide in the same commit. A session
+  that had to read a sibling showcase or this source to learn a workflow
+  is a sign the guide is missing a section.
 - All screenshots are plain image files, imported/resolved locally. Avoid
   Lovable `.asset.json` pointer files — they resolve to `/__l5e/assets-v1/...`
   URLs that only exist inside Lovable's hosted sandbox and 404 in local

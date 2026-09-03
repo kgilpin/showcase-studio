@@ -19,6 +19,15 @@ theme.yaml (optional): whitelisted styling — colors, fonts {display, body, loa
 
 Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram; style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
 
+## Recorded pitches (on-camera footage)
+A talking-head recording (a phone selfie video) becomes a showcase like this — the pieces above don't assemble themselves, so follow the recipe:
+- Footage video always plays muted (in the player and in every export). The voice must come from meta.soundtrack: extract the audio with ffmpeg to assets/voiceover.m4a and set soundtrack: {src: voiceover, volume: 1.0, sync: true}.
+- One footage scene per idea, each with its own silent clip. Transcribe the recording, choose cut points at sentence boundaries from the word timestamps, and cut with ffmpeg, re-encoding for frame-accurate cuts (-c:v libx264 -an; a phone's rotation metadata is applied automatically). Name the clips scene-N-<idea>.mp4.
+- Pin each scene's durationMs to its clip's length, and make the durations add up to the voiceover's length. The synced soundtrack follows the scene timeline, so any gap between the two shows up as lips out of sync.
+- Each scene's caption is the clip's spoken sentence, lightly copy-edited (punctuation, casing, product names). Save the transcribe output for the voiceover verbatim as assets/<soundtrack-src>.words.json (e.g. voiceover.words.json) and set captionStyle: karaoke or reveal for word-by-word captions synced to the real voice. Words are matched in order, ignoring case and punctuation; a caption word that doesn't match (a misheard word, "long-lasting" vs "long - lasting", a URL) interpolates between its matched neighbours, and a caption falls back to synthetic pacing if fewer than half its words match — so keep the caption's word order as spoken, and fix a misheard word in the .words.json text rather than bending the caption to it.
+- To drop a false start ("Hello everybody…"), cut the clips and the voiceover from the same point so the timeline starts at zero on the first kept word.
+- Footage scenes are left out of the App Store screenshot set by default; add statement or feature scenes if the showcase also needs screenshots.
+
 ## Working rules
 - Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed. Referencing an asset or graphic that doesn't exist yet is fine: the slide renders a "missing asset" placeholder with a linter warning, and heals when the file lands in assets/.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, then reference them by key.
