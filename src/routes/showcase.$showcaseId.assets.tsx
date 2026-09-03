@@ -75,7 +75,7 @@ function AssetsScreen() {
 
   return (
     <main
-      className="min-h-dvh w-full px-6 py-14 sm:px-10"
+      className="@container min-h-dvh w-full px-6 py-14 sm:px-10"
       style={{ background: "var(--gradient-stage)" }}
     >
       <div className="mx-auto max-w-6xl">
@@ -95,7 +95,7 @@ function AssetsScreen() {
           </p>
         </header>
 
-        <div className="mt-10 flex flex-col gap-10 lg:flex-row">
+        <div className="mt-10 flex flex-col gap-10 @5xl:flex-row">
           <div className="min-w-0 flex-1">
             {missing.length > 0 && (
               <div className="mb-8 rounded-2xl border border-amber-400/40 bg-card/40 p-5">
@@ -114,7 +114,7 @@ function AssetsScreen() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 @2xl:grid-cols-3 @7xl:grid-cols-4">
               {assets.map((asset) => (
                 <button
                   key={asset.name}
@@ -276,7 +276,7 @@ function AssetDetails({
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (!asset) {
     return (
-      <aside className="w-full shrink-0 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:w-[26rem] lg:self-start lg:overflow-y-auto xl:w-[30rem]">
+      <aside className="w-full shrink-0 @5xl:sticky @5xl:top-8 @5xl:max-h-[calc(100dvh-4rem)] @5xl:w-[26rem] @5xl:self-start @5xl:overflow-y-auto @7xl:w-[30rem]">
         <p className="text-sm text-support">Select an asset to see its details.</p>
       </aside>
     );
@@ -298,7 +298,7 @@ function AssetDetails({
   };
 
   return (
-    <aside className="w-full shrink-0 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:w-[26rem] lg:self-start lg:overflow-y-auto xl:w-[30rem]">
+    <aside className="w-full shrink-0 @5xl:sticky @5xl:top-8 @5xl:max-h-[calc(100dvh-4rem)] @5xl:w-[26rem] @5xl:self-start @5xl:overflow-y-auto @7xl:w-[30rem]">
       <div className="rounded-2xl border border-border bg-card/40 p-5">
         <div className="flex max-h-96 items-center justify-center overflow-hidden rounded-lg bg-background/40">
           {asset.kind === "video" ? (
