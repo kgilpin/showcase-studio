@@ -202,7 +202,7 @@ export type Showcase = {
    *  timeline — the player keeps the audio clock at the timeline position
    *  (across skips, loops, and unmuting). Leave unset for music beds,
    *  which free-run and loop independently. */
-  soundtrack: { src: string; volume: number; sync?: boolean };
+  soundtrack?: { src: string; volume: number; sync?: boolean } | undefined;
   /** Asset key for the home-page card image (defaults to the app mark). */
   cover?: string | undefined;
   /** Resolved styling: CSS-variable overrides (names without the leading
@@ -258,7 +258,7 @@ type RawDoc = {
     title: string;
     description: string;
     loop: boolean;
-    soundtrack: { src: string; volume: number; sync?: boolean };
+    soundtrack?: { src: string; volume: number; sync?: boolean };
     cover?: string;
     /** Reading speed in words per second for derived timing (default 3). */
     pace?: number;
@@ -592,7 +592,8 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
  *  path, or a full URL. Asset keys resolve to the served asset URL; anything
  *  else passes through untouched. */
 function resolveSoundtrack(showcaseId: string, soundtrack: RawDoc["meta"]["soundtrack"]) {
-  const asset = soundtrack?.src ? assetsByShowcase.get(showcaseId)?.get(soundtrack.src) : undefined;
+  if (!soundtrack) return undefined;
+  const asset = soundtrack.src ? assetsByShowcase.get(showcaseId)?.get(soundtrack.src) : undefined;
   return asset ? { ...soundtrack, src: asset.url } : soundtrack;
 }
 
@@ -1044,7 +1045,7 @@ export function showcaseAssets(showcase: Showcase): {
     }
   }
   for (const [, entry] of entries) {
-    if (showcase.soundtrack.src && entry.url === showcase.soundtrack.src) {
+    if (showcase.soundtrack?.src && entry.url === showcase.soundtrack.src) {
       mark(usedBy, entry.file, "soundtrack");
       break;
     }

@@ -306,13 +306,15 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
             <Control label="Next scene" onClick={() => advanceRef.current()}>
               <SkipForward className="size-4" />
             </Control>
-            <Soundtrack
-              paused={paused}
-              soundtrack={showcase.soundtrack}
-              timelineMs={
-                scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
-              }
-            />
+            {showcase.soundtrack && (
+              <Soundtrack
+                paused={paused}
+                soundtrack={showcase.soundtrack}
+                timelineMs={
+                  scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
+                }
+              />
+            )}
             {canEdit && <StylePanel showcase={showcase} />}
           </div>
         </div>

@@ -121,8 +121,10 @@ function ScriptScreen() {
           <p className="mt-6 text-sm text-support">
             {scenes.length} slides · {seconds(total)} total ·{" "}
             {showcase.loop ? "loops" : "plays once"} · soundtrack{" "}
-            {showcase.soundtrack.src ? "set" : "not set"} at{" "}
-            {Math.round(showcase.soundtrack.volume * 100)}% volume · edit{" "}
+            {showcase.soundtrack?.src
+              ? `at ${Math.round(showcase.soundtrack.volume * 100)}% volume`
+              : "not set"}{" "}
+            · edit{" "}
             <code className="text-foreground/80">
               {dataMode ? "" : "showcases/"}
               {showcase.id}/showcase.yaml
