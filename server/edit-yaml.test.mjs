@@ -356,6 +356,25 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     );
   });
 
+  it("sets and removes authoring notes on a scene and the meta", () => {
+    let out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "note",
+      value: "Take 2 pending — the current clip clips the last word.",
+    });
+    out = applySceneEdit(out, { field: "meta.set", name: "notes", value: "Voiceover is stale." });
+    expect(out).toContain("note: Take 2 pending — the current clip clips the last word.");
+    expect(out).toContain("notes: Voiceover is stale.");
+    const cleared = applySceneEdit(out, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "note",
+      value: null,
+    });
+    expect(cleared).not.toContain("Take 2 pending");
+  });
+
   it("moves a scene, comments riding along", () => {
     const out = applySceneEdit(DOC, { sceneId: "intro", field: "scene.move", index: 1 });
     expect(out.indexOf("id: closing")).toBeLessThan(out.indexOf("id: intro"));

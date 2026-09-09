@@ -68,6 +68,7 @@ const SCENE_FIELDS = {
   durationMs: { kind: "duration", removable: true },
   export: { kind: "boolean", removable: true },
   cta: { kind: "map", map: { label: true, url: true, kind: false }, removable: true },
+  note: { kind: "string", removable: true },
 };
 
 const META_FIELDS = {
@@ -78,6 +79,7 @@ const META_FIELDS = {
   captionStyle: { kind: "enum", values: CAPTION_STYLES, removable: true },
   cover: { kind: "string", removable: true },
   soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
+  notes: { kind: "string", removable: true },
 };
 
 const CAPTION_FIELDS = {

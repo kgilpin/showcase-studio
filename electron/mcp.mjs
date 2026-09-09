@@ -49,7 +49,8 @@ const TOOLS = [
       "as ONE write; if any edit fails, nothing is written. Each edit is an object with " +
       "`field` plus its parameters:\n" +
       '- {field: "scene.set", sceneId, name, value} — one scene field: title, eyebrow, theme, ' +
-      "support, ctaNote, captionStyle, transition, durationMs, export, id, or cta " +
+      "support, ctaNote, captionStyle, transition, durationMs, export, id, note (the scene's " +
+      "authoring note — keep working context here, not in YAML comments), or cta " +
       "({label, url, kind?}). null removes an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom).\n" +
@@ -58,7 +59,7 @@ const TOOLS = [
       '- {field: "scene.insert", index, scene: {id, theme, captions, media, ...}}, ' +
       '{field: "scene.delete", sceneId}, and {field: "scene.move", sceneId, index}\n' +
       '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
-      "cover, or soundtrack ({src, volume?, sync?}).\n" +
+      "cover, notes (showcase-level authoring notes), or soundtrack ({src, volume?, sync?}).\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
       '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
       "The app live-reloads on the write; run validate or screenshot_slide to check the " +

@@ -130,6 +130,11 @@ function ScriptScreen() {
               {showcase.id}/showcase.yaml
             </code>
           </p>
+          {showcase.notes && (
+            <p className="mt-4 whitespace-pre-line border-l-2 border-border pl-3 text-xs leading-relaxed text-support">
+              {showcase.notes}
+            </p>
+          )}
         </header>
 
         <ol className="mt-10 space-y-8">
@@ -262,6 +267,11 @@ function ScriptScreen() {
                           {scene.title}
                         </h2>
                       )
+                    )}
+                    {scene.note && (
+                      <p className="mt-3 border-l-2 border-border pl-3 text-xs leading-relaxed text-support">
+                        {scene.note}
+                      </p>
                     )}
                     {scene.warnings && (
                       <ul className="mt-3 space-y-1 text-xs leading-relaxed text-amber-400/90">

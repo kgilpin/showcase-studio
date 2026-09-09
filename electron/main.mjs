@@ -524,7 +524,6 @@ app.whenReady().then(async () => {
   title: ${title}
   description: Describe ${title} in a sentence.
   loop: true
-  soundtrack: { src: "", volume: 0.2 }
 
 scenes:
   - id: intro

@@ -150,6 +150,12 @@ export type Scene = {
    *  names are mapped, with a linter warning). */
   theme: SceneTheme;
   eyebrow?: string;
+  /** Authoring note — context an author or agent keeps with the scene
+   *  (what a take is, what's still pending). Never rendered in the
+   *  player or any export; shown on the script page. Notes live here,
+   *  not in YAML comments: comments don't follow a scene through the
+   *  edit tool's move/delete, this field does. */
+  note?: string | undefined;
   /** On-screen display text only — never spoken, never timed. Omit it on
    *  scenes that don't display one (footage). */
   title?: string | undefined;
@@ -206,6 +212,9 @@ export type Showcase = {
   soundtrack?: { src: string; volume: number; sync?: boolean } | undefined;
   /** Asset key for the home-page card image (defaults to the app mark). */
   cover?: string | undefined;
+  /** Showcase-level authoring notes (see Scene.note) — never rendered in
+   *  the player or exports; shown on the script page. */
+  notes?: string | undefined;
   /** Resolved styling: CSS-variable overrides (names without the leading
    *  `--`) plus font stylesheet URLs to load. Combined, in order: the
    *  extended showcase's theme, this showcase's theme.yaml, and the
@@ -261,6 +270,7 @@ type RawDoc = {
     loop: boolean;
     soundtrack?: { src: string; volume: number; sync?: boolean };
     cover?: string;
+    notes?: string;
     /** Reading speed in words per second for derived timing (default 3). */
     pace?: number;
     /** Default overlay caption painting for every scene (see CaptionStyle). */
