@@ -4,34 +4,37 @@
 # Every screenshot here is the app capturing its own screens, and the
 # diagrams are TSX graphics from this showcase's graphics/ folder —
 # exactly the workflow the narration describes.
+#
+# The pitch: you can create videos of your app using the Claude Code
+# subscription you already have. Claude leads; the repo, the formats,
+# and the teleprompter are what make that possible.
 # =============================================================
 
 meta:
   title: Showcase Studio
   description: >
-    Showcase videos as code - create, edit, and version your app's video tours inside your own repo, with Claude Code embedded, git for history, and a teleprompter that travels to your phone.
+    Create videos of your app with the Claude Code subscription you already have - the video is files in your repo, Claude Code is the editor, and a teleprompter travels to your phone when it's time to record.
   loop: true
-  soundtrack: { src: "voiceover", volume: 1, sync: true }
+  captionStyle: karaoke
+  # The voiceover in assets/voiceover.mp3 was recorded to the previous
+  # script and no longer matches these lines. Re-record it (the phone
+  # teleprompter reads exactly these captions), drop it back in assets/,
+  # then restore this line and re-pin each caption's durationMs to the
+  # take:
+  # soundtrack: { src: "voiceover", volume: 1, sync: true }
 
 scenes:
-  # ---- ON CAMERA - THE SETUP ------------------------------------
-  # The narrator setting up the video, on camera. The clips aren't
-  # recorded yet, so media stays "none" for now — when the takes exist
-  # (the phone teleprompter is the tool for exactly this: these
-  # captions are the lines to read), drop them in assets/ and switch
-  # each scene's media to {kind: video, asset: <clip>, alt: ...},
-  # pinning durationMs to the clip's real length.
-  #
-  # NOTE: the voiceover track still opens with the old intro line
-  # ("Your repo is the video") - once the takes are in, their own
-  # audio is the narration for these two scenes, so re-cut
-  # assets/voiceover.mp3 to start after that line and re-pin the
-  # later captions.
+  # ---- ON CAMERA - THE HOOK -------------------------------------
+  # The narrator on camera. The clips aren't recorded yet, so media
+  # stays "none" for now — when the takes exist, drop them in assets/
+  # and switch each scene's media to {kind: video, asset: <clip>,
+  # alt: ...}, pinning durationMs to the clip's real length.
   - id: setup
     theme: footage
     eyebrow: On camera
     captions:
-      - text: Are you frustrated with video editors like CapCut? A video demo is a great way to show off your app - but creating and refining these videos is tedious.
+      - text: This video was made in a code editor. No video editor involved.
+      - text: Everything you're watching was made with Showcase Studio.
     media:
       kind: none
 
@@ -39,83 +42,35 @@ scenes:
     theme: footage
     eyebrow: On camera
     captions:
-      - text: I've integrated video production into your code repo - so the whole process is streamlined, and it's powered by the Claude Code subscription you already have.
+      - text: It's powered by Claude Code. It runs in your code repo. No video editor to learn, no new tool to pay for.
     media:
       kind: none
 
   # ---- THE CONCEPT ----------------------------------------------
-  - id: diff
+  - id: yaml
     theme: console
     eyebrow: Videos as code
     title: Change one word. Ship a new video.
     captions:
-      - text: You can update a screenshot, and re-render the video automatically.
-        durationMs: 4890
-      - text: There's no timeline to drag around - the words are the timing.
-        durationMs: 4080
+      - text: Under the hood, the video is stored as a YAML file in your repo.
+      - text: Change a line or swap a screenshot, and the video re-renders. The words are the timing; scene length comes from the script, so shortening a sentence trims the scene.
     media:
       kind: graphic
-      graphic: caption-diff
-      alt: A one-line git diff of a caption re-rendering the slide beneath it
-
-  # ---- THE PLAYER -----------------------------------------------
-  - id: player
-    theme: console
-    eyebrow: The player
-    title: One script - three output formats
-    captions:
-      - text: Video, screenshots, and captions all auto-play together.
-        durationMs: 3350
-      - text: And you can export to App Store, TikTok, and YouTube.
-        durationMs: 4040
-    media:
-      kind: graphic
-      graphic: player-formats
-      alt: One showcase.yaml fanning out to the App Store, TikTok, and YouTube renditions
+      graphic: scene-yaml
+      alt: The YAML for this very slide, syntax-highlighted, as it appears in showcase.yaml
 
   # ---- THE AGENT ------------------------------------------------
   - id: claude
     theme: console
     eyebrow: The agent
-    title: Built-in Claude Code
+    title: Ask Claude Code for the video you want
     captions:
-      - text: Claude Code is built-in for advanced editing - using the subscription you already have.
-        durationMs: 5170
-      - text: ""
-        durationMs: 6340
+      - text: Open the built-in terminal and start talking with Claude about the demo you want to make. It will use the knowledge it has about your project to help you brainstorm and create a script.
+      - text: Claude edits the script, checks the slide, and renders a draft.
     media:
       kind: graphic
       graphic: claude-terminal
       alt: An embedded Claude Code session editing a scene, checking it, and exporting a draft
-
-  # ---- THE MEDIA ------------------------------------------------
-  - id: assets
-    theme: feature
-    eyebrow: The media
-    title: Integrated asset catalog
-    captions:
-      - text: You can manage media assets, like screenshots, voiceovers, and video clips, using drag and drop.
-        durationMs: 7080
-    media:
-      kind: image
-      asset: shot-assets-portrait
-      alt: The assets page showing the media collection with usage details
-      motion: still
-
-  # ---- VERSIONING -----------------------------------------------
-  - id: git
-    theme: console
-    eyebrow: Versioning
-    title: Diff, review, commit
-    captions:
-      - text: Your entire video is git-managed files. Review, commit, and revert as you wish.
-        durationMs: 6110
-      - text: Want to try a different cut? Branch it, and review the video the way you'd review code.
-        durationMs: 5960
-    media:
-      kind: graphic
-      graphic: git-lanes
-      alt: A git commit graph of a showcase folder, with a new-cut branch merging back
 
   # ---- RECORDING ------------------------------------------------
   - id: prompter
@@ -123,10 +78,7 @@ scenes:
     eyebrow: Recording
     title: Switch to your phone for video recording
     captions:
-      - text: When it's time to record yourself, send the script to your phone.
-        durationMs: 3880
-      - text: The teleprompter scrolls at speaking pace while you film your take — wherever you are.
-        durationMs: 5330
+      - text: When it's time to record yourself, open the script in a custom URL on your phone. It scrolls the script like a teleprompter, and you can record yourself on your phone camera.
     media:
       kind: image
       asset: shot-prompter
@@ -134,12 +86,64 @@ scenes:
       motion: still
       frame: phone
 
+  # ---- THE MEDIA ------------------------------------------------
+  - id: assets
+    theme: feature
+    eyebrow: The media
+    title: Integrated asset catalog
+    captions:
+      - text: Use the Assets tab to drag and drop screenshots, voiceovers, and video clips. Then ask Claude to use the screenshot on scene 4, along with karaoke-style captions.
+    media:
+      kind: image
+      asset: shot-assets-portrait
+      alt: The assets page showing the media collection with usage details
+      motion: still
+
+  # ---- EXPORT ---------------------------------------------------
+  - id: export
+    theme: console
+    eyebrow: Export
+    title: One script - three exports
+    captions:
+      - text: One script gives you a TikTok-style video, a widescreen YouTube video, and captioned screenshots for the App Store.
+    media:
+      kind: graphic
+      graphic: player-formats
+      alt: One showcase.yaml fanning out to the App Store, TikTok, and YouTube renditions
+
+  # ---- VERSIONING -----------------------------------------------
+  - id: git
+    theme: console
+    eyebrow: Versioning
+    title: Review, commit, revert
+    captions:
+      - text: Because it's all files, your video is git-managed. Review Claude's changes, commit, or revert.
+      - text: Want to try a different cut? Branch it, and review the video the way you'd review code.
+    media:
+      kind: graphic
+      graphic: git-lanes
+      alt: A git commit graph of a showcase folder, with a new-cut branch merging back
+
+  # ---- INSTALL --------------------------------------------------
+  - id: install
+    theme: statement
+    eyebrow: Install
+    title: Get it from GitHub
+    captions:
+      - text: Download Showcase Studio from GitHub and run it in your project folder.
+    cta:
+      kind: github
+      label: View on GitHub
+      url: https://github.com/kgilpin/showcase-studio
+    ctaNote: github.com/kgilpin/showcase-studio
+    media:
+      kind: none
+
   # ---- OUTRO ----------------------------------------------------
   - id: outro
     theme: statement
     title: Showcase Studio
     captions:
-      - text: Your repo is the video.
-        durationMs: 3500
+      - text: Videos of your app, made with the Claude Code you already have.
     media:
       kind: none
