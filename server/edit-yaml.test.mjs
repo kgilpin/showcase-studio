@@ -225,3 +225,143 @@ describe("applySceneEdit structural ops", () => {
     expect(out).toContain("asset: shot-two"); // the other scene is untouched
   });
 });
+
+describe("scene.set / caption.set / meta.set / scene.move", () => {
+  it("sets a scene durationMs and preserves the rest byte-for-byte", () => {
+    const out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "durationMs",
+      value: 4890,
+    });
+    expect(out).toContain("durationMs: 4890");
+    expect(out).toContain("# FIXTURE — the header comment is load-bearing documentation.");
+    expect(out).toContain("A second line. # trailing comment");
+  });
+
+  it("removes an optional scene field on null and refuses removing a required one", () => {
+    const withEyebrow = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "eyebrow",
+      value: "On camera",
+    });
+    const out = applySceneEdit(withEyebrow, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "eyebrow",
+      value: null,
+    });
+    expect(out).toBe(DOC);
+    expect(() =>
+      applySceneEdit(DOC, { sceneId: "intro", field: "scene.set", name: "theme", value: null }),
+    ).toThrow("needs a value");
+  });
+
+  it("validates scene field values", () => {
+    expect(() =>
+      applySceneEdit(DOC, { sceneId: "intro", field: "scene.set", name: "wat", value: 1 }),
+    ).toThrow("not an editable scene field");
+    expect(() =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "scene.set",
+        name: "durationMs",
+        value: "fast",
+      }),
+    ).toThrow("whole number of milliseconds");
+    expect(() =>
+      applySceneEdit(DOC, { sceneId: "intro", field: "scene.set", name: "export", value: "no" }),
+    ).toThrow("true or false");
+    expect(() =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "scene.set",
+        name: "cta",
+        value: { label: "Get it" },
+      }),
+    ).toThrow("cta.url is required");
+    expect(() =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "scene.set",
+        name: "id",
+        value: "closing",
+      }),
+    ).toThrow("already exists");
+  });
+
+  it("writes a cta as a one-line flow map", () => {
+    const out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "cta",
+      value: { label: "Get NOVA", url: "https://novagame.app", kind: "link" },
+    });
+    expect(out).toContain("cta: { label: Get NOVA, url: https://novagame.app, kind: link }");
+  });
+
+  it("sets a caption's durationMs and position, and validates them", () => {
+    let out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "caption.set",
+      captionIndex: 0,
+      name: "durationMs",
+      value: 2470,
+    });
+    out = applySceneEdit(out, {
+      sceneId: "intro",
+      field: "caption.set",
+      captionIndex: 0,
+      name: "position",
+      value: "center",
+    });
+    expect(out).toContain("durationMs: 2470");
+    expect(out).toContain("position: center");
+    expect(() =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "caption.set",
+        captionIndex: 0,
+        name: "position",
+        value: "middle",
+      }),
+    ).toThrow("top, center, lower, bottom");
+    expect(() =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "caption.set",
+        captionIndex: 7,
+        name: "text",
+        value: "x",
+      }),
+    ).toThrow("no caption 7");
+  });
+
+  it("sets and removes meta soundtrack as a one-line flow map", () => {
+    const doc = DOC.replace('  soundtrack: { src: "voiceover", volume: 1.0, sync: true }\n', "");
+    const out = applySceneEdit(doc, {
+      field: "meta.set",
+      name: "soundtrack",
+      value: { src: "voiceover", volume: 1, sync: true },
+    });
+    expect(out).toContain("soundtrack: { src: voiceover, volume: 1, sync: true }");
+    const removed = applySceneEdit(out, { field: "meta.set", name: "soundtrack", value: null });
+    expect(removed).not.toContain("soundtrack");
+    expect(() =>
+      applySceneEdit(DOC, { field: "meta.set", name: "soundtrack", value: { volume: 1 } }),
+    ).toThrow("soundtrack.src is required");
+    expect(() => applySceneEdit(DOC, { field: "meta.set", name: "scenes", value: "x" })).toThrow(
+      "not an editable meta field",
+    );
+  });
+
+  it("moves a scene, comments riding along", () => {
+    const out = applySceneEdit(DOC, { sceneId: "intro", field: "scene.move", index: 1 });
+    expect(out.indexOf("id: closing")).toBeLessThan(out.indexOf("id: intro"));
+    expect(out).toContain("# Scene one keeps its comment.");
+    expect(() => applySceneEdit(DOC, { sceneId: "intro", field: "scene.move", index: 2 })).toThrow(
+      "out of range",
+    );
+  });
+});

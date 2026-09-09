@@ -32,6 +32,7 @@ A talking-head recording (a phone selfie video) becomes a showcase like this —
 - Footage scenes are left out of the App Store screenshot set by default; add statement or feature scenes if the showcase also needs screenshots.
 
 ## Working rules
+- Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's comments and formatting. What the tool can't express (comment banners, wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
 - Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed. Referencing an asset or graphic that doesn't exist yet is fine: the slide renders a "missing asset" placeholder with a linter warning, and heals when the file lands in assets/.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, then reference them by key.
 - Keep narration natural to read aloud, and slides focused — one idea per slide.
@@ -97,9 +98,13 @@ ${
 - The studio exposes MCP tools (server "showcase-studio", preloaded in
   studio-opened sessions; a session you start yourself gets them with
   \`claude --mcp-config .studio/mcp.json\` from the library root):
-  screenshot_slide {showcaseId, sceneId} returns a rendered image of one
-  slide — use it after editing a slide, theme, or TSX diagram to see your
-  work; validate reports which showcases load and the error for any that
+  edit_showcase {showcaseId, edits} applies a list of structured
+  showcase.yaml edits — scene fields, captions, meta, scene
+  insert/move/delete — as one validated, comment-preserving write (see
+  the tool's own description for the edit shapes); screenshot_slide
+  {showcaseId, sceneId} returns a rendered image of one slide — use it
+  after editing a slide, theme, or TSX diagram to see your work;
+  validate reports which showcases load and the error for any that
   don't — use it after YAML edits; script {showcaseId} returns the
   narration as share-ready plain text (scene headers + spoken lines).
 - Exports run through the MCP export tools as background jobs: export

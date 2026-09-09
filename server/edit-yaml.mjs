@@ -34,10 +34,130 @@
  *                                                   painting, chip|karaoke
  *                                                   (empty deletes; no
  *                                                   sceneId — it's meta)
+ *   { field: "scene.set",   name, value }           one whitelisted scene
+ *                                                   field (SCENE_FIELDS);
+ *                                                   null/"" removes an
+ *                                                   optional one
+ *   { field: "caption.set", captionIndex, name, value }
+ *                                                   captions[i].text /
+ *                                                   durationMs / position
+ *   { field: "meta.set",    name, value }           one whitelisted meta
+ *                                                   field (META_FIELDS)
+ *   { field: "scene.move",  index }                 move the scene to the
+ *                                                   index (no sceneId in
+ *                                                   the target; the scene
+ *                                                   is the addressed one)
  */
 import { isMap, isSeq, parseDocument } from "yaml";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
+const CAPTION_POSITIONS = ["top", "center", "lower", "bottom"];
+
+/* The field whitelists behind scene.set / meta.set / caption.set: how a
+ * value validates, and whether an empty value removes the field. `map`
+ * lists the keys an object value may carry (those marked true required). */
+const SCENE_FIELDS = {
+  id: { kind: "string" },
+  theme: { kind: "string" },
+  title: { kind: "string", removable: true },
+  eyebrow: { kind: "string", removable: true },
+  support: { kind: "string", removable: true },
+  ctaNote: { kind: "string", removable: true },
+  captionStyle: { kind: "enum", values: CAPTION_STYLES, removable: true },
+  transition: { kind: "string", removable: true },
+  durationMs: { kind: "duration", removable: true },
+  export: { kind: "boolean", removable: true },
+  cta: { kind: "map", map: { label: true, url: true, kind: false }, removable: true },
+};
+
+const META_FIELDS = {
+  title: { kind: "string" },
+  description: { kind: "string" },
+  loop: { kind: "boolean", removable: true },
+  pace: { kind: "number", removable: true },
+  captionStyle: { kind: "enum", values: CAPTION_STYLES, removable: true },
+  cover: { kind: "string", removable: true },
+  soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
+};
+
+const CAPTION_FIELDS = {
+  text: { kind: "string" },
+  durationMs: { kind: "duration", removable: true },
+  position: { kind: "enum", values: CAPTION_POSITIONS, removable: true },
+};
+
+/** Validates one whitelisted-field value. Returns `{ remove: true }` for
+ *  an empty value on a removable field, else `{ value }` ready for
+ *  createNode. Throws with a plain message otherwise. */
+function checkFieldValue(fields, where, name, value) {
+  const spec = fields[name];
+  if (!spec) {
+    throw new Error(
+      `"${name}" is not an editable ${where} field — one of: ${Object.keys(fields).join(", ")}`,
+    );
+  }
+  if (value == null || value === "" || (typeof value === "string" && !value.trim())) {
+    if (!spec.removable) throw new Error(`${where}.${name} needs a value`);
+    return { remove: true };
+  }
+  const label = `${where}.${name}`;
+  switch (spec.kind) {
+    case "string":
+      if (typeof value !== "string") throw new Error(`${label} must be text`);
+      return { value: value.trim() };
+    case "enum":
+      if (!spec.values.includes(value)) {
+        throw new Error(`${label} must be one of: ${spec.values.join(", ")}`);
+      }
+      return { value };
+    case "duration":
+      if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`${label} must be a whole number of milliseconds`);
+      }
+      return { value };
+    case "number":
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+        throw new Error(`${label} must be a positive number`);
+      }
+      return { value };
+    case "boolean":
+      if (typeof value !== "boolean") throw new Error(`${label} must be true or false`);
+      return { value };
+    case "map": {
+      if (typeof value !== "object" || Array.isArray(value)) {
+        throw new Error(`${label} must be a map of ${Object.keys(spec.map).join(", ")}`);
+      }
+      for (const key of Object.keys(value)) {
+        if (!(key in spec.map)) {
+          throw new Error(
+            `${label}.${key} is not a field — ${label} takes: ${Object.keys(spec.map).join(", ")}`,
+          );
+        }
+      }
+      for (const [key, required] of Object.entries(spec.map)) {
+        if (required && (typeof value[key] !== "string" || !value[key])) {
+          throw new Error(`${label}.${key} is required`);
+        }
+      }
+      return { value, flow: true };
+    }
+    /* v8 ignore next 2 -- every whitelist entry above names a kind */
+    default:
+      throw new Error(`${label} has no validator`);
+  }
+}
+
+/** setIn with removal-on-empty; object values keep the one-line flow
+ *  style the authored files use (soundtrack: { src: ..., ... }). */
+function setChecked(doc, basePath, checked) {
+  if (checked.remove) {
+    doc.deleteIn(basePath);
+    return;
+  }
+  const node = doc.createNode(checked.value);
+  if (checked.flow) node.flow = true;
+  doc.setIn(basePath, node);
+}
 
 /** Applies one scene edit to showcase.yaml text and returns the new text.
  *  Throws with a plain message when the edit can't be applied. */
@@ -53,6 +173,7 @@ export function applySceneEdit(
     index: insertIndex,
     scene,
     media,
+    name,
   } = {},
 ) {
   const needsValue = ["title", "caption", "media.asset", "meta.captionStyle"].includes(field);
@@ -68,6 +189,15 @@ export function applySceneEdit(
     if (!isMap(doc.get("meta"))) throw new Error("showcase.yaml has no meta section");
     if (value) doc.setIn(["meta", "captionStyle"], value);
     else doc.deleteIn(["meta", "captionStyle"]);
+    return doc.toString({ lineWidth: 0 });
+  }
+
+  if (field === "meta.set") {
+    const checked = checkFieldValue(META_FIELDS, "meta", name, value);
+    const doc = parseDocument(text);
+    if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
+    if (!isMap(doc.get("meta"))) throw new Error("showcase.yaml has no meta section");
+    setChecked(doc, ["meta", name], checked);
     return doc.toString({ lineWidth: 0 });
   }
 
@@ -155,6 +285,28 @@ export function applySceneEdit(
       captionIndex < captions.items.length;
     if (!exists) throw new Error(`Scene "${sceneId}" has no caption ${captionIndex}`);
     captions.items.splice(captionIndex, 1);
+  } else if (field === "scene.set") {
+    const checked = checkFieldValue(SCENE_FIELDS, "scene", name, value);
+    if (name === "id" && !checked.remove) {
+      const clash = scenes.items.some(
+        (item, i) => i !== index && isMap(item) && item.get("id") === checked.value,
+      );
+      if (clash) throw new Error(`A scene with the id "${checked.value}" already exists`);
+    }
+    setChecked(doc, ["scenes", index, name], checked);
+  } else if (field === "caption.set") {
+    const checked = checkFieldValue(CAPTION_FIELDS, "caption", name, value);
+    const captions = doc.getIn(["scenes", index, "captions"]);
+    const line =
+      isSeq(captions) && Number.isInteger(captionIndex) ? captions.items[captionIndex] : undefined;
+    if (!isMap(line)) throw new Error(`Scene "${sceneId}" has no caption ${captionIndex}`);
+    setChecked(doc, ["scenes", index, "captions", captionIndex, name], checked);
+  } else if (field === "scene.move") {
+    if (!Number.isInteger(insertIndex) || insertIndex < 0 || insertIndex >= scenes.items.length) {
+      throw new Error(`Scene index ${insertIndex} is out of range`);
+    }
+    const [moved] = scenes.items.splice(index, 1);
+    scenes.items.splice(insertIndex, 0, moved);
   } else if (field === "scene.delete") {
     scenes.items.splice(index, 1);
   } else if (field === "media.asset") {

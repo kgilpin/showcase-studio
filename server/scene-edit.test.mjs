@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
+import { applySceneEditsToFolder, applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
 
 const DOC = `# The header comment survives every edit.
 meta:
@@ -138,5 +138,56 @@ describe("applySceneEditToFolder with theme edits", () => {
     const result = themeEdit({ baseHash: contentHash(THEME) });
     expect(result.ok).toBe(false);
     expect(result.error).toContain("theme.yaml changed on disk");
+  });
+});
+
+describe("applySceneEditsToFolder", () => {
+  const batch = (edits, payload, hooks) =>
+    applySceneEditsToFolder(dir, { showcaseId: "demo", edits, ...payload }, hooks);
+
+  it("applies every edit as one write and returns the count and hash", () => {
+    const writes = [];
+    const result = batch(
+      [
+        { sceneId: "intro", field: "scene.set", name: "durationMs", value: 2470 },
+        { sceneId: "intro", field: "caption.set", captionIndex: 0, name: "position", value: "top" },
+        { field: "meta.set", name: "loop", value: false },
+      ],
+      {},
+      { beforeWrite: (f, text) => writes.push(text) },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.applied).toBe(3);
+    const written = readFileSync(file, "utf8");
+    expect(result.hash).toBe(contentHash(written));
+    expect(writes).toHaveLength(1); // one write, not one per edit
+    expect(written).toContain("durationMs: 2470");
+    expect(written).toContain("position: top");
+    expect(written).toContain("loop: false");
+    expect(written).toContain("# The header comment survives every edit.");
+  });
+
+  it("writes nothing when any edit fails, and names the failing edit", () => {
+    const result = batch([
+      { sceneId: "intro", field: "scene.set", name: "durationMs", value: 2470 },
+      { sceneId: "intro", field: "scene.set", name: "durationMs", value: "fast" },
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("Edit 2 of 2 (scene.set)");
+    expect(result.error).toContain("no edits were applied");
+    expect(readFileSync(file, "utf8")).toBe(DOC);
+  });
+
+  it("refuses an empty batch, theme edits, and a stale baseHash", () => {
+    expect(batch([]).error).toBe("No edits given");
+    expect(batch([{ field: "theme", group: "colors", name: "caption-text" }]).error).toContain(
+      "theme.yaml",
+    );
+    const stale = batch(
+      [{ sceneId: "intro", field: "scene.set", name: "durationMs", value: 1000 }],
+      { baseHash: contentHash("other") },
+    );
+    expect(stale.ok).toBe(false);
+    expect(readFileSync(file, "utf8")).toBe(DOC);
   });
 });

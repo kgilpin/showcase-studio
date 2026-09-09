@@ -16,6 +16,7 @@
 import { BrowserWindow, screen } from "electron";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { applySceneEditsToFolder } from "../server/scene-edit.mjs";
 import { scriptText } from "./exporter.mjs";
 import { transcribe, whisperPath } from "./transcribe.mjs";
 
@@ -35,6 +36,49 @@ const TOOLS = [
         sceneId: { type: "string", description: "The scene id from showcase.yaml" },
       },
       required: ["showcaseId", "sceneId"],
+    },
+  },
+  {
+    name: "edit_showcase",
+    description:
+      "Apply structured edits to a showcase.yaml — the same comment-preserving write path as " +
+      "in-app editing. Use this instead of hand-editing, sed, or scripts for changes it can " +
+      "express: every comment, blank line, and quote style elsewhere in the file survives, " +
+      "values are validated, and a bad edit is refused with the reason. The edits apply in " +
+      "order (later edits see earlier ones — an insert shifts the indexes after it) and land " +
+      "as ONE write; if any edit fails, nothing is written. Each edit is an object with " +
+      "`field` plus its parameters:\n" +
+      '- {field: "scene.set", sceneId, name, value} — one scene field: title, eyebrow, theme, ' +
+      "support, ctaNote, captionStyle, transition, durationMs, export, id, or cta " +
+      "({label, url, kind?}). null removes an optional field.\n" +
+      '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
+      "durationMs, or position (top|center|lower|bottom).\n" +
+      '- {field: "caption.insert", sceneId, captionIndex, caption: {text, ...}} and ' +
+      '{field: "caption.delete", sceneId, captionIndex}\n' +
+      '- {field: "scene.insert", index, scene: {id, theme, captions, media, ...}}, ' +
+      '{field: "scene.delete", sceneId}, and {field: "scene.move", sceneId, index}\n' +
+      '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
+      "cover, or soundtrack ({src, volume?, sync?}).\n" +
+      '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
+      '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
+      "The app live-reloads on the write; run validate or screenshot_slide to check the " +
+      "result. theme.yaml and comments are not covered — edit those directly.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        edits: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: { field: { type: "string" } },
+            required: ["field"],
+          },
+          description: "The edits, applied in order as one write (see the tool description)",
+        },
+      },
+      required: ["showcaseId", "edits"],
     },
   },
   {
@@ -246,6 +290,14 @@ const TRANSCRIBE_TIMEOUT_MS = 300_000;
 const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 
 async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: args = {} } = {}) {
+  if (name === "edit_showcase") {
+    const result = applySceneEditsToFolder(getShowcasesDir(), {
+      showcaseId: args.showcaseId,
+      edits: args.edits,
+    });
+    if (!result.ok) throw new Error(result.error);
+    return json({ applied: result.applied });
+  }
   if (name === "script") {
     return {
       content: [

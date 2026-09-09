@@ -55,3 +55,52 @@ export function applySceneEditToFolder(dir, payload, { beforeWrite } = {}) {
     return { ok: false, error: String(error?.message ?? error) };
   }
 }
+
+/** Applies a list of showcase.yaml edits as ONE write — the MCP edit
+ *  tool's backend. Edits apply in order (later edits see earlier ones,
+ *  so an insert shifts the indexes that follow it); if any edit fails,
+ *  nothing is written and the error names the failing edit. Returns
+ *  `{ ok: true, applied, hash }` or `{ ok: false, error }`; never
+ *  throws. */
+export function applySceneEditsToFolder(dir, payload, { beforeWrite } = {}) {
+  try {
+    const showcaseId = String(payload?.showcaseId ?? "");
+    if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) {
+      return { ok: false, error: "Bad showcase id" };
+    }
+    const edits = payload?.edits;
+    if (!Array.isArray(edits) || edits.length === 0) {
+      return { ok: false, error: "No edits given" };
+    }
+    const file = path.join(dir, showcaseId, "showcase.yaml");
+    if (!existsSync(file)) {
+      return { ok: false, error: `No showcase named "${showcaseId}"` };
+    }
+    const current = readFileSync(file, "utf8");
+    if (payload?.baseHash && contentHash(current) !== payload.baseHash) {
+      console.warn(`scene-edit refused: ${showcaseId}/showcase.yaml changed on disk`);
+      return { ok: false, error: "showcase.yaml changed on disk — the edits were not applied" };
+    }
+    let text = current;
+    for (const [i, edit] of edits.entries()) {
+      if (edit?.field === "theme") {
+        return { ok: false, error: "theme edits don't batch — edit theme.yaml directly" };
+      }
+      try {
+        text = applySceneEdit(text, edit);
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            `Edit ${i + 1} of ${edits.length} (${String(edit?.field ?? "?")}): ` +
+            `${String(error?.message ?? error)} — no edits were applied`,
+        };
+      }
+    }
+    beforeWrite?.(file, text);
+    writeFileSync(file, text);
+    return { ok: true, applied: edits.length, hash: contentHash(text) };
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error) };
+  }
+}
