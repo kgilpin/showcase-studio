@@ -13,71 +13,68 @@ scenes:
     theme: footage
     eyebrow: On camera
     note: >-
-      The on-camera clips aren't recorded yet, so media stays kind: none on
-      this scene and "handoff". When the takes exist, drop them in assets/,
-      switch each scene's media to kind: video with the clip's asset key,
-      and pin durationMs to the clip's real length.
+      The on-camera clips aren't recorded yet, so media stays kind: none on this scene and "studio". When the takes exist, drop them in assets/, switch each scene's media to kind: video with the clip's asset key, and pin durationMs to the clip's real length.
     captions:
-      - text: This video was made in a code editor. No video editor involved.
-      - text: Everything you're watching was made with Showcase Studio.
+      - text: This video was made with Claude Code, right inside the app's own repo. I didn't use a video editor.
     media:
       kind: none
-
-  - id: handoff
+  - id: studio
     theme: footage
-    eyebrow: On camera
     captions:
-      - text: It's powered by Claude Code. It runs in your code repo. No video editor to learn, no new tool to pay for.
+      - text: I used Showcase Studio, an open source app that turns your project folder into a video.
+      - text: Claude Code does the editing. There's no video editor to learn, and no new tool to pay for.
     media:
       kind: none
-
-  - id: yaml
-    theme: console
-    eyebrow: Videos as code
-    title: Change one word. Ship a new video.
-    captions:
-      - text: Under the hood, the video is stored as a YAML file in your repo.
-      - text: Change a line or swap a screenshot, and the video re-renders. The words are the timing; scene length comes from the script, so shortening a sentence trims the scene.
-    media:
-      kind: graphic
-      graphic: scene-yaml
-      alt: The YAML for this very slide, syntax-highlighted, as it appears in showcase.yaml
+    eyebrow: What it is
 
   - id: claude
     theme: console
     eyebrow: The agent
     title: Ask Claude Code for the video you want
     captions:
-      - text: Open the built-in terminal and start talking with Claude about the demo you want to make. It will use the knowledge it has about your project to help you brainstorm and create a script.
-      - text: Claude edits the script, checks the slide, and renders a draft.
+      - text: Open the built-in Claude terminal and start talking about the video you want to make.
+      - text: Claude will use the knowledge it has about your project to help you brainstorm and create a script.
     media:
       kind: graphic
       graphic: claude-terminal
       alt: An embedded Claude Code session editing a scene, checking it, and exporting a draft
+
+  - id: yaml
+    theme: console
+    eyebrow: Videos as code
+    title: Change one word. Ship a new video.
+    captions:
+      - text: The video is a YAML file in your repo. Here's the YAML that makes this scene.
+      - text: Change a line or swap a screenshot, and the video re-renders.
+      - text: The words define the timing. A scene lasts as long as it takes to say its lines, so shortening a sentence shortens the scene.
+    media:
+      kind: graphic
+      graphic: scene-yaml
+      alt: The YAML for this very slide, syntax-highlighted, as it appears in showcase.yaml
 
   - id: prompter
     theme: feature
     eyebrow: Recording
     title: Switch to your phone for video recording
     captions:
-      - text: When it's time to record yourself, open the script in a custom URL on your phone. It scrolls the script like a teleprompter, and you can record yourself on your phone camera.
+      - text: When it's time to record yourself, open the script in a custom URL on your phone.
+      - text: It scrolls the script like a teleprompter, and you can record yourself on your phone camera.
     media:
       kind: image
       asset: shot-prompter
       alt: The teleprompter on a phone, scrolling the script with pacing controls
       motion: still
       frame: phone
-
   - id: assets
     theme: feature
     eyebrow: The media
-    title: Integrated asset catalog
+    title: Your recordings, in the project
     captions:
-      - text: Use the Assets tab to drag and drop screenshots, voiceovers, and video clips. Then ask Claude to use the screenshot on scene 4, along with karaoke-style captions.
+      - text: Add the recording to your project assets, and it's ready to include in the video.
     media:
       kind: image
       asset: shot-assets-portrait
-      alt: The assets page showing the media collection with usage details
+      alt: The assets page listing the project's screenshots, recordings, and where each is used
       motion: still
 
   - id: export
@@ -103,24 +100,14 @@ scenes:
       graphic: git-lanes
       alt: A git commit graph of a showcase folder, with a new-cut branch merging back
 
-  - id: install
-    theme: statement
-    eyebrow: Install
-    title: Get it from GitHub
-    captions:
-      - text: Download Showcase Studio from GitHub and run it in your project folder.
-    cta:
-      kind: github
-      label: View on GitHub
-      url: https://github.com/kgilpin/showcase-studio
-    ctaNote: github.com/kgilpin/showcase-studio
-    media:
-      kind: none
-
   - id: outro
     theme: statement
     title: Showcase Studio
     captions:
       - text: Videos of your app, made with the Claude Code you already have.
+      - text: Download it from GitHub and run it in your project folder.
     media:
       kind: none
+    eyebrow: Get it
+    cta: { kind: github, label: View on GitHub, url: https://github.com/kgilpin/showcase-studio }
+    ctaNote: github.com/kgilpin/showcase-studio

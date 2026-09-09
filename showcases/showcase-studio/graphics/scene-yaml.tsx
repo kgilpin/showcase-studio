@@ -9,10 +9,13 @@ export default function SceneYaml() {
     [4, "theme:", " console"],
     [4, "title:", " Change one word. Ship a new video."],
     [4, "captions:", ""],
-    [6, "- text:", " Under the hood, the video is"],
-    [14, "", "stored as a YAML file in your repo."],
-    [6, "- text:", " Change a line or swap a screenshot,"],
-    [14, "", "and the video re-renders."],
+    [6, "- text:", " The video is a YAML file in your repo."],
+    [14, "", "Here's the YAML that makes this scene."],
+    [6, "- text:", " Change a line or swap a screenshot, and"],
+    [14, "", "the video re-renders."],
+    [6, "- text:", " The words are the timing. A scene lasts as"],
+    [14, "", "long as it takes to say its lines, so"],
+    [14, "", "shortening a sentence shortens the scene."],
     [4, "media:", ""],
     [6, "kind:", " graphic"],
     [6, "graphic:", " scene-yaml"],
@@ -72,8 +75,8 @@ export default function SceneYaml() {
             <p
               key={i}
               style={{
-                fontSize: "2.55cqw",
-                lineHeight: 1.7,
+                fontSize: "2.25cqw",
+                lineHeight: 1.65,
                 whiteSpace: "pre",
                 margin: 0,
               }}
