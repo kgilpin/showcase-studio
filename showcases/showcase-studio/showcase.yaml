@@ -1,37 +1,22 @@
-# =============================================================
-# SHOWCASE STUDIO — the studio, showcased by itself.
-#
-# Every screenshot here is the app capturing its own screens, and the
-# diagrams are TSX graphics from this showcase's graphics/ folder —
-# exactly the workflow the narration describes.
-#
-# The pitch: you can create videos of your app using the Claude Code
-# subscription you already have. Claude leads; the repo, the formats,
-# and the teleprompter are what make that possible.
-# =============================================================
-
 meta:
   title: Showcase Studio
   description: >
     Create videos of your app with the Claude Code subscription you already have - the video is files in your repo, Claude Code is the editor, and a teleprompter travels to your phone when it's time to record.
   loop: true
   captionStyle: karaoke
-  # The voiceover in assets/voiceover.mp3 was recorded to the previous
-  # script and no longer matches these lines. Re-record it (the phone
-  # teleprompter reads exactly these captions), drop it back in assets/,
-  # then restore this line and re-pin each caption's durationMs to the
-  # take:
-  # soundtrack: { src: "voiceover", volume: 1, sync: true }
+  notes: |-
+    The studio, showcased by itself: every screenshot is the app capturing its own screens, and the diagrams are TSX graphics from this showcase's graphics/ folder — exactly the workflow the narration describes. The pitch: you can create videos of your app using the Claude Code subscription you already have.
+    The voiceover in assets/voiceover.mp3 was recorded to the previous script and no longer matches these lines. Re-record it (the phone teleprompter reads exactly these captions), drop it back in assets/, then set "soundtrack: { src: voiceover, volume: 1, sync: true }" and re-pin each caption's durationMs to the take.
 
 scenes:
-  # ---- ON CAMERA - THE HOOK -------------------------------------
-  # The narrator on camera. The clips aren't recorded yet, so media
-  # stays "none" for now — when the takes exist, drop them in assets/
-  # and switch each scene's media to {kind: video, asset: <clip>,
-  # alt: ...}, pinning durationMs to the clip's real length.
   - id: setup
     theme: footage
     eyebrow: On camera
+    note: >-
+      The on-camera clips aren't recorded yet, so media stays kind: none on
+      this scene and "handoff". When the takes exist, drop them in assets/,
+      switch each scene's media to kind: video with the clip's asset key,
+      and pin durationMs to the clip's real length.
     captions:
       - text: This video was made in a code editor. No video editor involved.
       - text: Everything you're watching was made with Showcase Studio.
@@ -46,7 +31,6 @@ scenes:
     media:
       kind: none
 
-  # ---- THE CONCEPT ----------------------------------------------
   - id: yaml
     theme: console
     eyebrow: Videos as code
@@ -59,7 +43,6 @@ scenes:
       graphic: scene-yaml
       alt: The YAML for this very slide, syntax-highlighted, as it appears in showcase.yaml
 
-  # ---- THE AGENT ------------------------------------------------
   - id: claude
     theme: console
     eyebrow: The agent
@@ -72,7 +55,6 @@ scenes:
       graphic: claude-terminal
       alt: An embedded Claude Code session editing a scene, checking it, and exporting a draft
 
-  # ---- RECORDING ------------------------------------------------
   - id: prompter
     theme: feature
     eyebrow: Recording
@@ -86,7 +68,6 @@ scenes:
       motion: still
       frame: phone
 
-  # ---- THE MEDIA ------------------------------------------------
   - id: assets
     theme: feature
     eyebrow: The media
@@ -99,7 +80,6 @@ scenes:
       alt: The assets page showing the media collection with usage details
       motion: still
 
-  # ---- EXPORT ---------------------------------------------------
   - id: export
     theme: console
     eyebrow: Export
@@ -111,7 +91,6 @@ scenes:
       graphic: player-formats
       alt: One showcase.yaml fanning out to the App Store, TikTok, and YouTube renditions
 
-  # ---- VERSIONING -----------------------------------------------
   - id: git
     theme: console
     eyebrow: Versioning
@@ -124,7 +103,6 @@ scenes:
       graphic: git-lanes
       alt: A git commit graph of a showcase folder, with a new-cut branch merging back
 
-  # ---- INSTALL --------------------------------------------------
   - id: install
     theme: statement
     eyebrow: Install
@@ -139,7 +117,6 @@ scenes:
     media:
       kind: none
 
-  # ---- OUTRO ----------------------------------------------------
   - id: outro
     theme: statement
     title: Showcase Studio

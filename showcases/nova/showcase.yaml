@@ -1,48 +1,13 @@
-# =============================================================
-# NOVA — Space Strategy Game
-#
-# Desktop screenshots use the "console" theme (wide landscape panel);
-# the one portrait mobile shot uses "feature" (phone frame).
-# Console scenes are left out of the App Store export (`export: false`)
-# because the export stage is phone-portrait.
-#
-# Field reference — each entry under `scenes:` is one slide:
-# meta.cover .... asset key for the home-page card image (defaults to the
-#                 app mark)
-# meta.theme .... optional quick styling overrides, e.g.
-#                 theme: { primary: "..." }. Prefer theme.yaml next to this
-#                 file — it documents the themeable keys and also supports
-#                 inheriting another showcase's theme and loading fonts.
-# (captions always show beside the slide in the player — the viewer can
-#  toggle them onto it. The screenshot export overlays captions unless run
-#  with --captions=off, see scripts/export-screens.mjs.)
-# theme ......... "title" | "feature" | "statement" | "console" (required,
-#                 see showcases.ts)
-# durationMs .... how long the whole slide stays on screen
-# captions ...... overlay lines, shown in order. Each may set its own
-#                 durationMs; captions without one split the leftover time.
-# media.asset ... file name (without extension) of an image in this
-#                 showcase's assets/ folder, e.g. shot-starmap
-# media.motion .. zoom-in | zoom-out | pan-up | pan-left | still
-# media.frame ... phone | full | mark
-# media.fit ..... cover (default, crops to fill) | contain (whole image shown)
-# media.align ... top | center | bottom — which part of the screenshot to keep
-#                 when it is cropped to fit ("bottom" clips the top instead)
-# captions[].position ... top | center | lower | bottom (default) — where the
-#                 caption sits vertically on the slide ("lower" = 60% down)
-# export ........ set false to leave a scene out of the App Store screenshot
-#                 export (see the /export page and `npm run export:screens`)
-# =============================================================
-
 meta:
   title: NOVA — Space Strategy Game
   description: An auto-playing showcase of NOVA, a real-time game of galactic conquest.
   loop: true
-  # Overlay captions brighten word by word (TikTok view + video exports).
   captionStyle: karaoke
-  soundtrack:
-    src: ""
-    volume: 0.18
+  notes: >-
+    Desktop screenshots use the console theme (wide landscape panel); the
+    one portrait mobile shot uses feature (phone frame). Console scenes
+    are left out of the App Store export (export: false) because the
+    export stage is phone-portrait.
 
 scenes:
   - id: opening-1

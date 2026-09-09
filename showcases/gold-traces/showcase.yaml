@@ -1,31 +1,3 @@
-# =============================================================
-# GOLD TRACES SHOWCASE — SCRIPT
-#
-# A showcase for the AppMap "gold traces" behavioral-review skills
-# (appmap-gold-traces + appmap-review), focused on what runtime
-# trace diffing catches that static analysis and LLM code review
-# cannot. Grounded in the skill docs at
-# ~/source/appland/skills/appmap-gold-traces.
-#
-# Media is a mix of real captures (assets/, ~1600x1000 landscape)
-# and TSX-drawn diagrams (graphics/, kind: graphic — CSS-animated,
-# themed via CSS variables). Remaining placeholder assets are
-# labeled .svg files — replace each by deleting the .svg and adding
-# the real capture as .png.
-#
-# ASSETS:
-#   appmap-mark           the AppMap round mark (from appmap.io)
-#   shot-manifest         gold_traces/manifest.yaml — curated entries (real)
-#   shot-sql              AppMap sequence diagram with SQL + timings (real)
-#   shot-sanitize         sanitized recording JSON, <v1>/<v8> tokens (real)
-#
-# GRAPHICS:
-#   lifecycle             record → digest compare → bless/seed/unchanged
-#   side-effects          diff vs. recorded call graph; out-of-scope call
-#   absence               baseline path with authorize() vs. new path without
-#   deterministic         sequence diagram + what the digest ignores
-# =============================================================
-
 meta:
   title: Gold Traces — Review the behavior, not the diff
   description: >-
@@ -33,9 +5,9 @@ meta:
     every release. Catches the side effects, dropped guards, and new
     queries that green tests and code review miss.
   loop: true
-  soundtrack:
-    src: ""
-    volume: 0.18
+  notes: |-
+    A showcase for the AppMap gold-traces behavioral-review skills (appmap-gold-traces + appmap-review), focused on what runtime trace diffing catches that static analysis and LLM code review cannot. Grounded in the skill docs at ~/source/appland/skills/appmap-gold-traces.
+    Media is a mix of real captures (assets/, ~1600x1000 landscape) and TSX-drawn diagrams (graphics/). Remaining placeholder assets are labeled .svg files — replace each by deleting the .svg and adding the real capture as .png. The assets page lists the collection with per-scene usage.
 
 scenes:
   - id: opening-1
