@@ -9,10 +9,12 @@ import {
 import { SceneMedia } from "./SceneMedia";
 import { EditableText } from "@/components/studio/EditableText";
 import appStoreBadge from "@/assets/app-store-badge.svg";
+import githubBadge from "@/assets/github-badge.svg";
 
-/** CTA content: the App Store badge by default, or a labeled pill button
- *  for `kind: link` (products with no store listing). Shared with the
- *  4:3 embed canvas (EmbedSceneView). */
+/** CTA content: the App Store badge by default, the "View on GitHub"
+ *  badge for `kind: github`, or a labeled pill button for `kind: link`
+ *  (any other destination). Shared with the 4:3 embed canvas
+ *  (EmbedSceneView). */
 export function CtaContent({
   cta,
   badgeClass,
@@ -34,6 +36,9 @@ export function CtaContent({
         {cta.label}
       </span>
     );
+  }
+  if (cta.kind === "github") {
+    return <img src={githubBadge} alt={cta.label} className={badgeClass} />;
   }
   return <img src={appStoreBadge} alt={cta.label} className={badgeClass} />;
 }

@@ -179,12 +179,13 @@ export type Scene = {
   /** Small, low-emphasis line shown under the call to action. */
   ctaNote?: string;
   /** Optional call-to-action link shown below the body on statement scenes.
-   *  kind "app-store" (default) renders the App Store badge; "link" renders
-   *  a plain labeled button for products with no store listing. */
+   *  kind "app-store" (default) renders the App Store badge; "github" the
+   *  "View on GitHub" badge; "link" a plain labeled button for any other
+   *  destination. */
   cta?: {
     label: string;
     url: string;
-    kind?: "app-store" | "link";
+    kind?: "app-store" | "github" | "link";
   };
 };
 
