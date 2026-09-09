@@ -46,7 +46,7 @@ import { loadSettings, saveSettings } from "./settings.mjs";
 import { createExportJobs } from "../server/export-jobs.mjs";
 import { createMcpHandler } from "./mcp.mjs";
 import { whisperPath } from "./transcribe.mjs";
-import { studioGuide } from "../server/showcase-guide.mjs";
+import { hasStaleInlineGuide, studioGuide } from "../server/showcase-guide.mjs";
 
 /* In dev the macOS menu-bar TITLE still reads "Electron" (it comes from
  * the binary's Info.plist and can't change at runtime — a packaged build
@@ -164,9 +164,17 @@ const GUIDE_IMPORT = "@.studio/GUIDE.md";
 
 function ensureShowcasesDir() {
   mkdirSync(path.join(showcasesDir, ".studio"), { recursive: true });
+  const claudeMdPath = path.join(showcasesDir, "CLAUDE.md");
+  const claudeMd = existsSync(claudeMdPath) ? readFileSync(claudeMdPath, "utf8") : null;
   writeFileSync(
     path.join(showcasesDir, ".studio", "GUIDE.md"),
-    studioGuide({ version: appVersion, srcDir: repoRoot, ffmpegPath, showcasesDir }),
+    studioGuide({
+      version: appVersion,
+      srcDir: repoRoot,
+      ffmpegPath,
+      showcasesDir,
+      staleClaudeMd: claudeMd != null && hasStaleInlineGuide(claudeMd),
+    }),
   );
   /* The studio's MCP tools; studio-opened terminals load this via
    * --mcp-config, and a user-started `claude` can point at it too. */
@@ -191,8 +199,7 @@ function ensureShowcasesDir() {
   } else if (!readFileSync(gitignorePath, "utf8").includes(".studio/")) {
     appendFileSync(gitignorePath, ".studio/\n");
   }
-  const claudeMdPath = path.join(showcasesDir, "CLAUDE.md");
-  if (!existsSync(claudeMdPath)) {
+  if (claudeMd == null) {
     writeFileSync(
       claudeMdPath,
       `# Showcases folder
@@ -204,7 +211,7 @@ The line above imports the studio's always-current instructions
 add notes specific to this library below, and the studio won't touch them.
 `,
     );
-  } else if (!readFileSync(claudeMdPath, "utf8").includes(GUIDE_IMPORT)) {
+  } else if (!claudeMd.includes(GUIDE_IMPORT)) {
     appendFileSync(
       claudeMdPath,
       `\n${GUIDE_IMPORT}\n<!-- The studio's always-current instructions (regenerated every launch) — keep this import. -->\n`,

@@ -9,9 +9,9 @@ Each showcase is a folder: <id>/showcase.yaml (the script), optional theme.yaml 
 
 showcase.yaml:
 - meta: title, description, loop, soundtrack {src, volume, sync?}, optional pace (narration reading speed in words/second, default 2.5). soundtrack.src may be an asset key, a root-relative path, or a URL; sync: true marks it a voiceover locked to the scene timeline (skips/loops/unmutes stay in sync) — leave unset for free-running music beds.
-- scenes: a list of slides with fields: id; theme; optional title (on-screen display text ONLY — never spoken, never timed; omit it on scenes that don't display one); optional eyebrow (a label shown only on the teleprompter and script pages — never on slides); captions (the narration: list of {text, durationMs?, position? top|center|lower|bottom}); optional captionStyle (chip | karaoke | reveal — worded styles paint overlay captions word by word, paced by the reading model, or exactly synced when assets/<soundtrack-src>.words.json holds the transcribe tool's word timestamps; meta.captionStyle sets it showcase-wide). Caption colors are themeable in theme.yaml: colors.caption-chip / caption-text / caption-word, and atmosphere.gradient-stage is the slide background; media; optional support (small supporting line, statement slides); optional cta {label, url}; export: false leaves the scene out of the App Store screenshot set (the video always includes every scene; footage scenes default out — export: true opts one back in); durationMs pins a slide's timing explicitly; transition: rise opts a slide into the rise/drift-in entrance animation (off by default so scenes cut cleanly).
+- scenes: a list of slides with fields: id; theme; optional title (on-screen display text ONLY — never spoken, never timed; omit it on scenes that don't display one); optional eyebrow (a label shown only on the teleprompter and script pages — never on slides); captions (the narration: list of {text, durationMs?, position? top|center|lower|bottom}); optional captionStyle (chip | karaoke | reveal — worded styles paint overlay captions word by word, paced by the reading model, or exactly synced when assets/<soundtrack-src>.words.json holds the transcribe tool's word timestamps; meta.captionStyle sets it showcase-wide). Caption colors are themeable in theme.yaml: colors.caption-chip / caption-text / caption-word, and atmosphere.gradient-stage is the slide background; media; optional support (small supporting line, statement slides); optional cta {label, url, kind?} plus ctaNote (a small note line under the button) — kind defaults to app-store, which draws the App Store badge; kind: github draws a "View on GitHub" badge with GitHub's mark; kind: link draws a labeled pill button for any other destination — every theme renders them: statement centers them under the text, the stacked layouts pin them below the media; export: false leaves the scene out of the App Store screenshot set (the video always includes every scene; footage scenes default out — export: true opts one back in); durationMs pins a slide's timing explicitly; transition: rise opts a slide into the rise/drift-in entrance animation (off by default so scenes cut cleanly).
 - Themes are layouts, nothing more: "statement" — centered display text (claims, intros, outros; optional app-mark media above the title, full-bleed media becomes a dimmed backdrop; optional CTA); "feature" — title header over a phone-framed screenshot; "console" — title above a wide landscape media panel (desktop screenshots, TSX diagrams); "footage" — the media IS the slide, edge-to-edge with no title (on-camera segments; captions act as subtitles in the video presentation). "title" is a legacy alias for statement. A theme linter warns (diagnostics tray at the bottom of the app, and per-scene in the player and validate tool) on legacy or incoherent themes but always renders — never leave warnings unresolved.
-- media: {kind: none} or {kind: image|video, asset: <key>, alt, motion? zoom-in|zoom-out|pan-up|pan-left|still, frame? phone|full|mark, fit? cover|contain, align? top|center|bottom, fadeTo? {asset, alt, align?}}. motion defaults to zoom-in for images and still for video.
+- media: {kind: none} or {kind: image|video, asset: <key>, alt, motion? zoom-in|zoom-out|pan-up|pan-left|still, frame? phone|full|mark, fit? cover|contain, align? top|center|bottom, fadeTo? {asset, alt, align?}}. motion defaults to zoom-in for images and still for video. fadeTo works on image media only — a video never fades to a still.
 - Captions are the narration, read verbatim in order — one continuous voiceover across the whole showcase; they are the ONLY spoken lines (titles never are). The player previews the export destinations as three view modes: App Screens (titles on the slide, captions in the transcript column), TikTok (captions overlaid, titles hidden), and 4:3 (the embed canvas, which composes its own captions). A caption identical to the scene's displayed title is not drawn on the slide (the title already says it) but is still narration.
 - Timing derives from the copy by default: each caption prices out at its reading time (words at meta.pace plus settle and punctuation beats), and a slide is exactly long enough to speak its lines. Only pin durationMs when there is a concrete reason (e.g. syncing to a recorded voiceover).
 
@@ -22,10 +22,13 @@ Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React com
 ## Recorded pitches (on-camera footage)
 A talking-head recording (a phone selfie video) becomes a showcase like this — the pieces above don't assemble themselves, so follow the recipe:
 - Footage video always plays muted (in the player and in every export). The voice must come from meta.soundtrack: extract the audio with ffmpeg to assets/voiceover.m4a and set soundtrack: {src: voiceover, volume: 1.0, sync: true}.
-- One footage scene per idea, each with its own silent clip. Transcribe the recording, choose cut points at sentence boundaries from the word timestamps, and cut with ffmpeg, re-encoding for frame-accurate cuts (-c:v libx264 -an; a phone's rotation metadata is applied automatically). Name the clips scene-N-<idea>.mp4.
+- Transcribe the ORIGINAL recording once and work from that single transcript for everything — cut points, captions, and the words file. Re-transcribing audio you've already cut can mishear words the full recording got right; when the timeline starts later than the recording (a trimmed false start), subtract the trim offset from the timestamps instead.
+- One footage scene per idea, each with its own silent clip. Choose cut points at sentence boundaries from the word timestamps, and cut with ffmpeg, re-encoding for frame-accurate cuts (-c:v libx264 -an; a phone's rotation metadata is applied automatically). Name the clips scene-N-<idea>.mp4.
+- The portrait stage is 1320×2868 (aspect ≈ 0.46) — narrower than a 9:16 phone clip, so the default fit: cover crops about 18% of the clip's width. To letterbox instead with ~10% bands top and bottom, crop the clip to the stage width over 80% of the stage height (1320:2294 ≈ 0.575 — a 1080×1920 clip crops to 1080×1878) and set fit: contain; the speaker's size on screen doesn't change, cover just trades the width loss for the bands.
 - Pin each scene's durationMs to its clip's length, and make the durations add up to the voiceover's length. The synced soundtrack follows the scene timeline, so any gap between the two shows up as lips out of sync.
-- Each scene's caption is the clip's spoken sentence, lightly copy-edited (punctuation, casing, product names). Save the transcribe output for the voiceover verbatim as assets/<soundtrack-src>.words.json (e.g. voiceover.words.json) and set captionStyle: karaoke or reveal for word-by-word captions synced to the real voice. Words are matched in order, ignoring case and punctuation; a caption word that doesn't match (a misheard word, "long-lasting" vs "long - lasting", a URL) interpolates between its matched neighbours, and a caption falls back to synthetic pacing if fewer than half its words match — so keep the caption's word order as spoken, and fix a misheard word in the .words.json text rather than bending the caption to it.
+- Each scene's caption is the clip's spoken sentence, lightly copy-edited (punctuation, casing, product names). Save the original recording's transcript, timestamps shifted by any trim offset so time zero is the voiceover's first sample, as assets/<soundtrack-src>.words.json (e.g. voiceover.words.json) and set captionStyle: karaoke or reveal for word-by-word captions synced to the real voice. Words are matched in order, ignoring case and punctuation; a caption word that doesn't match (a misheard word, "long-lasting" vs "long - lasting", a URL) interpolates between its matched neighbours, and a caption falls back to synthetic pacing if fewer than half its words match — so keep the caption's word order as spoken, and fix a misheard word in the .words.json text rather than bending the caption to it.
 - To drop a false start ("Hello everybody…"), cut the clips and the voiceover from the same point so the timeline starts at zero on the first kept word.
+- For a silent scene after the speaker finishes (an end card with the CTA, say), pad the voiceover with trailing silence (ffmpeg -af apad) so the scene durations still sum to the audio length. A scene with pinned durationMs may have captions: [].
 - Footage scenes are left out of the App Store screenshot set by default; add statement or feature scenes if the showcase also needs screenshots.
 
 ## Working rules
@@ -34,10 +37,17 @@ A talking-head recording (a phone selfie video) becomes a showcase like this —
 - Keep narration natural to read aloud, and slides focused — one idea per slide.
 - This folder may be a git repository the user manages themselves — never run destructive git operations; your job is the content files.`;
 
+/** True when a user-owned CLAUDE.md still carries an inline copy of the
+ *  data model from a pre-split seed — those copies drift from the app
+ *  and contradict the generated guide. */
+export function hasStaleInlineGuide(claudeMd) {
+  return claudeMd.includes("## The data model");
+}
+
 /** The studio-maintained guide file, regenerated on every app launch so
  *  it always describes the running app: environment facts (paths, tools)
  *  followed by the authoring guide above. */
-export function studioGuide({ version, srcDir, ffmpegPath, showcasesDir }) {
+export function studioGuide({ version, srcDir, ffmpegPath, showcasesDir, staleClaudeMd }) {
   return `<!-- Generated by Showcase Studio ${version} at every launch — do not edit;
      changes are overwritten. Your own notes belong in ../CLAUDE.md. -->
 
@@ -49,6 +59,19 @@ live-reloads whenever a file here changes, so edits appear immediately.
 Sessions opened by the studio start inside a specific showcase's folder —
 paths are then relative to that showcase (showcase.yaml, assets/,
 graphics/). The library root is ${showcasesDir}.
+${
+  staleClaudeMd
+    ? `
+> WARNING: this library's CLAUDE.md still contains an outdated inline
+> copy of the studio's instructions (a "## The data model" section from
+> an old seed), and parts of it contradict this guide — for example it
+> may claim slide titles are spoken. THIS guide is generated by the
+> running app and wins every conflict. Suggest to the user cutting
+> CLAUDE.md down to the @.studio/GUIDE.md import plus notes specific to
+> this library.
+`
+    : ""
+}
 
 ## The studio environment
 - The studio app's complete source is at ${srcDir} (also in

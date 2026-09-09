@@ -3,6 +3,10 @@
 ## Setup and commands
 
 Requires Node.js and npm ([install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)).
+Node 22 is required — a bare `node` on PATH can resolve to an ancient
+version (v12 has appeared in shells here, which can't even parse the
+server modules), so run checks through the npm scripts or Volta's Node
+(`volta run node …`).
 
 ```sh
 npm i            # install dependencies
