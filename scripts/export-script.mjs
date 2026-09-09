@@ -12,6 +12,7 @@
  * Reads the YAML directly — no dev server needed. Output goes to stdout;
  * redirect it to a file to share.
  */
+import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -21,7 +22,12 @@ import { resolveSceneTiming } from "../src/content/timing.mjs";
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const showcasesDir = path.join(root, "showcases");
 const available = (await readdir(showcasesDir, { withFileTypes: true }))
-  .filter((entry) => entry.isDirectory())
+  /* A showcase is a folder with a showcase.yaml — this skips .studio
+   * (the studio generates it in any library it opens) and stray dirs. */
+  .filter(
+    (entry) =>
+      entry.isDirectory() && existsSync(path.join(showcasesDir, entry.name, "showcase.yaml")),
+  )
   .map((entry) => entry.name)
   .sort();
 
