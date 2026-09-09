@@ -116,7 +116,11 @@ export function registerTerminal(ipcMain, win, { getCwd, getEnv, getMcpConfig })
       cols: cols || 80,
       rows: rows || 24,
       cwd,
-      env: { ...process.env, TERM: "xterm-256color", ...getEnv?.() },
+      /* COLORFGBG is the conventional "light text on dark background"
+       * hint (iTerm sets it too) — TUI apps that theme themselves by
+       * detected background read it, and the embedded xterm is always
+       * the studio's dark panel. */
+      env: { ...process.env, TERM: "xterm-256color", COLORFGBG: "15;0", ...getEnv?.() },
     });
     const session = { proc, buffer: "", resumed, cwd };
     sessions.set(id, session);

@@ -34,7 +34,33 @@ export function TerminalPane({
         fontSize: 12,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
         cursorBlink: true,
-        theme: { background: "#0a0e19" },
+        /* A complete dark theme, not just a background: with only
+         * `background` set, everything else keeps xterm defaults tuned
+         * for pure white foreground — inverse-video blocks (Claude
+         * Code's running-tool highlight) came out white-on-white. */
+        theme: {
+          background: "#0a0e19",
+          foreground: "#d7dee8",
+          cursor: "#d7dee8",
+          cursorAccent: "#0a0e19",
+          selectionBackground: "#2b3b55",
+          black: "#0a0e19",
+          red: "#f07178",
+          green: "#7fd88f",
+          yellow: "#e6c07b",
+          blue: "#6fa8ff",
+          magenta: "#c792ea",
+          cyan: "#56c8d8",
+          white: "#c3ccd8",
+          brightBlack: "#5c6773",
+          brightRed: "#ff8b92",
+          brightGreen: "#9ee8ac",
+          brightYellow: "#f3d18a",
+          brightBlue: "#8fbcff",
+          brightMagenta: "#d9a9f5",
+          brightCyan: "#7fdbea",
+          brightWhite: "#eef2f7",
+        },
       });
       const fit = new FitAddon();
       term.loadAddon(fit);
