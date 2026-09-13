@@ -106,7 +106,10 @@ export default defineConfig(({ command, mode }) => ({
     showcaseData(),
   ],
   server: {
-    host: "::",
+    /* Bind every interface. Node picks :: when IPv6 exists and 0.0.0.0
+     * when it doesn't, so IPv4-only containers (hosted Claude sandboxes)
+     * start too. A literal "::" fails there. */
+    host: true,
     port: 8080,
     watch: {
       /* Folders the app never imports from must not wake the dev server's
