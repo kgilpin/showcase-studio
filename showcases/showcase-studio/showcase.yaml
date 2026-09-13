@@ -6,25 +6,35 @@ meta:
   captionStyle: karaoke
   notes: |-
     The studio, showcased by itself: every screenshot is the app capturing its own screens, and the diagrams are TSX graphics from this showcase's graphics/ folder — exactly the workflow the narration describes. The pitch: you can create videos of your app using the Claude Code subscription you already have.
-    The voiceover in assets/voiceover.mp3 was recorded to the previous script and no longer matches these lines. Re-record it (the phone teleprompter reads exactly these captions), drop it back in assets/, then set "soundtrack: { src: voiceover, volume: 1, sync: true }" and re-pin each caption's durationMs to the take.
+    The voiceover is assets/voiceover.m4a, the audio track of showcase-studio-take-2.mp4 copied out unchanged, so time zero is the take's first frame. The narrator reads the whole script in one pass; every caption's durationMs is pinned to the word timestamps (cut points at sentence boundaries), and the durations sum to 93163 ms, the take's length. assets/voiceover.words.json holds the take's whisper word timestamps for the karaoke captions. The two footage scenes play clips cut from the same take at the same boundaries. To re-record: read this script on the phone teleprompter, replace the take, re-cut, and re-pin.
+  soundtrack: { src: voiceover, volume: 1, sync: true }
 
 scenes:
   - id: setup
     theme: footage
     eyebrow: On camera
     note: >-
-      The on-camera clips aren't recorded yet, so media stays kind: none on this scene and "studio". When the takes exist, drop them in assets/, switch each scene's media to kind: video with the clip's asset key, and pin durationMs to the clip's real length.
+      Cut from assets/showcase-studio-take-2.mp4 (a 1280x720 landscape webcam take) at 0-7.9 s, the sentence boundary before "I used Showcase Studio". The scene-2 clip is the next 11.9 s. fit: contain keeps the landscape framing on the portrait stage.
     captions:
-      - text: This video was made with Claude Code, right inside the app's own repo. I didn't use a video editor.
+      - text: This video was made with Claude Code, right inside my app's own repo. I didn't use a video editor.
+        durationMs: 7900
     media:
-      kind: none
+      kind: video
+      asset: scene-1-setup
+      alt: "The narrator on camera: this video was made with Claude Code inside the app's own repo"
+      fit: contain
   - id: studio
     theme: footage
     captions:
       - text: I used Showcase Studio, an open source app that turns your project folder into a video.
+        durationMs: 6100
       - text: Claude Code does the editing. There's no video editor to learn, and no new tool to pay for.
+        durationMs: 5800
     media:
-      kind: none
+      kind: video
+      asset: scene-2-studio
+      alt: The narrator on camera introducing Showcase Studio
+      fit: contain
     eyebrow: What it is
 
   - id: claude
@@ -33,7 +43,9 @@ scenes:
     title: Ask Claude Code for the video you want
     captions:
       - text: Open the built-in Claude terminal and start talking about the video you want to make.
+        durationMs: 5200
       - text: Claude will use the knowledge it has about your project to help you brainstorm and create a script.
+        durationMs: 5800
     media:
       kind: graphic
       graphic: claude-terminal
@@ -45,8 +57,11 @@ scenes:
     title: Change one word. Ship a new video.
     captions:
       - text: The video is a YAML file in your repo. Here's the YAML that makes this scene.
+        durationMs: 5200
       - text: Change a line or swap a screenshot, and the video re-renders.
-      - text: The words define the timing. A scene lasts as long as it takes to say its lines, so shortening a sentence shortens the scene.
+        durationMs: 4000
+      - text: The words define the timing. A scene lasts as long as it takes to say its lines, so shortening a sentence shortens a scene.
+        durationMs: 7900
     media:
       kind: graphic
       graphic: scene-yaml
@@ -58,7 +73,9 @@ scenes:
     title: Switch to your phone for video recording
     captions:
       - text: When it's time to record yourself, open the script in a custom URL on your phone.
+        durationMs: 6100
       - text: It scrolls the script like a teleprompter, and you can record yourself on your phone camera.
+        durationMs: 4900
     media:
       kind: image
       asset: shot-prompter
@@ -71,6 +88,7 @@ scenes:
     title: Your recordings, in the project
     captions:
       - text: Add the recording to your project assets, and it's ready to include in the video.
+        durationMs: 5000
     media:
       kind: image
       asset: shot-assets-portrait
@@ -83,6 +101,7 @@ scenes:
     title: One script - three exports
     captions:
       - text: One script gives you a TikTok-style video, a widescreen YouTube video, and captioned screenshots for the App Store.
+        durationMs: 8000
     media:
       kind: graphic
       graphic: player-formats
@@ -94,7 +113,9 @@ scenes:
     title: Review, commit, revert
     captions:
       - text: Because it's all files, your video is git-managed. Review Claude's changes, commit, or revert.
+        durationMs: 7100
       - text: Want to try a different cut? Branch it, and review the video the way you'd review code.
+        durationMs: 5800
     media:
       kind: graphic
       graphic: git-lanes
@@ -105,7 +126,9 @@ scenes:
     title: Showcase Studio
     captions:
       - text: Videos of your app, made with the Claude Code you already have.
+        durationMs: 4200
       - text: Download it from GitHub and run it in your project folder.
+        durationMs: 4163
     media:
       kind: none
     eyebrow: Get it

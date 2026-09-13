@@ -1,0 +1,1302 @@
+{
+ "source": "whisper.cpp base.en over showcase-studio-take-2.mp4 (time zero = voiceover start); subword tokens merged",
+ "segments": [
+  {
+   "text": "This video was made with Cloud Code right inside my app's own repo I didn't use a video editor I used Showcase Studio an open source app that turns your project folder into a video Cloud Code does the editing there's no video editor to learn and no new tool to pay for Open the builtin Cloud Terminal and start talking about the video you want to make Cloud will use the knowledge it has about your project to help you brainstorm and create a script The video is a YAML file in your repo Here's the YAML that makes this scene Change a line or swap a screenshot and the video rerenders The words define the timing a scene lasts as long as it takes to say its lines so shortening a sentence shortens a scene When it's time to record yourself open the script in a custom URL on your phone It scrolls the script like a teleprompter and you can record yourself on your phone camera Add the recording to your project assets and it's ready to include in the video One script gives you a TikTok style video a widescreen YouTube video and caption screenshots for the App Store Because it's all files your video is get managed Review Cloud's changes commit or revert On to try a different cut branch it and review the video the way you'd review code Videos of your app made with the cloud code you already have Download it from GetUp and run it in your project folder",
+   "startMs": 160,
+   "endMs": 92700,
+   "words": [
+    {
+     "text": "This",
+     "startMs": 160,
+     "endMs": 340
+    },
+    {
+     "text": "video",
+     "startMs": 440,
+     "endMs": 880
+    },
+    {
+     "text": "was",
+     "startMs": 1090,
+     "endMs": 1300
+    },
+    {
+     "text": "made",
+     "startMs": 1370,
+     "endMs": 1760
+    },
+    {
+     "text": "with",
+     "startMs": 1760,
+     "endMs": 2200
+    },
+    {
+     "text": "Cloud",
+     "startMs": 2200,
+     "endMs": 2750
+    },
+    {
+     "text": "Code",
+     "startMs": 2750,
+     "endMs": 3020
+    },
+    {
+     "text": "right",
+     "startMs": 3700,
+     "endMs": 3840
+    },
+    {
+     "text": "inside",
+     "startMs": 3840,
+     "endMs": 4320
+    },
+    {
+     "text": "my",
+     "startMs": 4320,
+     "endMs": 4480
+    },
+    {
+     "text": "app's",
+     "startMs": 4480,
+     "endMs": 4890
+    },
+    {
+     "text": "own",
+     "startMs": 4890,
+     "endMs": 5110
+    },
+    {
+     "text": "repo",
+     "startMs": 5140,
+     "endMs": 5420
+    },
+    {
+     "text": "I",
+     "startMs": 6040,
+     "endMs": 6080
+    },
+    {
+     "text": "didn't",
+     "startMs": 6160,
+     "endMs": 6540
+    },
+    {
+     "text": "use",
+     "startMs": 6540,
+     "endMs": 6790
+    },
+    {
+     "text": "a",
+     "startMs": 6790,
+     "endMs": 6870
+    },
+    {
+     "text": "video",
+     "startMs": 7090,
+     "endMs": 7260
+    },
+    {
+     "text": "editor",
+     "startMs": 7260,
+     "endMs": 7730
+    },
+    {
+     "text": "I",
+     "startMs": 8040,
+     "endMs": 8100
+    },
+    {
+     "text": "used",
+     "startMs": 8110,
+     "endMs": 8520
+    },
+    {
+     "text": "Showcase",
+     "startMs": 8520,
+     "endMs": 9300
+    },
+    {
+     "text": "Studio",
+     "startMs": 9370,
+     "endMs": 10000
+    },
+    {
+     "text": "an",
+     "startMs": 10120,
+     "endMs": 10210
+    },
+    {
+     "text": "open",
+     "startMs": 10220,
+     "endMs": 10450
+    },
+    {
+     "text": "source",
+     "startMs": 10450,
+     "endMs": 10800
+    },
+    {
+     "text": "app",
+     "startMs": 10800,
+     "endMs": 10990
+    },
+    {
+     "text": "that",
+     "startMs": 10990,
+     "endMs": 11030
+    },
+    {
+     "text": "turns",
+     "startMs": 11180,
+     "endMs": 11430
+    },
+    {
+     "text": "your",
+     "startMs": 11640,
+     "endMs": 11640
+    },
+    {
+     "text": "project",
+     "startMs": 11710,
+     "endMs": 12370
+    },
+    {
+     "text": "folder",
+     "startMs": 12370,
+     "endMs": 13000
+    },
+    {
+     "text": "into",
+     "startMs": 13000,
+     "endMs": 13300
+    },
+    {
+     "text": "a",
+     "startMs": 13300,
+     "endMs": 13370
+    },
+    {
+     "text": "video",
+     "startMs": 13370,
+     "endMs": 13440
+    },
+    {
+     "text": "Cloud",
+     "startMs": 14160,
+     "endMs": 14340
+    },
+    {
+     "text": "Code",
+     "startMs": 14420,
+     "endMs": 14670
+    },
+    {
+     "text": "does",
+     "startMs": 15040,
+     "endMs": 15040
+    },
+    {
+     "text": "the",
+     "startMs": 15090,
+     "endMs": 15280
+    },
+    {
+     "text": "editing",
+     "startMs": 15280,
+     "endMs": 15830
+    },
+    {
+     "text": "there's",
+     "startMs": 16000,
+     "endMs": 16470
+    },
+    {
+     "text": "no",
+     "startMs": 16470,
+     "endMs": 16600
+    },
+    {
+     "text": "video",
+     "startMs": 16600,
+     "endMs": 16940
+    },
+    {
+     "text": "editor",
+     "startMs": 16940,
+     "endMs": 17030
+    },
+    {
+     "text": "to",
+     "startMs": 17330,
+     "endMs": 17480
+    },
+    {
+     "text": "learn",
+     "startMs": 17700,
+     "endMs": 17820
+    },
+    {
+     "text": "and",
+     "startMs": 18000,
+     "endMs": 18210
+    },
+    {
+     "text": "no",
+     "startMs": 18210,
+     "endMs": 18350
+    },
+    {
+     "text": "new",
+     "startMs": 18350,
+     "endMs": 18560
+    },
+    {
+     "text": "tool",
+     "startMs": 18560,
+     "endMs": 18840
+    },
+    {
+     "text": "to",
+     "startMs": 18840,
+     "endMs": 19000
+    },
+    {
+     "text": "pay",
+     "startMs": 19000,
+     "endMs": 19330
+    },
+    {
+     "text": "for",
+     "startMs": 19330,
+     "endMs": 19430
+    },
+    {
+     "text": "Open",
+     "startMs": 20160,
+     "endMs": 20270
+    },
+    {
+     "text": "the",
+     "startMs": 20270,
+     "endMs": 20470
+    },
+    {
+     "text": "builtin",
+     "startMs": 20470,
+     "endMs": 21000
+    },
+    {
+     "text": "Cloud",
+     "startMs": 21090,
+     "endMs": 21290
+    },
+    {
+     "text": "Terminal",
+     "startMs": 21370,
+     "endMs": 21890
+    },
+    {
+     "text": "and",
+     "startMs": 21890,
+     "endMs": 22090
+    },
+    {
+     "text": "start",
+     "startMs": 22090,
+     "endMs": 22430
+    },
+    {
+     "text": "talking",
+     "startMs": 22430,
+     "endMs": 22910
+    },
+    {
+     "text": "about",
+     "startMs": 22910,
+     "endMs": 23020
+    },
+    {
+     "text": "the",
+     "startMs": 23170,
+     "endMs": 23450
+    },
+    {
+     "text": "video",
+     "startMs": 23700,
+     "endMs": 23790
+    },
+    {
+     "text": "you",
+     "startMs": 23790,
+     "endMs": 23990
+    },
+    {
+     "text": "want",
+     "startMs": 23990,
+     "endMs": 24260
+    },
+    {
+     "text": "to",
+     "startMs": 24260,
+     "endMs": 24390
+    },
+    {
+     "text": "make",
+     "startMs": 24390,
+     "endMs": 24640
+    },
+    {
+     "text": "Cloud",
+     "startMs": 25110,
+     "endMs": 25340
+    },
+    {
+     "text": "will",
+     "startMs": 25440,
+     "endMs": 25540
+    },
+    {
+     "text": "use",
+     "startMs": 25640,
+     "endMs": 25850
+    },
+    {
+     "text": "the",
+     "startMs": 26060,
+     "endMs": 26060
+    },
+    {
+     "text": "knowledge",
+     "startMs": 26090,
+     "endMs": 26700
+    },
+    {
+     "text": "it",
+     "startMs": 26700,
+     "endMs": 26830
+    },
+    {
+     "text": "has",
+     "startMs": 26840,
+     "endMs": 27050
+    },
+    {
+     "text": "about",
+     "startMs": 27050,
+     "endMs": 27210
+    },
+    {
+     "text": "your",
+     "startMs": 27410,
+     "endMs": 27630
+    },
+    {
+     "text": "project",
+     "startMs": 27700,
+     "endMs": 28010
+    },
+    {
+     "text": "to",
+     "startMs": 28180,
+     "endMs": 28310
+    },
+    {
+     "text": "help",
+     "startMs": 28610,
+     "endMs": 28610
+    },
+    {
+     "text": "you",
+     "startMs": 28710,
+     "endMs": 28820
+    },
+    {
+     "text": "brainstorm",
+     "startMs": 28820,
+     "endMs": 29540
+    },
+    {
+     "text": "and",
+     "startMs": 29540,
+     "endMs": 29730
+    },
+    {
+     "text": "create",
+     "startMs": 29760,
+     "endMs": 30110
+    },
+    {
+     "text": "a",
+     "startMs": 30190,
+     "endMs": 30250
+    },
+    {
+     "text": "script",
+     "startMs": 30250,
+     "endMs": 30430
+    },
+    {
+     "text": "The",
+     "startMs": 31160,
+     "endMs": 31170
+    },
+    {
+     "text": "video",
+     "startMs": 31180,
+     "endMs": 31490
+    },
+    {
+     "text": "is",
+     "startMs": 31490,
+     "endMs": 31580
+    },
+    {
+     "text": "a",
+     "startMs": 31650,
+     "endMs": 31660
+    },
+    {
+     "text": "YAML",
+     "startMs": 31660,
+     "endMs": 31910
+    },
+    {
+     "text": "file",
+     "startMs": 32090,
+     "endMs": 32150
+    },
+    {
+     "text": "in",
+     "startMs": 32150,
+     "endMs": 32270
+    },
+    {
+     "text": "your",
+     "startMs": 32270,
+     "endMs": 32510
+    },
+    {
+     "text": "repo",
+     "startMs": 32510,
+     "endMs": 32750
+    },
+    {
+     "text": "Here's",
+     "startMs": 33040,
+     "endMs": 33520
+    },
+    {
+     "text": "the",
+     "startMs": 33520,
+     "endMs": 33780
+    },
+    {
+     "text": "YAML",
+     "startMs": 33780,
+     "endMs": 34110
+    },
+    {
+     "text": "that",
+     "startMs": 34110,
+     "endMs": 34460
+    },
+    {
+     "text": "makes",
+     "startMs": 34460,
+     "endMs": 34890
+    },
+    {
+     "text": "this",
+     "startMs": 34890,
+     "endMs": 35210
+    },
+    {
+     "text": "scene",
+     "startMs": 35410,
+     "endMs": 35680
+    },
+    {
+     "text": "Change",
+     "startMs": 36160,
+     "endMs": 36340
+    },
+    {
+     "text": "a",
+     "startMs": 36440,
+     "endMs": 36510
+    },
+    {
+     "text": "line",
+     "startMs": 36510,
+     "endMs": 36800
+    },
+    {
+     "text": "or",
+     "startMs": 36800,
+     "endMs": 36940
+    },
+    {
+     "text": "swap",
+     "startMs": 37090,
+     "endMs": 37230
+    },
+    {
+     "text": "a",
+     "startMs": 37230,
+     "endMs": 37280
+    },
+    {
+     "text": "screenshot",
+     "startMs": 37370,
+     "endMs": 38030
+    },
+    {
+     "text": "and",
+     "startMs": 38170,
+     "endMs": 38230
+    },
+    {
+     "text": "the",
+     "startMs": 38410,
+     "endMs": 38610
+    },
+    {
+     "text": "video",
+     "startMs": 38610,
+     "endMs": 38950
+    },
+    {
+     "text": "rerenders",
+     "startMs": 38970,
+     "endMs": 39700
+    },
+    {
+     "text": "The",
+     "startMs": 40160,
+     "endMs": 40230
+    },
+    {
+     "text": "words",
+     "startMs": 40230,
+     "endMs": 40540
+    },
+    {
+     "text": "define",
+     "startMs": 41080,
+     "endMs": 41080
+    },
+    {
+     "text": "the",
+     "startMs": 41090,
+     "endMs": 41290
+    },
+    {
+     "text": "timing",
+     "startMs": 41380,
+     "endMs": 41770
+    },
+    {
+     "text": "a",
+     "startMs": 41920,
+     "endMs": 41990
+    },
+    {
+     "text": "scene",
+     "startMs": 41990,
+     "endMs": 42210
+    },
+    {
+     "text": "lasts",
+     "startMs": 42410,
+     "endMs": 42770
+    },
+    {
+     "text": "as",
+     "startMs": 42770,
+     "endMs": 42920
+    },
+    {
+     "text": "long",
+     "startMs": 42920,
+     "endMs": 43030
+    },
+    {
+     "text": "as",
+     "startMs": 43170,
+     "endMs": 43370
+    },
+    {
+     "text": "it",
+     "startMs": 43370,
+     "endMs": 43530
+    },
+    {
+     "text": "takes",
+     "startMs": 43710,
+     "endMs": 43920
+    },
+    {
+     "text": "to",
+     "startMs": 43920,
+     "endMs": 44050
+    },
+    {
+     "text": "say",
+     "startMs": 44100,
+     "endMs": 44300
+    },
+    {
+     "text": "its",
+     "startMs": 44300,
+     "endMs": 44530
+    },
+    {
+     "text": "lines",
+     "startMs": 44530,
+     "endMs": 45000
+    },
+    {
+     "text": "so",
+     "startMs": 45040,
+     "endMs": 45110
+    },
+    {
+     "text": "shortening",
+     "startMs": 45160,
+     "endMs": 45930
+    },
+    {
+     "text": "a",
+     "startMs": 46000,
+     "endMs": 46000
+    },
+    {
+     "text": "sentence",
+     "startMs": 46090,
+     "endMs": 46630
+    },
+    {
+     "text": "shortens",
+     "startMs": 46630,
+     "endMs": 47210
+    },
+    {
+     "text": "a",
+     "startMs": 47250,
+     "endMs": 47260
+    },
+    {
+     "text": "scene",
+     "startMs": 47410,
+     "endMs": 47680
+    },
+    {
+     "text": "When",
+     "startMs": 48160,
+     "endMs": 48260
+    },
+    {
+     "text": "it's",
+     "startMs": 48260,
+     "endMs": 48520
+    },
+    {
+     "text": "time",
+     "startMs": 48520,
+     "endMs": 48780
+    },
+    {
+     "text": "to",
+     "startMs": 48780,
+     "endMs": 48910
+    },
+    {
+     "text": "record",
+     "startMs": 49090,
+     "endMs": 49300
+    },
+    {
+     "text": "yourself",
+     "startMs": 49370,
+     "endMs": 49830
+    },
+    {
+     "text": "open",
+     "startMs": 50000,
+     "endMs": 50210
+    },
+    {
+     "text": "the",
+     "startMs": 50410,
+     "endMs": 50630
+    },
+    {
+     "text": "script",
+     "startMs": 50710,
+     "endMs": 51020
+    },
+    {
+     "text": "in",
+     "startMs": 51170,
+     "endMs": 51520
+    },
+    {
+     "text": "a",
+     "startMs": 51620,
+     "endMs": 51620
+    },
+    {
+     "text": "custom",
+     "startMs": 51710,
+     "endMs": 52230
+    },
+    {
+     "text": "URL",
+     "startMs": 52230,
+     "endMs": 52530
+    },
+    {
+     "text": "on",
+     "startMs": 52530,
+     "endMs": 52730
+    },
+    {
+     "text": "your",
+     "startMs": 52730,
+     "endMs": 53110
+    },
+    {
+     "text": "phone",
+     "startMs": 53130,
+     "endMs": 53420
+    },
+    {
+     "text": "It",
+     "startMs": 54040,
+     "endMs": 54100
+    },
+    {
+     "text": "scrolls",
+     "startMs": 54110,
+     "endMs": 54470
+    },
+    {
+     "text": "the",
+     "startMs": 54470,
+     "endMs": 54580
+    },
+    {
+     "text": "script",
+     "startMs": 54640,
+     "endMs": 54950
+    },
+    {
+     "text": "like",
+     "startMs": 55090,
+     "endMs": 55160
+    },
+    {
+     "text": "a",
+     "startMs": 55160,
+     "endMs": 55210
+    },
+    {
+     "text": "teleprompter",
+     "startMs": 55210,
+     "endMs": 55830
+    },
+    {
+     "text": "and",
+     "startMs": 56000,
+     "endMs": 56200
+    },
+    {
+     "text": "you",
+     "startMs": 56200,
+     "endMs": 56230
+    },
+    {
+     "text": "can",
+     "startMs": 56410,
+     "endMs": 56600
+    },
+    {
+     "text": "record",
+     "startMs": 56600,
+     "endMs": 56990
+    },
+    {
+     "text": "yourself",
+     "startMs": 56990,
+     "endMs": 57070
+    },
+    {
+     "text": "on",
+     "startMs": 57690,
+     "endMs": 57690
+    },
+    {
+     "text": "your",
+     "startMs": 57710,
+     "endMs": 57960
+    },
+    {
+     "text": "phone",
+     "startMs": 57960,
+     "endMs": 58300
+    },
+    {
+     "text": "camera",
+     "startMs": 58300,
+     "endMs": 58630
+    },
+    {
+     "text": "Add",
+     "startMs": 59160,
+     "endMs": 59250
+    },
+    {
+     "text": "the",
+     "startMs": 59250,
+     "endMs": 59500
+    },
+    {
+     "text": "recording",
+     "startMs": 60090,
+     "endMs": 60240
+    },
+    {
+     "text": "to",
+     "startMs": 60250,
+     "endMs": 60390
+    },
+    {
+     "text": "your",
+     "startMs": 60400,
+     "endMs": 60730
+    },
+    {
+     "text": "project",
+     "startMs": 60730,
+     "endMs": 61210
+    },
+    {
+     "text": "assets",
+     "startMs": 61410,
+     "endMs": 61800
+    },
+    {
+     "text": "and",
+     "startMs": 61990,
+     "endMs": 62030
+    },
+    {
+     "text": "it's",
+     "startMs": 62180,
+     "endMs": 62390
+    },
+    {
+     "text": "ready",
+     "startMs": 62680,
+     "endMs": 62680
+    },
+    {
+     "text": "to",
+     "startMs": 62710,
+     "endMs": 62790
+    },
+    {
+     "text": "include",
+     "startMs": 62790,
+     "endMs": 63200
+    },
+    {
+     "text": "in",
+     "startMs": 63200,
+     "endMs": 63310
+    },
+    {
+     "text": "the",
+     "startMs": 63310,
+     "endMs": 63480
+    },
+    {
+     "text": "video",
+     "startMs": 63480,
+     "endMs": 63720
+    },
+    {
+     "text": "One",
+     "startMs": 64160,
+     "endMs": 64250
+    },
+    {
+     "text": "script",
+     "startMs": 64250,
+     "endMs": 64660
+    },
+    {
+     "text": "gives",
+     "startMs": 65090,
+     "endMs": 65170
+    },
+    {
+     "text": "you",
+     "startMs": 65170,
+     "endMs": 65420
+    },
+    {
+     "text": "a",
+     "startMs": 65420,
+     "endMs": 65500
+    },
+    {
+     "text": "TikTok",
+     "startMs": 65500,
+     "endMs": 66000
+    },
+    {
+     "text": "style",
+     "startMs": 66000,
+     "endMs": 66420
+    },
+    {
+     "text": "video",
+     "startMs": 66420,
+     "endMs": 66840
+    },
+    {
+     "text": "a",
+     "startMs": 66990,
+     "endMs": 67030
+    },
+    {
+     "text": "widescreen",
+     "startMs": 67160,
+     "endMs": 67910
+    },
+    {
+     "text": "YouTube",
+     "startMs": 67910,
+     "endMs": 68500
+    },
+    {
+     "text": "video",
+     "startMs": 68500,
+     "endMs": 69000
+    },
+    {
+     "text": "and",
+     "startMs": 69140,
+     "endMs": 69360
+    },
+    {
+     "text": "caption",
+     "startMs": 69360,
+     "endMs": 69430
+    },
+    {
+     "text": "screenshots",
+     "startMs": 69960,
+     "endMs": 70700
+    },
+    {
+     "text": "for",
+     "startMs": 70700,
+     "endMs": 70920
+    },
+    {
+     "text": "the",
+     "startMs": 70920,
+     "endMs": 71140
+    },
+    {
+     "text": "App",
+     "startMs": 71140,
+     "endMs": 71310
+    },
+    {
+     "text": "Store",
+     "startMs": 71330,
+     "endMs": 71360
+    },
+    {
+     "text": "Because",
+     "startMs": 72040,
+     "endMs": 72550
+    },
+    {
+     "text": "it's",
+     "startMs": 72640,
+     "endMs": 72960
+    },
+    {
+     "text": "all",
+     "startMs": 73090,
+     "endMs": 73220
+    },
+    {
+     "text": "files",
+     "startMs": 73220,
+     "endMs": 73660
+    },
+    {
+     "text": "your",
+     "startMs": 73830,
+     "endMs": 74180
+    },
+    {
+     "text": "video",
+     "startMs": 74180,
+     "endMs": 74620
+    },
+    {
+     "text": "is",
+     "startMs": 74620,
+     "endMs": 74790
+    },
+    {
+     "text": "get",
+     "startMs": 74790,
+     "endMs": 75000
+    },
+    {
+     "text": "managed",
+     "startMs": 75670,
+     "endMs": 75670
+    },
+    {
+     "text": "Review",
+     "startMs": 76160,
+     "endMs": 76340
+    },
+    {
+     "text": "Cloud's",
+     "startMs": 76420,
+     "endMs": 76930
+    },
+    {
+     "text": "changes",
+     "startMs": 77090,
+     "endMs": 77440
+    },
+    {
+     "text": "commit",
+     "startMs": 77580,
+     "endMs": 78010
+    },
+    {
+     "text": "or",
+     "startMs": 78140,
+     "endMs": 78230
+    },
+    {
+     "text": "revert",
+     "startMs": 78410,
+     "endMs": 78630
+    },
+    {
+     "text": "On",
+     "startMs": 79160,
+     "endMs": 79160
+    },
+    {
+     "text": "to",
+     "startMs": 79160,
+     "endMs": 79320
+    },
+    {
+     "text": "try",
+     "startMs": 79320,
+     "endMs": 79540
+    },
+    {
+     "text": "a",
+     "startMs": 79560,
+     "endMs": 79580
+    },
+    {
+     "text": "different",
+     "startMs": 80090,
+     "endMs": 80300
+    },
+    {
+     "text": "cut",
+     "startMs": 80380,
+     "endMs": 80610
+    },
+    {
+     "text": "branch",
+     "startMs": 80770,
+     "endMs": 81210
+    },
+    {
+     "text": "it",
+     "startMs": 81410,
+     "endMs": 81420
+    },
+    {
+     "text": "and",
+     "startMs": 81580,
+     "endMs": 81820
+    },
+    {
+     "text": "review",
+     "startMs": 81820,
+     "endMs": 82020
+    },
+    {
+     "text": "the",
+     "startMs": 82170,
+     "endMs": 82550
+    },
+    {
+     "text": "video",
+     "startMs": 82710,
+     "endMs": 82960
+    },
+    {
+     "text": "the",
+     "startMs": 82960,
+     "endMs": 83200
+    },
+    {
+     "text": "way",
+     "startMs": 83200,
+     "endMs": 83440
+    },
+    {
+     "text": "you'd",
+     "startMs": 83440,
+     "endMs": 83840
+    },
+    {
+     "text": "review",
+     "startMs": 83840,
+     "endMs": 84330
+    },
+    {
+     "text": "code",
+     "startMs": 84330,
+     "endMs": 84430
+    },
+    {
+     "text": "Videos",
+     "startMs": 85160,
+     "endMs": 85340
+    },
+    {
+     "text": "of",
+     "startMs": 85420,
+     "endMs": 85550
+    },
+    {
+     "text": "your",
+     "startMs": 85560,
+     "endMs": 85840
+    },
+    {
+     "text": "app",
+     "startMs": 86050,
+     "endMs": 86050
+    },
+    {
+     "text": "made",
+     "startMs": 86190,
+     "endMs": 86470
+    },
+    {
+     "text": "with",
+     "startMs": 86470,
+     "endMs": 86750
+    },
+    {
+     "text": "the",
+     "startMs": 86750,
+     "endMs": 86960
+    },
+    {
+     "text": "cloud",
+     "startMs": 86960,
+     "endMs": 87210
+    },
+    {
+     "text": "code",
+     "startMs": 87410,
+     "endMs": 87590
+    },
+    {
+     "text": "you",
+     "startMs": 87730,
+     "endMs": 87940
+    },
+    {
+     "text": "already",
+     "startMs": 87940,
+     "endMs": 88030
+    },
+    {
+     "text": "have",
+     "startMs": 88700,
+     "endMs": 88710
+    },
+    {
+     "text": "Download",
+     "startMs": 89040,
+     "endMs": 89550
+    },
+    {
+     "text": "it",
+     "startMs": 89650,
+     "endMs": 89810
+    },
+    {
+     "text": "from",
+     "startMs": 90090,
+     "endMs": 90130
+    },
+    {
+     "text": "GetUp",
+     "startMs": 90130,
+     "endMs": 90530
+    },
+    {
+     "text": "and",
+     "startMs": 90530,
+     "endMs": 90770
+    },
+    {
+     "text": "run",
+     "startMs": 90770,
+     "endMs": 91010
+    },
+    {
+     "text": "it",
+     "startMs": 91010,
+     "endMs": 91170
+    },
+    {
+     "text": "in",
+     "startMs": 91170,
+     "endMs": 91230
+    },
+    {
+     "text": "your",
+     "startMs": 91410,
+     "endMs": 91630
+    },
+    {
+     "text": "project",
+     "startMs": 91650,
+     "endMs": 92010
+    },
+    {
+     "text": "folder",
+     "startMs": 92700,
+     "endMs": 92700
+    }
+   ]
+  }
+ ]
+}
