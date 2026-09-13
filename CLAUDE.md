@@ -142,11 +142,8 @@ npm run electron:dev               # the desktop shell: starts a dev server in
   recorded-pitch recipe — update that guide in the same commit. A session
   that had to read a sibling showcase or this source to learn a workflow
   is a sign the guide is missing a section.
-- All screenshots are plain image files, imported/resolved locally. Avoid
-  Lovable `.asset.json` pointer files — they resolve to `/__l5e/assets-v1/...`
-  URLs that only exist inside Lovable's hosted sandbox and 404 in local
-  development. If Lovable adds one, download the real image and store it in
-  the showcase's `assets/` folder instead.
+- All screenshots are plain image files stored in the showcase's own
+  `assets/` folder and resolved locally by key.
 
 ## Committing
 
@@ -157,10 +154,3 @@ npm run electron:dev               # the desktop shell: starts a dev server in
 - To commit a subset of the pending changes, stage selectively instead: whole
   files with `git add <path>`, and individual hunks within a mixed file by
   applying a filtered patch with `git apply --cached`.
-
-## Lovable sync
-
-This repo is connected to Lovable (see `AGENTS.md`). Do not force-push,
-rebase, amend, or squash commits that are already pushed — it breaks the
-project history on Lovable's side. Keep the connected branch in a working
-state.
