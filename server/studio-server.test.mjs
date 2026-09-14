@@ -41,7 +41,7 @@ function libraryWith(...ids) {
 
 /** A studio on a temp library, mounted in a plain HTTP server on a free
  *  port. Requests the studio doesn't handle answer "app" (the page). */
-async function startStudio({ lock = null, features } = {}) {
+async function startStudio({ lock = null, features, srcDir = "/src" } = {}) {
   const library = libraryWith("nova");
   let saved = {};
   const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
@@ -49,7 +49,7 @@ async function startStudio({ lock = null, features } = {}) {
     showcasesDir: library,
     lock,
     version: "test",
-    srcDir: "/src",
+    srcDir,
     settings,
     exportDir: tempDir("studio-exports-"),
     features,
@@ -103,6 +103,20 @@ describe("createStudio", () => {
     expect(existsSync(path.join(library, ".studio", "GUIDE.md"))).toBe(true);
     const mcpConfig = JSON.parse(readFileSync(path.join(library, ".studio", "mcp.json"), "utf8"));
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
+  });
+
+  it("points the guide at the app's source only when the source is there", async () => {
+    const guideOf = (library) => readFileSync(path.join(library, ".studio", "GUIDE.md"), "utf8");
+
+    /* The packaged app: srcDir holds only the modules the app runs. */
+    const packaged = await startStudio();
+    expect(guideOf(packaged.library)).toContain("source isn't installed with the app");
+    expect(guideOf(packaged.library)).not.toContain("complete source");
+
+    /* From source: the repo, with src/components/ in it. */
+    const repo = process.cwd();
+    const fromSource = await startStudio({ srcDir: repo });
+    expect(guideOf(fromSource.library)).toContain(`complete source is at ${repo}`);
   });
 
   it("writes in-app edits through the scene-edit action", async () => {

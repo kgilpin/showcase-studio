@@ -39,7 +39,7 @@ atmosphere:
     radial-gradient(90% 70% at 72% 0%, rgba(52, 231, 214, 0.10), transparent 60%),
     radial-gradient(60% 50% at 8% 100%, rgba(120, 90, 255, 0.07), transparent 65%),
     linear-gradient(180deg, #070b14, #04060c)
-  gradient-accent: linear-gradient(100deg, #34e7d6, #0a8f95)
+  gradient-accent: "linear-gradient(100deg, #34e7d6, #0a8f95)"
   shadow-device: >-
     0 40px 120px -30px rgba(0, 0, 0, 0.9),
     0 0 90px -20px rgba(52, 231, 214, 0.22)

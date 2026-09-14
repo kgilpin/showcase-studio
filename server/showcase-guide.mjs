@@ -15,7 +15,7 @@ showcase.yaml:
 - Captions are the narration, read verbatim in order — one continuous voiceover across the whole showcase; they are the ONLY spoken lines (titles never are). The player previews the export destinations as three view modes: App Screens (titles on the slide, captions in the transcript column), TikTok (captions overlaid, titles hidden), and 4:3 (the embed canvas, which composes its own captions). A caption identical to the scene's displayed title is not drawn on the slide (the title already says it) but is still narration.
 - Timing derives from the copy by default: each caption prices out at its reading time (words at meta.pace plus settle and punctuation beats), and a slide is exactly long enough to speak its lines. Only pin durationMs when there is a concrete reason (e.g. syncing to a recorded voiceover).
 
-theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme.
+theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme. Put quotes around any value that contains a # (a hex color, a gradient): in YAML a space followed by # starts a comment, so an unquoted "linear-gradient(100deg, #34e7d6, #0a8f95)" is silently cut to "linear-gradient(100deg," and the browser drops it.
 
 Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram; style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
 
@@ -76,14 +76,20 @@ ${
 }
 
 ## The studio environment
-- The studio app's complete source is at ${srcDir} (also in
+${
+  srcDir
+    ? `- The studio app's complete source is at ${srcDir} (also in
   $SHOWCASE_STUDIO_SRC). Read it when you need to know exactly how
   something works: the player and slide themes
   (src/components/showcase/), the timing model (src/content/timing.mjs),
   the data pipeline (src/content/, server/showcase-data.mjs), the studio
   server (server/studio-server.mjs), exports (server/exporter.mjs). Treat
   it as read-only reference — app changes
-  belong in that repo, not in this folder.
+  belong in that repo, not in this folder.`
+    : `- The studio's source isn't installed with the app, so don't look for
+  it. This guide and the MCP tools' own descriptions are the reference;
+  check what you make with screenshot_slide and validate.`
+}
 - ffmpeg is bundled with the studio at ${ffmpegPath ?? "(unavailable)"}
   (also in $SHOWCASE_STUDIO_FFMPEG). Use it for audio and video work on
   this folder's recordings: extracting audio, cutting clips, probing

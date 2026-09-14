@@ -183,6 +183,12 @@ export function createStudio({
     startedAt,
   });
 
+  /* The app's source, when it is really there. The studio run from source
+   * has it; the packaged app ships only the modules it runs, so the guide
+   * and terminals mustn't send sessions looking for it. */
+  const sourceDir =
+    srcDir && existsSync(path.join(srcDir, "src", "components")) ? srcDir : undefined;
+
   /* ---------- the library folder ---------- */
 
   function scaffold() {
@@ -193,7 +199,7 @@ export function createStudio({
       path.join(showcasesDir, ".studio", "GUIDE.md"),
       studioGuide({
         version,
-        srcDir,
+        srcDir: sourceDir,
         ffmpegPath,
         showcasesDir,
         staleClaudeMd: claudeMd != null && hasStaleInlineGuide(claudeMd),
@@ -329,7 +335,7 @@ add notes specific to this library below, and the studio won't touch them.
          * explains each one. */
         getEnv: () => ({
           SHOWCASE_STUDIO_ROOT: showcasesDir,
-          SHOWCASE_STUDIO_SRC: srcDir,
+          ...(sourceDir ? { SHOWCASE_STUDIO_SRC: sourceDir } : {}),
           ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
           ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
         }),

@@ -18,6 +18,7 @@ import { useSyncExternalStore, type ComponentType } from "react";
 import { alignCaptionWords, resolveSceneTiming, type WordWindow } from "./timing.mjs";
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
+import { looksCutOff } from "./theme-value";
 import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
@@ -387,16 +388,28 @@ function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
       if (typeof value !== "string" && typeof value !== "number") {
         throw new Error(`"${group}.${key}" in ${file} must be a CSS value (got ${typeof value})`);
       }
+      if (typeof value === "string" && looksCutOff(value)) {
+        throw new Error(
+          `"${group}.${key}" in ${file} looks cut off: "${value}". In YAML a space followed ` +
+            `by # starts a comment, so put the whole value in quotes.`,
+        );
+      }
     }
   }
 }
 
 function validateMetaTheme(showcaseId: string, theme: Record<string, string>): void {
-  for (const name of Object.keys(theme)) {
+  for (const [name, value] of Object.entries(theme)) {
     if (!THEMEABLE_VARS.has(name)) {
       throw new Error(
         `meta.theme in showcase "${showcaseId}" sets "--${name}", which is not themeable. ` +
           `Themeable variables: ${[...THEMEABLE_VARS].sort().join(", ")}`,
+      );
+    }
+    if (typeof value === "string" && looksCutOff(value)) {
+      throw new Error(
+        `meta.theme "${name}" in showcase "${showcaseId}" looks cut off: "${value}". In YAML a ` +
+          `space followed by # starts a comment, so put the whole value in quotes.`,
       );
     }
   }
