@@ -29,7 +29,6 @@ describe("studioOptions", () => {
     expect(studioOptions([...electron], context)).toEqual({
       help: false,
       electron: false,
-      claude: false,
       showcasesDir: "/home/Showcases",
       lock: null,
       exportJob: undefined,
@@ -39,21 +38,20 @@ describe("studioOptions", () => {
   });
 
   it("collects --flags it doesn't know, and ignores other arguments", () => {
-    const options = studioOptions([...electron, "--inspect=0", "-psn_0_1234", "--opne"], context);
-    expect(options.unknown).toEqual(["--inspect=0", "--opne"]);
+    const options = studioOptions([...electron, "--inspect=0", "-psn_0_1234", "--claude"], context);
+    expect(options.unknown).toEqual(["--inspect=0", "--claude"]);
   });
 
   it("reports --help and -h without checking the other options", () => {
     expect(studioOptions(["--help", "--open", "/nowhere"], context).help).toBe(true);
     expect(studioOptions(["-h"], context).help).toBe(true);
-    expect(STUDIO_USAGE).toContain("npm run dev:claude");
+    expect(STUDIO_USAGE).toContain("npm run dev:electron");
+    expect(STUDIO_USAGE).toContain("studio_start");
   });
 
-  it("reads the mode switches, which take no value and exclude each other", () => {
+  it("reads --electron as a switch that takes no value", () => {
     expect(studioOptions(["--electron"], context).electron).toBe(true);
-    expect(studioOptions(["--claude"], context).claude).toBe(true);
-    expect(() => studioOptions(["--claude=1"], context)).toThrow(/doesn't take a value/);
-    expect(() => studioOptions(["--electron", "--claude"], context)).toThrow(/not both/);
+    expect(() => studioOptions(["--electron=1"], context)).toThrow(/doesn't take a value/);
   });
 
   it("locks --open to the showcase and uses its parent as the library", () => {
@@ -98,9 +96,9 @@ describe("studioOptions", () => {
       lock: { kind: "new" },
     });
     /* A following flag is not the folder. */
-    expect(studioOptions(["--new", "--claude"], context)).toMatchObject({
+    expect(studioOptions(["--new", "--electron"], context)).toMatchObject({
       showcasesDir: "/home/Showcases",
-      claude: true,
+      electron: true,
     });
   });
 
@@ -123,7 +121,7 @@ describe("studioOptions", () => {
     expect(() => studioOptions(["--new", lib, "--library", lib], context)).toThrow(
       /Give the library once/,
     );
-    expect(() => studioOptions(["--claude", "--claude"], context)).toThrow(/more than once/);
+    expect(() => studioOptions(["--electron", "--electron"], context)).toThrow(/more than once/);
   });
 
   it("reads --export as <kind>:<showcase id>", () => {

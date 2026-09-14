@@ -36,8 +36,10 @@ const SHOT = { width: 660, height: 1434 };
 
 /* A page that navigates or crashes can strand in-flight page scripts
  * (they never settle), which would leave a tool call — and Claude —
- * hanging forever. Screenshot and validate race this cap. */
-const PAGE_TIMEOUT_MS = 20_000;
+ * hanging forever. Screenshot and validate race this cap. It is generous
+ * because the first capture from source also starts the browser and has
+ * the dev server compile the whole app. */
+const PAGE_TIMEOUT_MS = 60_000;
 function withTimeout(promise, message) {
   let timer;
   return Promise.race([

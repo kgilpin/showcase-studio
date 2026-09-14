@@ -18,10 +18,10 @@
  * answer requests made on this machine.
  *
  * The studio also keeps its library folder scaffolded (README, CLAUDE.md,
- * .studio/GUIDE.md, .studio/mcp.json), watches it and tells pages to
- * reload when files change outside the studio, and lists itself in the
- * studio data folder (running/<pid>.json) so the MCP bridge
- * (server/mcp-stdio.mjs) can find it without knowing its port. */
+ * .studio/GUIDE.md, .studio/mcp.json), and watches it and tells pages to
+ * reload when files change outside the studio. callTool runs the MCP tools
+ * in-process, for the studio Claude Code starts over stdio
+ * (scripts/studio-mcp.mjs). */
 import { randomBytes } from "node:crypto";
 import {
   appendFileSync,
@@ -29,7 +29,6 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
-  rmSync,
   statSync,
   unlinkSync,
   watch,
@@ -41,12 +40,12 @@ import path from "node:path";
 import { createExportJobs } from "./export-jobs.mjs";
 import { runExport } from "./exporter.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
-import { createMcpHandler } from "./mcp.mjs";
+import { callTool, createMcpHandler } from "./mcp.mjs";
 import { prompterScript } from "./prompter-script.mjs";
 import { applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
 import { handleShowcaseRequest } from "./showcase-data.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
-import { loadSettings, saveSettings, studioDataDir } from "./settings.mjs";
+import { loadSettings, saveSettings } from "./settings.mjs";
 import { createTerminals } from "./terminals.mjs";
 import { whisperPath } from "./transcribe.mjs";
 
@@ -147,7 +146,6 @@ async function readJson(req) {
  *   features      { terminal: false } turns the embedded terminals off
  *   exportDir     where exports land (<exportDir>/<showcase id>)
  *   settings      { load, save } — the persisted settings
- *   registryDir   where running studios list themselves
  */
 export function createStudio({
   showcasesDir: initialDir,
@@ -158,7 +156,6 @@ export function createStudio({
   features = {},
   exportDir = path.join(os.homedir(), "Downloads", "showcase-exports"),
   settings = { load: loadSettings, save: saveSettings },
-  registryDir = path.join(studioDataDir(), "running"),
   log = (message) => console.log(message),
 }) {
   let showcasesDir = path.resolve(initialDir);
@@ -289,15 +286,6 @@ add notes specific to this library below, and the studio won't touch them.
     }
   }
 
-  /* ---------- finding a running studio ---------- */
-
-  const registryFile = path.join(registryDir, `${process.pid}.json`);
-  function register() {
-    if (!url) return;
-    mkdirSync(registryDir, { recursive: true });
-    writeFileSync(registryFile, JSON.stringify(info(), null, 2) + "\n");
-  }
-
   /* ---------- exports ---------- */
 
   const exportJobs = createExportJobs(async (kind, showcaseId, { onProgress, signal }) => {
@@ -350,16 +338,14 @@ add notes specific to this library below, and the studio won't touch them.
       })
     : null;
 
-  const mcp = createMcpHandler({
-    version,
-    context: {
-      info,
-      getUrl: () => url,
-      getShowcasesDir: () => showcasesDir,
-      renderer,
-      exportJobs,
-    },
-  });
+  const mcpContext = {
+    info,
+    getUrl: () => url,
+    getShowcasesDir: () => showcasesDir,
+    renderer,
+    exportJobs,
+  };
+  const mcp = createMcpHandler({ version, context: mcpContext });
 
   /* ---------- page actions ---------- */
 
@@ -399,7 +385,6 @@ scenes:
     /* A --new studio is now locked to the showcase it created. */
     if (lock?.kind === "new") {
       lock = { kind: "showcase", showcaseId: id };
-      register();
       emit("info", info());
     }
     return { ok: true, id };
@@ -544,7 +529,6 @@ scenes:
     settings.save({ showcasesDir: target, recentFolders: recents.slice(0, 8) });
     scaffold();
     watchLibrary();
-    register();
     emit("info", info());
     return { ok: true, library: target };
   }
@@ -676,13 +660,15 @@ scenes:
     handle,
     info,
 
-    /** Records where the studio is served (once its server listens):
-     *  rewrites .studio/mcp.json and lists the studio as running. */
+    /** Records where the studio is served (once its server listens) and
+     *  rewrites .studio/mcp.json to match. */
     setUrl(next) {
       url = String(next).replace(/\/$/, "");
       writeMcpConfig();
-      register();
     },
+
+    /** Runs one MCP tool in-process (the studio Claude Code starts). */
+    callTool: (params) => callTool(mcpContext, params),
 
     /** Runs one export now and resolves with its output (--export). */
     exportNow: (kind, showcaseId, { onProgress } = {}) =>
@@ -701,7 +687,6 @@ scenes:
       terminals?.dispose();
       for (const res of listeners) res.end();
       listeners.clear();
-      rmSync(registryFile, { force: true });
       await renderer?.dispose?.();
     },
   };

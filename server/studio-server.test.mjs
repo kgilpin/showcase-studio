@@ -44,14 +44,12 @@ async function startStudio({ lock = null, features } = {}) {
   const library = libraryWith("nova");
   let saved = {};
   const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
-  const registryDir = tempDir("studio-registry-");
   const studio = createStudio({
     showcasesDir: library,
     lock,
     version: "test",
     srcDir: "/src",
     settings,
-    registryDir,
     exportDir: tempDir("studio-exports-"),
     features,
     log: () => {},
@@ -80,7 +78,7 @@ async function startStudio({ lock = null, features } = {}) {
       })
     ).json();
   const info = async () => (await fetch(`${url}/studio/api/info`)).json();
-  return { studio, url, library, registryDir, saved: () => saved, post, info };
+  return { studio, url, library, saved: () => saved, post, info };
 }
 
 describe("createStudio", () => {
@@ -98,16 +96,12 @@ describe("createStudio", () => {
     expect(await (await fetch(`${url}/showcase/nova`)).text()).toBe("app");
   });
 
-  it("scaffolds the library and lists itself as running until it closes", async () => {
-    const { studio, url, library, registryDir } = await startStudio();
+  it("scaffolds the library and points .studio/mcp.json at itself", async () => {
+    const { url, library } = await startStudio();
     expect(existsSync(path.join(library, "README.md"))).toBe(true);
     expect(existsSync(path.join(library, ".studio", "GUIDE.md"))).toBe(true);
     const mcpConfig = JSON.parse(readFileSync(path.join(library, ".studio", "mcp.json"), "utf8"));
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
-    const entry = path.join(registryDir, `${process.pid}.json`);
-    expect(JSON.parse(readFileSync(entry, "utf8"))).toMatchObject({ url, library });
-    await studio.close();
-    expect(existsSync(entry)).toBe(false);
   });
 
   it("writes in-app edits through the scene-edit action", async () => {
@@ -202,7 +196,7 @@ describe("createStudio", () => {
     await waitFor("event: reload");
   }, 10_000);
 
-  it("answers MCP: the tool list and studio_info", async () => {
+  it("answers MCP over HTTP: the tool list and studio_info", async () => {
     const { url } = await startStudio();
     const call = async (method, params) =>
       (
@@ -221,6 +215,14 @@ describe("createStudio", () => {
     });
   });
 
+  it("runs MCP tools in-process through callTool", async () => {
+    const { studio, url } = await startStudio();
+    const result = await studio.callTool({ name: "studio_info", arguments: {} });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ url, showcases: ["nova"] });
+    const script = await studio.callTool({ name: "script", arguments: { showcaseId: "nova" } });
+    expect(script.content[0].text).toContain("NOVA");
+  });
+
   it("exports the narration script as a background job", async () => {
     const { post } = await startStudio();
     const started = await post("export", { kind: "script", showcaseId: "nova" });
@@ -237,7 +239,7 @@ describe("createStudio", () => {
     });
   });
 
-  it("turns the embedded terminals off for Claude Code", async () => {
+  it("turns the embedded terminals off when asked", async () => {
     const { post, info } = await startStudio({ features: { terminal: false } });
     expect((await info()).features).toEqual({ terminal: false });
     expect(await post("terminal-available")).toEqual({ ptyReady: false, claude: false });

@@ -10,56 +10,60 @@
  * and returns its value; `capture` returns a PNG Buffer of exactly
  * width × height.
  *
- * The browser starts on first use and stays up for later pages. It is
+ * The browser starts on first use and stays up. Its pages share one
+ * browser context, so after the first capture the app's modules come from
+ * the cache — from source, the dev server serves hundreds of them, and a
+ * fresh context per page reloaded them all every time. The browser is
  * Google Chrome when installed: Playwright's own Chromium can't play MP4
  * (H.264) video, so slides with video clips would capture blank. Without
  * Chrome it falls back to that Chromium (first time: `npx playwright
  * install chromium`). */
 export function createPlaywrightRenderer({ log = (message) => console.log(message) } = {}) {
-  let browserPromise;
+  let contextPromise;
+  let browser;
 
-  const browser = () => {
-    browserPromise ??= (async () => {
+  const context = () => {
+    contextPromise ??= (async () => {
       const { chromium } = await import("playwright");
       try {
-        return await chromium.launch({ channel: "chrome" });
+        browser = await chromium.launch({ channel: "chrome" });
       } catch {
         log(
           "studio: Google Chrome not found — rendering with Playwright's Chromium, " +
             "which can't play MP4 video (video clips capture blank)",
         );
-        return chromium.launch();
+        browser = await chromium.launch();
       }
+      return browser.newContext({ deviceScaleFactor: 1 });
     })().catch((error) => {
-      browserPromise = undefined;
+      contextPromise = undefined;
       throw new Error(
         `The page renderer could not start: ${String(error?.message ?? error).split("\n")[0]}. ` +
           "Install Google Chrome, or run `npx playwright install chromium` once.",
       );
     });
-    return browserPromise;
+    return contextPromise;
   };
 
   return {
     async openPage({ width, height }) {
-      const context = await (
-        await browser()
-      ).newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
-      const page = await context.newPage();
+      const page = await (await context()).newPage();
+      await page.setViewportSize({ width, height });
       return {
         goto: async (url) => {
           await page.goto(url, { waitUntil: "load" });
         },
         evaluate: (script) => page.evaluate(script),
         capture: () => page.screenshot({ type: "png" }),
-        close: () => context.close(),
+        close: () => page.close(),
       };
     },
     async dispose() {
-      const current = browserPromise;
-      browserPromise = undefined;
-      const instance = await current?.catch(() => undefined);
-      await instance?.close();
+      const current = contextPromise;
+      contextPromise = undefined;
+      await (await current?.catch(() => undefined))?.close();
+      await browser?.close();
+      browser = undefined;
     },
   };
 }

@@ -1,8 +1,8 @@
 /* The studio's MCP tools — how Claude drives the studio. Served as
  * streamable HTTP at /mcp by the studio server (a plain JSON-RPC handler,
- * no SDK), and reachable with no port to configure through the stdio
- * bridge (server/mcp-stdio.mjs), which answers the handshake with the
- * same code and forwards tool calls here.
+ * no SDK) for the Claude terminals the studio opens, and over stdio by
+ * scripts/studio-mcp.mjs, the studio Claude Code starts for itself, which
+ * runs them in-process through the studio's callTool.
  *
  * Page tools (screenshot_slide, validate, export) render through the
  * studio's page renderer, so they see the current files on disk — the
@@ -195,7 +195,7 @@ const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value)
 
 /** Runs one tool against a studio. `context` is
  *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs }. */
-async function callTool(context, { name, arguments: args = {} } = {}) {
+export async function callTool(context, { name, arguments: args = {} } = {}) {
   const showcasesDir = context.getShowcasesDir();
   if (name === "studio_info") {
     return json({
@@ -274,8 +274,9 @@ async function callTool(context, { name, arguments: args = {} } = {}) {
 
 /** The JSON-RPC side of MCP: answers one message, or returns undefined
  *  for a notification. `callTool(params)` runs a tool and returns its
- *  result; a thrown error becomes a tool error Claude can read. */
-export function createMcpRpc({ version, callTool: runTool }) {
+ *  result; a thrown error becomes a tool error Claude can read. `tools`
+ *  is the tool list to offer. */
+export function createMcpRpc({ version, callTool: runTool, tools = TOOLS }) {
   return async (message) => {
     const { id, method, params } = message ?? {};
     if (id === undefined) return undefined;
@@ -292,7 +293,7 @@ export function createMcpRpc({ version, callTool: runTool }) {
       case "ping":
         return respond({});
       case "tools/list":
-        return respond({ tools: TOOLS });
+        return respond({ tools });
       case "tools/call":
         try {
           return respond(await runTool(params));

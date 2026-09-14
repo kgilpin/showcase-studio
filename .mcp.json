@@ -2,7 +2,7 @@
   "mcpServers": {
     "showcase-studio": {
       "command": "node",
-      "args": ["server/mcp-stdio.mjs"]
+      "args": ["scripts/studio-mcp.mjs"]
     }
   }
 }

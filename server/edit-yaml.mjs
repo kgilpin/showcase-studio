@@ -48,7 +48,8 @@
  *                                                   the target; the scene
  *                                                   is the addressed one)
  */
-import { isMap, isSeq, parseDocument } from "yaml";
+import { isMap, isSeq } from "yaml";
+import { editedText, parseEditable } from "./yaml-text.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 const CAPTION_POSITIONS = ["top", "center", "lower", "bottom"];
@@ -186,21 +187,21 @@ export function applySceneEdit(
     if (value !== "" && !CAPTION_STYLES.includes(value)) {
       throw new Error(`captionStyle must be one of: ${CAPTION_STYLES.join(", ")}`);
     }
-    const doc = parseDocument(text);
+    const doc = parseEditable(text);
     if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
     if (!isMap(doc.get("meta"))) throw new Error("showcase.yaml has no meta section");
     if (value) doc.setIn(["meta", "captionStyle"], value);
     else doc.deleteIn(["meta", "captionStyle"]);
-    return doc.toString({ lineWidth: 0 });
+    return editedText(doc);
   }
 
   if (field === "meta.set") {
     const checked = checkFieldValue(META_FIELDS, "meta", name, value);
-    const doc = parseDocument(text);
+    const doc = parseEditable(text);
     if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
     if (!isMap(doc.get("meta"))) throw new Error("showcase.yaml has no meta section");
     setChecked(doc, ["meta", name], checked);
-    return doc.toString({ lineWidth: 0 });
+    return editedText(doc);
   }
 
   /* Scene insertion addresses a position, not a scene. */
@@ -208,7 +209,7 @@ export function applySceneEdit(
     if (typeof scene?.id !== "string" || !scene.id) {
       throw new Error("The inserted scene needs a text id");
     }
-    const doc = parseDocument(text);
+    const doc = parseEditable(text);
     if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
     const scenes = doc.get("scenes");
     if (!isSeq(scenes)) throw new Error("showcase.yaml has no scenes list");
@@ -219,7 +220,7 @@ export function applySceneEdit(
       throw new Error(`Scene index ${insertIndex} is out of range`);
     }
     scenes.items.splice(insertIndex, 0, doc.createNode(scene));
-    return doc.toString({ lineWidth: 0 });
+    return editedText(doc);
   }
 
   if (sceneId != null && sceneId !== "" && typeof sceneId !== "string") {
@@ -230,7 +231,7 @@ export function applySceneEdit(
     );
   }
   if (typeof sceneId !== "string" || !sceneId) throw new Error("Missing scene id");
-  const doc = parseDocument(text);
+  const doc = parseEditable(text);
   if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
   const scenes = doc.get("scenes");
   if (!isSeq(scenes)) throw new Error("showcase.yaml has no scenes list");
@@ -327,7 +328,7 @@ export function applySceneEdit(
   } else {
     throw new Error(`Unknown field "${String(field)}"`);
   }
-  /* lineWidth 0 disables wrapping — a long authored line must not come
-   * back folded just because a neighbouring field was edited. */
-  return doc.toString({ lineWidth: 0 });
+  /* Written without wrapping, with text blocks kept as authored
+   * (server/yaml-text.mjs). */
+  return editedText(doc);
 }

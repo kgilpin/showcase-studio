@@ -65,14 +65,8 @@ writeFileSync(
 for (const dir of ["electron", "server"]) {
   mkdirSync(path.join(stage, dir));
   for (const file of readdirSync(path.join(repoRoot, dir))) {
-    /* Dev-only: the stdio MCP bridge and the Playwright renderer. */
-    if (
-      file.endsWith(".test.mjs") ||
-      file === "mcp-stdio.mjs" ||
-      file === "renderer-playwright.mjs"
-    ) {
-      continue;
-    }
+    /* Dev-only: the Playwright renderer. */
+    if (file.endsWith(".test.mjs") || file === "renderer-playwright.mjs") continue;
     cpSync(path.join(repoRoot, dir, file), path.join(stage, dir, file), { recursive: true });
   }
 }

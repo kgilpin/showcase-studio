@@ -7,13 +7,6 @@
       "runtimeArgs": ["run", "dev"],
       "port": 8080,
       "autoPort": true
-    },
-    {
-      "name": "studio-claude",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:claude", "--", "--open", "showcases/showcase-studio"],
-      "port": 8080,
-      "autoPort": true
     }
   ]
 }

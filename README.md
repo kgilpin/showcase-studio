@@ -65,8 +65,8 @@ so it always matches the running app) and MCP tools —
 So "make me a 60-second tour of this app" is a conversation: Claude
 reads your project, drafts the script, checks its own slides, and
 renders a draft — billed to the subscription you already have. A Claude
-Code session working in this repo gets the same tools through `.mcp.json`,
-and `npm run dev:claude` runs a studio for it to drive.
+Code session working in this repo starts a studio of its own through
+`.mcp.json` and drives it with the same tools.
 
 ## Recording yourself
 
@@ -98,7 +98,6 @@ Claude via the MCP job tools, or from the command line (`--export`).
 npm i
 npm run dev               # the full studio in your browser
 npm run dev:electron      # the same studio in a desktop window
-npm run dev:claude        # the same studio, driven by Claude Code
 npm run package:desktop   # build the desktop app → dist-electron/dist/mac-arm64/Showcase Studio.app
 ```
 

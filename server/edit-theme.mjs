@@ -12,7 +12,8 @@
  * An empty value deletes the key (and a group left empty), restoring the
  * default. A missing theme.yaml starts from an empty document.
  */
-import { isMap, parseDocument } from "yaml";
+import { isMap } from "yaml";
+import { editedText, parseEditable } from "./yaml-text.mjs";
 
 const THEME_EDIT_KEYS = {
   colors: new Set(["caption-chip", "caption-text", "caption-word"]),
@@ -29,7 +30,7 @@ export function applyThemeEdit(text, { group, name, value } = {}) {
     throw new Error(`"${String(name)}" is not an editable ${group} key`);
   }
   if (typeof value !== "string") throw new Error("Missing value");
-  const doc = parseDocument(text ?? "");
+  const doc = parseEditable(text ?? "");
   if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
   if (value) {
     doc.setIn([group, name], value);
@@ -40,5 +41,5 @@ export function applyThemeEdit(text, { group, name, value } = {}) {
     /* A fully emptied theme reads better as an empty file than "{}". */
     if (isMap(doc.contents) && doc.contents.items.length === 0) return "";
   }
-  return doc.toString({ lineWidth: 0 });
+  return editedText(doc);
 }

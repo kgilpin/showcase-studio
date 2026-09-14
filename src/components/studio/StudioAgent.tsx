@@ -13,7 +13,8 @@ type TermView = "loading" | "chooser" | "integrated" | "external";
  * right sidebar (the root layout pads the content over) and resume
  * their previous conversation via `claude --continue`. Renders nothing
  * when no studio serves the page, or when the studio's terminals are off
- * (npm run dev:claude — Claude is already driving from outside). */
+ * (the studio Claude Code starts for itself — Claude is already driving
+ * from outside). */
 export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
