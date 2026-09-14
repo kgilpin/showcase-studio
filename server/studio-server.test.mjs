@@ -1,4 +1,5 @@
 import http from "node:http";
+import { Readable } from "node:stream";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -263,6 +264,83 @@ describe("createStudio", () => {
       req.end();
     });
     expect(status).toBe(403);
+  });
+});
+
+/** Calls studio.handle directly with in-memory request and response
+ *  objects: the studio's routing, gates, and actions with no network in
+ *  between. */
+async function handleDirectly(
+  studio,
+  { method = "GET", url, body, host = "localhost:5173", remoteAddress = "127.0.0.1" },
+) {
+  const req = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
+  Object.assign(req, {
+    method,
+    url,
+    headers: { host, "content-type": "application/json" },
+    socket: { remoteAddress },
+  });
+  return new Promise((resolve) => {
+    const res = {
+      statusCode: 200,
+      headersSent: false,
+      setHeader() {},
+      writeHead(status) {
+        this.statusCode = status;
+        this.headersSent = true;
+      },
+      write() {},
+      end(chunk) {
+        this.headersSent = true;
+        resolve({ status: this.statusCode, json: () => JSON.parse(String(chunk)) });
+      },
+    };
+    void studio.handle(req, res, () => resolve({ status: 0, json: () => undefined }));
+  });
+}
+
+describe("studio.handle, called directly", () => {
+  it("runs a page action: scene-edit through the local-request gate to the YAML write", async () => {
+    const { studio, library } = await startStudio();
+    const result = await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/scene-edit",
+      body: { showcaseId: "nova", sceneId: "intro", field: "title", value: "Edited directly" },
+    });
+    expect(result.status).toBe(200);
+    expect(result.json()).toMatchObject({ ok: true });
+    expect(readFileSync(path.join(library, "nova", "showcase.yaml"), "utf8")).toContain(
+      "title: Edited directly",
+    );
+  });
+
+  it("refuses a request for another host name before any action runs", async () => {
+    const { studio, library } = await startStudio();
+    const result = await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/showcase-create",
+      body: { name: "Sneaky" },
+      host: "evil.example",
+    });
+    expect(result.status).toBe(403);
+    expect(existsSync(path.join(library, "sneaky"))).toBe(false);
+  });
+
+  it("refuses to create a showcase or switch libraries when locked to a showcase", async () => {
+    const { studio } = await startStudio({ lock: { kind: "showcase", showcaseId: "nova" } });
+    const created = await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/showcase-create",
+      body: { name: "Other" },
+    });
+    const switched = await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/library",
+      body: { dir: libraryWith("other") },
+    });
+    expect(created.json()).toMatchObject({ ok: false });
+    expect(switched.json()).toMatchObject({ ok: false, error: expect.stringMatching(/locked/) });
   });
 });
 

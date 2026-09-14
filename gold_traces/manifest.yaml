@@ -7,10 +7,10 @@
 # ranges, and the traversal gate). Record command and entry paths are
 # derived; see the skill's SKILL.md.
 
-schema_version: 1
+schema_version: 2
 
 commands:
-  record: 'npx appmap-node npx vitest run {test_file} -t "{test_name}"'
+  framework: vitest
 
 entries:
   - feature: timing
@@ -72,3 +72,30 @@ entries:
     test_name: refuses .. traversal, including URL-encoded
     appmap_path: "vitest/refuses_.._traversal,_including_URL-encoded.appmap.json"
     summary: The path-safety gate's negative branch — traversal never resolves to a file.
+
+  # The studio-server entries call studio.handle directly rather than over
+  # HTTP: appmap-node records an in-process HTTP request as one call that
+  # encloses the rest of the test, which `appmap sanitize` cannot process.
+  - feature: studio-server
+    test_file: server/studio-server.test.mjs
+    test_name: "runs a page action: scene-edit through the local-request gate to the YAML write"
+    appmap_path: vitest/runs_a_page_action-_scene-edit_through_the_local-request_gate_to_the_YAML_write.appmap.json
+    summary: A page action end to end — /studio/api/scene-edit through the local-request gate to the YAML write.
+
+  - feature: studio-server
+    test_file: server/studio-server.test.mjs
+    test_name: refuses a request for another host name before any action runs
+    appmap_path: vitest/refuses_a_request_for_another_host_name_before_any_action_runs.appmap.json
+    summary: The local-request gate's refused branch — a request for another host name gets 403 before any action runs.
+
+  - feature: studio-server
+    test_file: server/studio-server.test.mjs
+    test_name: refuses to create a showcase or switch libraries when locked to a showcase
+    appmap_path: vitest/refuses_to_create_a_showcase_or_switch_libraries_when_locked_to_a_showcase.appmap.json
+    summary: The lock's refused branches — a locked studio won't create a showcase or switch its library.
+
+  - feature: mcp
+    test_file: server/studio-server.test.mjs
+    test_name: runs MCP tools in-process through callTool
+    appmap_path: vitest/runs_MCP_tools_in-process_through_callTool.appmap.json
+    summary: The MCP tools as Claude Code's studio calls them — studio_info and script through callTool.
