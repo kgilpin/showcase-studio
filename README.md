@@ -38,9 +38,10 @@ travels with the data through every edit.
 
 ## The studio
 
-Showcase Studio is a desktop app. Point it at a folder (File > Open
-Folder…) and every showcase in it plays immediately; edits to any file
-appear live. A paused player is an editor: slide titles are
+Showcase Studio runs in your browser (`npm run dev`) or as a desktop app.
+Point it at a folder (`--library`, or File > Open Folder… in the desktop
+app) and every showcase in it plays immediately; edits to any file appear
+live. A paused player is an editor: slide titles are
 click-to-edit, media areas open an asset picker, and a style panel
 adjusts the theme. The assets page manages the media collection —
 drag-and-drop uploads, per-scene usage, renames that update every YAML
@@ -51,6 +52,7 @@ running in that showcase's folder, and the studio hands it everything it
 needs: a generated guide (`.studio/GUIDE.md`, rewritten on every launch
 so it always matches the running app) and MCP tools —
 
+- `studio_info` — the running studio's URL, library, and lock
 - `edit_showcase` — structured script edits (scene fields, captions,
   meta, insert/move/delete), validated and applied as one write that
   preserves the file's formatting
@@ -62,7 +64,9 @@ so it always matches the running app) and MCP tools —
 
 So "make me a 60-second tour of this app" is a conversation: Claude
 reads your project, drafts the script, checks its own slides, and
-renders a draft — billed to the subscription you already have.
+renders a draft — billed to the subscription you already have. A Claude
+Code session working in this repo gets the same tools through `.mcp.json`,
+and `npm run dev:claude` runs a studio for it to drive.
 
 ## Recording yourself
 
@@ -86,32 +90,36 @@ One script fans out to every destination:
 | Script    | The narration as plain text                              |
 
 Exports run from the app (to `~/Downloads/showcase-exports/<id>`), from
-Claude via the MCP job tools, or headlessly.
+Claude via the MCP job tools, or from the command line (`--export`).
 
 ## Running it
 
 ```sh
 npm i
-npm run package:desktop   # build the app → dist-electron/dist/mac-arm64/Showcase Studio.app
-npm run electron:dev      # or: the desktop shell against a live dev server
-npm run dev               # or: just the web player with this repo's sample showcases
+npm run dev               # the full studio in your browser
+npm run dev:electron      # the same studio in a desktop window
+npm run dev:claude        # the same studio, driven by Claude Code
+npm run package:desktop   # build the desktop app → dist-electron/dist/mac-arm64/Showcase Studio.app
 ```
+
+Every mode prints the studio's URL; `npm run dev -- --help` lists the
+options.
 
 This repo's `showcases/` folder holds the samples — including
 `showcase-studio`, the studio's own tour, made entirely with the studio.
 
 ## How it's put together
 
-| Part            | Role                                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/`          | The player, slide themes, script/teleprompter, assets and export pages (TanStack Start + React + Tailwind)                                                    |
-| `server/`       | The headless studio backend — plain Node, no Electron: the folder-serving data shape, the comment-preserving YAML edit path, export jobs, the generated guide |
-| `electron/`     | The desktop shell: serves the user's folder, watches for changes, terminals, MCP server, offscreen exporters (bundled ffmpeg)                                 |
-| `web/prompter/` | The shared-teleprompter site a phone loads                                                                                                                    |
-| `cdk/`          | AWS infra for the prompter site (S3 + CloudFront + one publish Lambda)                                                                                        |
+| Part            | Role                                                                                                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/`          | The player, slide themes, script/teleprompter, assets and export pages (TanStack Start + React + Tailwind)                                                                         |
+| `server/`       | The studio — plain Node, no Electron: the studio server (library data, page API, live events, MCP), the comment-preserving YAML edit path, exports, terminals, the generated guide |
+| `electron/`     | Packaging only: the desktop window, system menus, and the packaged app's page renderer                                                                                             |
+| `web/prompter/` | The shared-teleprompter site a phone loads                                                                                                                                         |
+| `cdk/`          | AWS infra for the prompter site (S3 + CloudFront + one publish Lambda)                                                                                                             |
 
-The same data shape serves both worlds: the dev server exposes a folder
-over HTTP exactly the way the packaged shell does, so the app never
-knows which one it's talking to.
+Every mode runs the same studio server — the dev server mounts it, and so
+does the packaged app — so the page never knows which one it's talking
+to.
 
 Development commands and conventions are in [CLAUDE.md](CLAUDE.md).

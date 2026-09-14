@@ -65,17 +65,24 @@ writeFileSync(
 for (const dir of ["electron", "server"]) {
   mkdirSync(path.join(stage, dir));
   for (const file of readdirSync(path.join(repoRoot, dir))) {
-    if (file === "dev.mjs" || file.endsWith(".test.mjs")) continue;
+    /* Dev-only: the stdio MCP bridge and the Playwright renderer. */
+    if (
+      file.endsWith(".test.mjs") ||
+      file === "mcp-stdio.mjs" ||
+      file === "renderer-playwright.mjs"
+    ) {
+      continue;
+    }
     cpSync(path.join(repoRoot, dir, file), path.join(stage, dir, file), { recursive: true });
   }
 }
-/* The timing model — imported by prompter-script.mjs and exporter.mjs
- * at their staged-relative ../src/content path. */
-mkdirSync(path.join(stage, "src", "content"), { recursive: true });
-cpSync(
-  path.join(repoRoot, "src", "content", "timing.mjs"),
-  path.join(stage, "src", "content", "timing.mjs"),
-);
+/* Plain modules the page shares with the shell and the studio server, at
+ * their staged-relative ../src paths: the timing model (prompter-script.mjs,
+ * exporter.mjs) and the lock rule (electron/main.mjs). */
+for (const shared of ["content/timing.mjs", "lib/window-lock.mjs"]) {
+  mkdirSync(path.join(stage, "src", path.dirname(shared)), { recursive: true });
+  cpSync(path.join(repoRoot, "src", shared), path.join(stage, "src", shared));
+}
 cpSync(path.join(repoRoot, ".output"), path.join(stage, ".output"), { recursive: true });
 
 execFileSync("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], {

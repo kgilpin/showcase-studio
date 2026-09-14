@@ -12,7 +12,8 @@ type TermView = "loading" | "chooser" | "integrated" | "external";
  * only inside a showcase; integrated sessions dock as a full-height
  * right sidebar (the root layout pads the content over) and resume
  * their previous conversation via `claude --continue`. Renders nothing
- * in a plain browser — the bridge only exists inside Electron. */
+ * when no studio serves the page, or when the studio's terminals are off
+ * (npm run dev:claude — Claude is already driving from outside). */
 export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);

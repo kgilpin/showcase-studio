@@ -1,28 +1,31 @@
-/* The studio's MCP server: structured tools for the Claude Code sessions
- * the studio opens (and any the user points at .studio/mcp.json). Served
- * as streamable HTTP on the data server's port at /mcp — a plain JSON-RPC
- * handler, no SDK.
+/* The studio's MCP tools — how Claude drives the studio. Served as
+ * streamable HTTP at /mcp by the studio server (a plain JSON-RPC handler,
+ * no SDK), and reachable with no port to configure through the stdio
+ * bridge (server/mcp-stdio.mjs), which answers the handshake with the
+ * same code and forwards tool calls here.
  *
- *   screenshot_slide  renders one slide's export page in an offscreen
- *                     window (the exporter's technique, half size) and
- *                     returns the PNG — Claude can see its work instead
- *                     of editing YAML and TSX diagrams blind.
- *   validate          loads the library in a fresh offscreen page exactly
- *                     as the app does and reports what loaded and what
- *                     failed, with the errors.
- *
- * Both tools read through the running dev server, so they see the current
- * on-disk state (the same files Claude just edited). */
-import { BrowserWindow, screen } from "electron";
+ * Page tools (screenshot_slide, validate, export) render through the
+ * studio's page renderer, so they see the current files on disk — the
+ * same files Claude just edited. */
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { applySceneEditsToFolder } from "../server/scene-edit.mjs";
-import { scriptText } from "./exporter.mjs";
-import { transcribe, whisperPath } from "./transcribe.mjs";
+import { EXPORT_KINDS } from "./launch-options.mjs";
+import { applySceneEditsToFolder } from "./scene-edit.mjs";
+import { screenshotSlide, scriptText, validateShowcases } from "./exporter.mjs";
+import { showcaseIndex } from "./showcase-data.mjs";
+import { transcribe } from "./transcribe.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
 
-const TOOLS = [
+export const TOOLS = [
+  {
+    name: "studio_info",
+    description:
+      "The running studio: its URL (open it to see the studio — in a Claude Code preview, " +
+      "open this URL), the library folder, the showcases in it, and the lock (the one " +
+      "showcase the studio is locked to, if any). Call it first to find the studio.",
+    inputSchema: { type: "object", properties: {} },
+  },
   {
     name: "screenshot_slide",
     description:
@@ -62,7 +65,7 @@ const TOOLS = [
       "cover, notes (showcase-level authoring notes), or soundtrack ({src, volume?, sync?}).\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
       '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
-      "The app live-reloads on the write; run validate or screenshot_slide to check the " +
+      "The studio's pages reload on the write; run validate or screenshot_slide to check the " +
       "result. theme.yaml and comments are not covered — edit those directly.",
     inputSchema: {
       type: "object",
@@ -144,10 +147,7 @@ const TOOLS = [
       type: "object",
       properties: {
         showcaseId: { type: "string", description: "The showcase's folder name" },
-        kind: {
-          type: "string",
-          enum: ["screens", "video", "video-draft", "video-43", "video-43-draft", "script"],
-        },
+        kind: { type: "string", enum: EXPORT_KINDS },
       },
       required: ["showcaseId", "kind"],
     },
@@ -187,112 +187,24 @@ function resolveAudio(file, showcasesDir) {
   return undefined;
 }
 
-/* Half App Store size — text is readable, payloads stay small. Offscreen
- * windows render at the display's scale factor, so size the window down
- * to land the capture at the target (same trick as exporter.mjs). */
-const SHOT_WIDTH = 660;
-const SHOT_HEIGHT = 1434;
-
-/* A page that navigates or crashes strands in-flight executeJavaScript
- * promises (they never settle), which would leave the tool call — and
- * Claude — hanging forever. Every page interaction races this cap. */
-const PAGE_TIMEOUT_MS = 20_000;
-function withTimeout(promise, message) {
-  let timer;
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(message)), PAGE_TIMEOUT_MS);
-    }),
-  ]).finally(() => clearTimeout(timer));
-}
-
-function offscreenWindow(width, height) {
-  const scale = screen.getPrimaryDisplay().scaleFactor || 1;
-  return new BrowserWindow({
-    show: false,
-    width: Math.round(width / scale),
-    height: Math.round(height / scale),
-    frame: false,
-    enableLargerThanScreen: true,
-    webPreferences: { offscreen: true },
-  });
-}
-
-async function screenshotSlide(appUrl, { showcaseId, sceneId } = {}) {
-  if (!showcaseId || !sceneId) throw new Error("showcaseId and sceneId are both required");
-  const win = offscreenWindow(SHOT_WIDTH, SHOT_HEIGHT);
-  try {
-    return await withTimeout(
-      (async () => {
-        await win.loadURL(`${appUrl}/showcase/${showcaseId}/export/${sceneId}`);
-        await win.webContents.executeJavaScript(`(async () => {
-          while (!document.querySelector(".export-static")) {
-            await new Promise((r) => setTimeout(r, 50));
-          }
-          await document.fonts.ready;
-          await Promise.all(Array.from(document.images).map((img) => img.decode().catch(() => {})));
-          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        })()`);
-        const image = await win.webContents.capturePage();
-        return image.toPNG().toString("base64");
-      })(),
-      `The slide did not render — check the showcase id ("${showcaseId}") and scene id ` +
-        `("${sceneId}"), and whether the showcase loads at all (run validate).`,
-    );
-  } finally {
-    win.destroy();
-  }
-}
-
-async function validateShowcases(appUrl) {
-  const win = offscreenWindow(SHOT_WIDTH, SHOT_HEIGHT);
-  try {
-    /* A fresh page load re-fetches the library from disk; the app's own
-     * loader module reports what built and what didn't. (Dev-server
-     * module path — revisit when the shell loads a built SPA.) */
-    return await withTimeout(
-      (async () => {
-        await win.loadURL(`${appUrl}/`);
-        return await win.webContents.executeJavaScript(`(async () => {
-          for (;;) {
-            try {
-              const m = await import("/src/content/showcases.ts");
-              await m.showcasesReady;
-              return {
-                loaded: m.showcases.map((s) => ({
-                  id: s.id,
-                  title: s.title,
-                  slides: s.scenes.length,
-                  runtimeSeconds: Math.round(
-                    s.scenes.reduce((sum, x) => sum + x.durationMs, 0) / 1000,
-                  ),
-                })),
-                errors: m.showcaseErrors,
-                warnings: m.showcaseWarnings,
-              };
-            } catch {
-              await new Promise((r) => setTimeout(r, 200));
-            }
-          }
-        })()`);
-      })(),
-      "The library did not finish loading — is the studio's app page reachable?",
-    );
-  } finally {
-    win.destroy();
-  }
-}
-
 /* Transcription outlives the page-tool cap: a cold call downloads the
  * model and a long recording takes real time. */
 const TRANSCRIBE_TIMEOUT_MS = 300_000;
 
 const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 
-async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: args = {} } = {}) {
+/** Runs one tool against a studio. `context` is
+ *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs }. */
+async function callTool(context, { name, arguments: args = {} } = {}) {
+  const showcasesDir = context.getShowcasesDir();
+  if (name === "studio_info") {
+    return json({
+      ...context.info(),
+      showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
+    });
+  }
   if (name === "edit_showcase") {
-    const result = applySceneEditsToFolder(getShowcasesDir(), {
+    const result = applySceneEditsToFolder(showcasesDir, {
       showcaseId: args.showcaseId,
       edits: args.edits,
     });
@@ -301,32 +213,28 @@ async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: 
   }
   if (name === "script") {
     return {
-      content: [
-        { type: "text", text: scriptText(getShowcasesDir(), String(args.showcaseId ?? "")) },
-      ],
+      content: [{ type: "text", text: scriptText(showcasesDir, String(args.showcaseId ?? "")) }],
     };
   }
   if (name === "export") {
     const kind = String(args.kind ?? "");
-    if (
-      !["screens", "video", "video-draft", "video-43", "video-43-draft", "script"].includes(kind)
-    ) {
-      throw new Error(
-        `Unknown export kind "${kind}" — use screens, video, video-draft, video-43, ` +
-          `video-43-draft, or script`,
-      );
+    if (!EXPORT_KINDS.includes(kind)) {
+      throw new Error(`Unknown export kind "${kind}" — use one of: ${EXPORT_KINDS.join(", ")}`);
     }
-    return json(exportJobs.start(kind, String(args.showcaseId ?? "")));
+    return json(context.exportJobs.start(kind, String(args.showcaseId ?? "")));
   }
   if (name === "export_status" || name === "export_cancel") {
     const jobId = String(args.jobId ?? "");
-    const result = name === "export_cancel" ? exportJobs.cancel(jobId) : exportJobs.status(jobId);
+    const result =
+      name === "export_cancel"
+        ? context.exportJobs.cancel(jobId)
+        : context.exportJobs.status(jobId);
     if (!result) throw new Error(`No export job named "${jobId}"`);
     return json(result);
   }
   if (name === "transcribe") {
     const file = String(args.file ?? "");
-    const audioPath = file && resolveAudio(file, getShowcasesDir());
+    const audioPath = file && resolveAudio(file, showcasesDir);
     if (!audioPath) {
       throw new Error(
         `No file named "${file}" found (looked in the library root and each showcase folder; ` +
@@ -346,7 +254,7 @@ async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: 
     return json({ file: audioPath, ...result });
   }
   if (name === "screenshot_slide") {
-    const data = await screenshotSlide(appUrl, args);
+    const data = await screenshotSlide(context.renderer, context.getUrl(), args);
     return {
       content: [
         { type: "image", data, mimeType: "image/png" },
@@ -358,15 +266,19 @@ async function callTool(appUrl, getShowcasesDir, exportJobs, { name, arguments: 
     };
   }
   if (name === "validate") {
-    const report = await validateShowcases(appUrl);
+    const report = await validateShowcases(context.renderer, context.getUrl());
     return { content: [{ type: "text", text: JSON.stringify(report, null, 2) }] };
   }
   throw new Error(`Unknown tool: ${name}`);
 }
 
-/** The /mcp request handler for the data server. */
-export function createMcpHandler({ appUrl, version, getShowcasesDir, exportJobs }) {
-  const rpc = async ({ id, method, params }) => {
+/** The JSON-RPC side of MCP: answers one message, or returns undefined
+ *  for a notification. `callTool(params)` runs a tool and returns its
+ *  result; a thrown error becomes a tool error Claude can read. */
+export function createMcpRpc({ version, callTool: runTool }) {
+  return async (message) => {
+    const { id, method, params } = message ?? {};
+    if (id === undefined) return undefined;
     const respond = (result) => ({ jsonrpc: "2.0", id, result });
     switch (method) {
       case "initialize":
@@ -383,7 +295,7 @@ export function createMcpHandler({ appUrl, version, getShowcasesDir, exportJobs 
         return respond({ tools: TOOLS });
       case "tools/call":
         try {
-          return respond(await callTool(appUrl, getShowcasesDir, exportJobs, params));
+          return respond(await runTool(params));
         } catch (error) {
           return respond({
             content: [{ type: "text", text: String(error?.message ?? error) }],
@@ -398,7 +310,11 @@ export function createMcpHandler({ appUrl, version, getShowcasesDir, exportJobs 
         };
     }
   };
+}
 
+/** The /mcp request handler for a studio (see callTool for `context`). */
+export function createMcpHandler({ version, context }) {
+  const rpc = createMcpRpc({ version, callTool: (params) => callTool(context, params) });
   return async (req, res) => {
     if (req.method !== "POST") {
       // No server-push stream, no sessions — POST only.
@@ -424,13 +340,13 @@ export function createMcpHandler({ appUrl, version, getShowcasesDir, exportJobs 
       );
       return;
     }
-    if (message?.id === undefined) {
+    const reply = await rpc(message);
+    if (!reply) {
       // A notification (e.g. notifications/initialized) — no reply body.
       res.statusCode = 202;
       res.end();
       return;
     }
-    const reply = await rpc(message);
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(reply));

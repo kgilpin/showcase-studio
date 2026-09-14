@@ -1,16 +1,59 @@
-/* Launch options that pin the studio window (src/lib/window-lock.mjs):
+/* The studio's command-line options — one list, shared by the dev modes
+ * (scripts/dev.mjs) and the Electron shell (electron/main.mjs), and
+ * printed by --help. Settings a person picks are flags; the environment is
+ * left for launchers (PORT), secrets, and test hooks.
  *
- *   --open <showcase folder>    open that one showcase; its parent
- *                               folder is the library for this run
- *   --new [<library folder>]    open the New Showcase page; without a
- *                               folder, the usual library is used
- *
- * Both also accept --flag=value. Relative paths resolve against `cwd`.
- * Every other argument (Electron's, Chromium's, the script path) is
- * ignored.
+ * Both --flag value and --flag=value work. Relative paths resolve against
+ * `cwd`. Arguments that aren't studio options (Electron's, Chromium's, the
+ * script path) are returned in `unknown` (--flags only) or ignored; the
+ * shell can't reject them, the dev script can.
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+
+export const EXPORT_KINDS = [
+  "screens",
+  "script",
+  "video",
+  "video-draft",
+  "video-43",
+  "video-43-draft",
+];
+
+export const STUDIO_USAGE = `Showcase Studio
+
+Usage:
+  npm run dev -- [options]                        the studio, in your browser
+  npm run dev:electron -- [options]               the same studio, in a desktop window
+  npm run dev:claude -- [options]                 the same studio, driven by Claude Code
+  open -n "Showcase Studio.app" --args [options]  the packaged desktop app
+
+The studio picks a free port and prints its URL (a launcher can pick the
+port by setting PORT). Claude Code reaches its tools through the MCP bridge
+in .mcp.json.
+
+Options:
+  --open <showcase folder>   Open one showcase and lock the studio to it.
+                             Its parent folder is the library.
+  --new [<library folder>]   Open the New showcase page. The studio locks
+                             to the showcase you create.
+  --library <folder>         Use this showcases folder. Default: this repo's
+                             showcases/ from source; in the packaged app, the
+                             last folder opened, or ~/Showcases.
+  --export <kind>:<id>       Export one showcase, then quit.
+                             Kinds: ${EXPORT_KINDS.join(", ")}.
+  -h, --help                 Show this help.
+
+Set by the npm scripts:
+  --electron                 Show the studio in a desktop window.
+  --claude                   For Claude Code: no embedded Claude terminals.
+  --app-url <url>            (Electron window) Show this running studio.
+
+Relative paths are resolved from the folder you run the command in.
+`;
+
+const VALUE_FLAGS = new Set(["open", "library", "export", "app-url"]);
+const SWITCHES = new Set(["help", "electron", "claude"]);
 
 const isDirectory = (dir) => {
   try {
@@ -20,28 +63,76 @@ const isDirectory = (dir) => {
   }
 };
 
-/** Reads --open / --new from argv. Returns null when neither is given,
- *  otherwise `{ showcasesDir, lock }`. Throws with a plain message when
- *  the options are misused or name a folder that won't work. */
-export function launchOptions(argv, { cwd, defaultDir }) {
-  const found = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    const match = /^--(open|new)(?:=(.*))?$/.exec(argv[i]);
-    if (!match) continue;
-    let value = match[2];
-    if (value === undefined && argv[i + 1] !== undefined && !argv[i + 1].startsWith("-")) {
-      i += 1;
-      value = argv[i];
-    }
-    found.push({ flag: match[1], value });
-  }
-  if (found.length === 0) return null;
-  if (found.length > 1) throw new Error("Use one launch option: --open or --new, once.");
+/** Parses argv into the studio's options:
+ *  `{ help, electron, claude, showcasesDir, lock, exportJob, appUrl, unknown }`.
+ *  `showcasesDir` is `defaultDir` unless --library, --open or --new picks
+ *  one. Throws with a plain message when an option is misused or names a
+ *  folder that won't work. */
+export function studioOptions(argv, { cwd, defaultDir } = {}) {
+  const given = new Map();
+  const unknown = [];
+  const setOnce = (name, value) => {
+    if (given.has(name)) throw new Error(`--${name} is given more than once.`);
+    given.set(name, value);
+  };
 
-  const [{ flag, value }] = found;
-  if (flag === "open") {
-    if (!value) throw new Error("--open needs a showcase folder, e.g. --open ~/Showcases/nova");
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "-h") {
+      setOnce("help", true);
+      continue;
+    }
+    const match = /^--([a-z][a-z-]*)(?:=(.*))?$/.exec(argv[i]);
+    if (!match) continue;
+    const [, name, inline] = match;
+    if (SWITCHES.has(name)) {
+      if (inline !== undefined) throw new Error(`--${name} doesn't take a value.`);
+      setOnce(name, true);
+    } else if (VALUE_FLAGS.has(name) || name === "new") {
+      let value = inline;
+      if (value === undefined && argv[i + 1] !== undefined && !argv[i + 1].startsWith("-")) {
+        i += 1;
+        value = argv[i];
+      }
+      if (!value && name !== "new") throw new Error(`--${name} needs a value.`);
+      setOnce(name, value ?? "");
+    } else {
+      unknown.push(argv[i]);
+    }
+  }
+
+  const options = {
+    help: given.has("help"),
+    electron: given.has("electron"),
+    claude: given.has("claude"),
+    showcasesDir: defaultDir,
+    lock: null,
+    exportJob: undefined,
+    appUrl: undefined,
+    unknown,
+  };
+  if (options.help) return options;
+
+  const folder = (value) => {
     const dir = path.resolve(cwd, value);
+    if (!isDirectory(dir)) throw new Error(`${dir} is not a folder.`);
+    return dir;
+  };
+
+  if (options.electron && options.claude) {
+    throw new Error("Use --electron or --claude, not both.");
+  }
+  if (given.has("open") && given.has("new")) throw new Error("Use --open or --new, not both.");
+  if (given.has("open") && given.has("library")) {
+    throw new Error("--open already picks the library: the showcase folder's parent.");
+  }
+  if (given.get("new") && given.has("library")) {
+    throw new Error("Give the library once: --new <folder> or --library <folder>.");
+  }
+
+  if (given.has("library")) options.showcasesDir = folder(given.get("library"));
+
+  if (given.has("open")) {
+    const dir = path.resolve(cwd, given.get("open"));
     if (!isDirectory(dir) || !existsSync(path.join(dir, "showcase.yaml"))) {
       throw new Error(`${dir} is not a showcase folder: it has no showcase.yaml.`);
     }
@@ -55,13 +146,37 @@ export function launchOptions(argv, { cwd, defaultDir }) {
         `${dir} is a library of showcases. Pass one showcase folder inside it to --open.`,
       );
     }
-    return {
-      showcasesDir: path.dirname(dir),
-      lock: { kind: "showcase", showcaseId: path.basename(dir) },
-    };
+    options.showcasesDir = path.dirname(dir);
+    options.lock = { kind: "showcase", showcaseId: path.basename(dir) };
   }
 
-  const dir = value ? path.resolve(cwd, value) : defaultDir;
-  if (value && !isDirectory(dir)) throw new Error(`${dir} is not a folder.`);
-  return { showcasesDir: dir, lock: { kind: "new" } };
+  if (given.has("new")) {
+    if (given.get("new")) options.showcasesDir = folder(given.get("new"));
+    options.lock = { kind: "new" };
+  }
+
+  if (given.has("export")) {
+    if (options.lock || options.electron) {
+      throw new Error(
+        "--export runs without a window, so it can't be used with --open, --new, or --electron.",
+      );
+    }
+    const job = /^([a-z0-9-]+):(?!\.\.?$)([^/\\]+)$/.exec(given.get("export"));
+    if (!job || !EXPORT_KINDS.includes(job[1])) {
+      throw new Error(
+        `--export needs <kind>:<showcase id>, where kind is one of: ${EXPORT_KINDS.join(", ")}.`,
+      );
+    }
+    options.exportJob = { kind: job[1], showcaseId: job[2] };
+  }
+
+  if (given.has("app-url")) {
+    const value = given.get("app-url");
+    if (!/^https?:\/\/[^/\s]+\/?$/.test(value)) {
+      throw new Error("--app-url needs the studio's address, like http://localhost:5173.");
+    }
+    options.appUrl = value.replace(/\/$/, "");
+  }
+
+  return options;
 }

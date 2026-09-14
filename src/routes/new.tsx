@@ -5,9 +5,9 @@ import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { NewShowcaseForm } from "@/components/studio/NewShowcaseForm";
 import { studio } from "@/lib/studio";
 
-/* The New Showcase page: where a window launched with --new lands, and
- * stays until it creates a showcase. Creating needs the desktop studio,
- * so a plain browser only gets an explanation. */
+/* The New Showcase page: where a studio started with --new lands, and
+ * stays until it creates a showcase. Creating needs a studio, so a plain
+ * web build only gets an explanation. */
 export const Route = createFileRoute("/new")({
   head: () => ({ meta: [{ title: "New showcase" }] }),
   component: NewShowcaseScreen,
@@ -30,7 +30,7 @@ function NewShowcaseScreen() {
         </h1>
         {inStudio === false && (
           <p className="text-center text-sm text-muted-foreground">
-            Creating a showcase needs the desktop studio.
+            Creating a showcase needs the studio (npm run dev).
           </p>
         )}
         {inStudio && <NewShowcaseForm />}

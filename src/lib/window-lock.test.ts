@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { isPathInLock, lockLandingPath } from "./window-lock.mjs";
+import { isCapturePage, isPathInLock, lockLandingPath } from "./window-lock.mjs";
+
+describe("isCapturePage", () => {
+  it("recognizes export frames, the record page, and the recorded teleprompter", () => {
+    expect(isCapturePage("/showcase/nova/export/opening-1")).toBe(true);
+    expect(isCapturePage("/showcase/nova/record", "?controlled=1")).toBe(true);
+    expect(isCapturePage("/showcase/nova/script", "?record=1")).toBe(true);
+  });
+
+  it("leaves the pages people use alone", () => {
+    expect(isCapturePage("/showcase/nova")).toBe(false);
+    expect(isCapturePage("/showcase/nova/export")).toBe(false);
+    expect(isCapturePage("/showcase/nova/script")).toBe(false);
+    expect(isCapturePage("/")).toBe(false);
+  });
+});
 
 describe("isPathInLock", () => {
   const nova = { kind: "showcase", showcaseId: "nova" } as const;

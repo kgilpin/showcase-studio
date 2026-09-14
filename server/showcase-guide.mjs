@@ -80,8 +80,9 @@ ${
   $SHOWCASE_STUDIO_SRC). Read it when you need to know exactly how
   something works: the player and slide themes
   (src/components/showcase/), the timing model (src/content/timing.mjs),
-  the data pipeline (src/content/, scripts/showcase-data.mjs), exports
-  (electron/exporter.mjs). Treat it as read-only reference — app changes
+  the data pipeline (src/content/, server/showcase-data.mjs), the studio
+  server (server/studio-server.mjs), exports (server/exporter.mjs). Treat
+  it as read-only reference — app changes
   belong in that repo, not in this folder.
 - ffmpeg is bundled with the studio at ${ffmpegPath ?? "(unavailable)"}
   (also in $SHOWCASE_STUDIO_FFMPEG). Use it for audio and video work on

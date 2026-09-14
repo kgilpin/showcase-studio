@@ -1,61 +1,41 @@
-/* Electron shell: the showcase app as a desktop studio.
+/* Electron shell: Showcase Studio as a desktop app.
  *
- * On launch it:
- *   1. Ensures the user's showcases folder exists (~/Showcases, or
- *      SHOWCASES_DIR), scaffolding README/.gitignore/CLAUDE.md on first
- *      run — showcases are created in-app, not seeded from samples.
- *   2. Serves that folder in the data shape the app's httpSource
- *      consumes (server/showcase-data.mjs), with CORS open so the app
- *      can fetch it from the dev-server origin. Preferred port 8123;
- *      self-host mode falls back to an OS-assigned port so several
- *      studios can run at once.
- *   3. Opens a window on the app itself: ELECTRON_APP_URL when set (npm
- *      run electron:dev points it at a vite dev server started with
- *      VITE_SHOWCASES_URL=http://127.0.0.1:8123), otherwise the built
- *      app in .output/ (npm run build:desktop) served in-process behind
- *      the data server's front door — how the packaged binary runs.
- *   4. Watches the folder and reloads the window when anything changes.
+ * Electron is packaging, not features. Every studio feature lives in the
+ * studio server (server/studio-server.mjs), and this window is one more
+ * client of it, like a browser tab. What Electron adds: the window, the
+ * system menus (File > Open Folder…, Open Recent, Reveal in Finder), the
+ * Dock icon, the real path of files dropped on the terminal
+ * (preload.cjs), and — in the packaged app — Electron's page renderer for
+ * screenshots and exports (renderer.mjs).
  *
- * Launch options lock the window so it can't switch showcases:
- * --open <showcase folder> or --new [<library folder>]
- * (server/launch-options.mjs, src/lib/window-lock.mjs).
+ * Two ways it runs:
+ *   npm run dev:electron   scripts/dev.mjs starts the studio in the Vite dev
+ *                          server and opens this window on it (--app-url).
+ *   the packaged app       no --app-url: this process starts the studio
+ *                          itself — the built app (.output/, npm run
+ *                          build:desktop) behind a small server that mounts
+ *                          the studio server, on free ports.
  *
- * STUDIO_HEADLESS=1 runs without a visible window: a browser is the UI,
- * and it reads the lock from <data URL>/studio.json.
+ * `--help` lists the options (server/launch-options.mjs).
  *
  * ELECTRON_SMOKE=<path.png> captures the loaded window to a file and
- * quits — used for automated verification.
+ * quits — used for automated verification (ELECTRON_SMOKE_* below add
+ * steps).
  */
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, shell } from "electron";
 import http from "node:http";
 import net from "node:net";
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  watch,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
-import { handleShowcaseRequest, showcaseIndex } from "../server/showcase-data.mjs";
+import { STUDIO_USAGE, studioOptions } from "../server/launch-options.mjs";
 import { showInRecent } from "../server/library-config.mjs";
-import { applySceneEditToFolder, contentHash } from "../server/scene-edit.mjs";
-import { prompterScript } from "../server/prompter-script.mjs";
-import { exportScreens, exportScript, exportVideo } from "./exporter.mjs";
-import { registerTerminal } from "./terminal.mjs";
-import { loadSettings, saveSettings } from "./settings.mjs";
-import { createExportJobs } from "../server/export-jobs.mjs";
-import { createMcpHandler } from "./mcp.mjs";
-import { whisperPath } from "./transcribe.mjs";
-import { hasStaleInlineGuide, studioGuide } from "../server/showcase-guide.mjs";
-import { launchOptions } from "../server/launch-options.mjs";
+import { loadSettings, saveSettings } from "../server/settings.mjs";
+import { showcaseIndex } from "../server/showcase-data.mjs";
+import { createStudio } from "../server/studio-server.mjs";
 import { isPathInLock, lockLandingPath } from "../src/lib/window-lock.mjs";
+import { createElectronRenderer } from "./renderer.mjs";
 
 /* In dev the macOS menu-bar TITLE still reads "Electron" (it comes from
  * the binary's Info.plist and can't change at runtime — a packaged build
@@ -67,33 +47,40 @@ const require_ = createRequire(import.meta.url);
 /* In dev app.getVersion() reports Electron's own version — the app's
  * version lives in package.json. */
 const appVersion = require_("../package.json").version;
-let ffmpegPath;
+
+/* Command-line options. npm runs scripts from the package root, so
+ * relative paths resolve against where npm was started (INIT_CWD).
+ * --help prints the options and quits; a bad option is printed with
+ * them, then reported in a dialog once the app is ready. The library
+ * defaults to the saved folder (File > Open Folder…), then ~/Showcases. */
+const savedOrHomeDir = loadSettings().showcasesDir ?? path.join(app.getPath("home"), "Showcases");
+let options;
+let launchError = null;
 try {
-  ffmpegPath = require_("ffmpeg-static");
-} catch {
-  /* exports degrade too; the guide says "(unavailable)" */
+  options = studioOptions(process.argv, {
+    cwd: process.env.INIT_CWD ?? process.cwd(),
+    defaultDir: savedOrHomeDir,
+  });
+} catch (error) {
+  launchError = error.message;
+  console.error(`${launchError}\n\n${STUDIO_USAGE}`);
+  options = studioOptions([], { defaultDir: savedOrHomeDir });
+}
+if (options.help) {
+  process.stdout.write(STUDIO_USAGE);
+  process.exit(0);
 }
 
-/* Without ELECTRON_APP_URL (a dev server), serve the built app from
- * .output/ (npm run build:desktop) in this process — the packaged
- * binary's mode. One front-door server per instance serves the data
- * shape and MCP and proxies everything else to the built app server,
- * and the client is built with a relative data URL (/showcase-data), so
- * several studios can run at once: the front door prefers SHOWCASES_PORT
- * (8123, keeping existing .studio/mcp.json links stable) and falls back
- * to an OS-assigned port when another studio holds it, and the built app
- * server always takes an OS-assigned port (STUDIO_APP_PORT overrides).
- * In dev mode the ports stay fixed and taken-port failures stay loud:
- * the dev client bakes an absolute data URL, so a silent fallback would
- * cross-wire two studios' libraries. */
-const requestedDataPort = Number(process.env.SHOWCASES_PORT ?? 8123);
-let dataPort = requestedDataPort;
+/* The studio's address: given by npm run dev:electron, or set once the
+ * packaged app's server listens. */
+let appUrl = options.appUrl ?? null;
+/** The packaged app's own studio (none when the window shows a dev server's). */
+let studio;
+/* What the window knows about its studio — the library folder and the
+ * lock — kept current from the studio's events. */
+let studioInfo = { library: options.showcasesDir, lock: options.lock };
 
 const builtServer = path.join(repoRoot, ".output", "server", "index.mjs");
-const selfHost = !process.env.ELECTRON_APP_URL && existsSync(builtServer);
-let appPort = Number(process.env.STUDIO_APP_PORT ?? 0);
-/* Self-host: set once the front door is listening. */
-let appUrl = process.env.ELECTRON_APP_URL ?? null;
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -106,15 +93,8 @@ function freePort() {
   });
 }
 
-async function serveBuiltApp() {
-  if (!appPort) appPort = await freePort();
-  process.env.PORT = String(appPort);
-  process.env.HOST = "127.0.0.1";
-  await import(pathToFileURL(builtServer).href);
-}
-
-/** Streams a front-door request through to the built app server. */
-function proxyToBuiltApp(req, res) {
+/** Streams a request the studio doesn't handle through to the built app server. */
+function proxyToBuiltApp(appPort, req, res) {
   const upstream = http.request(
     { host: "127.0.0.1", port: appPort, path: req.url, method: req.method, headers: req.headers },
     (up) => {
@@ -129,268 +109,97 @@ function proxyToBuiltApp(req, res) {
   req.pipe(upstream);
 }
 
-/* The showcases folder is the user's content repo — a plain directory
- * they can `git init` and version themselves (the app never runs git;
- * checkouts and branch switches simply live-reload). Resolution:
- * SHOWCASES_DIR env → the persisted choice (Menu → Choose Showcases
- * Folder…) → ~/Showcases. */
-let showcasesDir =
-  process.env.SHOWCASES_DIR ??
-  loadSettings().showcasesDir ??
-  path.join(app.getPath("home"), "Showcases");
-
-/* The window lock from --open / --new, or null when the window may
- * switch showcases. The options pick the library for this run only: the
- * saved folder and Open Recent stay as they were. npm runs scripts from
- * the package root, so relative paths resolve against where npm was
- * started (INIT_CWD). A bad option is reported once the app is ready. */
-let windowLock = null;
-let launchError = null;
-try {
-  const launch = launchOptions(process.argv, {
-    cwd: process.env.INIT_CWD ?? process.cwd(),
-    defaultDir: showcasesDir,
+/** The packaged app: starts the built app server and, in front of it, a
+ *  small server that mounts the studio. Both take free ports. */
+async function startPackagedStudio() {
+  if (!existsSync(builtServer)) {
+    throw new Error(
+      "The built app is missing (.output/). Run `npm run build:desktop`, " +
+        "or use `npm run dev:electron` from source.",
+    );
+  }
+  const appPort = await freePort();
+  /* The built app server (Nitro) reads its address from PORT and HOST. */
+  process.env.PORT = String(appPort);
+  process.env.HOST = "127.0.0.1";
+  await import(pathToFileURL(builtServer).href);
+  studio = createStudio({
+    showcasesDir: options.showcasesDir,
+    lock: options.lock,
+    version: appVersion,
+    srcDir: repoRoot,
+    renderer: createElectronRenderer(),
   });
-  if (launch) ({ showcasesDir, lock: windowLock } = launch);
-} catch (error) {
-  launchError = error.message;
-}
-
-const FOLDER_README = `# Showcases
-
-This folder is managed by Showcase Studio. Each showcase is a folder:
-
-    <id>/showcase.yaml   the script: scenes, narration, timing
-    <id>/theme.yaml      optional styling (colors, fonts, atmosphere)
-    <id>/assets/         screenshots and marks (asset keys = file names without extension)
-    <id>/graphics/       optional TSX diagrams (default-export React components, CSS-only animation)
-
-A showcase.yaml at this top level (next to the showcase folders) holds
-library settings — currently just one:
-
-    show_in_recent: false   keep this folder out of File > Open Recent
-
-The studio live-reloads whenever files here change. The folder is yours
-to version: run \`git init\` here and commit as you like — the app never
-runs git itself, and switching branches reloads the app automatically.
-`;
-
-/* New folders start with scaffolding only — no sample showcases; the
- * samples live in the app repo, and the "+" card creates real content.
- *
- * Two ownership rules keep instructions current without clobbering the
- * user: CLAUDE.md and README are seeded once and then belong to the
- * user; .studio/GUIDE.md belongs to the studio and is rewritten on
- * every launch (and folder switch), so any Claude Code session here —
- * embedded, external, or user-started — always sees instructions that
- * match the running app. The seeded CLAUDE.md pulls the guide in via
- * Claude Code's @-import; folders seeded before the split get the
- * import line (and the .gitignore entry) appended once. */
-const GUIDE_IMPORT = "@.studio/GUIDE.md";
-
-function ensureShowcasesDir() {
-  mkdirSync(path.join(showcasesDir, ".studio"), { recursive: true });
-  const claudeMdPath = path.join(showcasesDir, "CLAUDE.md");
-  const claudeMd = existsSync(claudeMdPath) ? readFileSync(claudeMdPath, "utf8") : null;
-  writeFileSync(
-    path.join(showcasesDir, ".studio", "GUIDE.md"),
-    studioGuide({
-      version: appVersion,
-      srcDir: repoRoot,
-      ffmpegPath,
-      showcasesDir,
-      staleClaudeMd: claudeMd != null && hasStaleInlineGuide(claudeMd),
-    }),
+  const front = http.createServer(
+    (req, res) => void studio.handle(req, res, () => proxyToBuiltApp(appPort, req, res)),
   );
-  /* The studio's MCP tools; studio-opened terminals load this via
-   * --mcp-config, and a user-started `claude` can point at it too. */
-  writeFileSync(
-    path.join(showcasesDir, ".studio", "mcp.json"),
-    JSON.stringify(
-      {
-        mcpServers: {
-          "showcase-studio": { type: "http", url: `http://127.0.0.1:${dataPort}/mcp` },
-        },
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-  if (!existsSync(path.join(showcasesDir, "README.md"))) {
-    writeFileSync(path.join(showcasesDir, "README.md"), FOLDER_README);
-  }
-  const gitignorePath = path.join(showcasesDir, ".gitignore");
-  if (!existsSync(gitignorePath)) {
-    writeFileSync(gitignorePath, ".DS_Store\n.studio/\n");
-  } else if (!readFileSync(gitignorePath, "utf8").includes(".studio/")) {
-    appendFileSync(gitignorePath, ".studio/\n");
-  }
-  if (claudeMd == null) {
-    writeFileSync(
-      claudeMdPath,
-      `# Showcases folder
-
-${GUIDE_IMPORT}
-
-The line above imports the studio's always-current instructions
-(regenerated on every launch — keep it). The rest of this file is yours:
-add notes specific to this library below, and the studio won't touch them.
-`,
-    );
-  } else if (!claudeMd.includes(GUIDE_IMPORT)) {
-    appendFileSync(
-      claudeMdPath,
-      `\n${GUIDE_IMPORT}\n<!-- The studio's always-current instructions (regenerated every launch) — keep this import. -->\n`,
-    );
-  }
+  await new Promise((resolve, reject) => {
+    front.once("error", reject);
+    front.listen(0, "127.0.0.1", resolve);
+  });
+  appUrl = `http://127.0.0.1:${front.address().port}`;
+  studio.setUrl(appUrl);
+  console.log(`studio: ${appUrl}`);
 }
 
-/* Export jobs run in this process against the main window (progress also
- * streams to the export page); MCP is the control surface. */
-let mainWindow;
-const exportJobs = createExportJobs((kind, showcaseId, { onProgress, signal }) =>
-  runExport(kind, showcaseId, mainWindow, { onProgress, signal }),
-);
+async function readStudioInfo() {
+  const response = await fetch(`${appUrl}/studio/api/info`);
+  if (!response.ok) throw new Error(`the studio answered ${response.status}`);
+  return response.json();
+}
 
-function serveData() {
-  let mcp;
-  const server = http.createServer((req, res) => {
-    const url = (req.url ?? "").split("?")[0] ?? "";
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    if (url === "/mcp") {
-      if (!mcp) {
-        res.statusCode = 503;
-        res.end("starting");
-        return;
-      }
-      void mcp(req, res);
-      return;
-    }
-    /* The data shape lives under /showcase-data (what the self-host
-     * client is built against) and, for the dev client's absolute URLs,
-     * at the root. In self-host mode every other path is the app's. */
-    const dataPath = url.startsWith("/showcase-data")
-      ? url.slice("/showcase-data".length) || "/"
-      : selfHost
-        ? null
-        : url;
-    if (dataPath == null) {
-      proxyToBuiltApp(req, res);
-      return;
-    }
-    /* The window lock for browser clients, which have no desktop bridge
-     * (a headless studio viewed in a browser). */
-    if (dataPath === "/studio.json") {
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ windowLock }));
-      return;
-    }
-    handleShowcaseRequest(showcasesDir, dataPath, { range: req.headers.range }).then(
-      (result) => {
-        if (!result) {
-          res.statusCode = 404;
-          res.end("not found");
-          return;
+async function studioApi(action, body) {
+  const response = await fetch(`${appUrl}/studio/api/${action}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  return response.json();
+}
+
+/** Follows the studio's events for as long as the app runs, calling
+ *  `onInfo` when the studio's info changes (a new lock, another library). */
+async function followStudioEvents(onInfo) {
+  for (;;) {
+    try {
+      const response = await fetch(`${appUrl}/studio/api/events`);
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for await (const chunk of response.body) {
+        buffer += decoder.decode(chunk, { stream: true });
+        for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) {
+          const block = buffer.slice(0, end);
+          buffer = buffer.slice(end + 2);
+          const event = /^event: (.+)$/m.exec(block)?.[1];
+          const data = /^data: (.+)$/m.exec(block)?.[1];
+          if (event === "info" && data) onInfo(JSON.parse(data));
         }
-        res.statusCode = result.status;
-        res.setHeader("Content-Type", result.type);
-        for (const [name, value] of Object.entries(result.headers ?? {})) {
-          res.setHeader(name, value);
-        }
-        res.end(result.body);
-      },
-      (error) => {
-        res.statusCode = 500;
-        res.end(String(error));
-      },
-    );
-  });
-  let retried = false;
-  return new Promise((resolve) => {
-    server.on("error", (error) => {
-      /* Self-host: the preferred port being taken just means another
-       * studio is running — fall back to an OS-assigned port; the
-       * client's relative URLs follow the page. Everything else (and
-       * any dev-mode error) fails loudly — a silent EADDRINUSE would
-       * leave the dev app serving another instance's data. */
-      if (selfHost && error.code === "EADDRINUSE" && !retried) {
-        retried = true;
-        server.listen(0, "127.0.0.1");
-        return;
       }
-      console.error(`Showcase data server failed on port ${dataPort}: ${error.message}`);
-      app.exit(1);
-    });
-    server.on("listening", () => {
-      dataPort = server.address().port;
-      appUrl ??= `http://127.0.0.1:${dataPort}`;
-      mcp = createMcpHandler({
-        appUrl,
-        version: appVersion,
-        getShowcasesDir: () => showcasesDir,
-        exportJobs,
-      });
-      resolve(server);
-    });
-    server.listen(dataPort, "127.0.0.1");
-  });
-}
-
-/* Self-write suppression. Edits made through the app's own scene-edit
- * IPC are already applied to the renderer's in-page model, so the
- * watcher must not answer them with a full page reload (the "flash").
- * Each such write records the content hash it produced; when every file
- * in a watch burst still matches its recorded hash, the burst is the
- * echo of our own writes and is swallowed. Anything else — agent edits,
- * hand edits, git checkouts — reloads the window as before. */
-const selfWrites = new Map();
-function recordSelfWrite(file, content) {
-  selfWrites.set(file, { hash: contentHash(content), at: Date.now() });
-}
-function isSelfWriteEcho(file) {
-  const entry = selfWrites.get(file);
-  if (!entry || Date.now() - entry.at > 10_000) return false;
-  try {
-    return contentHash(readFileSync(file)) === entry.hash;
-  } catch {
-    return false;
+    } catch {
+      /* the studio is restarting or gone — try again shortly */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 }
 
-let watcher;
-function watchShowcases(win) {
-  watcher?.close();
-  let timer;
-  const pending = new Set();
-  watcher = watch(showcasesDir, { recursive: true }, (_event, filename) => {
-    pending.add(filename == null ? null : path.join(showcasesDir, filename));
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      const changed = [...pending];
-      pending.clear();
-      if (changed.every((file) => file != null && isSelfWriteEcho(file))) return;
-      win.webContents.reloadIgnoringCache();
-    }, 250);
-  });
-}
-
-/* The window lock's backstop. The page already redirects navigations
- * outside the lock (src/routes/__root.tsx); this catches whatever gets
- * past it — full page loads, in-page history changes, window.open, and
- * any way of switching showcases added later — and puts the window back
- * on its locked page. Links to other sites don't switch showcases, so
- * they pass. */
+/* The lock's backstop. The page already redirects navigations outside the
+ * lock (src/routes/__root.tsx); this catches whatever gets past it — full
+ * page loads, in-page history changes, window.open, and any way of
+ * switching showcases added later — and puts the window back on its
+ * locked page. Links to other sites don't switch showcases, so they pass. */
 function guardWindowLock(win) {
   const outsideLock = (url) => {
-    if (!windowLock) return false;
+    if (!studioInfo.lock) return false;
     try {
       const target = new URL(url);
-      return target.origin === new URL(appUrl).origin && !isPathInLock(windowLock, target.pathname);
+      return (
+        target.origin === new URL(appUrl).origin && !isPathInLock(studioInfo.lock, target.pathname)
+      );
     } catch {
       return false;
     }
   };
-  const backToLock = () => void win.loadURL(appUrl + lockLandingPath(windowLock));
+  const backToLock = () => void win.loadURL(appUrl + lockLandingPath(studioInfo.lock));
   win.webContents.on("will-navigate", (event, url) => {
     if (!outsideLock(url)) return;
     event.preventDefault();
@@ -407,47 +216,41 @@ function guardWindowLock(win) {
   );
 }
 
-/** Points the studio at a showcases directory — typically a git repo the
- *  user manages. Persisted across launches, and remembered in Open Recent.
- *  A locked window never switches libraries. */
-function setShowcasesFolder(dir, win) {
-  if (windowLock) return;
-  showcasesDir = dir;
-  const recents = [dir, ...(loadSettings().recentFolders ?? []).filter((d) => d !== dir)];
-  saveSettings({ showcasesDir: dir, recentFolders: recents.slice(0, 8) });
-  ensureShowcasesDir();
-  watchShowcases(win);
-  /* A new library means the current route may not exist anymore — land
-   * on Home rather than a "no such showcase" page. */
-  void win.loadURL(appUrl);
-  buildMenu(win);
+/** Points the studio at another library folder. The studio remembers it
+ *  (saved folder, Open Recent) and the page goes home on its own. */
+async function openLibrary(dir) {
+  const result = await studioApi("library", { dir }).catch((error) => ({
+    ok: false,
+    error: error.message,
+  }));
+  if (!result.ok) {
+    dialog.showErrorBox("Showcase Studio", result.error ?? "The folder could not be opened");
+  }
 }
 
-/** File → Open Folder…: the directory picker in front of setShowcasesFolder. */
+/** File → Open Folder…: the directory picker in front of openLibrary. */
 async function chooseShowcasesFolder(win) {
   const picked = await dialog.showOpenDialog(win, {
     title: "Open Showcases Folder",
     buttonLabel: "Open Folder",
     properties: ["openDirectory", "createDirectory"],
-    defaultPath: showcasesDir,
+    defaultPath: studioInfo.library,
   });
   const dir = picked.filePaths[0];
   if (picked.canceled || !dir) return;
-  setShowcasesFolder(dir, win);
+  await openLibrary(dir);
 }
 
-/* Exports are driven by Claude through the MCP export tools (and the
- * showcase's export page) — no File menu items while that flow settles. */
 function buildMenu(win) {
   const home = app.getPath("home");
   /* A folder can opt out of Open Recent with show_in_recent: false in a
-   * root-level showcase.yaml (server/library-config.mjs). It stays in
-   * the persisted list — flipping the setting back brings it back. */
+   * root-level showcase.yaml (server/library-config.mjs). It stays in the
+   * saved list — flipping the setting back brings it back. */
   const recents = (loadSettings().recentFolders ?? []).filter(
-    (dir) => dir !== showcasesDir && showInRecent(dir),
+    (dir) => dir !== studioInfo.library && showInRecent(dir),
   );
-  /* Both items switch libraries, so a locked window doesn't get them. */
-  const switchingItems = windowLock
+  /* Both items switch libraries, so a locked studio doesn't get them. */
+  const switchingItems = studioInfo.lock
     ? []
     : [
         {
@@ -460,7 +263,7 @@ function buildMenu(win) {
           submenu: [
             ...recents.map((dir) => ({
               label: dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir,
-              click: () => setShowcasesFolder(dir, win),
+              click: () => void openLibrary(dir),
             })),
             ...(recents.length ? [{ type: "separator" }] : []),
             {
@@ -475,7 +278,9 @@ function buildMenu(win) {
         },
       ];
   const revealDir =
-    windowLock?.kind === "showcase" ? path.join(showcasesDir, windowLock.showcaseId) : showcasesDir;
+    studioInfo.lock?.kind === "showcase"
+      ? path.join(studioInfo.library, studioInfo.lock.showcaseId)
+      : studioInfo.library;
   const template = [
     ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
     {
@@ -496,61 +301,33 @@ function buildMenu(win) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-/** Runs one export, streaming progress to the studio window when open.
- *  Kinds: screens, script, video, video-draft, and the 4:3 embed canvas
- *  video-43 / video-43-draft. Drafts run 12fps at half size. */
-async function runExport(kind, showcaseId, win, { onProgress, signal } = {}) {
-  const progress = (label) => {
-    // The window can be gone (quit mid-export) — sending then throws.
-    if (win && !win.isDestroyed()) {
-      win.webContents.send("export-progress", { showcaseId, kind, label });
-    }
-    onProgress?.(label);
-    if (process.env.ELECTRON_EXPORT) console.log(`${kind} ${showcaseId}: ${label}`);
-  };
-  const outDir = path.join(app.getPath("downloads"), "showcase-exports", showcaseId);
-  const options = { showcasesDir, showcaseId, appUrl, outDir, progress, signal };
-  const draft = kind.endsWith("-draft");
-  const canvas = kind.startsWith("video-43") ? "embed" : "portrait";
-  const fps = Number(process.env.EXPORT_FPS ?? (draft ? 12 : 30));
-  const out =
-    kind === "screens"
-      ? await exportScreens(options)
-      : kind === "script"
-        ? await exportScript(options)
-        : await exportVideo({ ...options, draft, canvas, fps });
-  if (win && !win.isDestroyed()) {
-    win.webContents.send("export-progress", { showcaseId, kind, label: "done", done: true, out });
-  }
-  return out;
-}
-
 app.whenReady().then(async () => {
   if (launchError) {
     dialog.showErrorBox("Showcase Studio", launchError);
     app.exit(1);
     return;
   }
-  if (selfHost) {
+  if (!appUrl) {
     try {
-      await serveBuiltApp();
+      await startPackagedStudio();
     } catch (error) {
-      dialog.showErrorBox("Showcase Studio", `The app server failed to start: ${error.message}`);
+      dialog.showErrorBox("Showcase Studio", `The studio failed to start: ${error.message}`);
       app.exit(1);
       return;
     }
   }
-  /* The front door picks its real port here; ensureShowcasesDir writes
-   * .studio/mcp.json from it, so it must come after. */
-  await serveData();
-  ensureShowcasesDir();
 
-  /* Headless export (also the automated-test hook):
-   * ELECTRON_EXPORT=screens:<id> or video:<id> runs it and quits. */
-  if (process.env.ELECTRON_EXPORT) {
-    const [kind, showcaseId] = process.env.ELECTRON_EXPORT.split(":");
+  /* Export without a window (also the automated-test hook):
+   * --export screens:<id> or --export video:<id> runs it and quits. */
+  if (options.exportJob) {
+    const { kind, showcaseId } = options.exportJob;
     try {
-      console.log(`exported: ${await runExport(kind, showcaseId, undefined)}`);
+      if (!studio) throw new Error("--export runs in the packaged app (from source: npm run dev)");
+      const out = await studio.exportNow(kind, showcaseId, {
+        onProgress: (label) => console.log(`${kind} ${showcaseId}: ${label}`),
+      });
+      console.log(`exported: ${out}`);
+      await studio.close();
       app.exit(0);
     } catch (error) {
       console.error(error);
@@ -559,302 +336,75 @@ app.whenReady().then(async () => {
     return;
   }
 
-  /* STUDIO_HEADLESS=1 runs the backend only (data server, MCP, exports)
-   * with no visible window and no Dock icon; the UI is a browser pointed
-   * at the app URL. The hidden window stays so the IPC handlers have a
-   * target, but it never loads the app. */
-  const headless = Boolean(process.env.STUDIO_HEADLESS);
-  if (headless) app.dock?.hide();
+  try {
+    studioInfo = await readStudioInfo();
+  } catch (error) {
+    dialog.showErrorBox(
+      "Showcase Studio",
+      `The studio at ${appUrl} isn't answering: ${error.message}`,
+    );
+    app.exit(1);
+    return;
+  }
 
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     title: "Showcase Studio",
-    show: !process.env.ELECTRON_SMOKE && !headless,
+    show: !process.env.ELECTRON_SMOKE,
     webPreferences: {
       preload: path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.cjs"),
     },
   });
-  mainWindow = win;
 
   /* A file dropped outside a drop target must not navigate the app to
    * file:// (Chromium's default) — that would blank the studio. */
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("file:")) event.preventDefault();
   });
-
   guardWindowLock(win);
-  /* Synchronous (sendSync): the page's router checks it before each
-   * navigation. */
-  ipcMain.on("window-lock", (event) => {
-    event.returnValue = windowLock;
-  });
-
-  ipcMain.handle("export-screens", async (_event, showcaseId) => {
-    const out = await runExport("screens", showcaseId, win);
-    shell.showItemInFolder(out);
-    return out;
-  });
-  ipcMain.handle("export-video", async (_event, showcaseId) => {
-    const out = await runExport("video", showcaseId, win);
-    shell.showItemInFolder(out);
-    return out;
-  });
-
-  /* Scaffolds a new showcase folder (the home page's "+" card). */
-  ipcMain.handle("showcase-create", (_event, name) => {
-    /* Creating opens the new showcase, which would leave this one. */
-    if (windowLock?.kind === "showcase") {
-      return { ok: false, error: "This window is locked to one showcase" };
-    }
-    const title = String(name ?? "").trim();
-    const id = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    if (!id) return { ok: false, error: "Give the showcase a name" };
-    if (existsSync(path.join(showcasesDir, id))) {
-      return { ok: false, error: `A showcase named "${id}" already exists` };
-    }
-    mkdirSync(path.join(showcasesDir, id, "assets"), { recursive: true });
-    writeFileSync(
-      path.join(showcasesDir, id, "showcase.yaml"),
-      `meta:
-  title: ${title}
-  description: Describe ${title} in a sentence.
-  loop: true
-
-scenes:
-  - id: intro
-    theme: statement
-    title: ${title}
-    captions:
-      - text: Replace this narration with your opening line.
-    media:
-      kind: none
-`,
-    );
-    /* A --new window is now locked to the showcase it created. */
-    if (windowLock?.kind === "new") {
-      windowLock = { kind: "showcase", showcaseId: id };
-      buildMenu(win);
-    }
-    return { ok: true, id };
-  });
-
-  /* Facts every Claude session should have on hand, computed at spawn so
-   * they track the running app (and folder switches). The generated
-   * .studio/GUIDE.md explains each one. */
-  const studioEnv = () => ({
-    SHOWCASE_STUDIO_ROOT: showcasesDir,
-    SHOWCASE_STUDIO_SRC: repoRoot,
-    ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
-    ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
-  });
-  /* One whitelisted field edit on a scene in showcase.yaml — the write
-   * path behind in-app editing (titles, captions, scene media), all in
-   * scene-edit.mjs. The write is recorded before it lands so the watcher
-   * recognizes its echo — the renderer has already applied the change to
-   * its own model. */
-  ipcMain.handle("scene-edit", (_event, payload) =>
-    applySceneEditToFolder(showcasesDir, payload, { beforeWrite: recordSelfWrite }),
-  );
-
-  /* Shares a showcase's script as a phone teleprompter: derives the
-   * snapshot (server/prompter-script.mjs) and POSTs it to the prompter
-   * site's publish endpoint (cdk/). The token — the capability in the
-   * URL — is generated once per showcase and remembered, so publishing
-   * again updates the same link the narrator already has. Configure with
-   * PROMPTER_PUBLISH_URL / PROMPTER_PUBLISH_KEY, or prompterPublishUrl /
-   * prompterPublishKey in settings.json. */
-  ipcMain.handle("prompter-publish", async (_event, showcaseId) => {
-    try {
-      const id = String(showcaseId ?? "");
-      if (!id || /[/\\]|\.\./.test(id)) return { ok: false, error: "Bad showcase id" };
-      const settings = loadSettings();
-      const publishUrl = process.env.PROMPTER_PUBLISH_URL ?? settings.prompterPublishUrl;
-      const publishKey = process.env.PROMPTER_PUBLISH_KEY ?? settings.prompterPublishKey;
-      if (!publishUrl || !publishKey) {
-        return {
-          ok: false,
-          error:
-            "Prompter sharing is not configured — set prompterPublishUrl and " +
-            "prompterPublishKey in the studio settings (or the PROMPTER_PUBLISH_* env vars)",
-        };
-      }
-      const tokens = settings.prompterTokens ?? {};
-      const token = tokens[id] ?? randomBytes(16).toString("base64url");
-      const script = prompterScript(showcasesDir, id, {
-        publishedAt: new Date().toISOString(),
-      });
-      const response = await fetch(publishUrl, {
-        method: "POST",
-        headers: { authorization: `Bearer ${publishKey}`, "content-type": "application/json" },
-        body: JSON.stringify({ token, script }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        return { ok: false, error: result.error ?? `Publish failed (${response.status})` };
-      }
-      saveSettings({ prompterTokens: { ...tokens, [id]: token } });
-      return { ok: true, url: result.url };
-    } catch (error) {
-      return { ok: false, error: String(error?.message ?? error) };
-    }
-  });
-
-  /* Renames an asset file and updates every YAML reference to it — the
-   * bare key and the full file name, in asset:/src:/cover: fields only,
-   * so narration text mentioning the same word is left alone. */
-  ipcMain.handle("asset-rename", (_event, { showcaseId, from, to } = {}) => {
-    try {
-      const id = String(showcaseId ?? "");
-      const oldName = String(from ?? "");
-      const bad = (s) => !s || s.includes("/") || s.includes("\\") || s.includes("..");
-      if (bad(id) || bad(oldName)) return { ok: false, error: "Bad name" };
-      let newName = String(to ?? "").trim();
-      if (!newName) return { ok: false, error: "Give the asset a name" };
-      if (!path.extname(newName)) newName += path.extname(oldName);
-      if (bad(newName)) return { ok: false, error: "Bad name" };
-      const dir = path.join(showcasesDir, id, "assets");
-      if (!existsSync(path.join(dir, oldName))) {
-        return { ok: false, error: `No file named "${oldName}" in ${id}/assets` };
-      }
-      if (newName !== oldName && existsSync(path.join(dir, newName))) {
-        return { ok: false, error: `"${newName}" already exists` };
-      }
-
-      let updatedReferences = 0;
-      const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
-      if (existsSync(yamlPath)) {
-        const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const strip = (s) => s.replace(/\.[^.]+$/, "");
-        let text = readFileSync(yamlPath, "utf8");
-        const renames = [[oldName, newName]];
-        if (strip(oldName) !== oldName) renames.push([strip(oldName), strip(newName)]);
-        for (const [o, n] of renames) {
-          const re = new RegExp(
-            `(^\\s*(?:asset|src|cover):\\s*["']?)${esc(o)}(["']?\\s*(?:#.*)?)$`,
-            "gm",
-          );
-          text = text.replace(re, (_all, head, tail) => {
-            updatedReferences += 1;
-            return `${head}${n}${tail}`;
-          });
-        }
-        if (updatedReferences > 0) writeFileSync(yamlPath, text);
-      }
-      renameSync(path.join(dir, oldName), path.join(dir, newName));
-      return { ok: true, name: newName, updatedReferences };
-    } catch (error) {
-      return { ok: false, error: String(error?.message ?? error) };
-    }
-  });
-
-  /* Adds files to the showcase's assets/ folder — the drop target on
-   * the assets page. All files arrive in one call (base64) and are all
-   * written before the watcher's reload can interrupt; names are
-   * de-duplicated (name-2.png), never overwritten. */
-  ipcMain.handle("asset-add", (_event, { showcaseId, files } = {}) => {
-    try {
-      const id = String(showcaseId ?? "");
-      const bad = (s) => !s || s.includes("/") || s.includes("\\") || s.includes("..");
-      if (bad(id)) return { ok: false, error: "Bad showcase id" };
-      if (!Array.isArray(files) || files.length === 0) return { ok: false, error: "No files" };
-      const dir = path.join(showcasesDir, id, "assets");
-      if (!existsSync(path.join(showcasesDir, id))) {
-        return { ok: false, error: `No showcase named "${id}"` };
-      }
-      mkdirSync(dir, { recursive: true });
-      const written = [];
-      for (const file of files) {
-        const name = String(file?.name ?? "").trim();
-        if (bad(name)) return { ok: false, error: `Bad file name "${name}"` };
-        if (typeof file?.data !== "string" || !file.data) {
-          return { ok: false, error: `No data for "${name}"` };
-        }
-        const ext = path.extname(name);
-        const stem = name.slice(0, name.length - ext.length);
-        let candidate = name;
-        for (let n = 2; existsSync(path.join(dir, candidate)); n += 1) {
-          candidate = `${stem}-${n}${ext}`;
-        }
-        writeFileSync(path.join(dir, candidate), Buffer.from(file.data, "base64"));
-        written.push(candidate);
-      }
-      return { ok: true, names: written };
-    } catch (error) {
-      return { ok: false, error: String(error?.message ?? error) };
-    }
-  });
-
-  /* Deletes one asset file (the page confirms first). YAML references
-   * are left alone — a dangling key shows up in the assets page's
-   * "referenced but missing" list, which is the honest state. */
-  ipcMain.handle("asset-delete", (_event, { showcaseId, name } = {}) => {
-    try {
-      const id = String(showcaseId ?? "");
-      const fileName = String(name ?? "");
-      const bad = (s) => !s || s.includes("/") || s.includes("\\") || s.includes("..");
-      if (bad(id) || bad(fileName)) return { ok: false, error: "Bad name" };
-      const file = path.join(showcasesDir, id, "assets", fileName);
-      if (!existsSync(file)) {
-        return { ok: false, error: `No file named "${fileName}" in ${id}/assets` };
-      }
-      unlinkSync(file);
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: String(error?.message ?? error) };
-    }
-  });
-
-  const terminal = registerTerminal(ipcMain, win, {
-    getCwd: () => showcasesDir,
-    getEnv: studioEnv,
-    getMcpConfig: () => path.join(showcasesDir, ".studio", "mcp.json"),
-  });
-  app.on("before-quit", () => terminal.dispose());
-
   buildMenu(win);
-  if (headless) {
-    console.log(
-      `studio: headless, open ${appUrl}${windowLock ? lockLandingPath(windowLock) : ""} in a browser`,
+  void followStudioEvents((next) => {
+    const changed =
+      next.library !== studioInfo.library ||
+      JSON.stringify(next.lock) !== JSON.stringify(studioInfo.lock);
+    studioInfo = next;
+    if (changed && !win.isDestroyed()) buildMenu(win);
+  });
+
+  try {
+    await win.loadURL(
+      appUrl +
+        (process.env.ELECTRON_SMOKE_PATH ??
+          (studioInfo.lock ? lockLandingPath(studioInfo.lock) : "")),
     );
-  } else {
-    try {
-      await win.loadURL(
-        appUrl +
-          (process.env.ELECTRON_SMOKE_PATH ?? (windowLock ? lockLandingPath(windowLock) : "")),
-      );
-    } catch (error) {
-      /* ERR_ABORTED: a newer load replaced this one — the lock guard
-       * sending a smoke path outside the lock back to the locked page. */
-      if (error.code !== "ERR_ABORTED") {
-        console.error(`Failed to load ${appUrl}:`, error.message ?? error);
-        if (process.env.ELECTRON_SMOKE) app.exit(1);
-      }
+  } catch (error) {
+    /* ERR_ABORTED: a newer load replaced this one — the lock guard
+     * sending a smoke path outside the lock back to the locked page. */
+    if (error.code !== "ERR_ABORTED") {
+      console.error(`Failed to load ${appUrl}:`, error.message ?? error);
+      if (process.env.ELECTRON_SMOKE) app.exit(1);
     }
-    watchShowcases(win);
   }
 
   if (process.env.ELECTRON_SMOKE) {
     setTimeout(async () => {
       try {
+        const exec = (code) => win.webContents.executeJavaScript(code);
         /* Routes are client-only (ssr: false) — on a cold dev server
-         * hydration can outlast any fixed delay, so wait for real
-         * content (up to 15s) before doing anything else. */
-        await win.webContents.executeJavaScript(`(async () => {
+         * hydration can outlast any fixed delay, so wait for real content
+         * (up to 15s) before doing anything else. */
+        await exec(`(async () => {
           for (let i = 0; i < 150 && !document.body.innerText.trim(); i++) {
             await new Promise((r) => setTimeout(r, 100));
           }
         })()`);
-        /* ELECTRON_SMOKE_EDIT=1 exercises in-app editing end to end:
-         * a scenes.edit through the bridge must land in showcase.yaml,
+        /* ELECTRON_SMOKE_EDIT=1 exercises in-app editing end to end: a
+         * scenes.edit through the studio client must land in showcase.yaml,
          * and the watcher must swallow its echo (no page reload). */
         if (process.env.ELECTRON_SMOKE_EDIT) {
-          const exec = (code) => win.webContents.executeJavaScript(code);
-          const first = showcaseIndex(showcasesDir).showcases[0];
-          const yamlPath = path.join(showcasesDir, first.id, "showcase.yaml");
+          const first = showcaseIndex(studioInfo.library).showcases[0];
+          const yamlPath = path.join(studioInfo.library, first.id, "showcase.yaml");
           const sceneId = /\n\s*-\s+id:\s*([\w-]+)/.exec(readFileSync(yamlPath, "utf8"))?.[1];
           await exec("window.__stayed = true");
           const edited = await exec(
@@ -874,27 +424,23 @@ scenes:
           console.log("smoke edit no reload:", await exec("window.__stayed === true"));
         }
         /* ELECTRON_SMOKE_SHARE=1 publishes the first showcase's prompter
-         * snapshot through the real bridge and logs the share URL —
-         * needs the publish endpoint configured (settings or env). */
+         * snapshot and logs the share URL — needs the publish endpoint
+         * configured (settings or env). */
         if (process.env.ELECTRON_SMOKE_SHARE) {
-          const first = showcaseIndex(showcasesDir).showcases[0];
-          const shared = await win.webContents.executeJavaScript(
+          const first = showcaseIndex(studioInfo.library).showcases[0];
+          const shared = await exec(
             `window.showcaseStudio.prompter.publish(${JSON.stringify(first.id)})`,
           );
           console.log("smoke share:", JSON.stringify(shared));
         }
-        /* ELECTRON_SMOKE_AGENT=1 additionally exercises the agent bridge:
-         * reports key status, verifies a bogus key is rejected, and opens
-         * the panel so the capture shows it. */
+        /* ELECTRON_SMOKE_AGENT=1 exercises the terminal: reports whether
+         * it's available and opens the panel so the capture shows it. */
         if (process.env.ELECTRON_SMOKE_AGENT) {
-          const exec = (code) => win.webContents.executeJavaScript(code);
           console.log(
             "smoke terminal available:",
             JSON.stringify(await exec("window.showcaseStudio.terminal.available()")),
           );
-          if (process.env.ELECTRON_SMOKE_MENU) {
-            // Menu mode: capture the page as-is, then exercise creation below.
-          } else {
+          if (!process.env.ELECTRON_SMOKE_MENU) {
             await exec(`document.querySelector('[aria-label="Open the studio agent"]')?.click()`);
             // Pick the integrated terminal from the chooser, then give
             // Claude Code time to boot before capturing.
@@ -910,12 +456,10 @@ scenes:
         console.log(`smoke: captured ${process.env.ELECTRON_SMOKE} from ${appUrl}`);
         if (process.env.ELECTRON_SMOKE_MENU) {
           /* Exercise showcase creation last — the write triggers the
-           * folder watcher's reload, which can strand in-flight
-           * executeJavaScript calls, hence the race. */
+           * studio's reload, which can strand in-flight executeJavaScript
+           * calls, hence the race. */
           const created = await Promise.race([
-            win.webContents.executeJavaScript(
-              `window.showcaseStudio.showcases.create("Flow Test")`,
-            ),
+            exec(`window.showcaseStudio.showcases.create("Flow Test")`),
             new Promise((resolve) => setTimeout(() => resolve({ raced: true }), 3000)),
           ]);
           console.log("smoke create:", JSON.stringify(created));
@@ -928,4 +472,5 @@ scenes:
   }
 });
 
+app.on("before-quit", () => void studio?.close());
 app.on("window-all-closed", () => app.quit());

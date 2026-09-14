@@ -14,6 +14,17 @@ export function lockLandingPath(lock) {
   return lock.kind === "new" ? "/new" : `/showcase/${encodeURIComponent(lock.showcaseId)}`;
 }
 
+/** Whether a page is drawn for a screenshot or video: an export frame,
+ *  the record page, or the recorded teleprompter (`?record`). Capture
+ *  pages ignore the lock and live reloads — the studio's page renderer
+ *  opens them for any showcase, and a reload would break the capture. */
+export function isCapturePage(pathname, search = "") {
+  return (
+    /^\/showcase\/[^/]+\/(export\/[^/]+|record)\/?$/.test(pathname) ||
+    new URLSearchParams(search).has("record")
+  );
+}
+
 /** Whether a pathname is inside the lock. With no lock, every path is. */
 export function isPathInLock(lock, pathname) {
   if (!lock) return true;

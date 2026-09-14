@@ -14,8 +14,8 @@ import appCss from "../styles.css?url";
 import { showcasesReady } from "@/content/showcases";
 import { dataMode } from "@/content/source";
 import { StudioAgent } from "@/components/studio/StudioAgent";
-import { useWindowLock, windowLock, windowLockReady } from "@/lib/studio";
-import { isPathInLock, lockLandingPath } from "@/lib/window-lock.mjs";
+import { studioReady, useWindowLock, windowLock } from "@/lib/studio";
+import { isCapturePage, isPathInLock, lockLandingPath } from "@/lib/window-lock.mjs";
 
 /* "Go home" on the fallback pages. A locked window has no Home, so it
  * goes back to the page it's locked to instead. */
@@ -99,13 +99,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
    * client-only) it fetches first, so skip SSR there. Await without
    * returning: showcases hold React components (TSX graphics), which the
    * router could not dehydrate for the client. */
-  /* A locked window (--open / --new) never leaves its showcase: any
-   * navigation outside the lock lands back on the locked page. The shell
+  /* Waits until the page knows its studio (src/lib/studio.ts). A locked
+   * studio (--open / --new) never leaves its showcase: any navigation
+   * outside the lock lands back on the locked page. The Electron window
    * enforces the same rule as a backstop (electron/main.mjs). */
   beforeLoad: async ({ location }) => {
-    await windowLockReady;
+    await studioReady;
     const lock = windowLock();
     if (!lock || isPathInLock(lock, location.pathname)) return;
+    /* The studio's page renderer draws any showcase's slides. */
+    if (isCapturePage(location.pathname, new URL(location.href, "http://studio").search)) return;
     throw lock.kind === "new"
       ? redirect({ to: "/new", replace: true })
       : redirect({

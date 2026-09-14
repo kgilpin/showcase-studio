@@ -5,57 +5,15 @@ import { nitro } from "nitro/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import type { Plugin } from "vite";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore plain JS module shared with the Electron shell
-import { handleShowcaseRequest } from "./server/showcase-data.mjs";
 
-/* Serves the repo's showcases/ as plain data at /showcase-data — the
- * shape the httpSource in src/content/source.ts consumes (index.json,
- * yaml, assets, and TSX graphics compiled on request). Run the dev
- * server with VITE_SHOWCASES_URL=/showcase-data to exercise data mode;
- * the Electron shell serves a user folder in this same shape. The route
- * must NOT be /showcases — that's the real directory, so vite's own
- * module URLs for bundled graphics live under that path. */
-function showcaseData(): Plugin {
-  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "showcases");
-  return {
-    name: "showcase-data",
-    configureServer(server) {
-      server.middlewares.use("/showcase-data", (req, res, next) => {
-        const url = (req.url ?? "").split("?")[0] ?? "";
-        void handleShowcaseRequest(dir, url, { range: req.headers.range }).then(
-          (
-            result:
-              | {
-                  status: number;
-                  type: string;
-                  body: string | Buffer;
-                  headers?: Record<string, string>;
-                }
-              | undefined,
-          ) => {
-            if (!result) return next();
-            res.statusCode = result.status;
-            res.setHeader("Content-Type", result.type);
-            for (const [name, value] of Object.entries(result.headers ?? {})) {
-              res.setHeader(name, value);
-            }
-            res.end(result.body);
-          },
-          next,
-        );
-      });
-    },
-  };
-}
-
+/* The app's Vite config. `npm run dev` doesn't run `vite dev` directly:
+ * scripts/dev.mjs starts Vite with this config and mounts the studio
+ * server in it, which serves the library at /showcase-data (the shape
+ * the httpSource in src/content/source.ts consumes). */
 export default defineConfig(({ command, mode }) => ({
   /* VITE_* env vars defined for every environment (client and the nitro
-   * server bundle alike) — VITE_SHOWCASES_URL is how the desktop build
-   * bakes in its data URL. */
+   * server bundle alike) — VITE_SHOWCASES_URL is how the studio builds
+   * bake in their data URL. */
   define: Object.fromEntries(
     Object.entries(loadEnv(mode, process.cwd(), "VITE_")).map(([key, value]) => [
       `import.meta.env.${key}`,
@@ -103,14 +61,13 @@ export default defineConfig(({ command, mode }) => ({
       ? [nitro({ preset: process.env["NITRO_PRESET"] ?? "node-server" })]
       : []),
     viteReact(),
-    showcaseData(),
   ],
   server: {
     /* Bind every interface. Node picks :: when IPv6 exists and 0.0.0.0
      * when it doesn't, so IPv4-only containers (hosted Claude sandboxes)
      * start too. A literal "::" fails there. */
     host: true,
-    /* PORT lets a launcher run a second dev server beside one on 8080. */
+    /* scripts/dev.mjs picks the port; this is for running Vite directly. */
     port: Number(process.env["PORT"]) || 8080,
     watch: {
       /* Folders the app never imports from must not wake the dev server's

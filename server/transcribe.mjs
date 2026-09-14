@@ -3,16 +3,15 @@
  *
  * The binary resolves from the app's own vendor dir first
  * (electron/vendor/whisper/whisper-cli — built by `npm run
- * vendor:whisper`), then from the user's PATH (e.g. Homebrew's
- * whisper-cpp). The speech model (base.en, ~142MB) is not shipped: it
- * downloads once into the app's data directory on first use and is
- * cached forever.
+ * vendor:whisper`; the folder name predates the studio server), then from
+ * the user's PATH (e.g. Homebrew's whisper-cpp). The speech model
+ * (base.en, ~142MB) is not shipped: it downloads once into the studio's
+ * data folder on first use and is cached forever.
  *
  * transcribe() extracts/resamples the audio with the bundled ffmpeg
  * (16kHz mono WAV — whisper's required input), runs whisper with full
  * JSON output, and returns sentence segments with per-word timestamps —
  * what caption-to-audio alignment and voiceover splitting need. */
-import { app } from "electron";
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -20,12 +19,15 @@ import { mkdtemp, rename, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
+import { studioDataDir } from "./settings.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
 
 const vendorBinary = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "electron",
   "vendor",
   "whisper",
   "whisper-cli",
@@ -33,7 +35,7 @@ const vendorBinary = path.join(
 
 let resolved;
 /** The whisper binary, or undefined when neither the vendored build nor
- *  the user's PATH has one. Cached for the app's lifetime. */
+ *  the user's PATH has one. Cached for the process's lifetime. */
 export function whisperPath() {
   if (resolved !== undefined) return resolved || undefined;
   if (existsSync(vendorBinary)) {
@@ -50,9 +52,7 @@ export function whisperPath() {
   const clean =
     found.status === 0
       ? found.stdout
-
           .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?/g, "")
-
           .replace(/\x1b\[[0-9;]*[A-Za-z]/g, "")
       : "";
   const match = clean.match(/^\/\S*\/whisper-cli$/m);
@@ -61,7 +61,7 @@ export function whisperPath() {
 }
 
 const MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
-export const modelPath = () => path.join(app.getPath("userData"), "whisper", "ggml-base.en.bin");
+export const modelPath = () => path.join(studioDataDir(), "whisper", "ggml-base.en.bin");
 
 async function ensureModel(progress) {
   const target = modelPath();

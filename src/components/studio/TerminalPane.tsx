@@ -3,9 +3,9 @@ import { studio } from "@/lib/studio";
 
 /* An xterm.js view attached to one showcase's persistent PTY session
  * (the user's own Claude Code running in that showcase's folder). The
- * session lives in the shell: unmounting detaches the view but leaves
- * the session running, and remounting replays its scrollback. xterm is
- * loaded dynamically so the web build never evaluates it. */
+ * session lives in the studio server: unmounting detaches the view but
+ * leaves the session running, and remounting replays its scrollback.
+ * xterm is loaded dynamically so the web build never evaluates it. */
 export function TerminalPane({
   sessionId,
   onExit,
@@ -121,7 +121,7 @@ export function TerminalPane({
       term.focus();
     })();
 
-    /* Detach only — the session keeps running in the shell. */
+    /* Detach only — the session keeps running in the studio server. */
     return () => {
       disposed = true;
       cleanups.forEach((cleanup) => cleanup());

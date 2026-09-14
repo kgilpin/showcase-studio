@@ -1,10 +1,11 @@
 /* In-app scene editing: the controller between an editable field and the
- * desktop shell.
+ * studio server.
  *
  * Every edit is a structured patch (SceneEdit, src/lib/studio.ts), and
  * the patch is the currency everywhere: it updates the in-memory model
- * optimistically (applySceneEditLocal), rides the scene-edit IPC to be
- * written into showcase.yaml, and its inverse becomes the undo entry.
+ * optimistically (applySceneEditLocal), goes to the studio's scene-edit
+ * action to be written into showcase.yaml, and its inverse becomes the
+ * undo entry.
  * If the write fails, the inverse is applied immediately — the model
  * never drifts from the file.
  *
@@ -84,8 +85,7 @@ async function editBaseHash(showcaseId: string, edit: SceneEdit): Promise<string
   return text == null ? undefined : sha256Hex(text);
 }
 
-/** Whether this session can edit scenes (the desktop shell's bridge is
- *  present and speaks scene-edit). */
+/** Whether this page can edit scenes (a studio serves it). */
 export function canEditScenes(): boolean {
   return Boolean(studio()?.scenes);
 }

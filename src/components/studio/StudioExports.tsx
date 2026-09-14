@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Camera, Clapperboard } from "lucide-react";
 import { studio, type StudioExportProgress } from "@/lib/studio";
 
-/* Export buttons for the desktop studio. Renders nothing in a plain
- * browser — mounted state keeps SSR/hydration consistent, since the
- * bridge only exists client-side inside Electron. */
+/* Export buttons for the studio. Renders nothing when no studio serves
+ * the page — mounted state keeps SSR/hydration consistent, since the
+ * studio client only exists client-side. */
 export function StudioExports({ showcaseId }: { showcaseId: string }) {
   const [available, setAvailable] = useState(false);
   const [running, setRunning] = useState(false);
@@ -14,7 +14,13 @@ export function StudioExports({ showcaseId }: { showcaseId: string }) {
     setAvailable(Boolean(studio()));
     return studio()?.onExportProgress((progress: StudioExportProgress) => {
       if (progress.showcaseId !== showcaseId) return;
-      setStatus(progress.done ? `saved to ${progress.out}` : progress.label);
+      setStatus(
+        progress.error
+          ? progress.error
+          : progress.done
+            ? `saved to ${progress.out}`
+            : progress.label,
+      );
     });
   }, [showcaseId]);
 
