@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { ExternalLink, Minus, RotateCcw, Sparkles, TerminalSquare, X } from "lucide-react";
 import { studio } from "@/lib/studio";
+import { isCapturePage } from "@/lib/window-lock.mjs";
 import { cn } from "@/lib/utils";
 import { TerminalPane } from "./TerminalPane";
 
@@ -24,7 +25,10 @@ export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
 
   /* The panel shows the session for the showcase currently on screen. */
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const href = useRouterState({ select: (state) => state.location.href });
   const showcaseId = /^\/showcase\/([^/]+)/.exec(pathname)?.[1];
+  /* Pages drawn for a screenshot or video must not show the button. */
+  const capturing = isCapturePage(pathname, new URL(href, "http://studio").search);
 
   useEffect(() => {
     setTermExited(null);
@@ -78,7 +82,7 @@ export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
   }, [docked, onDock]);
 
   /* The agent runs within a showcase — no button on the list pages. */
-  if (!available || !showcaseId) return null;
+  if (!available || !showcaseId || capturing) return null;
 
   const restart = async () => {
     await studio()!.terminal.stop({ id: showcaseId });

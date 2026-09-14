@@ -9,7 +9,7 @@
     "dev:electron": "node scripts/dev.mjs --electron",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "preview": "node .output/server/index.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "export:screens": "node scripts/export-screens.mjs",
