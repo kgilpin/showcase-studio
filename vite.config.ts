@@ -63,10 +63,11 @@ export default defineConfig(({ command, mode }) => ({
     viteReact(),
   ],
   server: {
-    /* Bind every interface. Node picks :: when IPv6 exists and 0.0.0.0
-     * when it doesn't, so IPv4-only containers (hosted Claude sandboxes)
-     * start too. A literal "::" fails there. */
-    host: true,
+    /* No host: Vite listens on localhost only. The studio serves your
+     * showcase library and runs terminals, so it must not be reachable
+     * from other machines (server/studio-server.mjs also refuses requests
+     * that don't come from this machine). localhost also starts in
+     * IPv4-only containers, where a literal "::" fails. */
     /* scripts/dev.mjs picks the port; this is for running Vite directly. */
     port: Number(process.env["PORT"]) || 8080,
     watch: {

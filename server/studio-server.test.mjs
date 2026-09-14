@@ -344,6 +344,30 @@ describe("studio.handle, called directly", () => {
   });
 });
 
+describe("the library's files", () => {
+  it("are served to this machine and refused to another host name", async () => {
+    const { studio } = await startStudio();
+    const local = await handleDirectly(studio, { url: "/showcase-data/index.json" });
+    expect(local.status).toBe(200);
+    expect(local.json().showcases.map((s) => s.id)).toEqual(["nova"]);
+    const remote = await handleDirectly(studio, {
+      url: "/showcase-data/nova/showcase.yaml",
+      host: "evil.example",
+    });
+    expect(remote.status).toBe(403);
+    expect(remote.json()).toMatchObject({ ok: false });
+  });
+
+  it("are refused to a request from another machine", async () => {
+    const { studio } = await startStudio();
+    const result = await handleDirectly(studio, {
+      url: "/showcase-data/index.json",
+      remoteAddress: "192.168.1.5",
+    });
+    expect(result.status).toBe(403);
+  });
+});
+
 describe("isLocalRequest", () => {
   const request = (remoteAddress, headers) => ({ socket: { remoteAddress }, headers });
 

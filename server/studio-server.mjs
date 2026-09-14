@@ -14,8 +14,9 @@
  *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below)
  *   POST /mcp                   the MCP tools, for Claude (server/mcp.mjs)
  *
- * The API, events, and MCP write files and start terminals, so they only
- * answer requests made on this machine.
+ * Everything the studio serves — library files, API, events, MCP — only
+ * answers requests made on this machine: the files are private, and the
+ * actions write files and start terminals.
  *
  * The studio also keeps its library folder scaffolded (README, CLAUDE.md,
  * .studio/GUIDE.md, .studio/mcp.json), and watches it and tells pages to
@@ -595,7 +596,20 @@ scenes:
   async function handle(req, res, next) {
     const pathname = (req.url ?? "").split("?")[0] ?? "";
     try {
-      if (pathname === "/showcase-data" || pathname.startsWith("/showcase-data/")) {
+      const isData = pathname === "/showcase-data" || pathname.startsWith("/showcase-data/");
+      const isApi = pathname.startsWith("/studio/api/");
+      if (!isData && !isApi && pathname !== "/mcp") {
+        next();
+        return;
+      }
+      if (!isLocalRequest(req)) {
+        sendJson(res, 403, {
+          ok: false,
+          error: "The studio only answers requests from this machine",
+        });
+        return;
+      }
+      if (isData) {
         const result = await handleShowcaseRequest(
           showcasesDir,
           pathname.slice("/showcase-data".length) || "/",
@@ -612,18 +626,6 @@ scenes:
           res.setHeader(name, value);
         }
         res.end(result.body);
-        return;
-      }
-      const isApi = pathname.startsWith("/studio/api/");
-      if (!isApi && pathname !== "/mcp") {
-        next();
-        return;
-      }
-      if (!isLocalRequest(req)) {
-        sendJson(res, 403, {
-          ok: false,
-          error: "The studio only answers requests from this machine",
-        });
         return;
       }
       if (pathname === "/mcp") {
