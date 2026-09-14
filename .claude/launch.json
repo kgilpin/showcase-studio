@@ -1,0 +1,36 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "studio",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 8080,
+      "autoPort": true
+    },
+    {
+      "name": "studio-electron",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["SHOWCASES_PORT=8124", "STUDIO_APP_PORT=8093", "npm", "run", "electron:dev"],
+      "port": 8093,
+      "autoPort": false
+    },
+    {
+      "name": "studio-open",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "STUDIO_HEADLESS=1",
+        "SHOWCASES_PORT=8124",
+        "STUDIO_APP_PORT=8093",
+        "npm",
+        "run",
+        "electron:dev",
+        "--",
+        "--open",
+        "showcases/showcase-studio"
+      ],
+      "port": 8093,
+      "autoPort": false
+    }
+  ]
+}

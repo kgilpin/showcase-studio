@@ -110,7 +110,8 @@ export default defineConfig(({ command, mode }) => ({
      * when it doesn't, so IPv4-only containers (hosted Claude sandboxes)
      * start too. A literal "::" fails there. */
     host: true,
-    port: 8080,
+    /* PORT lets a launcher run a second dev server beside one on 8080. */
+    port: Number(process.env["PORT"]) || 8080,
     watch: {
       /* Folders the app never imports from must not wake the dev server's
        * watcher: cdk/ (npm installs and synth churn thousands of files),

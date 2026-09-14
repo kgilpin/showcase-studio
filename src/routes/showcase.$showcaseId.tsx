@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { fontLinks, getShowcase, themeVars, useShowcase } from "@/content/showcases";
+import { useWindowLock } from "@/lib/studio";
 
 /* Layout for every page of one showcase: validates the id, applies the
  * showcase's resolved theme (CSS-variable overrides) to the whole subtree,
@@ -26,14 +27,21 @@ function ShowcaseLayout() {
   const { showcaseId } = Route.useParams();
   /* Live-bound: in-app theme edits re-resolve the vars in place. */
   const showcase = useShowcase(showcaseId);
+  const lock = useWindowLock();
   if (!showcase) {
     return (
       <main className="flex h-dvh items-center justify-center bg-background text-muted-foreground">
         <p>
-          No showcase named &quot;{showcaseId}&quot; —{" "}
-          <Link to="/" className="underline">
-            see all showcases
-          </Link>
+          No showcase named &quot;{showcaseId}&quot;
+          {lock == null && (
+            <>
+              {" "}
+              —{" "}
+              <Link to="/" className="underline">
+                see all showcases
+              </Link>
+            </>
+          )}
         </p>
       </main>
     );

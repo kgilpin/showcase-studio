@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as NewRouteImport } from './routes/new'
 import { Route as ShowcaseShowcaseIdRouteImport } from './routes/showcase.$showcaseId'
 import { Route as ShowcaseShowcaseIdIndexRouteImport } from './routes/showcase.$showcaseId.index'
 import { Route as ShowcaseShowcaseIdAssetsRouteImport } from './routes/showcase.$showcaseId.assets'
@@ -21,6 +22,11 @@ import { Route as ShowcaseShowcaseIdExportSceneIdRouteImport } from './routes/sh
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewRoute = NewRouteImport.update({
+  id: '/new',
+  path: '/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShowcaseShowcaseIdRoute = ShowcaseShowcaseIdRouteImport.update({
@@ -66,6 +72,7 @@ const ShowcaseShowcaseIdExportSceneIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/new': typeof NewRoute
   '/showcase/$showcaseId': typeof ShowcaseShowcaseIdRouteWithChildren
   '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
@@ -76,6 +83,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/new': typeof NewRoute
   '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
@@ -86,6 +94,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/new': typeof NewRoute
   '/showcase/$showcaseId': typeof ShowcaseShowcaseIdRouteWithChildren
   '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/new'
     | '/showcase/$showcaseId'
     | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/new'
     | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
     | '/showcase/$showcaseId/script'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/new'
     | '/showcase/$showcaseId'
     | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
@@ -128,6 +140,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  NewRoute: typeof NewRoute
   ShowcaseShowcaseIdRoute: typeof ShowcaseShowcaseIdRouteWithChildren
 }
 
@@ -138,6 +151,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/new': {
+      id: '/new'
+      path: '/new'
+      fullPath: '/new'
+      preLoaderRoute: typeof NewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/showcase/$showcaseId': {
@@ -215,6 +235,7 @@ const ShowcaseShowcaseIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  NewRoute: NewRoute,
   ShowcaseShowcaseIdRoute: ShowcaseShowcaseIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport

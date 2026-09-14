@@ -4,6 +4,9 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("showcaseStudio", {
+  // Synchronous: the router checks it before every navigation. Asked
+  // fresh each time — creating a showcase moves a --new window's lock.
+  windowLock: () => ipcRenderer.sendSync("window-lock"),
   exportScreens: (showcaseId) => ipcRenderer.invoke("export-screens", showcaseId),
   exportVideo: (showcaseId) => ipcRenderer.invoke("export-video", showcaseId),
   onExportProgress: (callback) => {

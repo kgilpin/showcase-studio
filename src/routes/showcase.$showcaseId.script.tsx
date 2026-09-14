@@ -8,7 +8,6 @@ import { EditableText } from "@/components/studio/EditableText";
 import { MediaPicker } from "@/components/studio/MediaPicker";
 import { SharePrompter } from "@/components/studio/SharePrompter";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
-import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { GraphicThumb } from "@/components/script/GraphicThumb";
 import { MediaThumb } from "@/components/script/MediaThumb";
@@ -88,18 +87,13 @@ function ScriptScreen() {
     );
 
   return (
-    <main
-      className="min-h-dvh w-full px-6 py-14 sm:px-10"
-      style={{ background: "var(--gradient-stage)" }}
-    >
-      <div className="mx-auto max-w-4xl">
-        <HomeBackNav />
-        <ShowcaseNav showcaseId={showcaseId} current="script" />
-
+    <main className="min-h-dvh w-full pb-14" style={{ background: "var(--gradient-stage)" }}>
+      <ShowcaseNav showcaseId={showcaseId} title={showcase.title} current="script" />
+      <div className="mx-auto box-content max-w-4xl px-6 sm:px-10">
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Script</p>
           {/* The page's one action sits with the title — filled primary
-           * marks "does something" (nav pills stay outlined). */}
+           * marks "does something" (the tabs stay plain). */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
             <h1 className="font-display text-5xl leading-tight tracking-tight text-foreground">
               {showcase.title}

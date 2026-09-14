@@ -16,6 +16,13 @@
  *      the data server's front door — how the packaged binary runs.
  *   4. Watches the folder and reloads the window when anything changes.
  *
+ * Launch options lock the window so it can't switch showcases:
+ * --open <showcase folder> or --new [<library folder>]
+ * (server/launch-options.mjs, src/lib/window-lock.mjs).
+ *
+ * STUDIO_HEADLESS=1 runs without a visible window: a browser is the UI,
+ * and it reads the lock from <data URL>/studio.json.
+ *
  * ELECTRON_SMOKE=<path.png> captures the loaded window to a file and
  * quits — used for automated verification.
  */
@@ -47,6 +54,8 @@ import { createExportJobs } from "../server/export-jobs.mjs";
 import { createMcpHandler } from "./mcp.mjs";
 import { whisperPath } from "./transcribe.mjs";
 import { hasStaleInlineGuide, studioGuide } from "../server/showcase-guide.mjs";
+import { launchOptions } from "../server/launch-options.mjs";
+import { isPathInLock, lockLandingPath } from "../src/lib/window-lock.mjs";
 
 /* In dev the macOS menu-bar TITLE still reads "Electron" (it comes from
  * the binary's Info.plist and can't change at runtime — a packaged build
@@ -129,6 +138,23 @@ let showcasesDir =
   process.env.SHOWCASES_DIR ??
   loadSettings().showcasesDir ??
   path.join(app.getPath("home"), "Showcases");
+
+/* The window lock from --open / --new, or null when the window may
+ * switch showcases. The options pick the library for this run only: the
+ * saved folder and Open Recent stay as they were. npm runs scripts from
+ * the package root, so relative paths resolve against where npm was
+ * started (INIT_CWD). A bad option is reported once the app is ready. */
+let windowLock = null;
+let launchError = null;
+try {
+  const launch = launchOptions(process.argv, {
+    cwd: process.env.INIT_CWD ?? process.cwd(),
+    defaultDir: showcasesDir,
+  });
+  if (launch) ({ showcasesDir, lock: windowLock } = launch);
+} catch (error) {
+  launchError = error.message;
+}
 
 const FOLDER_README = `# Showcases
 
@@ -252,6 +278,13 @@ function serveData() {
       proxyToBuiltApp(req, res);
       return;
     }
+    /* The window lock for browser clients, which have no desktop bridge
+     * (a headless studio viewed in a browser). */
+    if (dataPath === "/studio.json") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ windowLock }));
+      return;
+    }
     handleShowcaseRequest(showcasesDir, dataPath, { range: req.headers.range }).then(
       (result) => {
         if (!result) {
@@ -341,9 +374,44 @@ function watchShowcases(win) {
   });
 }
 
+/* The window lock's backstop. The page already redirects navigations
+ * outside the lock (src/routes/__root.tsx); this catches whatever gets
+ * past it — full page loads, in-page history changes, window.open, and
+ * any way of switching showcases added later — and puts the window back
+ * on its locked page. Links to other sites don't switch showcases, so
+ * they pass. */
+function guardWindowLock(win) {
+  const outsideLock = (url) => {
+    if (!windowLock) return false;
+    try {
+      const target = new URL(url);
+      return target.origin === new URL(appUrl).origin && !isPathInLock(windowLock, target.pathname);
+    } catch {
+      return false;
+    }
+  };
+  const backToLock = () => void win.loadURL(appUrl + lockLandingPath(windowLock));
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!outsideLock(url)) return;
+    event.preventDefault();
+    backToLock();
+  });
+  win.webContents.on("did-navigate", (_event, url) => {
+    if (outsideLock(url)) backToLock();
+  });
+  win.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+    if (isMainFrame && outsideLock(url)) backToLock();
+  });
+  win.webContents.setWindowOpenHandler(({ url }) =>
+    outsideLock(url) ? { action: "deny" } : { action: "allow" },
+  );
+}
+
 /** Points the studio at a showcases directory — typically a git repo the
- *  user manages. Persisted across launches, and remembered in Open Recent. */
+ *  user manages. Persisted across launches, and remembered in Open Recent.
+ *  A locked window never switches libraries. */
 function setShowcasesFolder(dir, win) {
+  if (windowLock) return;
   showcasesDir = dir;
   const recents = [dir, ...(loadSettings().recentFolders ?? []).filter((d) => d !== dir)];
   saveSettings({ showcasesDir: dir, recentFolders: recents.slice(0, 8) });
@@ -378,11 +446,10 @@ function buildMenu(win) {
   const recents = (loadSettings().recentFolders ?? []).filter(
     (dir) => dir !== showcasesDir && showInRecent(dir),
   );
-  const template = [
-    ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
-    {
-      label: "File",
-      submenu: [
+  /* Both items switch libraries, so a locked window doesn't get them. */
+  const switchingItems = windowLock
+    ? []
+    : [
         {
           label: "Open Folder…",
           accelerator: "CmdOrCtrl+O",
@@ -406,9 +473,18 @@ function buildMenu(win) {
             },
           ],
         },
+      ];
+  const revealDir =
+    windowLock?.kind === "showcase" ? path.join(showcasesDir, windowLock.showcaseId) : showcasesDir;
+  const template = [
+    ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
+    {
+      label: "File",
+      submenu: [
+        ...switchingItems,
         {
           label: process.platform === "darwin" ? "Reveal in Finder" : "Show in File Manager",
-          click: () => void shell.openPath(showcasesDir),
+          click: () => void shell.openPath(revealDir),
         },
         ...(process.platform === "darwin" ? [] : [{ type: "separator" }, { role: "quit" }]),
       ],
@@ -450,6 +526,11 @@ async function runExport(kind, showcaseId, win, { onProgress, signal } = {}) {
 }
 
 app.whenReady().then(async () => {
+  if (launchError) {
+    dialog.showErrorBox("Showcase Studio", launchError);
+    app.exit(1);
+    return;
+  }
   if (selfHost) {
     try {
       await serveBuiltApp();
@@ -478,11 +559,18 @@ app.whenReady().then(async () => {
     return;
   }
 
+  /* STUDIO_HEADLESS=1 runs the backend only (data server, MCP, exports)
+   * with no visible window and no Dock icon; the UI is a browser pointed
+   * at the app URL. The hidden window stays so the IPC handlers have a
+   * target, but it never loads the app. */
+  const headless = Boolean(process.env.STUDIO_HEADLESS);
+  if (headless) app.dock?.hide();
+
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     title: "Showcase Studio",
-    show: !process.env.ELECTRON_SMOKE,
+    show: !process.env.ELECTRON_SMOKE && !headless,
     webPreferences: {
       preload: path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.cjs"),
     },
@@ -493,6 +581,13 @@ app.whenReady().then(async () => {
    * file:// (Chromium's default) — that would blank the studio. */
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("file:")) event.preventDefault();
+  });
+
+  guardWindowLock(win);
+  /* Synchronous (sendSync): the page's router checks it before each
+   * navigation. */
+  ipcMain.on("window-lock", (event) => {
+    event.returnValue = windowLock;
   });
 
   ipcMain.handle("export-screens", async (_event, showcaseId) => {
@@ -508,6 +603,10 @@ app.whenReady().then(async () => {
 
   /* Scaffolds a new showcase folder (the home page's "+" card). */
   ipcMain.handle("showcase-create", (_event, name) => {
+    /* Creating opens the new showcase, which would leave this one. */
+    if (windowLock?.kind === "showcase") {
+      return { ok: false, error: "This window is locked to one showcase" };
+    }
     const title = String(name ?? "").trim();
     const id = title
       .toLowerCase()
@@ -535,6 +634,11 @@ scenes:
       kind: none
 `,
     );
+    /* A --new window is now locked to the showcase it created. */
+    if (windowLock?.kind === "new") {
+      windowLock = { kind: "showcase", showcaseId: id };
+      buildMenu(win);
+    }
     return { ok: true, id };
   });
 
@@ -712,13 +816,26 @@ scenes:
   app.on("before-quit", () => terminal.dispose());
 
   buildMenu(win);
-  try {
-    await win.loadURL(appUrl + (process.env.ELECTRON_SMOKE_PATH ?? ""));
-  } catch (error) {
-    console.error(`Failed to load ${appUrl}:`, error.message ?? error);
-    if (process.env.ELECTRON_SMOKE) app.exit(1);
+  if (headless) {
+    console.log(
+      `studio: headless, open ${appUrl}${windowLock ? lockLandingPath(windowLock) : ""} in a browser`,
+    );
+  } else {
+    try {
+      await win.loadURL(
+        appUrl +
+          (process.env.ELECTRON_SMOKE_PATH ?? (windowLock ? lockLandingPath(windowLock) : "")),
+      );
+    } catch (error) {
+      /* ERR_ABORTED: a newer load replaced this one — the lock guard
+       * sending a smoke path outside the lock back to the locked page. */
+      if (error.code !== "ERR_ABORTED") {
+        console.error(`Failed to load ${appUrl}:`, error.message ?? error);
+        if (process.env.ELECTRON_SMOKE) app.exit(1);
+      }
+    }
+    watchShowcases(win);
   }
-  watchShowcases(win);
 
   if (process.env.ELECTRON_SMOKE) {
     setTimeout(async () => {

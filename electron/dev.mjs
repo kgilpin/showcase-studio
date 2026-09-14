@@ -6,7 +6,8 @@
  *      which serves ~/Showcases (or SHOWCASES_DIR) on that port and opens
  *      the window.
  *
- * Usage:  npm run electron:dev
+ * Usage:  npm run electron:dev [-- --open <showcase folder> | --new [<library folder>]]
+ *         (launch options pass through to Electron; see server/launch-options.mjs)
  * Env:    SHOWCASES_DIR (default ~/Showcases), ELECTRON_SMOKE (see main.mjs)
  */
 import { spawn } from "node:child_process";
@@ -39,8 +40,11 @@ async function waitFor(url, timeoutMs = 30_000) {
 }
 
 try {
-  await waitFor(`http://localhost:${appPort}`);
-  const electron = spawn("npx", ["electron", "electron/main.mjs"], {
+  /* Probe vite's own client, not a page: a page makes the server load
+   * the showcases from the data server, which only starts with Electron
+   * below — the failed fetch would crash vite before Electron launched. */
+  await waitFor(`http://localhost:${appPort}/@vite/client`);
+  const electron = spawn("npx", ["electron", "electron/main.mjs", ...process.argv.slice(2)], {
     cwd: repoRoot,
     stdio: "inherit",
     env: { ...process.env, ELECTRON_APP_URL: `http://localhost:${appPort}` },

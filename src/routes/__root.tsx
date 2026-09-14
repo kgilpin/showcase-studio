@@ -3,6 +3,7 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  redirect,
   useRouter,
   HeadContent,
   Scripts,
@@ -13,8 +14,26 @@ import appCss from "../styles.css?url";
 import { showcasesReady } from "@/content/showcases";
 import { dataMode } from "@/content/source";
 import { StudioAgent } from "@/components/studio/StudioAgent";
+import { useWindowLock, windowLock, windowLockReady } from "@/lib/studio";
+import { isPathInLock, lockLandingPath } from "@/lib/window-lock.mjs";
+
+/* "Go home" on the fallback pages. A locked window has no Home, so it
+ * goes back to the page it's locked to instead. */
+function GoHome({ className }: { className: string }) {
+  const lock = useWindowLock();
+  return lock ? (
+    <a href={lockLandingPath(lock)} className={className}>
+      {lock.kind === "new" ? "Back to New showcase" : "Back to the showcase"}
+    </a>
+  ) : (
+    <a href="/" className={className}>
+      Go home
+    </a>
+  );
+}
 
 function NotFoundComponent() {
+  const locked = useWindowLock() != null;
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -24,12 +43,16 @@ function NotFoundComponent() {
           The page you're looking for doesn't exist or has been moved.
         </p>
         <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Go home
-          </Link>
+          {locked ? (
+            <GoHome className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90" />
+          ) : (
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Go home
+            </Link>
+          )}
         </div>
       </div>
     </div>
@@ -62,12 +85,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           >
             Try again
           </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
-          </a>
+          <GoHome className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent" />
         </div>
       </div>
     </div>
@@ -81,6 +99,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
    * client-only) it fetches first, so skip SSR there. Await without
    * returning: showcases hold React components (TSX graphics), which the
    * router could not dehydrate for the client. */
+  /* A locked window (--open / --new) never leaves its showcase: any
+   * navigation outside the lock lands back on the locked page. The shell
+   * enforces the same rule as a backstop (electron/main.mjs). */
+  beforeLoad: async ({ location }) => {
+    await windowLockReady;
+    const lock = windowLock();
+    if (!lock || isPathInLock(lock, location.pathname)) return;
+    throw lock.kind === "new"
+      ? redirect({ to: "/new", replace: true })
+      : redirect({
+          to: "/showcase/$showcaseId",
+          params: { showcaseId: lock.showcaseId },
+          replace: true,
+        });
+  },
   loader: async () => {
     await showcasesReady;
   },

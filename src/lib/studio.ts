@@ -1,6 +1,8 @@
 /* The desktop shell's bridge (electron/preload.cjs). In the browser this
  * is absent and the app behaves as a plain web app; inside the studio,
  * window.showcaseStudio offers native abilities like exports. */
+import { useMemo, useSyncExternalStore } from "react";
+import type { WindowLock } from "./window-lock.mjs";
 
 export type StudioExportProgress = {
   showcaseId: string;
@@ -81,6 +83,10 @@ export type SceneEditPayload = {
 } & SceneEdit;
 
 export type ShowcaseStudio = {
+  /** The window's lock from the --open / --new launch options, or null
+   *  when the window may switch showcases. The shell enforces it; the
+   *  page only hides switching controls and redirects early. */
+  windowLock(): WindowLock | null;
   /** Exports App Store screenshots; resolves to the output folder. */
   exportScreens(showcaseId: string): Promise<string>;
   /** Renders the showcase to an MP4; resolves to the output file. */
@@ -137,4 +143,49 @@ declare global {
 /** The studio bridge, or undefined in a plain browser (and during SSR). */
 export function studio(): ShowcaseStudio | undefined {
   return typeof window === "undefined" ? undefined : window.showcaseStudio;
+}
+
+/* A browser viewing a headless studio has no bridge, so it asks the
+ * studio's data server for the lock instead (<data URL>/studio.json).
+ * Asked once per page load; a data server without the endpoint (the
+ * vite middleware) answers 404, which means no lock. */
+const dataUrl = import.meta.env["VITE_SHOWCASES_URL"] as string | undefined;
+let serverLock: WindowLock | null = null;
+
+/** Resolves once the lock is known. Immediate in the desktop window,
+ *  during SSR, and when there is no data server. */
+export const windowLockReady: Promise<void> =
+  typeof window === "undefined" || window.showcaseStudio || !dataUrl
+    ? Promise.resolve()
+    : fetch(`${dataUrl.replace(/\/$/, "")}/studio.json`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body: { windowLock?: WindowLock | null } | null) => {
+          serverLock = body?.windowLock ?? null;
+        })
+        .catch(() => {});
+
+/** The window's lock (see src/lib/window-lock.mjs): from the bridge in
+ *  the desktop window, from the data server in a browser. Null until
+ *  windowLockReady resolves. */
+export function windowLock(): WindowLock | null {
+  const bridge = studio();
+  return bridge ? (bridge.windowLock?.() ?? null) : serverLock;
+}
+
+const whenLockKnown = (onChange: () => void) => {
+  void windowLockReady.then(onChange);
+  return () => {};
+};
+
+/** The window's lock, for rendering. Server-rendered HTML has no bridge,
+ *  so it renders unlocked and hydration then switches to the real lock
+ *  without a mismatch. Snapshots are compared as JSON because the bridge
+ *  returns a fresh object on every call. */
+export function useWindowLock(): WindowLock | null {
+  const json = useSyncExternalStore(
+    whenLockKnown,
+    () => JSON.stringify(windowLock()),
+    () => "null",
+  );
+  return useMemo(() => JSON.parse(json) as WindowLock | null, [json]);
 }

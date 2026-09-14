@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { coverUrl, showcaseErrors, showcases } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
+import { NewShowcaseForm } from "@/components/studio/NewShowcaseForm";
 import { studio } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
@@ -29,22 +30,8 @@ const totalSeconds = (ms: number) => `${Math.round(ms / 1000)}s`;
 function NewShowcaseCard() {
   const [inStudio, setInStudio] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
   useEffect(() => setInStudio(Boolean(studio()?.showcases)), []);
   if (!inStudio) return null;
-
-  const create = async () => {
-    setError(null);
-    const result = await studio()!.showcases.create(name);
-    if (!result.ok || !result.id) {
-      setError(result.error ?? "Could not create the showcase");
-      return;
-    }
-    // Reopen the agent (terminal) after the folder watcher reloads the app.
-    sessionStorage.setItem("studio-open-agent", "1");
-    window.location.href = `/showcase/${result.id}`;
-  };
 
   return (
     <button
@@ -57,24 +44,7 @@ function NewShowcaseCard() {
     >
       <Plus className="size-10 text-primary" />
       {editing ? (
-        <div className="flex w-full flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void create()}
-            placeholder="Name the app or product…"
-            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-support/60"
-          />
-          {error && <p className="text-xs text-red-400">{error}</p>}
-          <span
-            role="button"
-            onClick={() => void create()}
-            className="rounded-lg border border-border bg-card px-3 py-2 text-center text-sm text-foreground transition-colors hover:bg-secondary"
-          >
-            Create
-          </span>
-        </div>
+        <NewShowcaseForm />
       ) : (
         <span className="text-sm text-muted-foreground">New showcase</span>
       )}

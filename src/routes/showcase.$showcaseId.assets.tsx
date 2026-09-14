@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { FileQuestion, Music, Plus, Trash2, TriangleAlert, Upload, X } from "lucide-react";
 import { getShowcase, showcaseAssets, type AssetInfo } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
-import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { studio } from "@/lib/studio";
 import { cn } from "@/lib/utils";
@@ -75,12 +74,11 @@ function AssetsScreen() {
 
   return (
     <main
-      className="@container min-h-dvh w-full px-6 py-14 sm:px-10"
+      className="@container min-h-dvh w-full pb-14"
       style={{ background: "var(--gradient-stage)" }}
     >
-      <div className="mx-auto max-w-6xl">
-        <HomeBackNav />
-        <ShowcaseNav showcaseId={showcaseId} current="assets" />
+      <ShowcaseNav showcaseId={showcaseId} title={showcase.title} current="assets" />
+      <div className="mx-auto box-content max-w-6xl px-6 sm:px-10">
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Assets</p>
           <h1 className="mt-4 font-display text-5xl leading-tight tracking-tight text-foreground">
@@ -276,7 +274,7 @@ function AssetDetails({
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (!asset) {
     return (
-      <aside className="w-full shrink-0 @5xl:sticky @5xl:top-8 @5xl:max-h-[calc(100dvh-4rem)] @5xl:w-[26rem] @5xl:self-start @5xl:overflow-y-auto @7xl:w-[30rem]">
+      <aside className="w-full shrink-0 @5xl:sticky @5xl:top-22 @5xl:max-h-[calc(100dvh-7.5rem)] @5xl:w-[26rem] @5xl:self-start @5xl:overflow-y-auto @7xl:w-[30rem]">
         <p className="text-sm text-support">Select an asset to see its details.</p>
       </aside>
     );
@@ -298,7 +296,7 @@ function AssetDetails({
   };
 
   return (
-    <aside className="w-full shrink-0 @5xl:sticky @5xl:top-8 @5xl:max-h-[calc(100dvh-4rem)] @5xl:w-[26rem] @5xl:self-start @5xl:overflow-y-auto @7xl:w-[30rem]">
+    <aside className="w-full shrink-0 @5xl:sticky @5xl:top-22 @5xl:max-h-[calc(100dvh-7.5rem)] @5xl:w-[26rem] @5xl:self-start @5xl:overflow-y-auto @7xl:w-[30rem]">
       <div className="rounded-2xl border border-border bg-card/40 p-5">
         <div className="flex max-h-96 items-center justify-center overflow-hidden rounded-lg bg-background/40">
           {asset.kind === "video" ? (

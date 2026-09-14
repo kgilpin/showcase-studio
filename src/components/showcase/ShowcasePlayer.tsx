@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
-import { HomeBackNav } from "./HomeBackNav";
 import { ShowcaseNav } from "./ShowcaseNav";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
@@ -157,9 +156,8 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
       className="relative flex h-dvh w-full flex-col select-none overflow-hidden"
       style={{ background: "var(--gradient-stage)" }}
     >
-      {/* Persistent top-left Home; sibling views top-right. */}
-      <HomeBackNav />
-      <ShowcaseNav showcaseId={showcase.id} current="player" />
+      {/* The tab bar takes the first row; the stage fills the rest. */}
+      <ShowcaseNav showcaseId={showcase.id} title={showcase.title} current="player" />
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5">
         {canvas === "embed" ? (
           /* The embed canvas composes its own captions, so no transcript
