@@ -49,7 +49,7 @@ function studioTools({ windows, libraryHelp }) {
       name: "studio_start",
       description:
         "Start Showcase Studio — or restart it with other choices — and return its URL as " +
-        "`open`. " +
+        "`open`, and in `guide` the authoring guide to read before changing any showcase. " +
         seeIt +
         "Lock the studio to one showcase with `showcase`, or open the New showcase page with " +
         "`new`. The other studio tools start an unlocked studio" +
@@ -151,7 +151,12 @@ export function createStudioMcp({
     const { name, arguments: args = {} } = params;
     if (name === "studio_start") {
       const current = await inTurn(() => start(args));
-      return json({ ...current.studio.info(), open: current.landingUrl() });
+      const info = current.studio.info();
+      return json({
+        ...info,
+        open: current.landingUrl(),
+        guide: path.join(info.library, ".studio", "GUIDE.md"),
+      });
     }
     if (name === "studio_stop") {
       return json({ stopped: await inTurn(stop) });

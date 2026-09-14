@@ -88,6 +88,7 @@ describe("the studio's MCP server", () => {
       library: lib,
       lock,
       open: "http://localhost:1234/showcase/nova",
+      guide: path.join(lib, ".studio", "GUIDE.md"),
     });
     expect(started).toEqual([{ showcasesDir: lib, lock, window: true, closed: false }]);
   });

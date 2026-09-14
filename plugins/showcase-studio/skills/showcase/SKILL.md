@@ -31,12 +31,17 @@ The library is the folder Claude Code runs in when it holds showcases. If
 the user means another folder, pass `library`. Don't start the studio any
 other way (no `npm run dev`). It stops when this session ends.
 
-## 2. Read the guide
+## 2. Read the guide first
 
-Before the first change, read `.studio/GUIDE.md` in the library folder
-(`studio_info` returns the folder as `library`). The studio rewrites it on
-every start, so it always matches the running app. Learn the format from
-the guide, not from other showcases or the app's source.
+`studio_start` returns `guide`: the path of the library's
+`.studio/GUIDE.md`. Read that file before you open or change any showcase
+file — even for a one-line change. (If you only called `studio_info`, the
+guide is `.studio/GUIDE.md` in its `library` folder.)
+
+The guide explains the format: themes, captions, media, timing, and the
+recipes for recorded pitches. The studio rewrites it on every start, so it
+matches the running app. Don't learn the format from other showcases or
+from the app's source.
 
 ## 3. Make changes
 
