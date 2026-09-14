@@ -1,0 +1,16 @@
+#!/bin/sh
+# Starts Showcase Studio as Claude Code's MCP server: the app's --mcp mode,
+# talking MCP on stdin and stdout.
+#
+# The app is looked for at $SHOWCASE_STUDIO_APP (a path to
+# "Showcase Studio.app"), then in /Applications and ~/Applications.
+# Plain sh on purpose: Claude Code doesn't need Node, so this can't either.
+for app in "$SHOWCASE_STUDIO_APP" "/Applications/Showcase Studio.app" "$HOME/Applications/Showcase Studio.app"; do
+  bin="$app/Contents/MacOS/Showcase Studio"
+  if [ -n "$app" ] && [ -x "$bin" ]; then
+    exec "$bin" --mcp
+  fi
+done
+
+echo "showcase-studio: Showcase Studio isn't installed. Put \"Showcase Studio.app\" in /Applications, or set SHOWCASE_STUDIO_APP to its path." >&2
+exit 1

@@ -803,6 +803,26 @@ export let showcaseWarnings: ShowcaseWarning[] = [];
 
 export const showcasesReady: Promise<Showcase[]> = loadFromSource(activeSource());
 
+/* The loaded library, for the studio's validate tool (server/exporter.mjs),
+ * which opens a page and reads it from there. It's a page global, not a
+ * module import, so validate also works in the packaged app, where no dev
+ * server serves source files. */
+declare global {
+  interface Window {
+    __showcaseLibrary?: () => Promise<{
+      showcases: Showcase[];
+      errors: ShowcaseError[];
+      warnings: ShowcaseWarning[];
+    }>;
+  }
+}
+if (typeof window !== "undefined") {
+  window.__showcaseLibrary = async () => {
+    await showcasesReady;
+    return { showcases, errors: showcaseErrors, warnings: showcaseWarnings };
+  };
+}
+
 export function getShowcase(id: string): Showcase | undefined {
   return showcases.find((showcase) => showcase.id === id);
 }

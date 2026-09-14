@@ -8,13 +8,18 @@
  * (preload.cjs), and — in the packaged app — Electron's page renderer for
  * screenshots and exports (renderer.mjs).
  *
- * Two ways it runs:
+ * Three ways it runs:
  *   npm run dev:electron   scripts/dev.mjs starts the studio in the Vite dev
  *                          server and opens this window on it (--app-url).
  *   the packaged app       no --app-url: this process starts the studio
  *                          itself — the built app (.output/, npm run
  *                          build:desktop) behind a small server that mounts
  *                          the studio server, on free ports.
+ *   --mcp                  the packaged app as Claude Code's studio (the
+ *                          showcase-studio plugin runs it): an MCP server on
+ *                          stdin and stdout (server/mcp-stdio.mjs). No window
+ *                          and no Dock icon until studio_start asks for a
+ *                          window; the embedded Claude terminals are off.
  *
  * `--help` lists the options (server/launch-options.mjs).
  *
@@ -29,8 +34,9 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
-import { STUDIO_USAGE, studioOptions } from "../server/launch-options.mjs";
+import { STUDIO_USAGE, findLibrary, studioOptions } from "../server/launch-options.mjs";
 import { showInRecent } from "../server/library-config.mjs";
+import { serveStudioMcp, takeOverStdout } from "../server/mcp-stdio.mjs";
 import { loadSettings, saveSettings } from "../server/settings.mjs";
 import { showcaseIndex } from "../server/showcase-data.mjs";
 import { createStudio } from "../server/studio-server.mjs";
@@ -52,24 +58,29 @@ const appVersion = require_("../package.json").version;
  * relative paths resolve against where npm was started (INIT_CWD).
  * --help prints the options and quits; a bad option is printed with
  * them, then reported in a dialog once the app is ready. The library
- * defaults to the saved folder (File > Open Folder…), then ~/Showcases. */
+ * defaults to the saved folder (File > Open Folder…), then ~/Showcases —
+ * except with --mcp, where the folder Claude Code runs in comes first
+ * when it holds showcases or is one. */
+const launchCwd = process.env.INIT_CWD ?? process.cwd();
+const mcpRequested = process.argv.includes("--mcp");
 const savedOrHomeDir = loadSettings().showcasesDir ?? path.join(app.getPath("home"), "Showcases");
+const defaultDir = (mcpRequested && findLibrary(launchCwd)) || savedOrHomeDir;
 let options;
 let launchError = null;
 try {
-  options = studioOptions(process.argv, {
-    cwd: process.env.INIT_CWD ?? process.cwd(),
-    defaultDir: savedOrHomeDir,
-  });
+  options = studioOptions(process.argv, { cwd: launchCwd, defaultDir });
 } catch (error) {
   launchError = error.message;
   console.error(`${launchError}\n\n${STUDIO_USAGE}`);
-  options = studioOptions([], { defaultDir: savedOrHomeDir });
+  options = studioOptions([], { defaultDir });
 }
 if (options.help) {
   process.stdout.write(STUDIO_USAGE);
   process.exit(0);
 }
+/* With --mcp nobody would see a dialog: the error above went to stderr,
+ * which Claude Code logs. */
+if (launchError && mcpRequested) process.exit(1);
 
 /* The studio's address: given by npm run dev:electron, or set once the
  * packaged app's server listens. */
@@ -109,37 +120,69 @@ function proxyToBuiltApp(appPort, req, res) {
   req.pipe(upstream);
 }
 
-/** The packaged app: starts the built app server and, in front of it, a
- *  small server that mounts the studio. Both take free ports. */
-async function startPackagedStudio() {
-  if (!existsSync(builtServer)) {
-    throw new Error(
-      "The built app is missing (.output/). Run `npm run build:desktop`, " +
-        "or use `npm run dev:electron` from source.",
-    );
-  }
-  const appPort = await freePort();
-  /* The built app server (Nitro) reads its address from PORT and HOST. */
-  process.env.PORT = String(appPort);
-  process.env.HOST = "127.0.0.1";
-  await import(pathToFileURL(builtServer).href);
-  studio = createStudio({
-    showcasesDir: options.showcasesDir,
-    lock: options.lock,
+let builtApp;
+/** Starts the built app server (Nitro) on a free port, once: it can only
+ *  be imported once, so every studio this process starts shares it.
+ *  Resolves with its port. */
+function startBuiltApp() {
+  builtApp ??= (async () => {
+    if (!existsSync(builtServer)) {
+      throw new Error(
+        "The built app is missing (.output/). Run `npm run build:desktop`, " +
+          "or use `npm run dev:electron` from source.",
+      );
+    }
+    const port = await freePort();
+    /* The built app server reads its address from PORT and HOST. */
+    process.env.PORT = String(port);
+    process.env.HOST = "127.0.0.1";
+    await import(pathToFileURL(builtServer).href);
+    return port;
+  })();
+  return builtApp;
+}
+
+/** The packaged app's studio: a small server on a free port that mounts
+ *  the studio server in front of the built app. Resolves with
+ *  `{ studio, url, landingUrl(), close() }`. */
+async function startAppStudio({ showcasesDir, lock, features }) {
+  const appPort = await startBuiltApp();
+  const created = createStudio({
+    showcasesDir,
+    lock,
     version: appVersion,
     srcDir: repoRoot,
     renderer: createElectronRenderer(),
+    features,
   });
   const front = http.createServer(
-    (req, res) => void studio.handle(req, res, () => proxyToBuiltApp(appPort, req, res)),
+    (req, res) => void created.handle(req, res, () => proxyToBuiltApp(appPort, req, res)),
   );
-  await new Promise((resolve, reject) => {
-    front.once("error", reject);
-    front.listen(0, "127.0.0.1", resolve);
-  });
-  appUrl = `http://127.0.0.1:${front.address().port}`;
-  studio.setUrl(appUrl);
-  console.log(`studio: ${appUrl}`);
+  try {
+    await new Promise((resolve, reject) => {
+      front.once("error", reject);
+      front.listen(0, "127.0.0.1", resolve);
+    });
+  } catch (error) {
+    await created.close();
+    throw error;
+  }
+  const url = `http://127.0.0.1:${front.address().port}`;
+  created.setUrl(url);
+  return {
+    studio: created,
+    url,
+    landingUrl: () => {
+      const { lock: current } = created.info();
+      return url + (current ? lockLandingPath(current) : "");
+    },
+    async close() {
+      await created.close();
+      /* Open event streams would keep the server from closing. */
+      front.closeAllConnections();
+      await new Promise((resolve) => front.close(resolve));
+    },
+  };
 }
 
 async function readStudioInfo() {
@@ -157,12 +200,14 @@ async function studioApi(action, body) {
   return response.json();
 }
 
-/** Follows the studio's events for as long as the app runs, calling
+/** Follows the studio's events for as long as `win` is open, calling
  *  `onInfo` when the studio's info changes (a new lock, another library). */
-async function followStudioEvents(onInfo) {
-  for (;;) {
+async function followStudioEvents(win, onInfo) {
+  const closed = new AbortController();
+  win.on("closed", () => closed.abort());
+  while (!closed.signal.aborted) {
     try {
-      const response = await fetch(`${appUrl}/studio/api/events`);
+      const response = await fetch(`${appUrl}/studio/api/events`, { signal: closed.signal });
       const decoder = new TextDecoder();
       let buffer = "";
       for await (const chunk of response.body) {
@@ -176,7 +221,7 @@ async function followStudioEvents(onInfo) {
         }
       }
     } catch {
-      /* the studio is restarting or gone — try again shortly */
+      /* the studio is restarting or gone, or the window closed */
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
@@ -301,7 +346,129 @@ function buildMenu(win) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+/** Opens a window on the running studio (appUrl), with the lock's guard
+ *  and the menus, and resolves with it once its page has loaded. Throws
+ *  when the studio doesn't answer. */
+async function openStudioWindow() {
+  studioInfo = await readStudioInfo();
+
+  const win = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    title: "Showcase Studio",
+    show: !process.env.ELECTRON_SMOKE,
+    webPreferences: {
+      preload: path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.cjs"),
+    },
+  });
+
+  /* A file dropped outside a drop target must not navigate the app to
+   * file:// (Chromium's default) — that would blank the studio. */
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith("file:")) event.preventDefault();
+  });
+  guardWindowLock(win);
+  buildMenu(win);
+  void followStudioEvents(win, (next) => {
+    const changed =
+      next.library !== studioInfo.library ||
+      JSON.stringify(next.lock) !== JSON.stringify(studioInfo.lock);
+    studioInfo = next;
+    if (changed && !win.isDestroyed()) buildMenu(win);
+  });
+
+  try {
+    await win.loadURL(
+      appUrl +
+        (process.env.ELECTRON_SMOKE_PATH ??
+          (studioInfo.lock ? lockLandingPath(studioInfo.lock) : "")),
+    );
+  } catch (error) {
+    /* ERR_ABORTED: a newer load replaced this one — the lock guard
+     * sending a smoke path outside the lock back to the locked page. */
+    if (error.code !== "ERR_ABORTED") {
+      console.error(`Failed to load ${appUrl}:`, error.message ?? error);
+      if (process.env.ELECTRON_SMOKE) app.exit(1);
+    }
+  }
+  return win;
+}
+
+/** --mcp: Claude Code's studio. The MCP channel opens at once; a studio
+ *  starts when a tool asks for one, and a window opens only when
+ *  studio_start asks for it. Closing that window leaves the studio
+ *  running for Claude; the app quits when Claude Code closes stdin. */
+function serveMcp() {
+  const send = takeOverStdout();
+  /* A long-lived server: a stray error in the studio is logged, not fatal. */
+  process.on("uncaughtException", (error) => console.error(`studio: ${error.stack ?? error}`));
+  process.on("unhandledRejection", (error) => console.error(`studio: ${error?.stack ?? error}`));
+  app.dock?.hide();
+
+  let win;
+  const closeWindow = () => {
+    if (win && !win.isDestroyed()) win.destroy();
+    win = undefined;
+    app.dock?.hide();
+  };
+
+  serveStudioMcp({
+    version: appVersion,
+    send,
+    cwd: launchCwd,
+    defaultLibrary: () => options.showcasesDir,
+    libraryHelp:
+      "the folder Claude Code runs in, when it holds showcases or is one; otherwise the last " +
+      "folder the app opened, or ~/Showcases",
+    windows: true,
+    startStudio: async ({ showcasesDir, lock, window }) => {
+      await app.whenReady();
+      const running = await startAppStudio({ showcasesDir, lock, features: { terminal: false } });
+      studio = running.studio;
+      appUrl = running.url;
+      if (window) {
+        try {
+          await app.dock?.show();
+          win = await openStudioWindow();
+          win.on("closed", () => {
+            win = undefined;
+            app.dock?.hide();
+          });
+          /* This mode's smoke hook: capture the window once it has drawn. */
+          if (process.env.ELECTRON_SMOKE) {
+            await new Promise((resolve) => setTimeout(resolve, 4000));
+            writeFileSync(
+              process.env.ELECTRON_SMOKE,
+              (await win.webContents.capturePage()).toPNG(),
+            );
+            console.error(
+              `smoke: captured ${win.webContents.getURL()}; dock visible: ${app.dock?.isVisible()}`,
+            );
+          }
+        } catch (error) {
+          closeWindow();
+          await running.close();
+          throw error;
+        }
+      }
+      return {
+        ...running,
+        async close() {
+          closeWindow();
+          studio = undefined;
+          await running.close();
+        },
+      };
+    },
+    onExit: () => app.exit(0),
+  });
+}
+
+if (options.mcp) serveMcp();
+
 app.whenReady().then(async () => {
+  /* serveMcp starts studios and windows when Claude asks. */
+  if (options.mcp) return;
   if (launchError) {
     dialog.showErrorBox("Showcase Studio", launchError);
     app.exit(1);
@@ -309,7 +476,13 @@ app.whenReady().then(async () => {
   }
   if (!appUrl) {
     try {
-      await startPackagedStudio();
+      const running = await startAppStudio({
+        showcasesDir: options.showcasesDir,
+        lock: options.lock,
+      });
+      studio = running.studio;
+      appUrl = running.url;
+      console.log(`studio: ${appUrl}`);
     } catch (error) {
       dialog.showErrorBox("Showcase Studio", `The studio failed to start: ${error.message}`);
       app.exit(1);
@@ -336,8 +509,9 @@ app.whenReady().then(async () => {
     return;
   }
 
+  let win;
   try {
-    studioInfo = await readStudioInfo();
+    win = await openStudioWindow();
   } catch (error) {
     dialog.showErrorBox(
       "Showcase Studio",
@@ -345,46 +519,6 @@ app.whenReady().then(async () => {
     );
     app.exit(1);
     return;
-  }
-
-  const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    title: "Showcase Studio",
-    show: !process.env.ELECTRON_SMOKE,
-    webPreferences: {
-      preload: path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.cjs"),
-    },
-  });
-
-  /* A file dropped outside a drop target must not navigate the app to
-   * file:// (Chromium's default) — that would blank the studio. */
-  win.webContents.on("will-navigate", (event, url) => {
-    if (url.startsWith("file:")) event.preventDefault();
-  });
-  guardWindowLock(win);
-  buildMenu(win);
-  void followStudioEvents((next) => {
-    const changed =
-      next.library !== studioInfo.library ||
-      JSON.stringify(next.lock) !== JSON.stringify(studioInfo.lock);
-    studioInfo = next;
-    if (changed && !win.isDestroyed()) buildMenu(win);
-  });
-
-  try {
-    await win.loadURL(
-      appUrl +
-        (process.env.ELECTRON_SMOKE_PATH ??
-          (studioInfo.lock ? lockLandingPath(studioInfo.lock) : "")),
-    );
-  } catch (error) {
-    /* ERR_ABORTED: a newer load replaced this one — the lock guard
-     * sending a smoke path outside the lock back to the locked page. */
-    if (error.code !== "ERR_ABORTED") {
-      console.error(`Failed to load ${appUrl}:`, error.message ?? error);
-      if (process.env.ELECTRON_SMOKE) app.exit(1);
-    }
   }
 
   if (process.env.ELECTRON_SMOKE) {
@@ -473,4 +607,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => void studio?.close());
-app.on("window-all-closed", () => app.quit());
+/* With --mcp the studio outlives its window: Claude may still be using it. */
+app.on("window-all-closed", () => {
+  if (!options.mcp) app.quit();
+});

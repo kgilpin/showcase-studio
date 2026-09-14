@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { EXPORT_KINDS, STUDIO_USAGE, studioOptions } from "./launch-options.mjs";
+import {
+  EXPORT_KINDS,
+  STUDIO_USAGE,
+  findLibrary,
+  resolvePath,
+  studioOptions,
+} from "./launch-options.mjs";
 
 const dirs = [];
 /** A library folder holding the named showcases (each with a showcase.yaml). */
@@ -24,11 +30,33 @@ const context = { cwd: "/", defaultDir: "/home/Showcases" };
 /* Electron's own argv: the binary and, in dev, the script path. */
 const electron = ["/path/to/Electron", "electron/main.mjs"];
 
+describe("findLibrary", () => {
+  it("finds the library a folder belongs to: itself, its parent, or none", () => {
+    const lib = library("nova");
+    expect(findLibrary(lib)).toBe(lib);
+    expect(findLibrary(path.join(lib, "nova"))).toBe(lib);
+    const empty = library();
+    expect(findLibrary(empty)).toBeUndefined();
+    expect(findLibrary(path.join(empty, "missing"))).toBeUndefined();
+  });
+});
+
+describe("resolvePath", () => {
+  it("reads a leading ~ as the home folder and resolves the rest against cwd", () => {
+    const options = { cwd: "/work", home: "/Users/me" };
+    expect(resolvePath("~", options)).toBe("/Users/me");
+    expect(resolvePath("~/Showcases", options)).toBe("/Users/me/Showcases");
+    expect(resolvePath("Showcases/~draft", options)).toBe("/work/Showcases/~draft");
+    expect(resolvePath("/abs", options)).toBe("/abs");
+  });
+});
+
 describe("studioOptions", () => {
   it("returns the defaults when no studio option is given", () => {
     expect(studioOptions([...electron], context)).toEqual({
       help: false,
       electron: false,
+      mcp: false,
       showcasesDir: "/home/Showcases",
       lock: null,
       exportJob: undefined,
@@ -47,11 +75,44 @@ describe("studioOptions", () => {
     expect(studioOptions(["-h"], context).help).toBe(true);
     expect(STUDIO_USAGE).toContain("npm run dev:electron");
     expect(STUDIO_USAGE).toContain("studio_start");
+    expect(STUDIO_USAGE).toContain("--mcp");
   });
 
   it("reads --electron as a switch that takes no value", () => {
     expect(studioOptions(["--electron"], context).electron).toBe(true);
     expect(() => studioOptions(["--electron=1"], context)).toThrow(/doesn't take a value/);
+  });
+
+  it("reads --mcp as a switch that allows --library but not the choices studio_start makes", () => {
+    const lib = library("nova");
+    expect(studioOptions([...electron, "--mcp"], context)).toMatchObject({
+      mcp: true,
+      showcasesDir: "/home/Showcases",
+      lock: null,
+    });
+    expect(studioOptions(["--mcp", "--library", lib], context).showcasesDir).toBe(lib);
+    for (const argv of [
+      ["--open", path.join(lib, "nova")],
+      ["--new"],
+      ["--export", "screens:nova"],
+      ["--electron"],
+      ["--app-url", "http://localhost:5173"],
+    ]) {
+      expect(() => studioOptions(["--mcp", ...argv], context)).toThrow(
+        `--mcp takes its choices from the studio_start tool, so it can't be used with ${argv[0]}.`,
+      );
+    }
+  });
+
+  it("expands a leading ~ in folder options", () => {
+    const lib = library("nova");
+    const home = { ...context, home: path.dirname(lib) };
+    const name = path.basename(lib);
+    expect(studioOptions(["--library", `~/${name}`], home).showcasesDir).toBe(lib);
+    expect(studioOptions([`--open=~/${name}/nova`], home)).toMatchObject({
+      showcasesDir: lib,
+      lock: { kind: "showcase", showcaseId: "nova" },
+    });
   });
 
   it("locks --open to the showcase and uses its parent as the library", () => {

@@ -346,31 +346,27 @@ export function screenshotSlide(renderer, appUrl, { showcaseId, sceneId } = {}) 
 }
 
 /** Loads the library in a fresh page exactly as the app does and reports
- *  what built, what didn't, and the theme linter's warnings. (Uses the
- *  dev server's module path, so it answers in the dev modes.) */
+ *  what built, what didn't, and the theme linter's warnings. The page
+ *  publishes its library as window.__showcaseLibrary
+ *  (src/content/showcases.ts), so this works in every mode, packaged app
+ *  included. */
 export function validateShowcases(renderer, appUrl) {
   return withTimeout(
     withPage(renderer, SHOT, async (page) => {
       await page.goto(`${appUrl}/`);
       return page.evaluate(`(async () => {
-        for (;;) {
-          try {
-            const m = await import("/src/content/showcases.ts");
-            await m.showcasesReady;
-            return {
-              loaded: m.showcases.map((s) => ({
-                id: s.id,
-                title: s.title,
-                slides: s.scenes.length,
-                runtimeSeconds: Math.round(s.scenes.reduce((sum, x) => sum + x.durationMs, 0) / 1000),
-              })),
-              errors: m.showcaseErrors,
-              warnings: m.showcaseWarnings,
-            };
-          } catch {
-            await new Promise((r) => setTimeout(r, 200));
-          }
-        }
+        while (!window.__showcaseLibrary) await new Promise((r) => setTimeout(r, 100));
+        const { showcases, errors, warnings } = await window.__showcaseLibrary();
+        return {
+          loaded: showcases.map((s) => ({
+            id: s.id,
+            title: s.title,
+            slides: s.scenes.length,
+            runtimeSeconds: Math.round(s.scenes.reduce((sum, x) => sum + x.durationMs, 0) / 1000),
+          })),
+          errors,
+          warnings,
+        };
       })()`);
     }),
     "The library did not finish loading — is the studio's app page reachable?",

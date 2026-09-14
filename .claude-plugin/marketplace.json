@@ -1,0 +1,12 @@
+{
+  "name": "showcase-studio",
+  "owner": { "name": "Kevin Gilpin" },
+  "description": "Showcase Studio for Claude Code: video-style product tours made from a folder of files.",
+  "plugins": [
+    {
+      "name": "showcase-studio",
+      "source": "./plugins/showcase-studio",
+      "description": "Work on Showcase Studio showcases with Claude: start the studio, show it, and edit and check showcases through the studio's own tools."
+    }
+  ]
+}
