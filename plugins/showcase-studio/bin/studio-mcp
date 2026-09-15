@@ -2,15 +2,41 @@
 # Starts Showcase Studio as Claude Code's MCP server: the app's --mcp mode,
 # talking MCP on stdin and stdout.
 #
-# The app is looked for at $SHOWCASE_STUDIO_APP (a path to
-# "Showcase Studio.app"), then in /Applications and ~/Applications.
+# It looks for the app at $SHOWCASE_STUDIO_APP, then in
+# $SHOWCASE_STUDIO_INSTALL_DIR, ~/Applications and /Applications, and
+# prefers the version this plugin expects (../app-version). With no app,
+# it exits with a message naming bin/install-app, which installs it.
 # Plain sh on purpose: Claude Code doesn't need Node, so this can't either.
-for app in "$SHOWCASE_STUDIO_APP" "/Applications/Showcase Studio.app" "$HOME/Applications/Showcase Studio.app"; do
-  bin="$app/Contents/MacOS/Showcase Studio"
-  if [ -n "$app" ] && [ -x "$bin" ]; then
-    exec "$bin" --mcp
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+want="$(tr -d '[:space:]' < "$root/app-version")"
+
+version_of() {
+  /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$1/Contents/Info.plist" 2> /dev/null
+}
+
+found=""
+for app in \
+  "${SHOWCASE_STUDIO_APP:-}" \
+  "${SHOWCASE_STUDIO_INSTALL_DIR:+$SHOWCASE_STUDIO_INSTALL_DIR/Showcase Studio.app}" \
+  "$HOME/Applications/Showcase Studio.app" \
+  "/Applications/Showcase Studio.app"; do
+  [ -n "$app" ] && [ -x "$app/Contents/MacOS/Showcase Studio" ] || continue
+  if [ "$(version_of "$app")" = "$want" ]; then
+    found="$app"
+    break
   fi
+  [ -n "$found" ] || found="$app"
 done
 
-echo "showcase-studio: Showcase Studio isn't installed. Put \"Showcase Studio.app\" in /Applications, or set SHOWCASE_STUDIO_APP to its path." >&2
-exit 1
+if [ -z "$found" ]; then
+  echo "showcase-studio: the Showcase Studio app isn't installed. Install version $want with: \"$root/bin/install-app\"" >&2
+  exit 1
+fi
+
+have="$(version_of "$found")"
+if [ "$have" != "$want" ]; then
+  echo "showcase-studio: $found is version ${have:-unknown}, but this plugin expects $want. Running it anyway; update it with: \"$root/bin/install-app\"" >&2
+fi
+
+exec "$found/Contents/MacOS/Showcase Studio" --mcp

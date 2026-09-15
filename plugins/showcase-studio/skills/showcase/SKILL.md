@@ -13,6 +13,28 @@ library folder holds one folder per showcase: `showcase.yaml` (the
 script), optional `theme.yaml` (styling), and `assets/` (screenshots and
 recordings). The studio's tools come from this plugin's MCP server.
 
+## Before you start: the app
+
+The studio tools (`studio_start` and the rest) come from the Showcase
+Studio app, which this plugin runs. When those tools aren't available,
+the plugin's `showcase-studio` MCP server couldn't start, almost always
+because the app isn't installed. Install it — don't try to work without
+the tools:
+
+1. Run the plugin's installer. This skill's base directory is
+   `<plugin>/skills/showcase`, so the installer is `<plugin>/bin/install-app`.
+   It downloads the app version this plugin expects from GitHub, checks
+   its SHA-256 hash, and puts it in `~/Applications`. It needs the GitHub
+   CLI (`gh`), logged in with access to the Showcase Studio repository. If
+   it stops with a message, tell the user what it says.
+2. The tools appear only after Claude Code reconnects to the server. Ask
+   the user to run `/mcp` and reconnect `showcase-studio`, or to start a
+   new session, then continue with step 1 below.
+
+If `studio_start` works but the `version` it returns differs from
+`<plugin>/app-version`, run the installer too — it replaces the app with
+the expected version — and ask for the reconnect.
+
 ## 1. Start the studio
 
 | The user gave   | Call                                                   |
