@@ -19,6 +19,7 @@ import { alignCaptionWords, resolveSceneTiming, type WordWindow } from "./timing
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
+import { ASSET_KINDS, mediaKindWarning, type AssetKind } from "./asset-kind";
 import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
@@ -532,6 +533,14 @@ function resolveMedia(
   }
   const asset = assetOr(media.asset);
   const fadeTo = media.fadeTo ? assetOr(media.fadeTo.asset) : undefined;
+  /* A kind that doesn't match the file (kind: image on an .mp4) renders a
+   * broken image — say so instead of leaving the author to guess. */
+  const mismatch = mediaKindWarning(media.kind, media.asset, asset.file);
+  if (mismatch) warn(mismatch);
+  if (media.fadeTo && fadeTo) {
+    const fadeMismatch = mediaKindWarning("image", media.fadeTo.asset, fadeTo.file, "fadeTo");
+    if (fadeMismatch) warn(fadeMismatch);
+  }
   return {
     kind: media.kind,
     src: asset.url,
@@ -1026,7 +1035,7 @@ export function applySceneEditLocal(
  * for the assets page.
  * ------------------------------------------------------------- */
 
-export type AssetKind = "image" | "video" | "audio" | "other";
+export type { AssetKind } from "./asset-kind";
 
 export type AssetInfo = {
   /** The file name — always a valid reference key. */
@@ -1038,24 +1047,6 @@ export type AssetInfo = {
   kind: AssetKind;
   /** Scene ids referencing it, plus "soundtrack" / "cover" when applicable. */
   usedBy: string[];
-};
-
-const ASSET_KINDS: Record<string, AssetKind> = {
-  png: "image",
-  jpg: "image",
-  jpeg: "image",
-  webp: "image",
-  gif: "image",
-  svg: "image",
-  mp4: "video",
-  mov: "video",
-  webm: "video",
-  m4v: "video",
-  mp3: "audio",
-  m4a: "audio",
-  wav: "audio",
-  aac: "audio",
-  ogg: "audio",
 };
 
 /** Every file in the showcase's assets folder with what references it,
