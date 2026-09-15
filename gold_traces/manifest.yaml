@@ -99,3 +99,9 @@ entries:
     test_name: runs MCP tools in-process through callTool
     appmap_path: vitest/runs_MCP_tools_in-process_through_callTool.appmap.json
     summary: The MCP tools as Claude Code's studio calls them — studio_info and script through callTool.
+
+  - feature: change-log
+    test_file: server/studio-server.test.mjs
+    test_name: edit_showcase returns a version, and refuses a stale ifVersion with the UI edits since
+    appmap_path: "vitest/edit_showcase_returns_a_version,_and_refuses_a_stale_ifVersion_with_the_UI_edits_since.appmap.json"
+    summary: The stale-write guard's refused branch — a UI edit lands in the change log, then edit_showcase refuses an edit made against the older version and reads the log back to say what changed.

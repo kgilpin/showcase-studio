@@ -500,7 +500,7 @@ scenes:
   });
 
   it("edit_showcase returns a version, and refuses a stale ifVersion with the UI edits since", async () => {
-    const { studio, library, post } = await startStudio();
+    const { studio, library } = await startStudio();
     const file = path.join(library, "nova", "showcase.yaml");
 
     const read = await studio.callTool({
@@ -524,13 +524,19 @@ scenes:
     expect(applied).toBe(1);
     expect(claudeVersion).toBe(contentHash(readFileSync(file)));
 
-    /* The user changes a caption in the studio. */
-    await post("scene-edit", {
-      showcaseId: "nova",
-      sceneId: "intro",
-      field: "caption",
-      captionIndex: 0,
-      value: "Changed in the studio.",
+    /* The user changes a caption in the studio. Driven through handle,
+     * like the other gold-traced tests: the recorder can't nest a real
+     * HTTP request under its handler, and the trace won't sanitize. */
+    await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/scene-edit",
+      body: {
+        showcaseId: "nova",
+        sceneId: "intro",
+        field: "caption",
+        captionIndex: 0,
+        value: "Changed in the studio.",
+      },
     });
     const afterUi = readFileSync(file, "utf8");
 
