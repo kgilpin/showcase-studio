@@ -24,6 +24,9 @@ beforeAll(() => {
   write("alpha/assets/voiceover.mp3", Buffer.from("0123456789"));
   write("alpha/assets/shot.png", Buffer.from([137, 80, 78, 71]));
   write("alpha/assets/notes.bin", "binary");
+  write("alpha/assets/voice.m4a", "aac");
+  write("alpha/assets/voice.words.json", "[]");
+  write("alpha/assets/take.mov", "mov");
   write("alpha/assets/.DS_Store", "junk");
   write("alpha/graphics/badge.tsx", "export default function Badge() { return <em>ok</em>; }\n");
   write("alpha/graphics/broken.tsx", "export default function ( { return <; }\n");
@@ -46,7 +49,14 @@ describe("showcaseIndex", () => {
   it("reports the theme flag, assets, and graphics of a full showcase", () => {
     const alpha = showcaseIndex(dir).showcases[0];
     expect(alpha.hasTheme).toBe(true);
-    expect(alpha.assets.sort()).toEqual(["notes.bin", "shot.png", "voiceover.mp3"]);
+    expect(alpha.assets.sort()).toEqual([
+      "notes.bin",
+      "shot.png",
+      "take.mov",
+      "voice.m4a",
+      "voice.words.json",
+      "voiceover.mp3",
+    ]);
     expect(alpha.graphics.sort()).toEqual(["badge.tsx", "broken.tsx"]);
   });
 
@@ -107,6 +117,16 @@ describe("handleShowcaseRequest", () => {
       "Accept-Ranges": "bytes",
       "Content-Length": String(res.body.length),
     });
+  });
+
+  it("types audio, video, and JSON sidecars so browsers don't have to guess", async () => {
+    expect((await handleShowcaseRequest(dir, "/alpha/assets/voice.m4a")).type).toBe("audio/mp4");
+    expect((await handleShowcaseRequest(dir, "/alpha/assets/voice.words.json")).type).toBe(
+      "application/json",
+    );
+    expect((await handleShowcaseRequest(dir, "/alpha/assets/take.mov")).type).toBe(
+      "video/quicktime",
+    );
   });
 
   it("falls back to octet-stream for unknown extensions", async () => {
