@@ -57,12 +57,30 @@ describe("studioOptions", () => {
       help: false,
       electron: false,
       mcp: false,
+      terminal: true,
+      window: true,
       showcasesDir: "/home/Showcases",
       lock: null,
       exportJob: undefined,
       appUrl: undefined,
       unknown: [],
     });
+  });
+
+  it("reads --no-terminal as a switch that turns the embedded terminals off", () => {
+    expect(studioOptions(["--no-terminal"], context).terminal).toBe(false);
+    expect(() => studioOptions(["--no-terminal=1"], context)).toThrow(/doesn't take a value/);
+    expect(STUDIO_USAGE).toContain("--no-terminal");
+  });
+
+  it("reads --no-window as a switch for the packaged app, not the window launchers", () => {
+    expect(studioOptions(["--no-window"], context).window).toBe(false);
+    expect(() => studioOptions(["--no-window", "--electron"], context)).toThrow(/no meaning/);
+    expect(() =>
+      studioOptions(["--no-window", "--app-url", "http://localhost:5173"], context),
+    ).toThrow(/no meaning/);
+    expect(() => studioOptions(["--mcp", "--no-window"], context)).toThrow(/studio_start/);
+    expect(STUDIO_USAGE).toContain("--no-window");
   });
 
   it("collects --flags it doesn't know, and ignores other arguments", () => {

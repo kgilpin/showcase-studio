@@ -49,6 +49,14 @@ Options:
                              it holds showcases or is one.
   --export <kind>:<id>       Export one showcase, then quit.
                              Kinds: ${EXPORT_KINDS.join(", ")}.
+  --no-terminal              Turn off the studio agent's embedded terminals —
+                             for a studio that Claude Code already drives,
+                             such as one shown in Claude Code's preview.
+  --no-window                (packaged app) Run the studio with no window or
+                             Dock icon — for a launcher that shows it
+                             somewhere else, such as Claude Code's preview
+                             pane. The studio prints its URL and runs until
+                             the launcher stops it.
   -h, --help                 Show this help.
 
 Set by launchers:
@@ -64,9 +72,9 @@ the command in.
 `;
 
 const VALUE_FLAGS = new Set(["open", "library", "export", "app-url"]);
-const SWITCHES = new Set(["help", "electron", "mcp"]);
+const SWITCHES = new Set(["help", "electron", "mcp", "no-terminal", "no-window"]);
 /* The choices studio_start makes, which --mcp therefore can't take. */
-const NOT_WITH_MCP = ["open", "new", "export", "electron", "app-url"];
+const NOT_WITH_MCP = ["open", "new", "export", "electron", "app-url", "no-window"];
 
 const isDirectory = (dir) => {
   try {
@@ -104,7 +112,8 @@ export function findLibrary(dir) {
 }
 
 /** Parses argv into the studio's options:
- *  `{ help, electron, mcp, showcasesDir, lock, exportJob, appUrl, unknown }`.
+ *  `{ help, electron, mcp, terminal, window, showcasesDir, lock, exportJob,
+ *  appUrl, unknown }`.
  *  `showcasesDir` is `defaultDir` unless --library, --open or --new picks
  *  one. Throws with a plain message when an option is misused or names a
  *  folder that won't work. */
@@ -144,6 +153,8 @@ export function studioOptions(argv, { cwd, defaultDir, home } = {}) {
     help: given.has("help"),
     electron: given.has("electron"),
     mcp: given.has("mcp"),
+    terminal: !given.has("no-terminal"),
+    window: !given.has("no-window"),
     showcasesDir: defaultDir,
     lock: null,
     exportJob: undefined,
@@ -213,6 +224,12 @@ export function studioOptions(argv, { cwd, defaultDir, home } = {}) {
       );
     }
     options.exportJob = { kind: job[1], showcaseId: job[2] };
+  }
+
+  if (given.has("no-window") && (given.has("electron") || given.has("app-url"))) {
+    throw new Error(
+      "--no-window runs the packaged app without its window; it has no meaning here.",
+    );
   }
 
   if (given.has("app-url")) {

@@ -90,6 +90,13 @@ ${
   it. This guide and the MCP tools' own descriptions are the reference;
   check what you make with screenshot_slide and validate.`
 }
+- Claude Code's preview button starts a studio on the showcase when the
+  session runs in the showcase folder: the studio writes a
+  .claude/launch.json there (opening that showcase). It holds this
+  machine's paths, so it's git-ignored and rewritten on every launch;
+  delete the marker line at the top to keep your own. That preview
+  studio is separate from the one the MCP tools use; both reload when
+  files change.
 - ffmpeg is bundled with the studio at ${ffmpegPath ?? "(unavailable)"}
   (also in $SHOWCASE_STUDIO_FFMPEG). Use it for audio and video work on
   this folder's recordings: extracting audio, cutting clips, probing

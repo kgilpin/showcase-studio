@@ -78,9 +78,15 @@ if (options.help) {
   process.stdout.write(STUDIO_USAGE);
   process.exit(0);
 }
-/* With --mcp nobody would see a dialog: the error above went to stderr,
- * which Claude Code logs. */
-if (launchError && mcpRequested) process.exit(1);
+/* With --mcp or --no-window nobody would see a dialog: the error above
+ * went to stderr, which the launcher logs. */
+const windowless = mcpRequested || process.argv.includes("--no-window");
+if (launchError && windowless) process.exit(1);
+
+/* A launcher (Claude Code's preview button, through a showcase's
+ * .claude/launch.json) picks the studio's port with PORT. Read it now:
+ * the built app server takes PORT over for its own address. */
+const launcherPort = Number(process.env.PORT) || undefined;
 
 /* The studio's address: given by npm run dev:electron, or set once the
  * packaged app's server listens. */
@@ -142,10 +148,10 @@ function startBuiltApp() {
   return builtApp;
 }
 
-/** The packaged app's studio: a small server on a free port that mounts
- *  the studio server in front of the built app. Resolves with
- *  `{ studio, url, landingUrl(), close() }`. */
-async function startAppStudio({ showcasesDir, lock, features }) {
+/** The packaged app's studio: a small server on `port` (a free one by
+ *  default) that mounts the studio server in front of the built app.
+ *  Resolves with `{ studio, url, landingUrl(), close() }`. */
+async function startAppStudio({ showcasesDir, lock, features, port }) {
   const appPort = await startBuiltApp();
   const created = createStudio({
     showcasesDir,
@@ -154,6 +160,11 @@ async function startAppStudio({ showcasesDir, lock, features }) {
     srcDir: repoRoot,
     renderer: createElectronRenderer(),
     features,
+    /* What Claude Code's preview button runs: this app, with no window
+     * (the preview pane shows the studio) — or, from source, npm run dev. */
+    launcher: app.isPackaged
+      ? { executable: process.execPath, args: ["--no-window"] }
+      : { executable: "npm", args: ["--prefix", repoRoot, "run", "dev", "--"] },
   });
   const front = http.createServer(
     (req, res) => void created.handle(req, res, () => proxyToBuiltApp(appPort, req, res)),
@@ -161,7 +172,7 @@ async function startAppStudio({ showcasesDir, lock, features }) {
   try {
     await new Promise((resolve, reject) => {
       front.once("error", reject);
-      front.listen(0, "127.0.0.1", resolve);
+      front.listen(port ?? 0, "127.0.0.1", resolve);
     });
   } catch (error) {
     await created.close();
@@ -469,9 +480,13 @@ if (options.mcp) serveMcp();
 app.whenReady().then(async () => {
   /* serveMcp starts studios and windows when Claude asks. */
   if (options.mcp) return;
-  if (launchError) {
-    dialog.showErrorBox("Showcase Studio", launchError);
+  const fail = (message) => {
+    if (options.window) dialog.showErrorBox("Showcase Studio", message);
+    else console.error(message);
     app.exit(1);
+  };
+  if (launchError) {
+    fail(launchError);
     return;
   }
   if (!appUrl) {
@@ -479,13 +494,14 @@ app.whenReady().then(async () => {
       const running = await startAppStudio({
         showcasesDir: options.showcasesDir,
         lock: options.lock,
+        features: { terminal: options.terminal },
+        port: launcherPort,
       });
       studio = running.studio;
       appUrl = running.url;
       console.log(`studio: ${appUrl}`);
     } catch (error) {
-      dialog.showErrorBox("Showcase Studio", `The studio failed to start: ${error.message}`);
-      app.exit(1);
+      fail(`The studio failed to start: ${error.message}`);
       return;
     }
   }
@@ -509,15 +525,18 @@ app.whenReady().then(async () => {
     return;
   }
 
+  /* --no-window: the studio runs headless for a launcher that shows it
+   * elsewhere (Claude Code's preview pane), until that launcher stops it. */
+  if (!options.window) {
+    app.dock?.hide();
+    return;
+  }
+
   let win;
   try {
     win = await openStudioWindow();
   } catch (error) {
-    dialog.showErrorBox(
-      "Showcase Studio",
-      `The studio at ${appUrl} isn't answering: ${error.message}`,
-    );
-    app.exit(1);
+    fail(`The studio at ${appUrl} isn't answering: ${error.message}`);
     return;
   }
 

@@ -41,7 +41,7 @@ function libraryWith(...ids) {
 
 /** A studio on a temp library, mounted in a plain HTTP server on a free
  *  port. Requests the studio doesn't handle answer "app" (the page). */
-async function startStudio({ lock = null, features, srcDir = "/src" } = {}) {
+async function startStudio({ lock = null, features, srcDir = "/src", launcher } = {}) {
   const library = libraryWith("nova");
   let saved = {};
   const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
@@ -53,6 +53,7 @@ async function startStudio({ lock = null, features, srcDir = "/src" } = {}) {
     settings,
     exportDir: tempDir("studio-exports-"),
     features,
+    launcher,
     log: () => {},
   });
   const server = http.createServer(
@@ -103,6 +104,53 @@ describe("createStudio", () => {
     expect(existsSync(path.join(library, ".studio", "GUIDE.md"))).toBe(true);
     const mcpConfig = JSON.parse(readFileSync(path.join(library, ".studio", "mcp.json"), "utf8"));
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
+  });
+
+  it("writes a launch.json per showcase folder, for Claude Code's preview button", async () => {
+    const launcher = {
+      executable: "/Apps/Studio.app/Contents/MacOS/Studio",
+      args: ["--no-window"],
+    };
+    const { library, post } = await startStudio({ launcher });
+    const readLaunch = (...parts) => {
+      const text = readFileSync(path.join(library, ...parts, ".claude", "launch.json"), "utf8");
+      expect(text.startsWith("// Written by Showcase Studio")).toBe(true);
+      return JSON.parse(text.replace(/^\/\/.*\n/gm, ""));
+    };
+    const nova = readLaunch("nova");
+    expect(nova.configurations).toEqual([
+      {
+        name: "studio",
+        runtimeExecutable: launcher.executable,
+        runtimeArgs: ["--no-window", "--open", path.join(library, "nova"), "--no-terminal"],
+        port: 8080,
+        autoPort: true,
+      },
+    ]);
+    expect(existsSync(path.join(library, ".claude", "launch.json"))).toBe(false);
+    expect(readFileSync(path.join(library, ".gitignore"), "utf8")).toContain(
+      "**/.claude/launch.json",
+    );
+
+    /* A new showcase gets its own file. */
+    expect(await post("showcase-create", { name: "Flow" })).toEqual({ ok: true, id: "flow" });
+    expect(readLaunch("flow").configurations[0].runtimeArgs).toContain(path.join(library, "flow"));
+  });
+
+  it("leaves a launch.json it didn't write alone, and writes none without a launcher", async () => {
+    const own = '{ "version": "0.0.1", "configurations": [] }\n';
+    const { library } = await startStudio();
+    expect(existsSync(path.join(library, "nova", ".claude", "launch.json"))).toBe(false);
+
+    const launcher = { executable: "npm", args: ["run", "dev", "--"] };
+    const withOwn = await startStudio({ launcher });
+    mkdirSync(path.join(withOwn.library, "nova", ".claude"), { recursive: true });
+    writeFileSync(path.join(withOwn.library, "nova", ".claude", "launch.json"), own);
+    await withOwn.post("showcase-create", { name: "Flow" });
+    expect(readFileSync(path.join(withOwn.library, "nova", ".claude", "launch.json"), "utf8")).toBe(
+      own,
+    );
+    expect(existsSync(path.join(withOwn.library, "flow", ".claude", "launch.json"))).toBe(true);
   });
 
   it("points the guide at the app's source only when the source is there", async () => {

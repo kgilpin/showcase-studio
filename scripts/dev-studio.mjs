@@ -50,6 +50,8 @@ export async function startDevStudio({
     srcDir: repoRoot,
     renderer: createPlaywrightRenderer({ log }),
     features,
+    /* What Claude Code's preview button runs: this same studio, from source. */
+    launcher: { executable: "npm", args: ["--prefix", repoRoot, "run", "dev", "--"] },
     log,
   });
   const listenPort = port || (await freePort());
