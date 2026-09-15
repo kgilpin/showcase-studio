@@ -65,6 +65,12 @@ npm run package:desktop            # package the desktop shell as a runnable
                                    # in-process on free ports, so any number
                                    # of studios can run at once. From Finder,
                                    # a second instance needs `open -n`.
+npm run build:icon                 # render the app icon: build/icon.svg (the
+                                   # source, on Apple's 1024/824 icon grid)
+                                   # → build/icon.png, which electron-builder
+                                   # turns into the .icns and dev:electron
+                                   # sets on the Dock. Run after editing the
+                                   # SVG and commit both files.
 
 npm run dev                        # the studio from source (scripts/dev.mjs):
 npm run dev:electron               # Vite with the studio server mounted in

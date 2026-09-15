@@ -16,5 +16,8 @@ asar: false
 npmRebuild: false
 # No identity configured: electron-builder falls back to ad-hoc signing,
 # which arm64 macOS requires to launch the binary at all.
+# The app icon: build/icon.svg is the source, build/icon.png the 1024px
+# render (npm run build:icon); electron-builder makes the .icns from it.
+icon: build/icon.png
 mac:
   target: dir

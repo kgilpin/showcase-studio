@@ -27,7 +27,7 @@
  * quits — used for automated verification (ELECTRON_SMOKE_* below add
  * steps).
  */
-import { app, BrowserWindow, dialog, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, shell } from "electron";
 import http from "node:http";
 import net from "node:net";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -480,6 +480,11 @@ if (options.mcp) serveMcp();
 app.whenReady().then(async () => {
   /* serveMcp starts studios and windows when Claude asks. */
   if (options.mcp) return;
+  /* From source the Dock shows Electron's own icon; the packaged app gets
+   * the icon from its bundle (electron-builder.yml). */
+  if (!app.isPackaged) {
+    app.dock?.setIcon(nativeImage.createFromPath(path.join(repoRoot, "build", "icon.png")));
+  }
   const fail = (message) => {
     if (options.window) dialog.showErrorBox("Showcase Studio", message);
     else console.error(message);

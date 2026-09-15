@@ -16,6 +16,7 @@
     "export:video": "node scripts/export-video.mjs",
     "export:script": "node scripts/export-script.mjs",
     "build:desktop": "VITE_SHOWCASES_URL=/showcase-data vite build",
+    "build:icon": "node scripts/render-icon.mjs",
     "package:desktop": "npm run build:desktop && node scripts/package-desktop.mjs && electron-builder --dir",
     "vendor:whisper": "node scripts/vendor-whisper.mjs",
     "test": "vitest run",
