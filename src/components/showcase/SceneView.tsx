@@ -119,7 +119,7 @@ function FixedStage({
       <div className="relative h-full max-w-full" style={{ aspectRatio: FIXED_ASPECT }}>
         <div
           aria-hidden
-          className="absolute -inset-8 rounded-[999px] bg-[var(--gradient-accent)] opacity-40 blur-[70px]"
+          className="absolute -inset-8 rounded-[999px] bg-[image:var(--gradient-accent)] opacity-40 blur-[70px]"
         />
         <div
           className="@container relative h-full w-full overflow-hidden rounded-[2.2rem] border border-border bg-card"
@@ -257,7 +257,7 @@ export function SceneView({
                 <div className="relative mb-10">
                   <div
                     aria-hidden
-                    className="scene-glow absolute -inset-8 rounded-full bg-[var(--gradient-accent)] opacity-40 blur-[60px]"
+                    className="scene-glow absolute -inset-8 rounded-full bg-[image:var(--gradient-accent)] opacity-40 blur-[60px]"
                   />
                   <div className="relative size-[36cqw] bg-transparent">
                     {media}

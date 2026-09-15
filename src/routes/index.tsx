@@ -85,7 +85,7 @@ function HomeScreen() {
                   <div className="relative mb-6 flex h-28 items-center justify-center">
                     <div
                       aria-hidden
-                      className="absolute inset-x-8 inset-y-2 rounded-full bg-[var(--gradient-accent)] opacity-30 blur-[40px]"
+                      className="absolute inset-x-8 inset-y-2 rounded-full bg-[image:var(--gradient-accent)] opacity-30 blur-[40px]"
                     />
                     <img src={cover} alt="" className="relative max-h-full w-auto object-contain" />
                   </div>

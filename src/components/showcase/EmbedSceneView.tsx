@@ -80,7 +80,7 @@ export function EmbedSceneView({
               <div className="relative mb-[2.5cqw]">
                 <div
                   aria-hidden
-                  className="scene-glow absolute -inset-8 rounded-full bg-[var(--gradient-accent)] opacity-40 blur-[60px]"
+                  className="scene-glow absolute -inset-8 rounded-full bg-[image:var(--gradient-accent)] opacity-40 blur-[60px]"
                 />
                 <div className="relative size-[14cqw] bg-transparent">{media}</div>
               </div>

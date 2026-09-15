@@ -43,7 +43,7 @@ export function ProgressRail({
             >
               <span
                 className={cn(
-                  "block h-full rounded-full bg-[var(--gradient-accent)] transition-[width] duration-75 ease-linear",
+                  "block h-full rounded-full bg-[image:var(--gradient-accent)] transition-[width] duration-75 ease-linear",
                   isActive && "shadow-[0_0_10px_rgba(96,165,250,0.45)]",
                 )}
                 style={{ width: fill }}
