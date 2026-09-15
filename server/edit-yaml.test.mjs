@@ -356,6 +356,20 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     );
   });
 
+  it("sets, flips, and removes meta embedCaptions", () => {
+    const off = applySceneEdit(DOC, { field: "meta.set", name: "embedCaptions", value: false });
+    expect(off).toContain("  embedCaptions: false\n");
+    expect(off).toContain("# FIXTURE — the header comment is load-bearing documentation.");
+    const on = applySceneEdit(off, { field: "meta.set", name: "embedCaptions", value: true });
+    expect(on).toContain("  embedCaptions: true\n");
+    expect(on).not.toContain("embedCaptions: false");
+    const cleared = applySceneEdit(on, { field: "meta.set", name: "embedCaptions", value: null });
+    expect(cleared).toBe(DOC);
+    expect(() =>
+      applySceneEdit(DOC, { field: "meta.set", name: "embedCaptions", value: "no" }),
+    ).toThrow("meta.embedCaptions must be true or false");
+  });
+
   it("sets and removes authoring notes on a scene and the meta", () => {
     let out = applySceneEdit(DOC, {
       sceneId: "intro",

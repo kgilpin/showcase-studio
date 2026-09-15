@@ -78,6 +78,9 @@ const META_FIELDS = {
   loop: { kind: "boolean", removable: true },
   pace: { kind: "number", removable: true },
   captionStyle: { kind: "enum", values: CAPTION_STYLES, removable: true },
+  /* Overlay captions on the 4:3 embed canvas; unset follows the voiceover
+   * (src/content/embed-captions.ts). */
+  embedCaptions: { kind: "boolean", removable: true },
   cover: { kind: "string", removable: true },
   soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
   notes: { kind: "string", removable: true },

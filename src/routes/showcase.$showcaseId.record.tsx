@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { createFileRoute } from "@tanstack/react-router";
 import { getShowcase, type Scene, type Showcase } from "@/content/showcases";
+import { embedCaptionsSetting } from "@/content/embed-captions";
 import { FIXED_ASPECT, SceneView } from "@/components/showcase/SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "@/components/showcase/EmbedSceneView";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
@@ -205,6 +206,7 @@ function Recorder({
             scene={scene}
             paused={paused}
             elapsedMs={clock.elapsedMs}
+            captions={embedCaptionsSetting(showcase).shown}
           />
         ) : (
           <SceneView

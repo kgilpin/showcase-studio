@@ -62,7 +62,9 @@ export const TOOLS = [
       '- {field: "scene.insert", index, scene: {id, theme, captions, media, ...}}, ' +
       '{field: "scene.delete", sceneId}, and {field: "scene.move", sceneId, index}\n' +
       '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
-      "cover, notes (showcase-level authoring notes), or soundtrack ({src, volume?, sync?}).\n" +
+      "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
+      "default, which hides them when a synced voiceover is set), cover, notes " +
+      "(showcase-level authoring notes), or soundtrack ({src, volume?, sync?}).\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
       '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +

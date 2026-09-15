@@ -139,12 +139,13 @@ export type SceneCaption = {
  *  Set per scene, or for the whole showcase with `meta.captionStyle`. */
 export type CaptionStyle = "chip" | "karaoke" | "reveal";
 
-/* Presentation is not configurable per showcase. The player previews the
- * export destinations as three view modes: "App Screens" (titles on the
- * slide, captions beside — the screenshot export), "TikTok" (portrait,
- * captions overlaid, titles hidden — the video export), and "4:3" (the
- * embed canvas — the video-43 export). Caption text always uses the
- * large size. */
+/* The player previews the export destinations as three view modes: "App
+ * Screens" (titles on the slide, captions beside — the screenshot export),
+ * "TikTok" (portrait, captions overlaid, titles hidden — the video export),
+ * and "4:3" (the embed canvas — the video-43 export). The one per-showcase
+ * presentation choice is `meta.embedCaptions`: whether the 4:3 canvas
+ * overlays captions (unset follows the voiceover — embed-captions.ts).
+ * Caption text always uses the large size. */
 
 export type Scene = {
   id: string;
@@ -212,6 +213,9 @@ export type Showcase = {
    *  (across skips, loops, and unmuting). Leave unset for music beds,
    *  which free-run and loop independently. */
   soundtrack?: { src: string; volume: number; sync?: boolean } | undefined;
+  /** Overlay captions on the 4:3 embed canvas, as authored (true/false);
+   *  undefined follows the voiceover — see src/content/embed-captions.ts. */
+  embedCaptions?: boolean | undefined;
   /** Asset key for the home-page card image (defaults to the app mark). */
   cover?: string | undefined;
   /** Showcase-level authoring notes (see Scene.note) — never rendered in
@@ -277,6 +281,9 @@ type RawDoc = {
     pace?: number;
     /** Default overlay caption painting for every scene (see CaptionStyle). */
     captionStyle?: string;
+    /** Overlay captions on the 4:3 embed canvas — validated (with a linter
+     *  warning) in buildShowcase; unset follows the voiceover. */
+    embedCaptions?: unknown;
     theme?: Record<string, string>;
   };
   scenes: RawScene[];
@@ -735,9 +742,19 @@ function buildShowcase(
       );
     }
   }
+  const authoredEmbedCaptions = doc.meta.embedCaptions;
+  const embedCaptions =
+    typeof authoredEmbedCaptions === "boolean" ? authoredEmbedCaptions : undefined;
+  if (authoredEmbedCaptions != null && embedCaptions === undefined) {
+    warn(
+      "",
+      `embedCaptions must be true or false — ignoring "${String(authoredEmbedCaptions)}" (unset follows the voiceover)`,
+    );
+  }
   return {
     id: showcaseId,
     ...doc.meta,
+    embedCaptions,
     soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
     theme: resolveTheme(showcaseId),
     scenes,
@@ -955,6 +972,22 @@ export function applySceneEditLocal(
     if (rebuildShowcase(showcaseId)) return { field: "meta.captionStyle", value: previous };
     if (previous) doc.meta.captionStyle = previous;
     else delete doc.meta.captionStyle;
+    return undefined;
+  }
+  if (edit.field === "meta.set") {
+    const had = "embedCaptions" in doc.meta;
+    const previous = doc.meta.embedCaptions;
+    if (typeof edit.value === "boolean") doc.meta.embedCaptions = edit.value;
+    else delete doc.meta.embedCaptions;
+    if (rebuildShowcase(showcaseId)) {
+      return {
+        field: "meta.set",
+        name: "embedCaptions",
+        value: typeof previous === "boolean" ? previous : null,
+      };
+    }
+    if (had) doc.meta.embedCaptions = previous;
+    else delete doc.meta.embedCaptions;
     return undefined;
   }
   /* Theme edits are routed to applyThemeEditLocal, never here. */

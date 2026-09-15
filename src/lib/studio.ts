@@ -76,6 +76,9 @@ export type SceneEdit =
   /** Showcase-wide overlay caption painting (meta; sceneId is ignored —
    *  pass ""). Empty value deletes, restoring the default. */
   | { field: "meta.captionStyle"; value: "" | "chip" | "karaoke" | "reveal" }
+  /** Overlay captions on the 4:3 embed canvas (meta; sceneId is ignored —
+   *  pass ""). null deletes, returning to the voiceover-based default. */
+  | { field: "meta.set"; name: "embedCaptions"; value: boolean | null }
   /** Style-panel edits to theme.yaml (sceneId is ignored — pass "").
    *  Whitelisted keys only (server/edit-theme.mjs); empty value deletes,
    *  restoring the default. */

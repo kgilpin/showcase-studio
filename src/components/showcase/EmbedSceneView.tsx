@@ -12,7 +12,8 @@ import { CtaContent, WordLine } from "./SceneView";
  *   footage    the spoken line in a text panel beside the full-height
  *              clip — no text over the speaker
  *   console    title header over the landscape media band — the canvas
- *              this theme always wanted
+ *              this theme always wanted; captions overlay the media
+ *              unless the showcase's embedCaptions setting is off
  *
  * Rendered by the record page with ?canvas=embed; the exporter opens it
  * at 1440×1080. Type is sized in container-width units, matching the
@@ -30,10 +31,15 @@ export function EmbedSceneView({
   scene,
   paused,
   elapsedMs = 0,
+  captions = true,
 }: {
   scene: Scene;
   paused: boolean;
   elapsedMs?: number;
+  /** Overlay captions on the console layout's media (the showcase's
+   *  embedCaptions setting). The other layouts set the spoken line as
+   *  text in the composition, not over the media, so it always stays. */
+  captions?: boolean;
 }) {
   const media = <SceneMedia media={scene.media} durationMs={scene.durationMs} paused={paused} />;
   const caption = activeCaption(scene, elapsedMs);
@@ -164,7 +170,7 @@ export function EmbedSceneView({
           )}
           <div className="relative m-[3cqw] mt-[2.2cqw] min-h-0 flex-1 overflow-hidden rounded-[1cqw] border border-border bg-card">
             {media}
-            {chips}
+            {captions && chips}
           </div>
         </div>
       </Stage>

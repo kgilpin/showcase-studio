@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { Captions, CaptionsOff, Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 import { ShowcaseNav } from "./ShowcaseNav";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { EditableText } from "@/components/studio/EditableText";
 import { MediaPicker } from "@/components/studio/MediaPicker";
 import { StylePanel } from "@/components/studio/StylePanel";
 import { captionTimeline, type Showcase } from "@/content/showcases";
+import { embedCaptionsSetting } from "@/content/embed-captions";
 import { FIXED_ASPECT, SceneView } from "./SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
 import { ProgressRail } from "./ProgressRail";
@@ -51,6 +52,9 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
     resume?.view === "screens" || resume?.view === "embed" ? resume.view : "tiktok",
   );
   const canvas = view === "embed" ? "embed" : "portrait";
+  /* Overlay captions on the 4:3 canvas: showcase.yaml's embedCaptions, or
+   * the voiceover-based default. The 4:3 toggle below writes it. */
+  const embedCaptions = embedCaptionsSetting(showcase);
   const presentation = view === "tiktok" ? "video" : "screens";
   const scene = scenes[index] ?? scenes[0]!;
 
@@ -181,7 +185,13 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
               className="relative overflow-hidden rounded-xl border border-border"
               style={{ height: "calc(100% - 1.75rem)", aspectRatio: EMBED_ASPECT }}
             >
-              <EmbedSceneView key={scene.id} scene={scene} paused={paused} elapsedMs={elapsedMs} />
+              <EmbedSceneView
+                key={scene.id}
+                scene={scene}
+                paused={paused}
+                elapsedMs={elapsedMs}
+                captions={embedCaptions.shown}
+              />
             </div>
           </div>
         ) : (
@@ -293,6 +303,57 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
               </button>
             ))}
           </div>
+          {/* 4:3 captions: whether the embed canvas overlays them. "auto"
+           * follows the voiceover; picking a value writes meta.embedCaptions
+           * to showcase.yaml, and the reset removes it again. */}
+          {view === "embed" && canEdit && (
+            <div className="flex items-center rounded-full border border-border bg-card/60 p-1 text-xs">
+              <button
+                type="button"
+                aria-pressed={embedCaptions.shown}
+                title={
+                  embedCaptions.auto
+                    ? embedCaptions.shown
+                      ? "Captions show because this showcase has no voiceover. Click to hide them."
+                      : "Captions are hidden because this showcase has a voiceover. Click to show them."
+                    : `Captions are ${embedCaptions.shown ? "on" : "off"} for 4:3 (saved in showcase.yaml). Click to turn them ${embedCaptions.shown ? "off" : "on"}.`
+                }
+                onClick={() =>
+                  void commitEdit(showcase.id, "", {
+                    field: "meta.set",
+                    name: "embedCaptions",
+                    value: !embedCaptions.shown,
+                  })
+                }
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-foreground transition-colors hover:bg-secondary"
+              >
+                {embedCaptions.shown ? (
+                  <Captions className="size-3.5" />
+                ) : (
+                  <CaptionsOff className="size-3.5" />
+                )}
+                Captions {embedCaptions.shown ? "on" : "off"}
+                {embedCaptions.auto && <span className="text-support">· auto</span>}
+              </button>
+              {!embedCaptions.auto && (
+                <button
+                  type="button"
+                  aria-label="Back to automatic captions"
+                  title="Back to automatic: hidden with a voiceover, shown without one"
+                  onClick={() =>
+                    void commitEdit(showcase.id, "", {
+                      field: "meta.set",
+                      name: "embedCaptions",
+                      value: null,
+                    })
+                  }
+                  className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
+                >
+                  <RotateCcw className="size-3" />
+                </button>
+              )}
+            </div>
+          )}
           {/* Transport. */}
           <div className="flex items-center gap-2">
             <Control label="Previous scene" onClick={() => go(Math.max(0, index - 1))}>
