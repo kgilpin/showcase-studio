@@ -38,6 +38,8 @@ import {
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
+import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { runExport } from "./exporter.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
@@ -143,6 +145,39 @@ async function readJson(req) {
   let body = "";
   for await (const chunk of req) body += chunk;
   return body.trim() ? JSON.parse(body) : {};
+}
+
+/** Where each rewritten asset reference sits in showcase.yaml `text`:
+ *  its key path ("scenes.2.media.asset") and, inside a scene, the scene's
+ *  id. `found` holds each value's offset in `text` (`at`) and the names
+ *  it changed between. */
+function locateReferences(text, found) {
+  const doc = parseDocument(text);
+  const located = new Map();
+  visit(doc, {
+    Scalar(_key, node, ancestors) {
+      const [start, end] = node.range ?? [];
+      const hit = found.find((f) => start <= f.at && f.at < end);
+      if (!hit || located.has(hit)) return;
+      const chain = [...ancestors, node];
+      const keys = [];
+      chain.forEach((item, i) => {
+        if (isPair(item)) keys.push(isScalar(item.key) ? item.key.value : String(item.key));
+        else if (isSeq(item)) keys.push(item.items.indexOf(chain[i + 1]));
+      });
+      const sceneId =
+        keys[0] === "scenes" && Number.isInteger(keys[1])
+          ? doc.getIn(["scenes", keys[1], "id"])
+          : undefined;
+      located.set(hit, {
+        path: keys.join("."),
+        ...(sceneId != null ? { sceneId: String(sceneId) } : {}),
+        from: hit.from,
+        to: hit.to,
+      });
+    },
+  });
+  return found.map((f) => located.get(f) ?? { from: f.from, to: f.to });
 }
 
 /**
@@ -401,12 +436,19 @@ add notes specific to this library below, and the studio won't touch them.
       })
     : null;
 
+  /* Every write made on someone's behalf — page actions here, MCP edits
+   * in mcp.mjs — lands in <library>/.studio/changes.jsonl
+   * (server/change-log.mjs), so a Claude session can follow the user's
+   * edits, which the watcher above deliberately doesn't announce. */
+  const changeLog = createChangeLog(() => showcasesDir, { log });
+
   const mcpContext = {
     info,
     getUrl: () => url,
     getShowcasesDir: () => showcasesDir,
     renderer,
     exportJobs,
+    changeLog,
   };
   const mcp = createMcpHandler({ version, context: mcpContext });
 
@@ -456,7 +498,9 @@ scenes:
 
   /* Renames an asset file and updates every YAML reference to it — the
    * bare key and the full file name, in asset:/src:/cover: fields only,
-   * so narration text mentioning the same word is left alone. */
+   * so narration text mentioning the same word is left alone. Besides the
+   * page's answer, returns the references it rewrote and showcase.yaml's
+   * hash before and after, for the change log. */
   function renameAsset({ showcaseId, from, to } = {}) {
     const id = String(showcaseId ?? "");
     const oldName = String(from ?? "");
@@ -472,28 +516,43 @@ scenes:
     if (newName !== oldName && existsSync(path.join(dir, newName))) {
       return { ok: false, error: `"${newName}" already exists` };
     }
-    let updatedReferences = 0;
+    let references = [];
+    let previousHash;
+    let hash;
     const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
     if (existsSync(yamlPath)) {
       const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const strip = (s) => s.replace(/\.[^.]+$/, "");
-      let text = readFileSync(yamlPath, "utf8");
-      const renames = [[oldName, newName]];
-      if (strip(oldName) !== oldName) renames.push([strip(oldName), strip(newName)]);
-      for (const [o, n] of renames) {
-        const re = new RegExp(
-          `(^\\s*(?:asset|src|cover):\\s*["']?)${esc(o)}(["']?\\s*(?:#.*)?)$`,
-          "gm",
-        );
-        text = text.replace(re, (_all, head, tail) => {
-          updatedReferences += 1;
-          return `${head}${n}${tail}`;
-        });
+      const text = readFileSync(yamlPath, "utf8");
+      /* The full file name and, when it has an extension, the bare key —
+       * matched in one pass, so offsets point into the original text. */
+      const names = new Map([[oldName, newName]]);
+      if (strip(oldName) !== oldName) names.set(strip(oldName), strip(newName));
+      const re = new RegExp(
+        `(^\\s*(?:asset|src|cover):\\s*["']?)(${[...names.keys()].map(esc).join("|")})(["']?\\s*(?:#.*)?)$`,
+        "gm",
+      );
+      const found = [];
+      const next = text.replace(re, (_all, head, value, tail, offset) => {
+        found.push({ at: offset + head.length, from: value, to: names.get(value) });
+        return `${head}${names.get(value)}${tail}`;
+      });
+      if (found.length > 0) {
+        references = locateReferences(text, found);
+        previousHash = contentHash(text);
+        hash = contentHash(next);
+        writeFileSync(yamlPath, next);
       }
-      if (updatedReferences > 0) writeFileSync(yamlPath, text);
     }
     renameSync(path.join(dir, oldName), path.join(dir, newName));
-    return { ok: true, name: newName, updatedReferences };
+    return {
+      ok: true,
+      name: newName,
+      updatedReferences: references.length,
+      references,
+      previousHash,
+      hash,
+    };
   }
 
   /* Adds files to the showcase's assets/ folder — the drop target on the
@@ -611,13 +670,51 @@ scenes:
   const terminalAction = (method) => (body) =>
     terminals ? terminals[method](body) : { ok: false, error: "Terminals are off in this studio" };
 
+  /* The actions that write a showcase's files log each successful write
+   * as a "ui" change. */
+  const logUi = (showcaseId, kind, details) =>
+    changeLog.append({ source: "ui", showcaseId: String(showcaseId), kind, ...details });
+
   const ACTIONS = {
-    "scene-edit": (body) =>
-      applySceneEditToFolder(showcasesDir, body, { beforeWrite: recordSelfWrite }),
-    "showcase-create": ({ name }) => createShowcase(name),
-    "asset-rename": renameAsset,
-    "asset-add": addAssets,
-    "asset-delete": deleteAsset,
+    "scene-edit": (body) => {
+      const result = applySceneEditToFolder(showcasesDir, body, { beforeWrite: recordSelfWrite });
+      if (result.ok) {
+        logUi(body.showcaseId, "edit", {
+          file: result.file,
+          previousVersion: result.previousHash,
+          version: result.hash,
+          edits: [editForLog(body)],
+        });
+      }
+      return result;
+    },
+    "showcase-create": ({ name }) => {
+      const result = createShowcase(name);
+      if (result.ok) logUi(result.id, "showcase.create", { title: String(name).trim() });
+      return result;
+    },
+    "asset-rename": (body) => {
+      const { references, previousHash, hash, ...result } = renameAsset(body);
+      if (result.ok) {
+        logUi(body.showcaseId, "asset.rename", {
+          from: String(body.from),
+          to: result.name,
+          references,
+          ...(hash ? { file: "showcase.yaml", previousVersion: previousHash, version: hash } : {}),
+        });
+      }
+      return result;
+    },
+    "asset-add": (body) => {
+      const result = addAssets(body);
+      if (result.ok) logUi(body.showcaseId, "asset.add", { names: result.names });
+      return result;
+    },
+    "asset-delete": (body) => {
+      const result = deleteAsset(body);
+      if (result.ok) logUi(body.showcaseId, "asset.delete", { name: String(body.name) });
+      return result;
+    },
     "prompter-publish": publishPrompter,
     export: ({ kind, showcaseId }) => exportJob(String(kind ?? ""), showcaseId),
     "export-status": ({ jobId }) => {

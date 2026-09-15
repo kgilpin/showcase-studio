@@ -7,10 +7,10 @@
  * Page tools (screenshot_slide, validate, export) render through the
  * studio's page renderer, so they see the current files on disk — the
  * same files Claude just edited. */
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { EXPORT_KINDS } from "./launch-options.mjs";
-import { applySceneEditsToFolder } from "./scene-edit.mjs";
+import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import { screenshotSlide, scriptText, validateShowcases } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { transcribe } from "./transcribe.mjs";
@@ -68,7 +68,11 @@ export const TOOLS = [
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
       '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +
-      "result. theme.yaml and comments are not covered — edit those directly.",
+      "result. theme.yaml and comments are not covered — edit those directly.\n" +
+      "Returns {applied, version}. Pass ifVersion — the version read_showcase or your last " +
+      "edit_showcase returned — so an edit the user made in the studio meanwhile is never " +
+      "overwritten unseen: when showcase.yaml has changed since that version, nothing is " +
+      "written and the error lists the changes the studio logged since then.",
     inputSchema: {
       type: "object",
       properties: {
@@ -83,8 +87,28 @@ export const TOOLS = [
           },
           description: "The edits, applied in order as one write (see the tool description)",
         },
+        ifVersion: {
+          type: "string",
+          description:
+            "The showcase.yaml version these edits were made against (from read_showcase or " +
+            "the last edit_showcase result). The write is refused if the file changed since.",
+        },
       },
       required: ["showcaseId", "edits"],
+    },
+  },
+  {
+    name: "read_showcase",
+    description:
+      "Read a showcase's showcase.yaml as it is on disk now, with its version (a content " +
+      "hash). Pass the version to edit_showcase as ifVersion. Also returns the path of the " +
+      "studio's change log, where every edit made in the studio lands as one JSON line.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
     },
   },
   {
@@ -195,23 +219,89 @@ const TRANSCRIBE_TIMEOUT_MS = 300_000;
 
 const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 
+/** The refusal for an edit made against an old version: what the change
+ *  log recorded since that version, one JSON line per write. */
+function staleEditMessage(changeLog, showcaseId, ifVersion, currentVersion) {
+  const { known, entries } = changeLog?.since(showcaseId, "showcase.yaml", ifVersion) ?? {
+    known: false,
+    entries: [],
+  };
+  const lastVersion = entries.findLast((e) => e.file === "showcase.yaml")?.version;
+  const lines = [`showcase.yaml changed since version ${ifVersion} — nothing was written.`];
+  if (!known) {
+    lines.push(
+      "The change log has no record of that version: the file was changed outside the studio " +
+        "(a hand edit, git) or longer ago than the log keeps." +
+        (entries.length ? " The showcase's latest logged changes:" : ""),
+    );
+  } else if (entries.length === 0) {
+    lines.push("The studio logged no changes since then: the file was changed outside the studio.");
+  } else {
+    lines.push("The studio logged these changes since then, oldest first:");
+  }
+  lines.push(...entries.map((entry) => JSON.stringify(entry)));
+  if (known && entries.length > 0 && lastVersion !== currentVersion) {
+    lines.push("The file was also changed outside the studio after the last of these.");
+  }
+  lines.push(
+    `The current version is ${currentVersion}. Read the showcase again (read_showcase), ` +
+      "check your edits against it, and retry with the new version as ifVersion.",
+  );
+  return lines.join("\n");
+}
+
 /** Runs one tool against a studio. `context` is
- *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs }. */
+ *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, changeLog }. */
 export async function callTool(context, { name, arguments: args = {} } = {}) {
   const showcasesDir = context.getShowcasesDir();
   if (name === "studio_info") {
     return json({
       ...context.info(),
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
+      changes: context.changeLog?.path(),
     });
   }
+  if (name === "read_showcase") {
+    const showcaseId = String(args.showcaseId ?? "");
+    if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) throw new Error("Bad showcase id");
+    const file = path.join(showcasesDir, showcaseId, "showcase.yaml");
+    if (!existsSync(file)) throw new Error(`No showcase named "${showcaseId}"`);
+    const text = readFileSync(file, "utf8");
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            showcaseId,
+            version: contentHash(text),
+            changes: context.changeLog?.path(),
+          }),
+        },
+        { type: "text", text },
+      ],
+    };
+  }
   if (name === "edit_showcase") {
+    const showcaseId = String(args.showcaseId ?? "");
     const result = applySceneEditsToFolder(showcasesDir, {
       showcaseId: args.showcaseId,
       edits: args.edits,
+      baseHash: args.ifVersion,
     });
+    if (result.stale) {
+      throw new Error(staleEditMessage(context.changeLog, showcaseId, args.ifVersion, result.hash));
+    }
     if (!result.ok) throw new Error(result.error);
-    return json({ applied: result.applied });
+    context.changeLog?.append({
+      source: "mcp",
+      showcaseId,
+      kind: "edit",
+      file: "showcase.yaml",
+      previousVersion: result.previousHash,
+      version: result.hash,
+      edits: args.edits,
+    });
+    return json({ applied: result.applied, version: result.hash });
   }
   if (name === "script") {
     return {

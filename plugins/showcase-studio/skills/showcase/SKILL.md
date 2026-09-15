@@ -71,6 +71,22 @@ from the app's source.
   call applies a whole batch — retiming every scene, say — as one write
   that keeps the file's formatting. For anything else, use your
   file-editing tool. Never sed, awk, or throwaway scripts.
+- Always pass `ifVersion` to `edit_showcase`. Get it from `read_showcase`,
+  or use the `version` your last `edit_showcase` returned. If the file
+  changed since then, the call is refused and its error lists what
+  changed. Read the showcase again before you retry.
+- The user may edit in the studio while you work. Those edits don't show
+  up anywhere you'd notice. `studio_start` returns `changes`, the
+  studio's change log: one JSON line per write. Once the studio is open,
+  watch it with the Monitor tool for the rest of the session:
+
+  ```bash
+  tail -n 0 -F '<changes>' | grep --line-buffered '"source":"ui"'
+  ```
+
+  Each line is one edit the user made. Take it into account before your
+  next change, and don't undo it.
+
 - `theme.yaml`, `assets/`, `graphics/`: edit the files directly. The
   studio reloads by itself.
 - You can't make screenshots or recordings. Ask the user to drop them

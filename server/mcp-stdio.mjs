@@ -22,6 +22,7 @@
  */
 import path from "node:path";
 import readline from "node:readline";
+import { CHANGE_LOG } from "./change-log.mjs";
 import { resolvePath, studioOptions } from "./launch-options.mjs";
 import { TOOLS, createMcpRpc } from "./mcp.mjs";
 
@@ -50,6 +51,7 @@ function studioTools({ windows, libraryHelp }) {
       description:
         "Start Showcase Studio — or restart it with other choices — and return its URL as " +
         "`open`, and in `guide` the authoring guide to read before changing any showcase. " +
+        "`changes` is the studio's change log: one JSON line per edit made in the studio. " +
         seeIt +
         "Lock the studio to one showcase with `showcase`, or open the New showcase page with " +
         "`new`. The other studio tools start an unlocked studio" +
@@ -156,6 +158,7 @@ export function createStudioMcp({
         ...info,
         open: current.landingUrl(),
         guide: path.join(info.library, ".studio", "GUIDE.md"),
+        changes: path.join(info.library, CHANGE_LOG),
       });
     }
     if (name === "studio_stop") {

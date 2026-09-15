@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { contentHash } from "./scene-edit.mjs";
 import { createStudio, isLocalRequest } from "./studio-server.mjs";
 
 const cleanups = [];
@@ -326,6 +327,251 @@ describe("createStudio", () => {
       req.end();
     });
     expect(status).toBe(403);
+  });
+});
+
+/** The library's change log, parsed. */
+const changesIn = (library) =>
+  readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+
+describe("the change log", () => {
+  it("logs each page edit in edit_showcase's shape, with the file's versions", async () => {
+    const { library, post } = await startStudio();
+    const file = path.join(library, "nova", "showcase.yaml");
+    const before = contentHash(readFileSync(file));
+    const title = await post("scene-edit", {
+      showcaseId: "nova",
+      sceneId: "intro",
+      field: "title",
+      value: "Edited",
+      baseHash: before,
+    });
+    const caption = await post("scene-edit", {
+      showcaseId: "nova",
+      sceneId: "intro",
+      field: "caption",
+      captionIndex: 0,
+      value: "A new line.",
+    });
+    await post("scene-edit", {
+      showcaseId: "nova",
+      sceneId: "",
+      field: "theme",
+      group: "colors",
+      name: "caption-text",
+      value: "#ffd166",
+    });
+    /* A refused edit wrote nothing, so it isn't logged. */
+    const refused = await post("scene-edit", {
+      showcaseId: "nova",
+      sceneId: "intro",
+      field: "title",
+      value: "Lost",
+      baseHash: before,
+    });
+    expect(refused).toMatchObject({ ok: false, stale: true });
+
+    const raw = readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8");
+    expect(raw).toMatch(/^\{"at":"[^"]+","source":"ui","showcaseId":"nova","kind":"edit",/);
+    expect(changesIn(library)).toEqual([
+      {
+        at: expect.any(String),
+        source: "ui",
+        showcaseId: "nova",
+        kind: "edit",
+        file: "showcase.yaml",
+        previousVersion: before,
+        version: title.hash,
+        edits: [{ field: "scene.set", sceneId: "intro", name: "title", value: "Edited" }],
+      },
+      expect.objectContaining({
+        previousVersion: title.hash,
+        version: caption.hash,
+        edits: [
+          {
+            field: "caption.set",
+            sceneId: "intro",
+            captionIndex: 0,
+            name: "text",
+            value: "A new line.",
+          },
+        ],
+      }),
+      expect.objectContaining({
+        file: "theme.yaml",
+        previousVersion: null,
+        edits: [{ field: "theme", group: "colors", name: "caption-text", value: "#ffd166" }],
+      }),
+    ]);
+  });
+
+  it("logs an asset rename with every reference it rewrote, and leaves other assets alone", async () => {
+    const { library, post } = await startStudio();
+    const file = path.join(library, "nova", "showcase.yaml");
+    writeFileSync(
+      file,
+      `meta:
+  title: Nova
+  cover: "take-2.mp4"
+scenes:
+  - id: setup
+    theme: footage
+    captions:
+      - text: Cut from take-2.
+    media:
+      kind: video
+      asset: take-2
+  - id: claude
+    theme: feature
+    captions:
+      - text: A placeholder until the capture lands.
+    media:
+      kind: image
+      asset: shot-claude-desktop
+  - id: outro
+    theme: footage
+    captions:
+      - text: Bye.
+    media:
+      kind: video
+      asset: 'take-2' # the last clip
+`,
+    );
+    writeFileSync(path.join(library, "nova", "assets", "take-2.mp4"), "mp4");
+    const before = contentHash(readFileSync(file));
+
+    expect(
+      await post("asset-rename", { showcaseId: "nova", from: "take-2.mp4", to: "readthrough" }),
+    ).toEqual({ ok: true, name: "readthrough.mp4", updatedReferences: 3 });
+
+    const after = readFileSync(file, "utf8");
+    expect(after).toContain('cover: "readthrough.mp4"');
+    expect(after).toContain("asset: 'readthrough' # the last clip");
+    /* A scene pointing at another asset — even a missing one — is untouched,
+     * and so is narration that mentions the old name. */
+    expect(after).toContain("asset: shot-claude-desktop");
+    expect(after).toContain("text: Cut from take-2.");
+
+    expect(changesIn(library)).toEqual([
+      {
+        at: expect.any(String),
+        source: "ui",
+        showcaseId: "nova",
+        kind: "asset.rename",
+        from: "take-2.mp4",
+        to: "readthrough.mp4",
+        references: [
+          { path: "meta.cover", from: "take-2.mp4", to: "readthrough.mp4" },
+          { path: "scenes.0.media.asset", sceneId: "setup", from: "take-2", to: "readthrough" },
+          { path: "scenes.2.media.asset", sceneId: "outro", from: "take-2", to: "readthrough" },
+        ],
+        file: "showcase.yaml",
+        previousVersion: before,
+        version: contentHash(after),
+      },
+    ]);
+  });
+
+  it("logs asset uploads, deletes, and new showcases — and nothing for a failed action", async () => {
+    const { library, post } = await startStudio();
+    const files = [{ name: "extra.png", data: Buffer.from("png").toString("base64") }];
+    await post("asset-add", { showcaseId: "nova", files });
+    await post("asset-rename", { showcaseId: "nova", from: "extra.png", to: "spare.png" });
+    await post("asset-delete", { showcaseId: "nova", name: "missing.png" });
+    await post("asset-delete", { showcaseId: "nova", name: "spare.png" });
+    await post("showcase-create", { name: "Flow Test" });
+    expect(changesIn(library).map(({ at: _at, ...entry }) => entry)).toEqual([
+      { source: "ui", showcaseId: "nova", kind: "asset.add", names: ["extra.png"] },
+      /* Nothing referenced it, so showcase.yaml didn't change: no versions. */
+      {
+        source: "ui",
+        showcaseId: "nova",
+        kind: "asset.rename",
+        from: "extra.png",
+        to: "spare.png",
+        references: [],
+      },
+      { source: "ui", showcaseId: "nova", kind: "asset.delete", name: "spare.png" },
+      { source: "ui", showcaseId: "flow-test", kind: "showcase.create", title: "Flow Test" },
+    ]);
+  });
+
+  it("edit_showcase returns a version, and refuses a stale ifVersion with the UI edits since", async () => {
+    const { studio, library, post } = await startStudio();
+    const file = path.join(library, "nova", "showcase.yaml");
+
+    const read = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    const { version, changes } = JSON.parse(read.content[0].text);
+    expect(version).toBe(contentHash(readFileSync(file)));
+    expect(changes).toBe(path.join(library, ".studio", "changes.jsonl"));
+    expect(read.content[1].text).toBe(readFileSync(file, "utf8"));
+
+    const edited = await studio.callTool({
+      name: "edit_showcase",
+      arguments: {
+        showcaseId: "nova",
+        ifVersion: version,
+        edits: [{ field: "scene.set", sceneId: "intro", name: "eyebrow", value: "One" }],
+      },
+    });
+    const { applied, version: claudeVersion } = JSON.parse(edited.content[0].text);
+    expect(applied).toBe(1);
+    expect(claudeVersion).toBe(contentHash(readFileSync(file)));
+
+    /* The user changes a caption in the studio. */
+    await post("scene-edit", {
+      showcaseId: "nova",
+      sceneId: "intro",
+      field: "caption",
+      captionIndex: 0,
+      value: "Changed in the studio.",
+    });
+    const afterUi = readFileSync(file, "utf8");
+
+    const refused = await studio
+      .callTool({
+        name: "edit_showcase",
+        arguments: {
+          showcaseId: "nova",
+          ifVersion: claudeVersion,
+          edits: [{ field: "scene.set", sceneId: "intro", name: "title", value: "From Claude" }],
+        },
+      })
+      .catch((error) => error);
+    expect(refused).toBeInstanceOf(Error);
+    expect(refused.message).toContain("nothing was written");
+    expect(refused.message).toContain("The studio logged these changes since then");
+    expect(refused.message).toContain('"source":"ui"');
+    expect(refused.message).toContain("Changed in the studio.");
+    expect(refused.message).not.toContain('"source":"mcp"'); // Claude's own edit came before
+    expect(refused.message).toContain(`The current version is ${contentHash(afterUi)}`);
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
+    expect(changesIn(library).map((entry) => entry.source)).toEqual(["mcp", "ui"]);
+  });
+
+  it("says so when showcase.yaml changed outside the studio", async () => {
+    const { studio, library } = await startStudio();
+    const file = path.join(library, "nova", "showcase.yaml");
+    const version = contentHash(readFileSync(file));
+    writeFileSync(file, SHOWCASE_YAML.replace("Hello", "Hand edited"));
+    const refused = await studio
+      .callTool({
+        name: "edit_showcase",
+        arguments: {
+          showcaseId: "nova",
+          ifVersion: version,
+          edits: [{ field: "scene.set", sceneId: "intro", name: "title", value: "From Claude" }],
+        },
+      })
+      .catch((error) => error);
+    expect(refused.message).toContain("changed outside the studio");
+    expect(readFileSync(file, "utf8")).toContain("Hand edited");
   });
 });
 

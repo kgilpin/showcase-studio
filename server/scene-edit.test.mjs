@@ -54,7 +54,12 @@ describe("applySceneEditToFolder", () => {
 
   it("refuses a stale baseHash and leaves the file untouched", () => {
     const result = edit({ baseHash: contentHash("something else entirely") });
-    expect(result).toEqual({ ok: false, error: expect.stringContaining("changed on disk") });
+    expect(result).toEqual({
+      ok: false,
+      stale: true,
+      hash: contentHash(DOC),
+      error: expect.stringContaining("changed on disk"),
+    });
     expect(readFileSync(file, "utf8")).toBe(DOC);
   });
 
@@ -126,6 +131,8 @@ describe("applySceneEditToFolder with theme edits", () => {
     const stale = themeEdit({ baseHash: contentHash("something else") });
     expect(stale).toEqual({
       ok: false,
+      stale: true,
+      hash: contentHash(THEME),
       error: expect.stringContaining("theme.yaml changed on disk"),
     });
     expect(readFileSync(themeFile(), "utf8")).toBe(THEME);

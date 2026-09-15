@@ -32,7 +32,7 @@ A talking-head recording (a phone selfie video) becomes a showcase like this —
 - Footage scenes are left out of the App Store screenshot set by default; add statement or feature scenes if the showcase also needs screenshots.
 
 ## Working rules
-- Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
+- Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
 - Working context lives in note fields, not YAML comments: a scene's note (what the take is, what's pending) and meta.notes (showcase-level context) travel with the data through every edit and show on the script page. Don't add YAML comments — they aren't addressable by the edit tool, and a comment above a scene does NOT follow it through scene.move or scene.delete, so banners end up labeling the wrong scene. Section labels belong in eyebrow.
 - Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed. Referencing an asset or graphic that doesn't exist yet is fine: the slide renders a "missing asset" placeholder with a linter warning, and heals when the file lands in assets/.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, then reference them by key.
@@ -113,10 +113,12 @@ ${
 - The studio exposes MCP tools (server "showcase-studio", preloaded in
   studio-opened sessions; a session you start yourself gets them with
   \`claude --mcp-config .studio/mcp.json\` from the library root):
-  edit_showcase {showcaseId, edits} applies a list of structured
-  showcase.yaml edits — scene fields, captions, meta, scene
-  insert/move/delete — as one validated, comment-preserving write (see
-  the tool's own description for the edit shapes); screenshot_slide
+  read_showcase {showcaseId} returns showcase.yaml as it is now, with
+  its version; edit_showcase {showcaseId, edits, ifVersion} applies a
+  list of structured showcase.yaml edits — scene fields, captions, meta,
+  scene insert/move/delete — as one validated, comment-preserving write
+  and returns the new version (see the tool's own description for the
+  edit shapes); screenshot_slide
   {showcaseId, sceneId} returns a rendered image of one slide — use it
   after editing a slide, theme, or TSX diagram to see your work;
   validate reports which showcases load and the error for any that
@@ -136,6 +138,44 @@ ${
   named for the showcase: <id>[_43][_draft].mp4, <id>_script.txt, and
   numbered scene PNGs. One export runs at a time. (The repo's npm export scripts only cover the showcases bundled
   in the app repo — for this folder, use the MCP tools.)
+
+## Working alongside the user
+The user may edit a showcase in the studio while you work on it: titles,
+captions, media, caption colors, asset uploads and renames. Those edits
+change the files, but nothing tells you. So:
+
+- The studio logs every write it makes, one JSON line per write, to
+  ${showcasesDir}/.studio/changes.jsonl. Each line starts with at,
+  source ("ui" for the studio page, "mcp" for a tool call), showcaseId,
+  and kind:
+
+  | kind            | the rest of the line                                  |
+  | --------------- | ----------------------------------------------------- |
+  | edit            | file, previousVersion, version, edits — in            |
+  |                 | edit_showcase's shape; theme.yaml edits are           |
+  |                 | {field: "theme", group, name, value}                  |
+  | asset.rename    | from, to, references (each {path, from, to}, plus     |
+  |                 | sceneId inside a scene), and file and versions when   |
+  |                 | references were rewritten                             |
+  | asset.add       | names                                                 |
+  | asset.delete    | name                                                  |
+  | showcase.create | title                                                 |
+
+- While the user works in the studio, watch that file with the Monitor
+  tool, so each of their edits reaches you as it happens:
+
+      tail -n 0 -F '${showcasesDir}/.studio/changes.jsonl' | grep --line-buffered '"source":"ui"'
+
+  Take each edit into account before your next change. Don't redo work
+  the user just changed by hand.
+- Pass ifVersion to every edit_showcase call. Get the version from
+  read_showcase, or use the version your last edit_showcase returned. If
+  showcase.yaml changed since then, the edit is refused, nothing is
+  written, and the error lists the logged changes since your version.
+  Read the showcase again, check your edits against it, and retry with
+  the new version.
+- Your own file-editing tool has no such check. Read the file right
+  before you change it.
 
 ${SHOWCASE_GUIDE}
 `;

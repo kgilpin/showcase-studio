@@ -38,19 +38,25 @@ export function applySceneEditToFolder(dir, payload, { beforeWrite } = {}) {
       return { ok: false, error: `No showcase named "${showcaseId}"` };
     }
     const current = existsSync(file) ? readFileSync(file, "utf8") : undefined;
+    const previousHash = current == null ? null : contentHash(current);
     /* A mismatch means something else wrote (or removed) the file in the
      * meantime — refuse rather than patch on top of unseen changes; the
      * outside write reloads the page with the truth. */
-    if (payload?.baseHash && (current == null || contentHash(current) !== payload.baseHash)) {
+    if (payload?.baseHash && previousHash !== payload.baseHash) {
       console.warn(`scene-edit refused: ${showcaseId}/${fileName} changed on disk`);
-      return { ok: false, error: `${fileName} changed on disk — the edit was not applied` };
+      return {
+        ok: false,
+        stale: true,
+        hash: previousHash,
+        error: `${fileName} changed on disk — the edit was not applied`,
+      };
     }
     const text = isTheme
       ? applyThemeEdit(current, { group: payload.group, name: payload.name, value: payload.value })
       : applySceneEdit(current, payload);
     beforeWrite?.(file, text);
     writeFileSync(file, text);
-    return { ok: true, hash: contentHash(text) };
+    return { ok: true, file: fileName, previousHash, hash: contentHash(text) };
   } catch (error) {
     return { ok: false, error: String(error?.message ?? error) };
   }
@@ -77,9 +83,15 @@ export function applySceneEditsToFolder(dir, payload, { beforeWrite } = {}) {
       return { ok: false, error: `No showcase named "${showcaseId}"` };
     }
     const current = readFileSync(file, "utf8");
-    if (payload?.baseHash && contentHash(current) !== payload.baseHash) {
+    const previousHash = contentHash(current);
+    if (payload?.baseHash && previousHash !== payload.baseHash) {
       console.warn(`scene-edit refused: ${showcaseId}/showcase.yaml changed on disk`);
-      return { ok: false, error: "showcase.yaml changed on disk — the edits were not applied" };
+      return {
+        ok: false,
+        stale: true,
+        hash: previousHash,
+        error: "showcase.yaml changed on disk — the edits were not applied",
+      };
     }
     let text = current;
     for (const [i, edit] of edits.entries()) {
@@ -99,7 +111,7 @@ export function applySceneEditsToFolder(dir, payload, { beforeWrite } = {}) {
     }
     beforeWrite?.(file, text);
     writeFileSync(file, text);
-    return { ok: true, applied: edits.length, hash: contentHash(text) };
+    return { ok: true, applied: edits.length, previousHash, hash: contentHash(text) };
   } catch (error) {
     return { ok: false, error: String(error?.message ?? error) };
   }
