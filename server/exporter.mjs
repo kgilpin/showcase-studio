@@ -3,8 +3,12 @@
  * in the packaged app) and saves what it draws:
  *
  *   exportScreens    screenshots each scene's /export/<sceneId> page at
- *                    1320×2868 (App Store 6.9") — scenes with
- *                    `export: false` are skipped.
+ *                    1320×2868 (App Store 6.9") into screens/ — scenes
+ *                    with `export: false` are skipped.
+ *
+ * Screens and videos are written under a partial name and moved into
+ * place only when they finish; the previous export is kept, numbered
+ * (server/export-output.mjs).
  *   exportVideo      frame-by-frame capture of the /record page driven by
  *                    window.__record.seek(), assembled into an MP4 with
  *                    the bundled ffmpeg. Exact but slow. The showcase's
@@ -25,6 +29,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
+import { moveIntoPlace, partialPath, removePartial } from "./export-output.mjs";
 import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
 
 const require_ = createRequire(import.meta.url);
@@ -90,9 +95,11 @@ async function withPage(renderer, size, work) {
 
 /* The page renders only after the client fetches the showcase data —
  * wait for the export page to mount, then for fonts, images, and the
- * first frame of any video (footage slides are all video), then for a
- * paint to flush. Videos get a deadline so a broken source still
- * captures. */
+ * first frame of any video (footage slides are all video). Then move the
+ * scene to its still moment — the end of the scene, graphics fully
+ * revealed (window.__still, the export page) — twice around a paint, so
+ * an element that mounted late is moved too, and let a paint flush.
+ * Videos get a deadline so a broken source still captures. */
 const EXPORT_PAGE_READY = `(async () => {
   while (!document.querySelector(".export-static")) await new Promise((r) => setTimeout(r, 50));
   await document.fonts.ready;
@@ -104,7 +111,11 @@ const EXPORT_PAGE_READY = `(async () => {
   ) {
     await new Promise((r) => setTimeout(r, 50));
   }
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const paint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  await window.__still?.();
+  await paint();
+  await window.__still?.();
+  await paint();
 })()`;
 
 /* A seek that crosses a scene boundary mounts a fresh <video>, and setting
@@ -191,18 +202,38 @@ export async function exportScreens({
   const scenes = doc.scenes.filter(
     (scene) => (scene.export ?? (scene.theme !== "footage" ? true : false)) !== false,
   );
-  mkdirSync(outDir, { recursive: true });
-  return withPage(renderer, { width: WIDTH, height: HEIGHT }, async (page) => {
-    for (const [i, scene] of scenes.entries()) {
-      checkAborted(signal);
-      const name = `${String(i + 1).padStart(2, "0")}-${scene.id}.png`;
-      await page.goto(`${appUrl}/showcase/${showcaseId}/export/${scene.id}`);
-      await page.evaluate(EXPORT_PAGE_READY);
-      writeFileSync(path.join(outDir, name), await page.capture());
-      progress?.(`screenshot ${i + 1}/${scenes.length}: ${name}`);
-    }
-    return outDir;
-  });
+  // An empty set would replace the previous one with an empty folder.
+  if (scenes.length === 0) {
+    throw new Error(
+      `${showcaseId} has no scenes in its screenshot set — every scene has export: false ` +
+        `(or is footage). Set export: true on the scenes to capture.`,
+    );
+  }
+  // The set goes in screens/; the previous set is kept as screens.1.
+  const finalDir = path.join(outDir, "screens");
+  const partial = partialPath(finalDir, { isDir: true });
+  removePartial(partial);
+  mkdirSync(partial, { recursive: true });
+  try {
+    await withPage(renderer, { width: WIDTH, height: HEIGHT }, async (page) => {
+      for (const [i, scene] of scenes.entries()) {
+        checkAborted(signal);
+        const name = `${String(i + 1).padStart(2, "0")}-${scene.id}.png`;
+        await page.goto(`${appUrl}/showcase/${showcaseId}/export/${scene.id}`);
+        await page.evaluate(EXPORT_PAGE_READY);
+        writeFileSync(path.join(partial, name), await page.capture());
+        progress?.(`screenshot ${i + 1}/${scenes.length}: ${name}`, {
+          step: i + 1,
+          steps: scenes.length,
+        });
+      }
+    });
+    checkAborted(signal);
+    return moveIntoPlace(partial, finalDir);
+  } catch (error) {
+    removePartial(partial);
+    throw error;
+  }
 }
 
 export async function exportVideo({
@@ -252,7 +283,10 @@ export async function exportVideo({
           await page.capture(),
         );
         if (frame % fps === 0) {
-          progress?.(`frame ${frame + 1}/${frameCount} (${Math.round(ms / 1000)}s)`);
+          progress?.(`frame ${frame + 1}/${frameCount} (${Math.round(ms / 1000)}s)`, {
+            step: frame + 1,
+            steps: frameCount,
+          });
         }
       }
     });
@@ -261,6 +295,8 @@ export async function exportVideo({
     // Artifacts are named to survive leaving their folder.
     const suffix = `${embed ? "_43" : ""}${draft ? "_draft" : ""}`;
     const outPath = path.join(outDir, `${showcaseId}${suffix}.mp4`);
+    // Encoded under a partial name; the previous export is kept as .1.
+    const partial = partialPath(outPath);
     const audio = soundtrackInput({
       showcasesDir,
       showcaseId,
@@ -299,7 +335,7 @@ export async function exportVideo({
           : []),
         "-t",
         seconds,
-        outPath,
+        partial,
       ];
       // The abort signal kills ffmpeg itself — cancellation between frame
       // captures is cooperative, but a spawned encode needs a real kill.
@@ -310,8 +346,13 @@ export async function exportVideo({
       proc.on("exit", (code) =>
         code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-400)}`)),
       );
+    }).catch((error) => {
+      removePartial(partial);
+      throw error;
     });
-    return outPath;
+    if (signal?.aborted) removePartial(partial);
+    checkAborted(signal);
+    return moveIntoPlace(partial, outPath);
   } finally {
     await rm(framesDir, { recursive: true, force: true });
   }
@@ -319,7 +360,8 @@ export async function exportVideo({
 
 /** Runs one export. Kinds: screens, script, video, video-draft, and the
  *  4:3 embed canvas video-43 / video-43-draft. Drafts run 12fps at half
- *  size (EXPORT_FPS overrides the frame rate, for tuning). */
+ *  size (EXPORT_FPS overrides the frame rate, for tuning). onProgress
+ *  gets a label and, while there is something to count, { step, steps }. */
 export function runExport({
   renderer,
   appUrl,

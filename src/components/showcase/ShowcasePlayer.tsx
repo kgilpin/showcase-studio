@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { EditableText } from "@/components/studio/EditableText";
+import { ExportButton } from "@/components/studio/ExportButton";
 import { MediaPicker } from "@/components/studio/MediaPicker";
 import { StylePanel } from "@/components/studio/StylePanel";
 import { captionTimeline, type Showcase } from "@/content/showcases";
@@ -375,6 +376,8 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
               />
             )}
             {canEdit && <StylePanel showcase={showcase} />}
+            {/* Exports what this view previews (TikTok, 4:3, App Screens). */}
+            <ExportButton showcaseId={showcase.id} view={view} />
           </div>
         </div>
       </div>

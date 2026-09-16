@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { FileText, Home, Images, Smartphone } from "lucide-react";
+import { ExportStatus } from "@/components/studio/ExportStatus";
 import { StudioSettings } from "@/components/studio/StudioSettings";
 import { useWindowLock } from "@/lib/studio";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,8 @@ import { cn } from "@/lib/utils";
  * here. Tab icons are nouns (what the screen shows) — the play triangle
  * is reserved for actions that start playback, so it never labels a
  * place. On narrow screens the tabs drop their labels and keep the
- * icons. At the far right, in a studio, the gear button opens the
+ * icons. At the far right, in a studio: a running export's progress
+ * (ExportStatus), then the gear button, which opens the
  * studio-wide settings (StudioSettings). Clicks don't bubble (the player listens for clicks on its
  * stage). */
 const TABS = [
@@ -73,6 +75,7 @@ export function ShowcaseNav({
           </Link>
         ))}
       </nav>
+      <ExportStatus showcaseId={showcaseId} />
       <StudioSettings />
     </header>
   );

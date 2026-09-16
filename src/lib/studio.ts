@@ -10,13 +10,37 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { isCapturePage, type WindowLock } from "./window-lock.mjs";
 
-export type StudioExportProgress = {
-  showcaseId: string;
+/** One export job, as the studio reports it (server/export-jobs.mjs). */
+export type StudioExportJob = {
+  jobId: string;
   kind: string;
-  label: string;
-  done?: boolean;
+  showcaseId: string;
+  status: "running" | "done" | "failed" | "canceled";
+  /** What the exporter is doing: "frame 13/26 (1s)", "encoding 26 frames…". */
+  progress: string;
+  /** Present while there is something to count (frames, screenshots). */
+  step?: number;
+  steps?: number;
+  /** The finished file or folder. */
   out?: string;
   error?: string;
+};
+
+export type StudioExports = {
+  /** Starts an export; fails when one is already running. */
+  start(
+    kind: string,
+    showcaseId: string,
+  ): Promise<{ ok: boolean; job?: StudioExportJob; error?: string }>;
+  cancel(jobId: string): Promise<{ ok: boolean; job?: StudioExportJob; error?: string }>;
+  /** Opens the file manager on a finished job's output, or on the
+   *  showcase's export folder. */
+  reveal(payload: {
+    showcaseId: string;
+    jobId?: string;
+  }): Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** Every change to any job, whoever started it (the page or Claude). */
+  onChange(callback: (job: StudioExportJob) => void): () => void;
 };
 
 export type StudioTerminal = {
@@ -125,11 +149,8 @@ export type ShowcaseStudio = {
   /** The studio's lock from the --open / --new options, or null when it
    *  may switch showcases. */
   windowLock(): WindowLock | null;
-  /** Exports App Store screenshots; resolves to the output folder. */
-  exportScreens(showcaseId: string): Promise<string>;
-  /** Renders the showcase to an MP4; resolves to the output file. */
-  exportVideo(showcaseId: string): Promise<string>;
-  onExportProgress(callback: (progress: StudioExportProgress) => void): () => void;
+  /** Exports: one at a time, shared with the MCP export tools. */
+  exports: StudioExports;
   /** Per-showcase terminals running the user's own Claude Code. */
   terminal: StudioTerminal;
   /** Scaffolding for new showcases (the home page's "+" card). */
@@ -274,22 +295,42 @@ function sendInOrder(action: string, body: unknown) {
   inOrder = inOrder.then(() => post(action, body));
 }
 
-/** Starts an export job and resolves when the studio reports it done. */
-function runExport(kind: "screens" | "video", showcaseId: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const stop = on("export", (data) => {
-      const progress = data as StudioExportProgress;
-      if (progress.showcaseId !== showcaseId || progress.kind !== kind || !progress.done) return;
-      stop();
-      if (progress.error) reject(new Error(progress.error));
-      else resolve(progress.out ?? "");
-    });
-    void post<{ ok: boolean; error?: string }>("export", { kind, showcaseId }).then((result) => {
-      if (result.ok) return;
-      stop();
-      reject(new Error(result.error ?? "The export didn't start"));
-    });
+/* ---------- exports ---------- */
+
+/* The newest export job, kept current from the "export" events. A page
+ * that loads mid-export — or reconnects after the studio restarts — asks
+ * for it once (export-current), since events only report changes. */
+let exportJob: StudioExportJob | null = null;
+
+function setExportJob(job: StudioExportJob | null) {
+  exportJob = job;
+  dispatch("export-job", job);
+}
+
+on("export", (data) => setExportJob(data as StudioExportJob));
+on("info", () => {
+  void post<{ ok: boolean; job?: StudioExportJob | null }>("export-current").then((result) => {
+    if (result.ok) setExportJob(result.job ?? null);
   });
+});
+
+function createExports(): StudioExports {
+  return {
+    start: (kind, showcaseId) => post("export", { kind, showcaseId }),
+    cancel: (jobId) => post("export-cancel", { jobId }),
+    reveal: (payload) => post("export-reveal", payload),
+    onChange: (callback) => on("export", (data) => callback(data as StudioExportJob)),
+  };
+}
+
+/** The newest export job (running, or the last to finish), for rendering;
+ *  null before the first export and on a plain web build. */
+export function useExportJob(): StudioExportJob | null {
+  return useSyncExternalStore(
+    (onChange) => on("export-job", onChange),
+    () => exportJob,
+    () => null,
+  );
 }
 
 function createTerminal(enabled: boolean): StudioTerminal {
@@ -314,9 +355,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
   return {
     info: () => info ?? first,
     windowLock: () => info?.lock ?? null,
-    exportScreens: (showcaseId) => runExport("screens", showcaseId),
-    exportVideo: (showcaseId) => runExport("video", showcaseId),
-    onExportProgress: (callback) => on("export", (data) => callback(data as StudioExportProgress)),
+    exports: createExports(),
     terminal: createTerminal(first.features.terminal),
     showcases: { create: (name) => post("showcase-create", { name }) },
     scenes: { edit: (payload) => post("scene-edit", payload) },

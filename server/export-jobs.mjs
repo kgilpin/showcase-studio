@@ -1,14 +1,30 @@
-/* Export jobs: the async layer between the MCP export tools and the
- * exporter. Starting a job returns immediately; the caller polls status
- * and can cancel (cooperative — the exporter checks an AbortSignal
- * between captures). One job runs at a time. */
+/* Export jobs: the async layer between the exporter and its callers — the
+ * MCP export tools and the studio's Export button. Starting a job returns
+ * immediately; callers poll status, or follow onChange, and can cancel
+ * (cooperative — the exporter checks an AbortSignal between captures).
+ * One job runs at a time, whoever started it.
+ *
+ *   start ──► running ──┬──► done      (out: the file or folder)
+ *                       ├──► failed    (error)
+ *                       └──► canceled
+ *
+ * onChange(status) runs on every step: start, each progress report, and
+ * the end. The studio server sends it to its pages as the "export" event. */
 
-export function createExportJobs(runner) {
+export function createExportJobs(runner, { onChange = () => {} } = {}) {
   let seq = 0;
   /** id → job. Finished jobs are kept so late status polls still answer. */
   const jobs = new Map();
+  /** The newest job, running or not — what a page that just loaded shows. */
+  let latest;
 
   const running = () => [...jobs.values()].find((job) => job.status === "running");
+
+  const statusOf = (job) => {
+    const { kind, showcaseId, status, progress, step, steps, out, error } = job;
+    return { jobId: job.id, kind, showcaseId, status, progress, step, steps, out, error };
+  };
+  const changed = (job) => onChange(statusOf(job));
 
   return {
     start(kind, showcaseId) {
@@ -29,9 +45,15 @@ export function createExportJobs(runner) {
         controller,
       };
       jobs.set(job.id, job);
+      latest = job;
+      changed(job);
       runner(kind, showcaseId, {
-        onProgress: (label) => {
-          if (job.status === "running") job.progress = label;
+        onProgress: (label, { step, steps } = {}) => {
+          if (job.status !== "running") return;
+          job.progress = label;
+          job.step = step;
+          job.steps = steps;
+          changed(job);
         },
         signal: controller.signal,
       }).then(
@@ -39,21 +61,28 @@ export function createExportJobs(runner) {
           if (job.status !== "running") return;
           job.status = "done";
           job.out = out;
+          changed(job);
         },
         (error) => {
           if (job.status !== "running") return;
           job.status = controller.signal.aborted ? "canceled" : "failed";
           job.error = String(error?.message ?? error);
+          changed(job);
         },
       );
-      return this.status(job.id);
+      return statusOf(job);
     },
 
     status(id) {
       const job = jobs.get(id);
-      if (!job) return undefined;
-      const { kind, showcaseId, status, progress, out, error } = job;
-      return { jobId: job.id, kind, showcaseId, status, progress, out, error };
+      return job ? statusOf(job) : undefined;
+    },
+
+    /** The running job, or else the newest finished one; undefined before
+     *  the first export. */
+    current() {
+      const job = running() ?? latest;
+      return job ? statusOf(job) : undefined;
     },
 
     cancel(id) {
@@ -62,8 +91,9 @@ export function createExportJobs(runner) {
       if (job.status === "running") {
         job.status = "canceled";
         job.controller.abort();
+        changed(job);
       }
-      return this.status(id);
+      return statusOf(job);
     },
   };
 }
