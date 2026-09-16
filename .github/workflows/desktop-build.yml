@@ -131,9 +131,15 @@ jobs:
           $exe = Join-Path $env:SHOWCASE_STUDIO_INSTALL_DIR "Showcase Studio\Showcase Studio.exe"
           if (-not (Test-Path $exe)) { throw "No app at $exe" }
           $version = (Get-Content plugins/showcase-studio/app-version -Raw).Trim()
-          $installed = (Get-Item $exe).VersionInfo.ProductVersion
+          # Windows keeps four parts (0.2.0.0); the release has three.
+          $installed = ((Get-Item $exe).VersionInfo.ProductVersion -split "\.")[0..2] -join "."
           Write-Host "Installed $installed at $exe"
           if ($installed -ne $version) { throw "Installed version $installed, expected $version" }
+
+          # A second run finds it installed and leaves it alone.
+          $again = & "C:\Program Files\Git\bin\bash.exe" plugins/showcase-studio/bin/install-app | Out-String
+          Write-Host $again
+          if ($again -notmatch "already installed") { throw "A second install-app run didn't see the installed app" }
 
       # Claude Code itself, with the plugin installed from this checkout,
       # checks that the plugin's MCP server connects. Run twice: as users
