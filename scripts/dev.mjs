@@ -11,10 +11,10 @@
  * is printed as "studio: <url>". `npm run dev -- --help` lists the options.
  */
 import { spawn } from "node:child_process";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { STUDIO_USAGE, studioOptions } from "../server/launch-options.mjs";
 import { repoRoot, startDevStudio } from "./dev-studio.mjs";
+import { electronBinary } from "./desktop-deps.mjs";
 
 let options;
 try {
@@ -75,9 +75,15 @@ if (options.exportJob) {
 }
 
 if (options.electron) {
-  const electronBinary = createRequire(import.meta.url)("electron");
+  let binary;
+  try {
+    binary = electronBinary();
+  } catch (error) {
+    console.error(error.message);
+    await shutdown(1);
+  }
   electron = spawn(
-    electronBinary,
+    binary,
     [path.join(repoRoot, "electron", "main.mjs"), "--app-url", running.url],
     { stdio: "inherit" },
   );

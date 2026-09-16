@@ -11,7 +11,13 @@ server modules), so run checks through the npm scripts or Volta's Node
 plain message on anything older.
 
 ```sh
-npm i            # install dependencies
+npm i            # install dependencies (the browser studio, exports, tests)
+npm run setup:desktop
+                 # + the Electron shell's own dependencies (electron/
+                 # package.json → electron/node_modules): only dev:electron,
+                 # package:desktop and release:desktop need them, so a plain
+                 # npm i skips Electron. (Electron fetches its 300 MB binary
+                 # on first use, so setup itself is quick.)
 npm run dev      # the full studio in your browser (modes below)
 npm run build    # production build
 npm run preview  # serve the production build locally

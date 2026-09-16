@@ -67,6 +67,10 @@ for (const dir of ["electron", "server"]) {
   for (const file of readdirSync(path.join(repoRoot, dir))) {
     /* Dev-only: the Playwright renderer. */
     if (file.endsWith(".test.mjs") || file === "renderer-playwright.mjs") continue;
+    /* The shell's own dependency manifest and install (desktop-deps.mjs):
+     * the staged app has its own package.json, and Electron itself is the
+     * runtime, not a file inside it. */
+    if (["package.json", "package-lock.json", "node_modules"].includes(file)) continue;
     cpSync(path.join(repoRoot, dir, file), path.join(stage, dir, file), { recursive: true });
   }
 }
