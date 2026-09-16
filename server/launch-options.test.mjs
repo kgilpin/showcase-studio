@@ -44,10 +44,13 @@ describe("findLibrary", () => {
 describe("resolvePath", () => {
   it("reads a leading ~ as the home folder and resolves the rest against cwd", () => {
     const options = { cwd: "/work", home: "/Users/me" };
-    expect(resolvePath("~", options)).toBe("/Users/me");
-    expect(resolvePath("~/Showcases", options)).toBe("/Users/me/Showcases");
-    expect(resolvePath("Showcases/~draft", options)).toBe("/work/Showcases/~draft");
-    expect(resolvePath("/abs", options)).toBe("/abs");
+    /* Resolved as the platform spells an absolute path: on Windows "/work"
+     * becomes "D:\work", on the current drive. */
+    const abs = (p) => path.resolve(p);
+    expect(resolvePath("~", options)).toBe(abs("/Users/me"));
+    expect(resolvePath("~/Showcases", options)).toBe(abs("/Users/me/Showcases"));
+    expect(resolvePath("Showcases/~draft", options)).toBe(abs("/work/Showcases/~draft"));
+    expect(resolvePath("/abs", options)).toBe(abs("/abs"));
   });
 });
 

@@ -43,6 +43,16 @@ const SUBJECT_LIMIT = 72;
 const TURNED_OFF =
   'Commits are turned off (the studio\'s "Commit changes to git" switch, autoCommit: false in its settings).';
 
+/* A folder's real, full path, for comparing it with the path git reports.
+ * The native form: on Windows it expands short names like RUNNER~1 (which
+ * the temp folder often has) to the long names git prints, where plain
+ * realpathSync keeps them, and every showcase would look outside its
+ * repository. */
+const realpath = (dir) => realpathSync.native(dir);
+
+/** A relative path as git spells it: forward slashes on every platform. */
+const slashed = (rel) => rel.split(path.sep).join("/");
+
 /* The files git leaves in its folder while an operation is half done. */
 const BUSY_MARKERS = [
   ["MERGE_HEAD", "a merge"],
@@ -276,7 +286,7 @@ export function createShowcaseHistory({
     const args = ["rev-parse", ...BUSY_MARKERS.flatMap(([name]) => ["--git-path", name])];
     const result = await git(args, root);
     if (result.code !== 0) return "git couldn't be read";
-    const paths = result.stdout.trim().split("\n");
+    const paths = result.stdout.trim().split(/\r?\n/);
     const hit = BUSY_MARKERS.find((_, i) => paths[i] && existsSync(path.resolve(root, paths[i])));
     return hit ? `${hit[1]} is in progress` : undefined;
   }
@@ -313,10 +323,10 @@ export function createShowcaseHistory({
     const repo = await repoOf(library);
     if (!repo.root) return none(repo.reason);
     const branch = await branchOf(repo.root);
-    const relLibrary = path.relative(realpathSync(repo.root), realpathSync(library));
+    const relLibrary = path.relative(realpath(repo.root), realpath(library));
     const ignored =
       relLibrary !== "" &&
-      (await git(["check-ignore", "-q", `${relLibrary}/`], repo.root)).code === 0;
+      (await git(["check-ignore", "-q", `${slashed(relLibrary)}/`], repo.root)).code === 0;
     let reason;
     if (ignored) reason = "The library folder is ignored by .gitignore, so nothing is committed.";
     else if (!on) reason = TURNED_OFF;
@@ -351,11 +361,11 @@ export function createShowcaseHistory({
     const repo = await repoOf(library);
     if (!repo.root) return skip(repo.reason);
     const { root } = repo;
-    const rel = path.relative(realpathSync(root), path.join(realpathSync(library), showcaseId));
+    const rel = path.relative(realpath(root), path.join(realpath(library), showcaseId));
     if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
       return skip("The showcase folder isn't inside the repository.");
     }
-    const spec = `:(literal)${rel.split(path.sep).join("/")}`;
+    const spec = `:(literal)${slashed(rel)}`;
 
     /* Only showcase folders: showcase.yaml on disk, or in git (a showcase
      * that was just deleted). */
@@ -374,7 +384,7 @@ export function createShowcaseHistory({
       root,
     );
     if (changed.code !== 0) return skip(`git status failed: ${changed.stderr.trim()}`);
-    const prefix = `${rel.split(path.sep).join("/")}/`;
+    const prefix = `${slashed(rel)}/`;
     const files = parseStatus(changed.stdout).map(({ code, file }) => ({
       verb: verbFor(code),
       file: file.startsWith(prefix) ? file.slice(prefix.length) : file,

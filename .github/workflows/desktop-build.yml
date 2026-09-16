@@ -40,9 +40,9 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -50,11 +50,7 @@ jobs:
       - name: Install
         run: npm ci
 
-      # Reported, not yet required: the suite has never run on Windows, and
-      # this job's first goal is a working build. Make it required once it
-      # passes.
       - name: Tests
-        continue-on-error: true
         run: npx vitest run
 
       - name: Build the app server
@@ -115,7 +111,7 @@ jobs:
           "$hash  $($zip.Name)" | Set-Content -NoNewline -Encoding ascii "dist-electron/dist/SHA256SUMS-win-x64"
           Get-Content dist-electron/dist/SHA256SUMS-win-x64
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: showcase-studio-win-x64
           path: |
