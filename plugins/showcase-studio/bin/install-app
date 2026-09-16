@@ -25,7 +25,9 @@ fail() {
 # folders.
 case "$(uname -s)" in
   MINGW* | MSYS* | CYGWIN*)
-    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$root/bin/install-app.ps1")"
+    # Without PSModulePath: one inherited from PowerShell 7 stops Windows
+    # PowerShell from loading its own modules.
+    exec env -u PSModulePath powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$root/bin/install-app.ps1")"
     ;;
 esac
 

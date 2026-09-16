@@ -65,13 +65,23 @@ try {
   }
 
   $expected = (Get-Content (Join-Path $work $sums) -Raw).Trim().Split(" ", [StringSplitOptions]::RemoveEmptyEntries)[0]
-  $actual = (Get-FileHash (Join-Path $work $zip) -Algorithm SHA256).Hash
+  # .NET directly, not Get-FileHash or Expand-Archive: those live in modules
+  # that Windows PowerShell can fail to load when it was started from a
+  # PowerShell 7 session, which leaves its own module path behind.
+  $stream = [IO.File]::OpenRead((Join-Path $work $zip))
+  try {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $actual = -join ($sha.ComputeHash($stream) | ForEach-Object { $_.ToString("x2") })
+  } finally {
+    $stream.Dispose()
+  }
   if ($expected -ne $actual.ToLower()) {
     Fail "The download doesn't match its SHA-256 hash, so nothing was installed."
   }
 
   $unpacked = Join-Path $work "unpacked"
-  Expand-Archive -Path (Join-Path $work $zip) -DestinationPath $unpacked
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $work $zip), $unpacked)
   if (-not (Test-Path (Join-Path $unpacked "Showcase Studio.exe"))) {
     Fail "The download doesn't contain Showcase Studio.exe, so nothing was installed."
   }
