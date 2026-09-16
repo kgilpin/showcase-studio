@@ -1,6 +1,6 @@
 {
   "name": "tanstack_start_ts",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "engines": {
     "node": ">=22"
   },
@@ -24,7 +24,7 @@
     "build:desktop": "node scripts/build-desktop.mjs",
     "build:icon": "node scripts/render-icon.mjs",
     "package:desktop": "npm run build:desktop && node scripts/package-desktop.mjs && node scripts/electron-builder.mjs --dir",
-    "release:desktop": "npm run build:desktop && node scripts/package-desktop.mjs && node scripts/electron-builder.mjs --mac && cd dist-electron/dist && shasum -a 256 Showcase-Studio-*-mac-arm64.zip > SHA256SUMS",
+    "release:desktop": "npm run build:desktop && node scripts/package-desktop.mjs && node scripts/electron-builder.mjs --mac && cd dist-electron/dist && shasum -a 256 Showcase-Studio-$npm_package_version-mac-arm64.zip > SHA256SUMS",
     "vendor:whisper": "node scripts/vendor-whisper.mjs",
     "test": "vitest run",
     "postinstall": "node scripts/postinstall.mjs",
