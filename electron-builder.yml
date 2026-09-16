@@ -21,3 +21,13 @@ npmRebuild: false
 icon: build/icon.png
 mac:
   target: dir
+# Windows: built on a Windows machine (.github/workflows/desktop-build.yml),
+# because ffmpeg-static and esbuild install programs for the machine that
+# runs npm install. Not signed yet, so SmartScreen warns on first launch.
+# A zip rather than an installer, so the plugin can unpack it without
+# admin rights.
+win:
+  target:
+    - target: zip
+      arch: x64
+  artifactName: Showcase-Studio-${version}-win-${arch}.${ext}
