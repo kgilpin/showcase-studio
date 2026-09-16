@@ -1,99 +1,97 @@
 meta:
   title: Showcase Studio
-  description: >
-    Create videos of your app with the Claude Code subscription you already have - the video is files in your repo, Claude Code is the editor, and a teleprompter travels to your phone when it's time to record.
+  description: "Showcase Studio is a Claude Code plugin: make videos of your app with the Claude Code subscription you already have, using every tool and file on your machine."
   loop: true
   captionStyle: karaoke
   notes: |-
-    The studio, showcased by itself: every screenshot is the app capturing its own screens, and the diagrams are TSX graphics from this showcase's graphics/ folder — exactly the workflow the narration describes. The pitch: you can create videos of your app using the Claude Code subscription you already have.
-    The voiceover is assets/voiceover.m4a, the audio track of showcase-studio-take-2.mp4 copied out unchanged, so time zero is the take's first frame. The narrator reads the whole script in one pass; every caption's durationMs is pinned to the word timestamps (cut points at sentence boundaries), and the durations sum to 93163 ms, the take's length. assets/voiceover.words.json holds the take's whisper word timestamps for the karaoke captions. The two footage scenes play clips cut from the same take at the same boundaries. To re-record: read this script on the phone teleprompter, replace the take, re-cut, and re-pin.
-  soundtrack: { src: voiceover, volume: 1, sync: true }
+    Script draft for the plugin pitch: Showcase Studio runs as a Claude Code plugin, so it uses the subscription you already have, every tool on your machine, and plain files you can share across projects.
+    Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile) by synth-voiceover.mjs: one clip per caption, each placed in a window of 250 ms lead + spoken length + 450 ms tail (the last caption holds 1.5 s more for the end card). Every caption's durationMs is pinned to its window, and the windows sum to 60732 ms, the audio's length. assets/voiceover-synth.words.json holds the transcribe tool's word timestamps for the karaoke captions. After any caption edit, re-run the synthesis and re-pin, or the voice drifts out of sync.
+    The on-camera scene still plays an old clip cut from video-readthrough-13sec.mp4 (formerly showcase-studio-take-2.mp4), which says the previous script. The recorded voiceover.m4a and voiceover.words.json in assets/ match the previous script and are unused. To record for real: read the final script on the phone teleprompter, cut the on-camera clip, then point soundtrack at the new recording, re-pin, and replace the words file.
+  soundtrack: { src: voiceover-synth, volume: 1, sync: true }
 
 scenes:
   - id: setup
     theme: footage
     eyebrow: On camera
-    note: >-
-      Cut from assets/showcase-studio-take-2.mp4 (a 1280x720 landscape webcam take) at 0-7.9 s, the sentence boundary before "I used Showcase Studio". The scene-2 clip is the next 11.9 s. fit: contain keeps the landscape framing on the portrait stage.
+    note: "The on-camera hook, to be re-recorded. Until then it plays the old clip assets/scene-1-setup.mp4 (cut from video-readthrough-13sec.mp4 at 0-7.9 s, which says the previous line), and the timing follows the new words, so the clip is cut short. fit: contain keeps the landscape framing on the portrait stage. The old scene-2 clip (assets/scene-2-studio.mp4) is no longer used."
     captions:
-      - text: This video was made with Claude Code, right inside my app's own repo. I didn't use a video editor.
-        durationMs: 7900
+      - text: I made this video with Showcase Studio, a Claude Code plugin.
+        durationMs: 4516
     media:
       kind: video
       asset: scene-1-setup
       alt: "The narrator on camera: this video was made with Claude Code inside the app's own repo"
       fit: contain
-  - id: studio
-    theme: footage
-    captions:
-      - text: I used Showcase Studio, an open source app that turns your project folder into a video.
-        durationMs: 6100
-      - text: Claude Code does the editing. There's no video editor to learn, and no new tool to pay for.
-        durationMs: 5800
-    media:
-      kind: video
-      asset: scene-2-studio
-      alt: The narrator on camera introducing Showcase Studio
-      fit: contain
-    eyebrow: What it is
 
-  - id: claude
+  - id: plugin
     theme: console
-    eyebrow: The agent
-    title: Ask Claude Code for the video you want
+    eyebrow: The plugin
+    title: Right inside the Claude Code you already have
     captions:
-      - text: Open the built-in Claude terminal and start talking about the video you want to make.
-        durationMs: 5200
-      - text: Claude will use the knowledge it has about your project to help you brainstorm and create a script.
-        durationMs: 5800
+      - text: Type /showcase, and the studio opens right beside your chat.
+        durationMs: 4252
+      - text: It runs on your Claude Code subscription, so there's no new account and nothing extra to pay.
+        durationMs: 5452
     media:
       kind: graphic
-      graphic: claude-terminal
-      alt: An embedded Claude Code session editing a scene, checking it, and exporting a draft
-
-  - id: yaml
+      graphic: showcase-command
+      alt: "Claude Code Desktop: /showcase is typed into the chat, and the studio opens in the Browser pane beside it"
+    note: "The graphic is graphics/showcase-command.tsx, a stylized Claude Code Desktop window: /showcase types into the chat, Claude answers, and the studio slides open in the Browser pane."
+  - id: tools
     theme: console
-    eyebrow: Videos as code
-    title: Change one word. Ship a new video.
+    eyebrow: Your tools
+    title: Every tool on your machine
+    note: The screenshot shows Claude choosing AWS Polly voices on the user's own account to make a voiceover, with the studio playing beside the chat.
     captions:
-      - text: The video is a YAML file in your repo. Here's the YAML that makes this scene.
-        durationMs: 5200
-      - text: Change a line or swap a screenshot, and the video re-renders.
-        durationMs: 4000
-      - text: The words define the timing. A scene lasts as long as it takes to say its lines, so shortening a sentence shortens a scene.
-        durationMs: 7900
+      - text: Claude can use every tool on your machine. Here it makes a voiceover with my own AWS account.
+        durationMs: 5956
     media:
-      kind: graphic
-      graphic: scene-yaml
-      alt: The YAML for this very slide, syntax-highlighted, as it appears in showcase.yaml
+      kind: image
+      asset: shot-claude-desktop
+      alt: Claude picking an AWS Polly voice and building voiceover clips, with the studio playing beside the chat
+      motion: still
 
   - id: prompter
     theme: feature
     eyebrow: Recording
     title: Switch to your phone for video recording
     captions:
-      - text: When it's time to record yourself, open the script in a custom URL on your phone.
-        durationMs: 6100
-      - text: It scrolls the script like a teleprompter, and you can record yourself on your phone camera.
-        durationMs: 4900
+      - text: When it's time to record yourself, the script scrolls on your phone like a teleprompter.
+        durationMs: 5068
     media:
       kind: image
       asset: shot-prompter
       alt: The teleprompter on a phone, scrolling the script with pacing controls
       motion: still
       frame: phone
-  - id: assets
+  - id: files
     theme: feature
-    eyebrow: The media
-    title: Your recordings, in the project
+    eyebrow: Your files
+    title: Plain files on your machine
     captions:
-      - text: Add the recording to your project assets, and it's ready to include in the video.
-        durationMs: 5000
+      - text: "The whole video is plain files on your machine: the script, the screenshots, and the recordings."
+        durationMs: 6004
+      - text: Pull in a clip from another project, and it's ready to use.
+        durationMs: 3820
     media:
       kind: image
       asset: shot-assets-portrait
       alt: The assets page listing the project's screenshots, recordings, and where each is used
       motion: still
+  - id: git
+    theme: console
+    eyebrow: Versioning
+    title: Every change, committed
+    note: "PLANNED FEATURE: this scene describes the studio making its own git commits for every change. The studio does not do this yet (today its generated README tells users to run git init and commit themselves). Ship automatic commits before publishing this video, or rewrite this scene."
+    captions:
+      - text: The studio commits every change to git.
+        durationMs: 2980
+      - text: Review a change, revert it, or branch a new cut, the way you'd review code.
+        durationMs: 4972
+    media:
+      kind: graphic
+      graphic: git-lanes
+      alt: A git commit graph of a showcase folder, with a new-cut branch merging back
 
   - id: export
     theme: console
@@ -101,34 +99,20 @@ scenes:
     title: One script - three exports
     captions:
       - text: One script gives you a TikTok-style video, a widescreen YouTube video, and captioned screenshots for the App Store.
-        durationMs: 8000
+        durationMs: 7276
     media:
       kind: graphic
       graphic: player-formats
       alt: One showcase.yaml fanning out to the App Store, TikTok, and YouTube renditions
-
-  - id: git
-    theme: console
-    eyebrow: Versioning
-    title: Review, commit, revert
-    captions:
-      - text: Because it's all files, your video is git-managed. Review Claude's changes, commit, or revert.
-        durationMs: 7100
-      - text: Want to try a different cut? Branch it, and review the video the way you'd review code.
-        durationMs: 5800
-    media:
-      kind: graphic
-      graphic: git-lanes
-      alt: A git commit graph of a showcase folder, with a new-cut branch merging back
 
   - id: outro
     theme: statement
     title: Showcase Studio
     captions:
       - text: Videos of your app, made with the Claude Code you already have.
-        durationMs: 4200
-      - text: Download it from GitHub and run it in your project folder.
-        durationMs: 4163
+        durationMs: 4180
+      - text: Add the plugin to Claude Code from GitHub, and make your first video today.
+        durationMs: 6256
     media:
       kind: none
     eyebrow: Get it
