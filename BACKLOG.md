@@ -16,14 +16,14 @@ found on 2026-09-16, running the studio from source through the plugin.
 | 5 | Audio and JSON files are served with the wrong type | Fix | Done |
 | 6 | No warning when image media points at a video file | Fix | Done: linter warning |
 | 7 | Audio is silent on the Assets page | Fix | Not confirmed |
-| 8 | The player's muted start is easy to miss | Fix | In progress |
+| 8 | The player's muted start is easy to miss | Fix | Done (`81f05d7`); the prompt partly covers the scene timeline labels |
 | 9 | The studio commits every change to git | Feature | Done (`bda14c7`, switch in `1c7f10b`) |
 | 10 | Built-in synthesized voiceover | Feature | Idea (done by hand this time) |
 | 11 | Fix misheard words using the captions | Feature | Idea |
 | 12 | Time graphic animations to the narration | Feature | Idea |
-| 13 | Paste an image to add it as an asset | Feature | In progress |
+| 13 | Paste an image to add it as an asset | Feature | Done (`f0ac154`) |
 | 14 | Claude's tools use the studio the preview button started | Feature | Not needed: one studio since `47bc44f` |
-| 15 | README still describes the built-in terminal | Docs | In progress |
+| 15 | README still describes the built-in terminal | Docs | Done (`cfd0f67`); install commands not yet tried end to end |
 | 16 | A page crash only shows "This page didn't load" | Fix | Idea |
 | 17 | Gold traces for the studio server tests are stale | Chore | To do |
 | 18 | The settings tooltip opens by itself | Fix | Idea |
