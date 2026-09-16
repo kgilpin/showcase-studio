@@ -289,30 +289,48 @@ scenes:
       kind: image
       asset: shot.png
 `;
+    /* The files are written before the studio starts, so its watcher sees
+     * no setup writes and the recording is the same on every run. */
     const setup = async (...files) => {
-      const studio = await startStudio();
-      const yamlPath = path.join(studio.library, "nova", "showcase.yaml");
-      writeFileSync(yamlPath, yaml);
-      for (const file of files) {
-        writeFileSync(path.join(studio.library, "nova", "assets", file), "x");
-      }
-      return { ...studio, yamlPath };
+      const studio = await startStudio({
+        before: (library) => {
+          writeFileSync(path.join(library, "nova", "showcase.yaml"), yaml);
+          for (const file of files) {
+            writeFileSync(path.join(library, "nova", "assets", file), "x");
+          }
+        },
+      });
+      return { ...studio, yamlPath: path.join(studio.library, "nova", "showcase.yaml") };
     };
+    /* Through handle, not a real request, as the other gold-traced tests
+     * do: the recorder can't nest a real HTTP request under its handler. */
+    const rename = async ({ studio }, body) =>
+      (
+        await handleDirectly(studio, {
+          method: "POST",
+          url: "/studio/api/asset-rename",
+          body: { showcaseId: "nova", ...body },
+        })
+      ).json();
 
     /* Renaming the file "shot" doesn't mean leaves the bare key alone. */
     const png = await setup("shot.mp4", "shot.png");
-    expect(
-      await png.post("asset-rename", { showcaseId: "nova", from: "shot.png", to: "still" }),
-    ).toMatchObject({ ok: true, name: "still.png", updatedReferences: 1 });
+    expect(await rename(png, { from: "shot.png", to: "still" })).toMatchObject({
+      ok: true,
+      name: "still.png",
+      updatedReferences: 1,
+    });
     expect(readFileSync(png.yamlPath, "utf8")).toBe(
       yaml.replace("asset: shot.png", "asset: still.png"),
     );
 
     /* A new bare name that already means another file gets the full name. */
     const mp4 = await setup("shot.mp4", "shot.png", "clip.png");
-    expect(
-      await mp4.post("asset-rename", { showcaseId: "nova", from: "shot.mp4", to: "clip" }),
-    ).toMatchObject({ ok: true, name: "clip.mp4", updatedReferences: 1 });
+    expect(await rename(mp4, { from: "shot.mp4", to: "clip" })).toMatchObject({
+      ok: true,
+      name: "clip.mp4",
+      updatedReferences: 1,
+    });
     expect(readFileSync(mp4.yamlPath, "utf8")).toBe(
       yaml.replace("asset: shot\n", "asset: clip.mp4\n"),
     );

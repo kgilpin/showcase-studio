@@ -105,3 +105,21 @@ entries:
     test_name: edit_showcase returns a version, and refuses a stale ifVersion with the UI edits since
     appmap_path: "vitest/edit_showcase_returns_a_version,_and_refuses_a_stale_ifVersion_with_the_UI_edits_since.appmap.json"
     summary: The stale-write guard's refused branch — a UI edit lands in the change log, then edit_showcase refuses an edit made against the older version and reads the log back to say what changed.
+
+  - feature: history
+    test_file: server/showcase-history.test.mjs
+    test_name: "commits only the showcase folder: other staged work stays staged"
+    appmap_path: vitest/commits_only_the_showcase_folder-_other_staged_work_stays_staged.appmap.json
+    summary: An automatic commit in a real git repo — status, busy and branch checks, the message from the change log, and a commit scoped to the showcase folder so other staged work stays out.
+
+  - feature: assets
+    test_file: server/studio-server.test.mjs
+    test_name: rewrites a shared bare name only when it means the renamed file
+    appmap_path: vitest/rewrites_a_shared_bare_name_only_when_it_means_the_renamed_file.appmap.json
+    summary: Asset rename through POST /studio/api/asset-rename — the reference rewrite, including the guard that leaves a shared bare name alone unless it means the renamed file.
+
+  - feature: page-error
+    test_file: server/exporter.test.mjs
+    test_name: validate fails at once with the captured page error
+    appmap_path: vitest/validate_fails_at_once_with_the_captured_page_error.appmap.json
+    summary: A page that failed to render — the error is recorded, and validate stops at once with its message instead of waiting out the timeout.

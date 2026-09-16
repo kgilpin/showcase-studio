@@ -357,9 +357,10 @@ add notes specific to this library below, and the studio won't touch them.
   };
 
   let watcher;
+  let reloadTimer;
   function watchLibrary() {
     watcher?.close();
-    let timer;
+    clearTimeout(reloadTimer);
     const pending = new Set();
     try {
       watcher = watch(showcasesDir, { recursive: true }, (_event, filename) => {
@@ -369,8 +370,8 @@ add notes specific to this library below, and the studio won't touch them.
         if (filename != null && /(^|[/\\])\.claude([/\\]|$)/.test(filename)) return;
         history.noteChange(filename);
         pending.add(filename == null ? null : path.join(showcasesDir, filename));
-        clearTimeout(timer);
-        timer = setTimeout(() => {
+        clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => {
           const changed = [...pending];
           pending.clear();
           if (changed.every((file) => file != null && isSelfWriteEcho(file))) return;
@@ -895,6 +896,8 @@ scenes:
     async close() {
       unregisterStudio();
       watcher?.close();
+      /* A reload still waiting would fire after close. */
+      clearTimeout(reloadTimer);
       await history.close();
       terminals?.dispose();
       for (const res of listeners) res.end();
