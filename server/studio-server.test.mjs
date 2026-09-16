@@ -15,7 +15,11 @@ afterEach(async () => {
 
 function tempDir(prefix) {
   const dir = mkdtempSync(path.join(tmpdir(), prefix));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  /* Retries: on Windows a folder can't be removed while the studio's
+   * watcher or a git process still has it open, which lasts a moment. */
+  cleanups.push(() =>
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }),
+  );
   return dir;
 }
 
