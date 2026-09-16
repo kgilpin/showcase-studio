@@ -25,7 +25,7 @@ found on 2026-09-16, running the studio from source through the plugin.
 | 14 | Claude's tools use the studio the preview button started | Feature | Not needed: one studio since `47bc44f` |
 | 15 | README still describes the built-in terminal | Docs | Done (`cfd0f67`); install commands not yet tried end to end |
 | 16 | A page crash only shows "This page didn't load" | Fix | Done |
-| 17 | Gold traces for the studio server tests are stale | Chore | To do |
+| 17 | Gold traces for the studio server tests are stale | Chore | Done (see the gold-traces refresh commit) |
 | 18 | The settings tooltip opens by itself | Fix | Done (`26f9fc4`) |
 
 ---
