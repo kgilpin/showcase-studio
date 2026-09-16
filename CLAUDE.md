@@ -85,6 +85,11 @@ npm run release:desktop            # the same, as the release: a signed,
                                    # builds, signed for this Mac only.
                                    # Check: spctl -a -vv <app> says
                                    # "accepted" / "Notarized Developer ID".
+                                   # The whole release — version bump, this
+                                   # build, tag, the Windows CI build, the
+                                   # GitHub release, the install check — is
+                                   # the /studio-release skill
+                                   # (.claude/skills/studio-release).
 npm run build:icon                 # render the app icon: build/icon.svg (the
                                    # source, on Apple's 1024/824 icon grid)
                                    # → build/icon.png, which electron-builder
