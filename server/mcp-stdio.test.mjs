@@ -23,7 +23,7 @@ afterEach(() => {
   /* Retries: on Windows a folder can't be removed while the studio's
    * watcher still has it open, which lasts a moment. */
   while (dirs.length) {
-    rmSync(dirs.pop(), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    rmSync(dirs.pop(), { recursive: true, force: true, maxRetries: 30, retryDelay: 200 });
   }
 });
 
