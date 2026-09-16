@@ -80,9 +80,11 @@ for (const shared of ["content/timing.mjs", "lib/window-lock.mjs", "lib/page-err
 }
 cpSync(path.join(repoRoot, ".output"), path.join(stage, ".output"), { recursive: true });
 
+/* On Windows npm is npm.cmd, which Node only starts through a shell. */
 execFileSync("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], {
   cwd: stage,
   stdio: "inherit",
+  shell: process.platform === "win32",
 });
 /* npm strips the exec bit node-pty's spawn-helper needs (same fix as the
  * repo's postinstall). */
