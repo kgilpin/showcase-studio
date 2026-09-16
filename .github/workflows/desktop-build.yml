@@ -111,6 +111,57 @@ jobs:
           "$hash  $($zip.Name)" | Set-Content -NoNewline -Encoding ascii "dist-electron/dist/SHA256SUMS-win-x64"
           Get-Content dist-electron/dist/SHA256SUMS-win-x64
 
+      # The plugin's installer, run the way Claude runs it on Windows: through
+      # Git Bash, which hands over to install-app.ps1. It installs this
+      # build from the local zip instead of downloading a release.
+      - name: Plugin installs the app
+        run: |
+          $env:SHOWCASE_STUDIO_RELEASE_DIR = (Resolve-Path dist-electron/dist).Path
+          $env:SHOWCASE_STUDIO_INSTALL_DIR = Join-Path $env:RUNNER_TEMP "apps"
+          & "C:\Program Files\Git\bin\bash.exe" plugins/showcase-studio/bin/install-app
+          if ($LASTEXITCODE -ne 0) { throw "install-app failed" }
+          $exe = Join-Path $env:SHOWCASE_STUDIO_INSTALL_DIR "Showcase Studio\Showcase Studio.exe"
+          if (-not (Test-Path $exe)) { throw "No app at $exe" }
+          $version = (Get-Content plugins/showcase-studio/app-version -Raw).Trim()
+          $installed = (Get-Item $exe).VersionInfo.ProductVersion
+          Write-Host "Installed $installed at $exe"
+          if ($installed -ne $version) { throw "Installed version $installed, expected $version" }
+
+      # Claude Code itself, with the plugin installed from this checkout,
+      # checks that the plugin's MCP server connects. Run twice: as users
+      # normally have it, and with Git Bash's sh off PATH, since which
+      # launcher Windows picks (bin/studio-mcp through sh, or
+      # bin/studio-mcp.cmd) isn't documented.
+      - name: Claude Code connects to the plugin
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          $env:SHOWCASE_STUDIO_INSTALL_DIR = Join-Path $env:RUNNER_TEMP "apps"
+          $env:CLAUDE_CODE_GIT_BASH_PATH = "C:\Program Files\Git\bin\bash.exe"
+          $repo = (Get-Location).Path
+          $project = Join-Path $env:RUNNER_TEMP "project"
+          New-Item -ItemType Directory -Force $project | Out-Null
+          Push-Location $project
+          try {
+            claude plugin marketplace add $repo
+            claude plugin install showcase-studio@showcase-studio
+            $failures = @()
+            $normalPath = $env:PATH
+            $noSh = ($env:PATH -split ";" | Where-Object { $_ -notmatch "\\Git\\(usr\\)?bin" }) -join ";"
+            foreach ($run in @(@{ name = "PATH as installed"; path = $normalPath }, @{ name = "no sh on PATH"; path = $noSh })) {
+              $env:PATH = $run.path
+              Write-Host "--- claude mcp list ($($run.name)); sh: $((Get-Command sh -ErrorAction SilentlyContinue).Source)"
+              $out = claude mcp list 2>&1 | Out-String
+              Write-Host $out
+              Get-CimInstance Win32_Process -Filter "Name = 'Showcase Studio.exe'" |
+                ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+              if ($out -notmatch "plugin:showcase-studio:showcase-studio.*Connected") { $failures += $run.name }
+            }
+            $env:PATH = $normalPath
+            if ($failures.Count -gt 0) { throw "The plugin's MCP server didn't connect with: $($failures -join ', ')" }
+          } finally {
+            Pop-Location
+          }
+
       - uses: actions/upload-artifact@v7
         with:
           name: showcase-studio-win-x64
