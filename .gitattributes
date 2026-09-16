@@ -1,1 +1,2 @@
 gold_traces/baseline/appmaps/**/*.appmap.json binary
+*.cmd text eol=crlf

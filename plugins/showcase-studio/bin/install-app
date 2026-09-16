@@ -20,6 +20,15 @@ fail() {
   exit 1
 }
 
+# Windows: Claude Code runs this from Git Bash there. The Windows install
+# is its own script (bin/install-app.ps1), since it uses Windows tools and
+# folders.
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*)
+    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$root/bin/install-app.ps1")"
+    ;;
+esac
+
 # Ask the hardware, not uname: a shell running under Rosetta (as Claude
 # Code's can) reports x86_64 on an Apple Silicon Mac.
 if [ "$(uname -s)" != Darwin ] || [ "$(sysctl -n hw.optional.arm64 2> /dev/null)" != 1 ]; then

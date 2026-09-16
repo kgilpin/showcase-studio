@@ -36,6 +36,25 @@ fi
 
 want="$(tr -d '[:space:]' < "$root/app-version")"
 
+# Windows, when Claude Code starts this script through Git Bash's sh
+# (bin/studio-mcp.cmd covers the other way it may start the server). The
+# app is a folder with Showcase Studio.exe in it, from bin/install-app.
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*)
+    for exe in \
+      "${SHOWCASE_STUDIO_APP:-}" \
+      "${SHOWCASE_STUDIO_APP:+$SHOWCASE_STUDIO_APP/Showcase Studio.exe}" \
+      "${SHOWCASE_STUDIO_INSTALL_DIR:+$SHOWCASE_STUDIO_INSTALL_DIR/Showcase Studio/Showcase Studio.exe}" \
+      "${LOCALAPPDATA:+$LOCALAPPDATA/Programs/Showcase Studio/Showcase Studio.exe}"; do
+      [ -n "$exe" ] || continue
+      exe="$(cygpath -u "$exe")"
+      [ -f "$exe" ] && exec "$exe" --mcp
+    done
+    echo "showcase-studio: the Showcase Studio app isn't installed. Install version $want with: \"$root/bin/install-app\"" >&2
+    exit 1
+    ;;
+esac
+
 version_of() {
   /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$1/Contents/Info.plist" 2> /dev/null
 }
