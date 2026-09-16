@@ -28,8 +28,10 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   statSync,
   unlinkSync,
   watch,
@@ -92,14 +94,13 @@ runs git itself, and switching branches reloads the app automatically.
  * .gitignore entry) appended once. */
 const GUIDE_IMPORT = "@.studio/GUIDE.md";
 
-/* Claude Code's preview button runs a command from the .claude/launch.json
- * of the folder a session runs in. The studio writes one in each showcase
- * folder that opens that showcase, so a session started in a showcase
- * folder previews that showcase. The files name this machine's paths, so
- * they are ignored by git and rewritten on every start; a launch.json
- * without the marker line is the user's own and is left alone. */
+/* Earlier studios wrote a .claude/launch.json into each showcase folder
+ * for Claude Code's preview button. That button started a second studio,
+ * separate from the one the MCP tools use, so Claude now opens the
+ * preview itself, at studio_start's URL. On start the studio removes the
+ * files it wrote, which begin with this marker line; a launch.json
+ * without it is the user's own and is left alone. */
 const LAUNCH_MARKER = "// Written by Showcase Studio";
-const LAUNCH_GITIGNORE = "**/.claude/launch.json";
 
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -189,9 +190,6 @@ function locateReferences(text, found) {
  *   srcDir        the studio app's source, for the guide and terminals
  *   renderer      draws pages for screenshots and exports (optional)
  *   features      { terminal: false } turns the embedded terminals off
- *   launcher      { executable, args } — the command that starts this same
- *                 studio program, for the .claude/launch.json files that
- *                 Claude Code's preview button runs (optional)
  *   exportDir     where exports land (<exportDir>/<showcase id>)
  *   settings      { load, save } — the persisted settings
  */
@@ -202,7 +200,6 @@ export function createStudio({
   srcDir,
   renderer,
   features = {},
-  launcher,
   exportDir = path.join(os.homedir(), "Downloads", "showcase-exports"),
   settings = { load: loadSettings, save: saveSettings },
   log = (message) => console.log(message),
@@ -259,14 +256,11 @@ export function createStudio({
     }
     const gitignorePath = path.join(showcasesDir, ".gitignore");
     if (!existsSync(gitignorePath)) {
-      writeFileSync(gitignorePath, `.DS_Store\n.studio/\n${LAUNCH_GITIGNORE}\n`);
-    } else {
-      const gitignore = readFileSync(gitignorePath, "utf8");
-      for (const line of [".studio/", LAUNCH_GITIGNORE]) {
-        if (!gitignore.includes(line)) appendFileSync(gitignorePath, `${line}\n`);
-      }
+      writeFileSync(gitignorePath, `.DS_Store\n.studio/\n`);
+    } else if (!readFileSync(gitignorePath, "utf8").includes(".studio/")) {
+      appendFileSync(gitignorePath, `.studio/\n`);
     }
-    writeLaunchConfigs();
+    removeLaunchConfigs();
     if (claudeMd == null) {
       writeFileSync(
         claudeMdPath,
@@ -287,40 +281,25 @@ add notes specific to this library below, and the studio won't touch them.
     }
   }
 
-  /* One launch.json per showcase folder (see LAUNCH_MARKER). Its entry
-   * runs this same studio program locked to the showcase, with the
-   * terminals off (Claude Code is already there) and, in the packaged
-   * app, no window (the preview pane shows it). autoPort lets Claude Code
-   * pick the port, which it passes in PORT. */
-  function writeLaunchConfigs() {
-    if (!launcher) return;
+  /* Removes the launch.json files an earlier studio wrote (see
+   * LAUNCH_MARKER), and their .claude folder when nothing else is in it. */
+  function removeLaunchConfigs() {
     let ids;
     try {
       ids = showcaseIndex(showcasesDir).showcases.map((showcase) => showcase.id);
-    } catch (error) {
-      log(`studio: not writing launch.json files (${error.message})`);
+    } catch {
       return;
     }
     for (const id of ids) {
-      const file = path.join(showcasesDir, id, ".claude", "launch.json");
-      const configuration = {
-        name: "studio",
-        runtimeExecutable: launcher.executable,
-        runtimeArgs: [...launcher.args, "--open", path.join(showcasesDir, id), "--no-terminal"],
-        port: 8080,
-        autoPort: true,
-      };
-      const content =
-        `${LAUNCH_MARKER} — rewritten on every launch, so edits here are lost.\n` +
-        "// Claude Code's preview button runs this. Delete this line to keep your own.\n" +
-        JSON.stringify({ version: "0.0.1", configurations: [configuration] }, null, 2) +
-        "\n";
-      if (existsSync(file)) {
-        const existing = readFileSync(file, "utf8");
-        if (!existing.startsWith(LAUNCH_MARKER) || existing === content) continue;
+      const dir = path.join(showcasesDir, id, ".claude");
+      const file = path.join(dir, "launch.json");
+      try {
+        if (!readFileSync(file, "utf8").startsWith(LAUNCH_MARKER)) continue;
+        unlinkSync(file);
+        if (readdirSync(dir).length === 0) rmdirSync(dir);
+      } catch {
+        /* No file, or one we can't read or remove: leave it. */
       }
-      mkdirSync(path.dirname(file), { recursive: true });
-      writeFileSync(file, content);
     }
   }
 
@@ -487,7 +466,6 @@ scenes:
       kind: none
 `,
     );
-    writeLaunchConfigs();
     /* A --new studio is now locked to the showcase it created. */
     if (lock?.kind === "new") {
       lock = { kind: "showcase", showcaseId: id };

@@ -83,8 +83,7 @@ if (options.help) {
 const windowless = mcpRequested || process.argv.includes("--no-window");
 if (launchError && windowless) process.exit(1);
 
-/* A launcher (Claude Code's preview button, through a showcase's
- * .claude/launch.json) picks the studio's port with PORT. Read it now:
+/* A launcher can pick the studio's port with PORT. Read it now:
  * the built app server takes PORT over for its own address. */
 const launcherPort = Number(process.env.PORT) || undefined;
 
@@ -160,11 +159,6 @@ async function startAppStudio({ showcasesDir, lock, features, port }) {
     srcDir: repoRoot,
     renderer: createElectronRenderer(),
     features,
-    /* What Claude Code's preview button runs: this app, with no window
-     * (the preview pane shows the studio) — or, from source, npm run dev. */
-    launcher: app.isPackaged
-      ? { executable: process.execPath, args: ["--no-window"] }
-      : { executable: "npm", args: ["--prefix", repoRoot, "run", "dev", "--"] },
   });
   const front = http.createServer(
     (req, res) => void created.handle(req, res, () => proxyToBuiltApp(appPort, req, res)),
@@ -531,7 +525,7 @@ app.whenReady().then(async () => {
   }
 
   /* --no-window: the studio runs headless for a launcher that shows it
-   * elsewhere (Claude Code's preview pane), until that launcher stops it. */
+   * elsewhere, until that launcher stops it. */
   if (!options.window) {
     app.dock?.hide();
     return;

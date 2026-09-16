@@ -51,7 +51,11 @@ Show the studio in one place only:
 
 The library is the folder Claude Code runs in when it holds showcases. If
 the user means another folder, pass `library`. Don't start the studio any
-other way (no `npm run dev`). It stops when this session ends.
+other way: no `npm run dev`, and no `.claude/launch.json` config with
+`preview_start` `name`. Those start a second studio that the tools don't
+use. If the user started one with the preview's button, stop it with
+`preview_stop` and open the `open` URL instead. The studio stops when
+this session ends.
 
 ## 2. Read the guide first
 

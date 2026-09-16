@@ -127,12 +127,11 @@ npm run dev -- --new [<library folder>]
 #                   Try it in a library folder on a local build:
 #                     SHOWCASE_STUDIO_APP=<repo>/dist-electron/dist/mac-arm64/Showcase\ Studio.app \
 #                       claude --plugin-dir <repo>/plugins/showcase-studio
-# .claude/launch.json's `studio` runs npm run dev for people; its port is
-# only a hint for the preview (autoPort). In a library, the studio writes
-# a launch.json into each showcase folder, so a session started there
-# previews that showcase: from source it runs npm run dev --open; the
-# packaged app runs itself with --open --no-window (headless, on the PORT
-# the launcher sets).
+# The preview shows the studio the MCP tools started: Claude opens
+# studio_start's URL. Libraries get no .claude/launch.json — a preview
+# button studio would be a second one the tools don't use — and the
+# studio removes the ones earlier versions wrote. This repo's own
+# .claude/launch.json `studio` still runs npm run dev for UI work.
 ```
 
 ## Where things live
