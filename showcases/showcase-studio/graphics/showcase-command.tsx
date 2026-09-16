@@ -76,7 +76,12 @@ export default function ShowcaseCommand() {
           <span style={dot} />
           <span style={dot} />
           <span
-            style={{ marginLeft: "1.2cqw", fontSize: "1.7cqw", fontFamily: mono, color: "var(--support)" }}
+            style={{
+              marginLeft: "1.2cqw",
+              fontSize: "1.7cqw",
+              fontFamily: mono,
+              color: "var(--support)",
+            }}
           >
             Claude Code — my-app
           </span>
@@ -118,7 +123,9 @@ export default function ShowcaseCommand() {
             </div>
 
             {/* Claude works: the tool call, then its result. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.7cqw", fontFamily: mono }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "0.7cqw", fontFamily: mono }}
+            >
               <p style={{ fontSize: "2cqw", color: "var(--foreground)", ...fadeIn(SEND + 0.3) }}>
                 <span
                   style={{
@@ -172,7 +179,9 @@ export default function ShowcaseCommand() {
                   animation: "sc-blink 1.1s step-end infinite",
                 }}
               />
-              <span style={{ position: "relative", flex: 1, display: "flex", alignItems: "center" }}>
+              <span
+                style={{ position: "relative", flex: 1, display: "flex", alignItems: "center" }}
+              >
                 {/* Placeholder: hidden while typing, back once sent. */}
                 <span
                   style={{
