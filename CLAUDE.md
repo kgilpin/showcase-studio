@@ -6,7 +6,9 @@ Requires Node.js and npm ([install with nvm](https://github.com/nvm-sh/nvm#insta
 Node 22 is required — a bare `node` on PATH can resolve to an ancient
 version (v12 has appeared in shells here, which can't even parse the
 server modules), so run checks through the npm scripts or Volta's Node
-(`volta run node …`).
+(`volta run node …`). `npm i` and `npm run dev` check first
+(scripts/check-node.cjs, from package.json's `engines`) and stop with a
+plain message on anything older.
 
 ```sh
 npm i            # install dependencies
