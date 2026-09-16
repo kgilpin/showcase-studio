@@ -53,6 +53,7 @@ async function startStudio({
   srcDir = "/src",
   ids = ["nova"],
   before,
+  reveal = () => {},
 } = {}) {
   const library = libraryWith(...ids);
   before?.(library);
@@ -65,6 +66,7 @@ async function startStudio({
     srcDir,
     settings,
     exportDir: tempDir("studio-exports-"),
+    reveal,
     features,
     log: () => {},
   });
@@ -422,6 +424,35 @@ scenes:
     expect(await post("export", { kind: "gif", showcaseId: "nova" })).toMatchObject({
       ok: false,
     });
+  });
+
+  it("reports the current export and reveals exports in the file manager", async () => {
+    const revealed = [];
+    const { post } = await startStudio({ reveal: (target) => revealed.push(target) });
+    expect(await post("export-current")).toEqual({ ok: true, job: null });
+    expect(await post("export-reveal", { showcaseId: "nova" })).toMatchObject({
+      ok: false,
+      error: "nova has no exports yet",
+    });
+
+    let { job } = await post("export", { kind: "script", showcaseId: "nova" });
+    for (let i = 0; job.status === "running" && i < 50; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      ({ job } = await post("export-current"));
+    }
+    expect(job).toMatchObject({ kind: "script", showcaseId: "nova", status: "done" });
+
+    // A finished job is selected in its folder; otherwise the folder opens.
+    expect(await post("export-reveal", { jobId: job.jobId })).toEqual({ ok: true, path: job.out });
+    expect(await post("export-reveal", { showcaseId: "nova" })).toEqual({
+      ok: true,
+      path: path.dirname(job.out),
+    });
+    // The path is the studio's own: a request can't point it elsewhere.
+    for (const showcaseId of ["../nova", "..", ".studio", ""]) {
+      expect(await post("export-reveal", { showcaseId })).toMatchObject({ ok: false });
+    }
+    expect(revealed).toEqual([job.out, path.dirname(job.out)]);
   });
 
   it("turns the embedded terminals off when asked", async () => {

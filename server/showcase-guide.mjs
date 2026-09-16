@@ -140,7 +140,10 @@ ${
   "screens" — the App Store screenshot set; "script" — the narration as
   plain text (instant). Output lands in ~/Downloads/showcase-exports/<id>,
   named for the showcase: <id>[_43][_draft].mp4, <id>_script.txt, and
-  numbered scene PNGs. One export runs at a time. (The repo's npm export scripts only cover the showcases bundled
+  screens/ (numbered scene PNGs). A new export takes the plain name and
+  keeps the previous one numbered (<id>_draft.1.mp4, screens.1/). One
+  export runs at a time — the user's Export button in the studio shares
+  the same queue, so an export may already be running when you start one. (The repo's npm export scripts only cover the showcases bundled
   in the app repo — for this folder, use the MCP tools.)
 
 ## Working alongside the user

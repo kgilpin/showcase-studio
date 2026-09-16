@@ -27,7 +27,7 @@
  * quits — used for automated verification (ELECTRON_SMOKE_* below add
  * steps).
  */
-import { app, BrowserWindow, dialog, Menu, nativeImage, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, Notification, shell } from "electron";
 import http from "node:http";
 import net from "node:net";
 import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -40,6 +40,7 @@ import { serveStudioMcp, takeOverStdout } from "../server/mcp-stdio.mjs";
 import { loadSettings, saveSettings } from "../server/settings.mjs";
 import { showcaseIndex } from "../server/showcase-data.mjs";
 import { createStudio } from "../server/studio-server.mjs";
+import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { isPathInLock, lockLandingPath } from "../src/lib/window-lock.mjs";
 import { createElectronRenderer } from "./renderer.mjs";
 
@@ -206,8 +207,9 @@ async function studioApi(action, body) {
 }
 
 /** Follows the studio's events for as long as `win` is open, calling
- *  `onInfo` when the studio's info changes (a new lock, another library). */
-async function followStudioEvents(win, onInfo) {
+ *  `onInfo` when the studio's info changes (a new lock, another library)
+ *  and `onExport` on every export job change. */
+async function followStudioEvents(win, { onInfo, onExport }) {
   const closed = new AbortController();
   win.on("closed", () => closed.abort());
   while (!closed.signal.aborted) {
@@ -223,6 +225,7 @@ async function followStudioEvents(win, onInfo) {
           const event = /^event: (.+)$/m.exec(block)?.[1];
           const data = /^data: (.+)$/m.exec(block)?.[1];
           if (event === "info" && data) onInfo(JSON.parse(data));
+          if (event === "export" && data) onExport(JSON.parse(data));
         }
       }
     } catch {
@@ -230,6 +233,44 @@ async function followStudioEvents(win, onInfo) {
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
+}
+
+/* Finished exports get a system notification when no studio window is in
+ * front — the page shows its own notice otherwise. Clicking it brings the
+ * window forward and shows the export in Finder. Each job notifies once,
+ * however many windows follow the studio, and the notifications are kept
+ * until they close: Electron drops the click handler of one that is
+ * garbage collected. */
+const notifiedJobs = new Set();
+const liveNotifications = new Set();
+
+function notifyExport(win, job) {
+  if (job.status !== "done" && job.status !== "failed") return;
+  if (notifiedJobs.has(job.jobId)) return;
+  notifiedJobs.add(job.jobId);
+  if (BrowserWindow.getFocusedWindow() || !Notification.isSupported()) return;
+
+  const label = exportLabel(job.kind);
+  const notification = new Notification(
+    job.status === "done"
+      ? { title: `${label} ready`, body: `${job.showcaseId} · ${path.basename(job.out ?? "")}` }
+      : { title: `${label} failed`, body: job.error ?? job.showcaseId },
+  );
+  liveNotifications.add(notification);
+  const forget = () => liveNotifications.delete(notification);
+  notification.on("close", forget);
+  notification.on("click", () => {
+    forget();
+    if (!win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+    if (job.status === "done") {
+      void studioApi("export-reveal", { showcaseId: job.showcaseId, jobId: job.jobId });
+    }
+  });
+  notification.show();
 }
 
 /* The lock's backstop. The page already redirects navigations outside the
@@ -374,12 +415,15 @@ async function openStudioWindow() {
   });
   guardWindowLock(win);
   buildMenu(win);
-  void followStudioEvents(win, (next) => {
-    const changed =
-      next.library !== studioInfo.library ||
-      JSON.stringify(next.lock) !== JSON.stringify(studioInfo.lock);
-    studioInfo = next;
-    if (changed && !win.isDestroyed()) buildMenu(win);
+  void followStudioEvents(win, {
+    onInfo: (next) => {
+      const changed =
+        next.library !== studioInfo.library ||
+        JSON.stringify(next.lock) !== JSON.stringify(studioInfo.lock);
+      studioInfo = next;
+      if (changed && !win.isDestroyed()) buildMenu(win);
+    },
+    onExport: (job) => notifyExport(win, job),
   });
 
   try {

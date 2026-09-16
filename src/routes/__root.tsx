@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   redirect,
+  useLocation,
   useRouter,
   HeadContent,
   Scripts,
@@ -13,6 +14,7 @@ import { useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { showcasesReady } from "@/content/showcases";
 import { dataMode } from "@/content/source";
+import { ExportNotices } from "@/components/studio/ExportNotices";
 import { StudioAgent } from "@/components/studio/StudioAgent";
 import { studioReady, useWindowLock, windowLock } from "@/lib/studio";
 import { isCapturePage, isPathInLock, lockLandingPath } from "@/lib/window-lock.mjs";
@@ -174,6 +176,9 @@ function RootComponent() {
   /* When the studio agent docks (integrated terminal), the app content
    * pads over to the left — VS Code style — instead of being overlapped. */
   const [dockWidth, setDockWidth] = useState(0);
+  const location = useLocation();
+  /* A page drawn for a screenshot or video must not show notices. */
+  const capturing = isCapturePage(location.pathname, location.searchStr);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -186,6 +191,7 @@ function RootComponent() {
       </div>
       {/* Desktop studio only — renders nothing in a plain browser. */}
       <StudioAgent onDock={setDockWidth} />
+      {!capturing && <ExportNotices />}
     </QueryClientProvider>
   );
 }

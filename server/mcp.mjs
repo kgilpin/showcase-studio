@@ -197,7 +197,9 @@ export const TOOLS = [
       "(1440×1080, for YouTube and desktop embeds — feature and footage scenes show text " +
       'beside the media); "screens" captures the App Store screenshot set; "script" ' +
       "writes the narration as <id>_script.txt (instant). Output lands in " +
-      "~/Downloads/showcase-exports/<id>, named <id>[_43][_draft].mp4. One export runs at a time.",
+      "~/Downloads/showcase-exports/<id>, named <id>[_43][_draft].mp4 (screenshots in " +
+      "screens/); the previous export is kept numbered (<id>_draft.1.mp4, screens.1/). One " +
+      "export runs at a time, shared with the studio's Export button.",
     inputSchema: {
       type: "object",
       properties: {
