@@ -1,16 +1,89 @@
 # Showcase Studio
 
-Create videos of your app with the Claude Code subscription you already
-have. The video is files in your repo, Claude Code is the editor, and a
-teleprompter travels to your phone when it's time to record.
+Showcase Studio makes video-style product tours of your app. A showcase
+is a folder of files: a YAML script plus your screenshots and
+recordings. Claude Code is the editor. You ask for changes in plain
+words, and the studio shows the result as a video that plays in the
+browser. When it looks right, export it as an MP4 or a set of App Store
+screenshots.
 
-There is no timeline to drag around and no video editor to learn. A
-showcase — an auto-playing, video-style product tour — is a YAML script
-plus your screenshots and recordings, kept in a folder you can commit,
-branch, review, and revert like any other code. Change a line or swap a
-screenshot, and the video re-renders. The words define the timing: a
-scene lasts as long as it takes to say its lines, so shortening a
-sentence shortens a scene.
+There is no timeline to drag around. The words set the timing: a scene
+lasts as long as it takes to say its lines, so a shorter sentence makes
+a shorter scene. Because a showcase is just files, you can commit,
+branch, review, and revert it like any other code.
+
+## Get started in Claude Code Desktop
+
+Showcase Studio comes as a Claude Code plugin. The plugin runs the
+studio and gives Claude the tools to edit and check a showcase.
+
+**1. Install the plugin.** In a terminal:
+
+```sh
+claude plugin marketplace add kgilpin/showcase-studio
+claude plugin install showcase-studio@showcase-studio
+```
+
+**2. Open a library folder.** A library is a folder that holds your
+showcases, one subfolder each. Start a Claude Code session in that
+folder.
+
+**3. Run the skill.**
+
+```
+/showcase-studio:showcase <name>     work on the showcase in <name>/
+/showcase-studio:showcase new        make a new showcase
+/showcase-studio:showcase            list the showcases and pick one
+```
+
+Claude starts the studio and opens it in the preview panel. (Without a
+preview panel, the studio opens in its own window.) Then you talk to
+Claude, and you can also edit in the studio yourself.
+
+```
+  you ──► Claude Code ──► plugin tools ──► studio ──► files in the library
+                                              │
+                    preview panel ◄───────────┘  (reloads when files change)
+```
+
+**The first time,** the plugin also needs the Showcase Studio app. If it
+isn't installed, Claude runs the plugin's installer (`bin/install-app`).
+It downloads the app from this repo's GitHub releases, checks its
+SHA-256 hash, and puts it in `~/Applications`. It needs:
+
+- a Mac with Apple Silicon
+- the GitHub CLI (`gh`), logged in with access to this repository
+
+After the install, run `/mcp` and reconnect `showcase-studio` (or start a
+new session) so the tools appear.
+
+### Your edits and git
+
+When the library folder is in a git repository, the studio commits each
+showcase's changes on its own, a few seconds (5 s) after they stop.
+Edits from Claude and edits you make in the studio are both committed.
+
+| You want to…            | Do this                                                  |
+| ----------------------- | -------------------------------------------------------- |
+| Turn commits off or on  | The "Commit changes to git" switch under the gear button |
+| Undo an older change    | Ask Claude; it finds the commit and runs `git revert`    |
+| Try another cut         | Ask Claude to branch (`git switch -c <name>`)            |
+| Use git in a new folder | Ask Claude; it offers to run `git init` first            |
+
+When the folder isn't a git repository, the studio never commits and
+never runs `git init` on its own.
+
+### Exports
+
+Ask Claude for an export, or use the Export page in the studio. Files
+land in `~/Downloads/showcase-exports/<id>`.
+
+| Export    | What you get                                             |
+| --------- | -------------------------------------------------------- |
+| Video     | 1320×2868 portrait MP4 (TikTok and friends), frame-exact |
+| Video 4:3 | 1440×1080 MP4 for YouTube and desktop embeds             |
+| Screens   | The App Store screenshot set (6.9", 1320×2868)           |
+| Script    | The narration as plain text                              |
 
 ## The data model
 
@@ -38,35 +111,29 @@ travels with the data through every edit.
 
 ## The studio
 
-Showcase Studio runs in your browser (`npm run dev`) or as a desktop app.
-Point it at a folder (`--library`, or File > Open Folder… in the desktop
-app) and every showcase in it plays immediately; edits to any file appear
-live. A paused player is an editor: slide titles are
-click-to-edit, media areas open an asset picker, and a style panel
-adjusts the theme. The assets page manages the media collection —
-drag-and-drop uploads, per-scene usage, renames that update every YAML
-reference.
+The studio plays every showcase in the library. A paused player is an
+editor: click a slide title to edit it, click a media area to pick an
+asset, and adjust colors in the style panel. The script page edits the
+captions. The Assets page manages the media: drag files in or paste an
+image, see which scenes use each file, and rename a file along with
+every reference to it.
 
-Claude Code is built in. Each showcase gets a persistent terminal
-running in that showcase's folder, and the studio hands it everything it
-needs: a generated guide (`.studio/GUIDE.md`, rewritten on every launch
-so it always matches the running app) and MCP tools —
+Claude works through the studio's MCP tools:
 
-- `studio_info` — the running studio's URL, library, and lock
-- `edit_showcase` — structured script edits (scene fields, captions,
-  meta, insert/move/delete), validated and applied as one write that
-  preserves the file's formatting
-- `screenshot_slide` — render one slide and see it, after any edit
-- `validate` — load the whole library and report errors and lint warnings
+- `studio_start` / `studio_info` — start the studio, or find the running one
+- `read_showcase` / `edit_showcase` — read the script, and make
+  structured edits (scene fields, captions, meta, insert/move/delete) as
+  one write that keeps the file's formatting
+- `screenshot_slide` — render one slide and look at it
+- `validate` — load the whole library and report errors and warnings
 - `transcribe` — whisper.cpp voice-to-text with per-word timestamps
-- `export` / `export_status` / `export_cancel` — renders as cancellable
-  background jobs
+- `script` — the narration as plain text
+- `commit_showcase` — commit a finished change with a clear message
+- `export` / `export_status` / `export_cancel` — renders as background jobs
 
-So "make me a 60-second tour of this app" is a conversation: Claude
-reads your project, drafts the script, checks its own slides, and
-renders a draft — billed to the subscription you already have. A Claude
-Code session working in this repo starts a studio of its own through
-`.mcp.json` and drives it with the same tools.
+The studio also writes a guide for Claude, `.studio/GUIDE.md`, into the
+library. It is rewritten on every start, so it always matches the
+running app.
 
 ## Recording yourself
 
@@ -78,21 +145,22 @@ walks Claude through the full recipe: cut the take into per-scene clips,
 extract the voiceover as a synced soundtrack, and drive word-by-word
 karaoke captions from the transcript's timestamps.
 
-## Exports
+## The desktop app and its built-in terminal
 
-One script fans out to every destination:
+You can also run the studio without the plugin. The desktop app opens a
+library in its own window (File > Open Folder…). Inside a showcase, it
+has a built-in terminal: one persistent Claude Code session per showcase,
+running in that showcase's folder. When `claude` isn't installed, the
+terminal opens a plain shell instead. A studio
+that the plugin starts turns these terminals off, because Claude is
+already driving it from outside.
 
-| Export    | What you get                                             |
-| --------- | -------------------------------------------------------- |
-| Video     | 1320×2868 portrait MP4 (TikTok and friends), frame-exact |
-| Video 4:3 | 1440×1080 MP4 for YouTube and desktop embeds             |
-| Screens   | The App Store screenshot set (6.9", 1320×2868)           |
-| Script    | The narration as plain text                              |
+Exports also run from the app, and from the command line (`--export`).
 
-Exports run from the app (to `~/Downloads/showcase-exports/<id>`), from
-Claude via the MCP job tools, or from the command line (`--export`).
+## Running from source
 
-## Running it
+For contributors. Development commands and conventions are in
+[CLAUDE.md](CLAUDE.md).
 
 ```sh
 npm i
@@ -102,7 +170,13 @@ npm run package:desktop   # build the desktop app → dist-electron/dist/mac-arm
 ```
 
 Every mode prints the studio's URL; `npm run dev -- --help` lists the
-options.
+options. A Claude Code session in this repo starts a studio from source
+through `.mcp.json`.
+
+To use the plugin with your checkout instead of the installed app, set
+`SHOWCASE_STUDIO_SRC` to the checkout (for example in the library's
+`.claude/settings.local.json` under `"env"`). The plugin then runs the
+studio from source with Node 22 or later.
 
 This repo's `showcases/` folder holds the samples — including
 `showcase-studio`, the studio's own tour, made entirely with the studio.
@@ -120,5 +194,3 @@ This repo's `showcases/` folder holds the samples — including
 Every mode runs the same studio server — the dev server mounts it, and so
 does the packaged app — so the page never knows which one it's talking
 to.
-
-Development commands and conventions are in [CLAUDE.md](CLAUDE.md).
