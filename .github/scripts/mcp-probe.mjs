@@ -43,7 +43,9 @@ const request = {
 child.stdin.on("error", (error) => console.log(`stdin error: ${error.message}`));
 child.stdin.write(JSON.stringify(request) + "\n");
 
-const done = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
+const done = new Promise((resolve) =>
+  child.on("exit", (code, signal) => resolve({ code, signal })),
+);
 const deadline = Date.now() + 45_000;
 while (!replied && child.exitCode === null && Date.now() < deadline) {
   await new Promise((resolve) => setTimeout(resolve, 250));

@@ -160,6 +160,22 @@ jobs:
           node $probe "extensionless path" "$bin/studio-mcp"; & $stop
           $env:PROBE_SHELL = "1"
           node $probe "extensionless path" "`"$bin/studio-mcp`""; & $stop
+          $env:PROBE_SHELL = $null
+
+          # Does the app's stdout reach a pipe at all, and does Electron's
+          # own logging say why it quits?
+          node $probe "app --help" $exe --help; & $stop
+          $env:ELECTRON_ENABLE_LOGGING = "1"
+          node $probe "app --mcp, Electron logging" $exe --mcp; & $stop
+          $env:ELECTRON_ENABLE_LOGGING = $null
+
+          # A bare Electron main process: process.stdin versus fd streams.
+          $electron = node -p "require('./electron/node_modules/electron')"
+          foreach ($mode in @("stdin", "fd")) {
+            $env:PROBE_MODE = $mode
+            node $probe "bare electron, $mode" $electron .github/scripts/electron-stdio-probe.cjs
+          }
+          $env:PROBE_MODE = $null
 
       # Claude Code itself, with the plugin installed from this checkout,
       # checks that the plugin's MCP server connects. Run twice: as users
