@@ -15,13 +15,15 @@ export default defineConfig(({ command, mode }) => ({
    * server bundle alike) — VITE_SHOWCASES_URL is how the studio builds
    * bake in their data URL. */
   define: Object.fromEntries(
-    Object.entries(loadEnv(mode, process.cwd(), "VITE_")).map(([key, value]) => [
+    Object.entries(loadEnv(mode, import.meta.dirname, "VITE_")).map(([key, value]) => [
       `import.meta.env.${key}`,
       JSON.stringify(value),
     ]),
   ),
   resolve: {
-    alias: { "@": `${process.cwd()}/src` },
+    /* The config's own folder, not process.cwd(): the plugin's studio
+     * runs from the library folder. */
+    alias: { "@": `${import.meta.dirname}/src` },
     dedupe: [
       "react",
       "react-dom",

@@ -35,6 +35,12 @@ If `studio_start` works but the `version` it returns differs from
 `<plugin>/app-version`, run the installer too — it replaces the app with
 the expected version — and ask for the reconnect.
 
+**Running from source.** When the environment variable
+`SHOWCASE_STUDIO_SRC` is set, the tools run the studio from that source
+checkout instead of the app. Then skip the installer and the version
+check. If the tools are missing, the server's error message says why
+(a wrong path, or no Node 22). Tell the user what it says.
+
 ## 1. Start the studio
 
 | The user gave   | Call                                                   |
@@ -48,6 +54,8 @@ Show the studio in one place only:
 - **You have a browser preview panel** (a `preview_start` tool): start
   without a window, then open the returned `open` URL with `preview_start`.
 - **You don't:** pass `window: true`. The studio opens its own window.
+  From source there is no window: give the user the `open` URL to open
+  in a browser.
 
 The library is the folder Claude Code runs in when it holds showcases. If
 the user means another folder, pass `library`. Don't start the studio any

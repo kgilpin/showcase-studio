@@ -127,6 +127,10 @@ npm run dev -- --new [<library folder>]
 #                   Try it in a library folder on a local build:
 #                     SHOWCASE_STUDIO_APP=<repo>/dist-electron/dist/mac-arm64/Showcase\ Studio.app \
 #                       claude --plugin-dir <repo>/plugins/showcase-studio
+#                   Or from source: set SHOWCASE_STUDIO_SRC=<repo> (e.g. in
+#                   the library's .claude/settings.local.json "env") and the
+#                   plugin runs scripts/studio-mcp.mjs with Node 22 instead.
+#                   Its library defaults to the folder Claude Code runs in.
 # The preview shows the studio the MCP tools started: Claude opens
 # studio_start's URL. Libraries get no .claude/launch.json — a preview
 # button studio would be a second one the tools don't use — and the

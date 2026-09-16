@@ -7,8 +7,33 @@
 # prefers the version this plugin expects (../app-version). With no app,
 # it exits with a message naming bin/install-app, which installs it.
 # Plain sh on purpose: Claude Code doesn't need Node, so this can't either.
+#
+# To run the studio from source instead, set SHOWCASE_STUDIO_SRC to a
+# checkout of the studio repo (with npm i done). That runs the checkout's
+# scripts/studio-mcp.mjs with Node 22 or later: $SHOWCASE_STUDIO_NODE, or
+# the node on PATH. The app and its version are not checked.
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+
+if [ -n "${SHOWCASE_STUDIO_SRC:-}" ]; then
+  script="$SHOWCASE_STUDIO_SRC/scripts/studio-mcp.mjs"
+  if [ ! -f "$script" ]; then
+    echo "showcase-studio: SHOWCASE_STUDIO_SRC is set, but $script doesn't exist. Point it at a Showcase Studio checkout." >&2
+    exit 1
+  fi
+  node="${SHOWCASE_STUDIO_NODE:-$(command -v node)}"
+  if [ -z "$node" ]; then
+    echo "showcase-studio: SHOWCASE_STUDIO_SRC is set, but node isn't on PATH. Set SHOWCASE_STUDIO_NODE to a Node 22 binary." >&2
+    exit 1
+  fi
+  major="$("$node" -p 'process.versions.node.split(".")[0]' 2> /dev/null)"
+  if [ -z "$major" ] || [ "$major" -lt 22 ]; then
+    echo "showcase-studio: $node is Node ${major:-unknown}; the studio needs Node 22 or later. Set SHOWCASE_STUDIO_NODE to a Node 22 binary." >&2
+    exit 1
+  fi
+  exec "$node" "$script"
+fi
+
 want="$(tr -d '[:space:]' < "$root/app-version")"
 
 version_of() {
