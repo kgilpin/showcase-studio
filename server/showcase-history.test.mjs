@@ -35,7 +35,11 @@ const git = (cwd, ...args) =>
  *  first commit and its own identity (no global hooks or signing). */
 function project({ repo = true } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "studio-history-"));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  /* Retries: on Windows a folder can't be removed while a git process or
+   * the studio's watcher still has it open, which lasts a moment. */
+  cleanups.push(() =>
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }),
+  );
   const library = path.join(dir, "showcases");
   mkdirSync(path.join(library, "nova", "assets"), { recursive: true });
   writeFileSync(path.join(library, "nova", "showcase.yaml"), SHOWCASE_YAML);
