@@ -9,6 +9,8 @@
  *   GET  /showcase-data/…       the library's files, for the page
  *                               (server/showcase-data.mjs)
  *   GET  /studio/api/info       the studio: URL, library folder, lock, features
+ *   GET  /studio/api/history    the library's git history status, for the
+ *                               "Commit changes to git" switch
  *   GET  /studio/api/events     live events (server-sent events): reload,
  *                               info, export, terminal-data, terminal-exit
  *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below)
@@ -85,8 +87,9 @@ folder (and nothing else) with a message saying what changed. Find those
 commits with \`git log --grep Showcase-Studio\`. Revert one with
 \`git revert <sha>\`, or start a new cut with \`git switch -c <name>\` —
 switching branches reloads the app. The studio never runs \`git init\`:
-run it here yourself to turn history on. To turn commits off, set
-"autoCommit": false in the studio's settings.json.
+run it here yourself to turn history on. To turn commits off (or back
+on), use the "Commit changes to git" switch under the gear button at the
+top right of a showcase's screens.
 `;
 
 /* New folders start with scaffolding only — no sample showcases; the
@@ -674,6 +677,25 @@ scenes:
   const terminalAction = (method) => (body) =>
     terminals ? terminals[method](body) : { ok: false, error: "Terminals are off in this studio" };
 
+  /** The "Commit changes to git" switch. Saved studio-wide in settings,
+   *  and in effect at once: the history reads the setting before every
+   *  commit. Turning it off also drops the commits still waiting for their
+   *  quiet period. Logged as a "setting" change, so a Claude session
+   *  following the change log hears about it. */
+  async function setAutoCommit({ on } = {}) {
+    if (typeof on !== "boolean") return { ok: false, error: "Send on: true or on: false" };
+    settings.save({ autoCommit: on });
+    if (!on) history.cancelPending();
+    changeLog.append({
+      source: "ui",
+      showcaseId: null,
+      kind: "setting",
+      name: "autoCommit",
+      value: on,
+    });
+    return { ok: true, history: await history.status() };
+  }
+
   /* The actions that write a showcase's files log each successful write
    * as a "ui" change. */
   const logUi = (showcaseId, kind, details) =>
@@ -720,6 +742,7 @@ scenes:
       return result;
     },
     "prompter-publish": publishPrompter,
+    "history-auto-commit": setAutoCommit,
     export: ({ kind, showcaseId }) => exportJob(String(kind ?? ""), showcaseId),
     "export-status": ({ jobId }) => {
       const job = exportJobs.status(String(jobId ?? ""));
@@ -801,6 +824,10 @@ scenes:
         sendJson(res, 200, info());
         return;
       }
+      if (req.method === "GET" && action === "history") {
+        sendJson(res, 200, await history.status());
+        return;
+      }
       if (req.method === "GET" && action === "events") {
         openEventStream(req, res);
         return;
@@ -833,7 +860,7 @@ scenes:
       writeMcpConfig();
     },
 
-    /** The library's git history facts: { git, autoCommit, branch, reason? }. */
+    /** The library's git history facts (server/showcase-history.mjs status()). */
     historyStatus: () => history.status(),
 
     /** Runs one MCP tool in-process (the studio Claude Code starts). */

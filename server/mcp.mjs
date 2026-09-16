@@ -25,7 +25,8 @@ export const TOOLS = [
       "open this URL), the library folder, the showcases in it, and the lock (the one " +
       "showcase the studio is locked to, if any). Call it first to find the studio. " +
       "`history` says whether the studio keeps a git history of the library: " +
-      "{git, autoCommit, branch, reason?} — reason explains why commits are off or waiting.",
+      "{git, autoCommit, enabled, available, branch, reason?} — reason explains why commits " +
+      "are off or waiting. enabled is the user's own switch in the studio; don't change it.",
     inputSchema: { type: "object", properties: {} },
   },
   {

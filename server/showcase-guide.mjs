@@ -160,6 +160,9 @@ change the files, but nothing tells you. So:
   | showcase.create | title                                                 |
   | commit          | sha, message, files — a git commit the studio made    |
   |                 | (source "studio"; see "History")                      |
+  | setting         | name, value — the user changed a studio setting;      |
+  |                 | showcaseId is null. Today only name "autoCommit"      |
+  |                 | (the "Commit changes to git" switch; see "History")   |
 
 - While the user works in the studio, watch that file with the Monitor
   tool, so each of their edits reaches you as it happens:
@@ -180,7 +183,10 @@ change the files, but nothing tells you. So:
 ## History
 When the library is inside a git repository, the studio commits as you
 go. studio_start and studio_info report it as \`history\`:
-{git, autoCommit, branch, reason?}.
+{git, autoCommit, enabled, available, branch, reason?}. autoCommit is
+true when commits are really happening; enabled is the user's switch;
+available is false when commits can't happen here at all (no git, no
+repository, or the library is in .gitignore).
 
     a change in <id>/ ──► ~5 s with no more changes ──► commit of <id>/ only
 
@@ -202,6 +208,13 @@ go. studio_start and studio_info report it as \`history\`:
   {showcaseId, message} commits the showcase now with your message
   (e.g. "Retime scenes to the new voiceover"). Call it too before you run
   git commands yourself. Don't run \`git commit\` for showcase changes.
+- The user turns commits on and off with the "Commit changes to git"
+  switch (the gear button at the top right of a showcase's screens). It
+  applies to the whole studio and takes effect at once. It is the
+  user's choice: never flip it, and never edit autoCommit in the
+  studio's settings.json. A "setting" line in the change log tells you
+  when they change it. While it is off, commit_showcase commits nothing
+  either; if the user wants a checkpoint, tell them the switch is off.
 - Nothing is committed while a merge, rebase, cherry-pick, revert or
   bisect is in progress, or on a detached HEAD. If \`history.git\` is
   false, the library isn't a git repository: offer the user to run

@@ -102,6 +102,24 @@ export type StudioInfo = {
   features: { terminal: boolean };
 };
 
+/** The library's git history (GET /studio/api/history;
+ *  server/showcase-history.mjs status()). */
+export type StudioHistory = {
+  /** The library is in a git repository, and git is installed. */
+  git: boolean;
+  /** Changes are being committed right now. */
+  autoCommit: boolean;
+  /** The user's choice: the "Commit changes to git" switch. */
+  enabled: boolean;
+  /** Commits can happen here at all (git, a repository, and a library
+   *  .gitignore doesn't hide). When false, `reason` says why. */
+  available: boolean;
+  branch: string | null;
+  root?: string;
+  /** Why commits are off, impossible, or waiting. */
+  reason?: string;
+};
+
 export type ShowcaseStudio = {
   info(): StudioInfo;
   /** The studio's lock from the --open / --new options, or null when it
@@ -129,6 +147,12 @@ export type ShowcaseStudio = {
    *  URL is stable per showcase — publishing again updates it in place. */
   prompter: {
     publish(showcaseId: string): Promise<{ ok: boolean; url?: string; error?: string }>;
+  };
+  /** The studio's git history, and the switch that turns commits on
+   *  and off (studio-wide, in effect at once). */
+  history: {
+    status(): Promise<StudioHistory | null>;
+    setAutoCommit(on: boolean): Promise<{ ok: boolean; history?: StudioHistory; error?: string }>;
   };
   /** Asset-collection operations (the assets page). */
   assets: {
@@ -234,6 +258,15 @@ async function post<T>(action: string, body?: unknown): Promise<T> {
   }
 }
 
+async function get<T>(name: string): Promise<T | null> {
+  try {
+    const response = await fetch(`${API}/${name}`);
+    return response.ok ? ((await response.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
 /* Keystrokes and resizes must arrive in order, so they go one request at
  * a time. */
 let inOrder: Promise<unknown> = Promise.resolve();
@@ -288,6 +321,10 @@ function createClient(first: StudioInfo): ShowcaseStudio {
     showcases: { create: (name) => post("showcase-create", { name }) },
     scenes: { edit: (payload) => post("scene-edit", payload) },
     prompter: { publish: (showcaseId) => post("prompter-publish", { showcaseId }) },
+    history: {
+      status: () => get<StudioHistory>("history"),
+      setAutoCommit: (on) => post("history-auto-commit", { on }),
+    },
     assets: {
       rename: (payload) => post("asset-rename", payload),
       add: (payload) => post("asset-add", payload),

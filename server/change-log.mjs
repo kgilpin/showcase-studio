@@ -14,9 +14,11 @@
  *
  *   at          ISO timestamp
  *   source      "ui" | "mcp" | "studio" (the studio's own git commits)
- *   showcaseId  the showcase folder
+ *   showcaseId  the showcase folder (null for a studio-wide "setting")
  *   kind        "edit" | "asset.add" | "asset.rename" | "asset.delete" | "showcase.create"
  *               | "commit" (server/showcase-history.mjs: sha, message, files)
+ *               | "setting" (the user changed a studio setting: name, value —
+ *                 today only "autoCommit", the "Commit changes to git" switch)
  *
  * then what changed. A line that changed a YAML file also names the file
  * and its content hash before and after (previousVersion, version) —

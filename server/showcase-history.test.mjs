@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -87,7 +87,23 @@ async function startStudio(library, { delay = DELAY, autoCommit } = {}) {
       req.socket = { remoteAddress: "127.0.0.1" };
       void studio.handle(req, res, () => resolve(null));
     });
-  return { studio, call, post };
+  /* A GET the same way, for /studio/api/<name>. */
+  const get = (name) =>
+    new Promise((resolve) => {
+      const res = {
+        statusCode: 0,
+        headersSent: false,
+        setHeader() {},
+        end: (text) => resolve(JSON.parse(text)),
+      };
+      const req = (async function* () {})();
+      req.method = "GET";
+      req.url = `/studio/api/${name}`;
+      req.headers = { host: "localhost" };
+      req.socket = { remoteAddress: "127.0.0.1" };
+      void studio.handle(req, res, () => resolve(null));
+    });
+  return { studio, call, post, get, saved: () => saved };
 }
 
 const commits = (dir) => git(dir, "log", "--format=%s").split("\n");
@@ -262,6 +278,113 @@ describe("showcase history", () => {
       committed: false,
       reason: expect.stringContaining("turned off"),
     });
+  });
+});
+
+describe("the Commit changes to git switch", () => {
+  const settingLines = (library) =>
+    readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.kind === "setting");
+
+  it("reads the history status over GET /studio/api/history", async () => {
+    const { dir, library } = await project();
+    const { get } = await startStudio(library);
+    expect(await get("history")).toEqual({
+      git: true,
+      autoCommit: true,
+      enabled: true,
+      available: true,
+      branch: "main",
+      root: expect.any(String),
+    });
+    expect(git(dir, "rev-parse", "--show-toplevel")).toContain(path.basename(dir));
+  });
+
+  it("turns commits off at once, saves the choice, and logs it", async () => {
+    const { dir, library } = await project();
+    const { call, post, get, saved } = await startStudio(library);
+
+    const off = await post("history-auto-commit", { on: false });
+    expect(off).toMatchObject({
+      ok: true,
+      history: { git: true, autoCommit: false, enabled: false, available: true },
+    });
+    expect(off.history.reason).toContain("turned off");
+    expect(saved()).toMatchObject({ autoCommit: false });
+    expect(await get("history")).toMatchObject({ autoCommit: false, enabled: false });
+    expect(settingLines(library)).toEqual([
+      {
+        at: expect.any(String),
+        source: "ui",
+        showcaseId: null,
+        kind: "setting",
+        name: "autoCommit",
+        value: false,
+      },
+    ]);
+
+    /* A change while it's off makes no commit. */
+    await call("edit_showcase", editTitle("While off"));
+    await sleep(DELAY * 4);
+    expect(commits(dir)).toEqual(["start"]);
+
+    /* Back on: the next change commits, and that is logged too. */
+    expect(await post("history-auto-commit", { on: true })).toMatchObject({
+      ok: true,
+      history: { autoCommit: true, enabled: true },
+    });
+    await call("edit_showcase", editTitle("Back on"));
+    await waitFor(() => commits(dir).length === 2);
+    expect(settingLines(library).map((entry) => entry.value)).toEqual([false, true]);
+  });
+
+  it("drops a commit that was waiting when commits are turned off", async () => {
+    const { dir, library } = await project();
+    const { call, post } = await startStudio(library, { delay: DELAY * 3 });
+    await call("edit_showcase", editTitle("Waiting"));
+    await sleep(DELAY);
+    await post("history-auto-commit", { on: false });
+    /* Turned back on before the wait ends: the dropped commit stays dropped. */
+    await post("history-auto-commit", { on: true });
+    await sleep(DELAY * 6);
+    expect(commits(dir)).toEqual(["start"]);
+  });
+
+  it("refuses anything but true or false, and logs nothing for it", async () => {
+    const { library } = await project();
+    const { post, saved } = await startStudio(library);
+    expect(await post("history-auto-commit", { on: "yes" })).toMatchObject({ ok: false });
+    expect(saved()).toEqual({});
+    expect(existsSync(path.join(library, ".studio", "changes.jsonl"))).toBe(false);
+  });
+
+  it("says why the switch can't work outside a git repository", async () => {
+    const { library } = await project({ repo: false });
+    const { get } = await startStudio(library);
+    const status = await get("history");
+    expect(status).toMatchObject({
+      git: false,
+      autoCommit: false,
+      enabled: true,
+      available: false,
+      branch: null,
+    });
+    expect(status.reason).toContain(`git init in ${library}`);
+  });
+
+  it("says why the switch can't work when .gitignore hides the library", async () => {
+    const { dir, library } = await project();
+    git(dir, "rm", "-r", "-q", "--cached", "showcases");
+    writeFileSync(path.join(dir, ".gitignore"), "showcases/\n");
+    git(dir, "add", ".gitignore");
+    git(dir, "commit", "-q", "-m", "ignore the library");
+    const { get } = await startStudio(library);
+    const status = await get("history");
+    expect(status).toMatchObject({ git: true, autoCommit: false, enabled: true, available: false });
+    expect(status.reason).toContain(".gitignore");
   });
 });
 

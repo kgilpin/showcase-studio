@@ -24,7 +24,10 @@
  *
  * The studio never runs `git init`: a library outside a git repository
  * just reports that it has no history. The setting `autoCommit: false`
- * turns commits off, including commit_showcase.
+ * turns commits off, including commit_showcase. The user sets it with the
+ * "Commit changes to git" switch in the studio (the studio server's
+ * history-auto-commit action); it takes effect at once, because every
+ * check reads the settings again.
  *
  * A git operation the user or Claude runs (checkout, revert, switching
  * branches) changes files, so it reaches us like any other change. It
@@ -37,6 +40,8 @@ import { createChangeLog } from "./change-log.mjs";
 
 export const TRAILER = "Showcase-Studio";
 const SUBJECT_LIMIT = 72;
+const TURNED_OFF =
+  'Commits are turned off (the studio\'s "Commit changes to git" switch, autoCommit: false in its settings).';
 
 /* The files git leaves in its folder while an operation is half done. */
 const BUSY_MARKERS = [
@@ -251,15 +256,16 @@ export function createShowcaseHistory({
 
   /** Where the folder sits in git: { root } or { reason }. */
   async function repoOf(dir) {
-    if (gitMissing) return { reason: "git isn't installed" };
+    const noGit = "Git isn't installed, so the studio can't keep a history.";
+    if (gitMissing) return { reason: noGit };
     const top = await git(["rev-parse", "--show-toplevel"], dir);
-    if (top.code === "ENOENT") return { reason: "git isn't installed" };
+    if (top.code === "ENOENT") return { reason: noGit };
     if (top.code !== 0) {
       return {
         notRepo: true,
         reason:
-          "The library isn't in a git repository, so the studio keeps no history. " +
-          "Run `git init` in the library to turn history on.",
+          "This library isn't in a git repository, so the studio keeps no history. " +
+          `Run git init in ${dir} to turn on history.`,
       };
     }
     return { root: top.stdout.trim() };
@@ -280,25 +286,40 @@ export function createShowcaseHistory({
     return result.code === 0 ? result.stdout.trim() : null;
   }
 
-  /** The history facts for studio_info and studio_start:
-   *  { git, autoCommit, branch, reason? }. */
+  /** The history facts for studio_info, studio_start and the studio's
+   *  "Commit changes to git" switch:
+   *
+   *    git         the library is in a git work tree (and git is installed)
+   *    autoCommit  changes are being committed: switched on, and the
+   *                library isn't ignored by .gitignore
+   *    enabled     the user's choice: the switch (autoCommit in settings)
+   *    available   commits are possible here at all: git, a repository,
+   *                and a library .gitignore doesn't hide
+   *    branch      the current branch, or null
+   *    root        the repository's top folder
+   *    reason      why commits are off, impossible, or waiting */
   async function status() {
     const library = getLibrary();
-    if (!existsSync(library)) {
-      return { git: false, autoCommit: false, branch: null, reason: "The library folder is gone." };
-    }
-    const repo = await repoOf(library);
-    if (!repo.root) return { git: false, autoCommit: false, branch: null, reason: repo.reason };
-    const branch = await branchOf(repo.root);
     const on = enabled();
+    const none = (reason) => ({
+      git: false,
+      autoCommit: false,
+      enabled: on,
+      available: false,
+      branch: null,
+      reason,
+    });
+    if (!existsSync(library)) return none("The library folder is gone.");
+    const repo = await repoOf(library);
+    if (!repo.root) return none(repo.reason);
+    const branch = await branchOf(repo.root);
     const relLibrary = path.relative(realpathSync(repo.root), realpathSync(library));
     const ignored =
       relLibrary !== "" &&
       (await git(["check-ignore", "-q", `${relLibrary}/`], repo.root)).code === 0;
     let reason;
-    if (!on) reason = "Commits are turned off in the studio settings (autoCommit: false).";
-    else if (ignored)
-      reason = "The library folder is ignored by .gitignore, so nothing is committed.";
+    if (ignored) reason = "The library folder is ignored by .gitignore, so nothing is committed.";
+    else if (!on) reason = TURNED_OFF;
     else if (!branch) reason = "HEAD is detached; the studio commits only on a branch.";
     else {
       const busy = await busyReason(repo.root);
@@ -307,6 +328,8 @@ export function createShowcaseHistory({
     return {
       git: true,
       autoCommit: on && !ignored,
+      enabled: on,
+      available: !ignored,
       branch,
       root: repo.root,
       ...(reason ? { reason } : {}),
@@ -320,8 +343,7 @@ export function createShowcaseHistory({
     const showcaseId = path.basename(showcaseDir);
     const skip = (reason) => ({ committed: false, reason });
 
-    if (!enabled())
-      return skip("Commits are turned off in the studio settings (autoCommit: false).");
+    if (!enabled()) return skip(TURNED_OFF);
     if (auto && Date.now() - (failedAt.get(showcaseDir) ?? -Infinity) < failureCooldownMs) {
       return skip("The last commit failed; waiting before trying again.");
     }
@@ -450,6 +472,12 @@ export function createShowcaseHistory({
      *  studio's own commit lines are not changes. */
     noteShowcase(showcaseId, kind) {
       if (showcaseId && kind !== "commit") this.noteChange(`${showcaseId}/`);
+    },
+
+    /** Drops every commit still waiting for its quiet period, without
+     *  committing. The studio calls it when the user turns commits off. */
+    cancelPending() {
+      [...pending.keys()].forEach(cancel);
     },
 
     /** commit_showcase: commits a showcase now with Claude's message. */
