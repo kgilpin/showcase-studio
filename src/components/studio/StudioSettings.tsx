@@ -155,7 +155,15 @@ export function StudioSettings() {
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-80"
+        className="w-80 focus:outline-none"
+        /* Opening the panel would focus the switch, and focus opens its
+         * tooltip over the page. Focus the panel itself instead; Tab
+         * still reaches the switch, and its tooltip opens then. */
+        tabIndex={-1}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement).focus();
+        }}
         /* Keys pressed here (Space on the switch) must not reach the
          * player's shortcuts on window. */
         onKeyDown={(e) => e.stopPropagation()}
