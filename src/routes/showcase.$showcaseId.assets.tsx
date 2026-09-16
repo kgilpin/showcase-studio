@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileQuestion, Music, Plus, Trash2, TriangleAlert, Upload, X } from "lucide-react";
 import { getShowcase, showcaseAssets, type AssetInfo } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { studio } from "@/lib/studio";
+import { isGenericClipboardName, pastedAssetName } from "@/lib/pasted-asset-name";
+import { isTypingTarget } from "@/lib/typing-target";
 import { cn } from "@/lib/utils";
 
 /* The media collection behind a showcase: every file in assets/, what
@@ -62,10 +64,60 @@ function AssetsScreen() {
   );
   const [inStudio, setInStudio] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  /* What the last upload is doing ("Adding 2 files…", an error). Drops,
+   * browsing, and pastes all report here; the add dialog shows it. */
+  const [addStatus, setAddStatus] = useState<string | null>(null);
+  const assetNames = useRef<string[]>([]);
   useEffect(() => setInStudio(Boolean(studio()?.assets)), []);
+
+  /* The one upload path: write the files into assets/ in one call. The
+   * studio watcher then reloads the page with the fresh inventory — that
+   * reload is the success path. */
+  const addFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      setAddStatus(`Adding ${files.length} file${files.length > 1 ? "s" : ""}…`);
+      const payload: { name: string; data: string }[] = [];
+      for (const file of files) {
+        payload.push({ name: file.name, data: toBase64(await file.arrayBuffer()) });
+      }
+      const result = await studio()!.assets.add({ showcaseId, files: payload });
+      setAddStatus(result.ok ? "Added — reloading…" : (result.error ?? "Adding failed"));
+    },
+    [showcaseId],
+  );
+
+  /* Paste an image anywhere on the page (not while typing in a field) to
+   * add it. Clipboard images arrive as "image.png", so they get a name
+   * from the paste time instead. The add dialog opens to show progress. */
+  useEffect(() => {
+    if (!inStudio) return;
+    const onPaste = (e: ClipboardEvent) => {
+      if (isTypingTarget(e)) return;
+      const images = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+        f.type.startsWith("image/"),
+      );
+      if (images.length === 0) return;
+      e.preventDefault();
+      const now = new Date();
+      const taken = [...assetNames.current];
+      const named = images.map((file) => {
+        if (!isGenericClipboardName(file.name)) return file;
+        const name = pastedAssetName(file, now, taken);
+        taken.push(name);
+        return new File([file], name, { type: file.type });
+      });
+      setAddOpen(true);
+      void addFiles(named);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [inStudio, addFiles]);
+
   if (!showcase) return null; // the layout route renders the not-found message
 
   const { assets, missing } = showcaseAssets(showcase);
+  assetNames.current = assets.map((a) => a.name);
   const selected = assets.find((a) => a.name === selectedName) ?? null;
   const select = (name: string) => {
     setSelectedName(name);
@@ -146,6 +198,9 @@ function AssetsScreen() {
                 >
                   <Plus className="size-6" />
                   <span className="text-xs">Add assets</span>
+                  <span className="text-[0.7rem] opacity-70">
+                    or paste an image ({pasteKeys()})
+                  </span>
                 </button>
               )}
             </div>
@@ -160,7 +215,17 @@ function AssetsScreen() {
           />
         </div>
       </div>
-      {addOpen && <AddAssetsOverlay showcaseId={showcaseId} onClose={() => setAddOpen(false)} />}
+      {addOpen && (
+        <AddAssetsOverlay
+          showcaseId={showcaseId}
+          status={addStatus}
+          onFiles={(files) => void addFiles(files)}
+          onClose={() => {
+            setAddOpen(false);
+            setAddStatus(null);
+          }}
+        />
+      )}
       <div className="fixed inset-x-0 bottom-0">
         <DiagnosticsTray />
       </div>
@@ -168,12 +233,25 @@ function AssetsScreen() {
   );
 }
 
-/** The drop target behind the "+" card: drag files in (or click to
- *  browse) and they're written to the showcase's assets/ folder in one
- *  call. The studio watcher then reloads the page with the fresh
- *  inventory — that reload is the success path. */
-function AddAssetsOverlay({ showcaseId, onClose }: { showcaseId: string; onClose: () => void }) {
-  const [status, setStatus] = useState<string | null>(null);
+/** The paste shortcut as this computer spells it. Only called in the
+ *  browser: the page renders these hints after it knows a studio serves it. */
+function pasteKeys(): string {
+  return /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V";
+}
+
+/** The drop target behind the "+" card: drag files in, click to browse,
+ *  or paste. The files go to `onFiles`, and `status` reports progress. */
+function AddAssetsOverlay({
+  showcaseId,
+  status,
+  onFiles,
+  onClose,
+}: {
+  showcaseId: string;
+  status: string | null;
+  onFiles: (files: File[]) => void;
+  onClose: () => void;
+}) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -185,17 +263,7 @@ function AddAssetsOverlay({ showcaseId, onClose }: { showcaseId: string; onClose
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const addFiles = async (list: FileList | null) => {
-    const files = Array.from(list ?? []);
-    if (files.length === 0) return;
-    setStatus(`Adding ${files.length} file${files.length > 1 ? "s" : ""}…`);
-    const payload: { name: string; data: string }[] = [];
-    for (const file of files) {
-      payload.push({ name: file.name, data: toBase64(await file.arrayBuffer()) });
-    }
-    const result = await studio()!.assets.add({ showcaseId, files: payload });
-    setStatus(result.ok ? "Added — reloading…" : (result.error ?? "Adding failed"));
-  };
+  const addFiles = (list: FileList | null) => onFiles(Array.from(list ?? []));
 
   return (
     <div
@@ -229,7 +297,7 @@ function AddAssetsOverlay({ showcaseId, onClose }: { showcaseId: string; onClose
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            void addFiles(e.dataTransfer.files);
+            addFiles(e.dataTransfer.files);
           }}
           onClick={() => inputRef.current?.click()}
           className={cn(
@@ -241,6 +309,7 @@ function AddAssetsOverlay({ showcaseId, onClose }: { showcaseId: string; onClose
         >
           <Upload className="size-6" />
           <p className="text-sm">Drop files here, or click to browse</p>
+          <p className="text-xs opacity-70">You can also paste an image ({pasteKeys()})</p>
           <p className="text-xs opacity-70">They land in {showcaseId}/assets/</p>
         </div>
         <input
@@ -248,7 +317,7 @@ function AddAssetsOverlay({ showcaseId, onClose }: { showcaseId: string; onClose
           type="file"
           multiple
           className="hidden"
-          onChange={(e) => void addFiles(e.target.files)}
+          onChange={(e) => addFiles(e.target.files)}
         />
         {status && <p className="mt-3 text-xs text-support">{status}</p>}
       </div>

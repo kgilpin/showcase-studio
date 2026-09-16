@@ -102,7 +102,9 @@ from the app's source.
 - `theme.yaml`, `assets/`, `graphics/`: edit the files directly. The
   studio reloads by itself.
 - You can't make screenshots or recordings. Ask the user to drop them
-  into the showcase's `assets/` folder.
+  into the showcase's `assets/` folder, or to paste or drag them onto the
+  studio's Assets page. An image pasted into the Claude chat never
+  reaches a file you can read.
 
 ## 4. Check before you say it's done
 
