@@ -73,6 +73,18 @@ npm run package:desktop            # package the desktop shell as a runnable
                                    # in-process on free ports, so any number
                                    # of studios can run at once. From Finder,
                                    # a second instance needs `open -n`.
+npm run release:desktop            # the same, as the release: a signed,
+                                   # notarized zip + SHA256SUMS in
+                                   # dist-electron/dist/, named as the
+                                   # plugin's install-app downloads them.
+                                   # Needs the Developer ID Application
+                                   # certificate in the keychain and the
+                                   # notarization credentials in the
+                                   # environment (electron-builder.yml
+                                   # lists them); without them it still
+                                   # builds, signed for this Mac only.
+                                   # Check: spctl -a -vv <app> says
+                                   # "accepted" / "Notarized Developer ID".
 npm run build:icon                 # render the app icon: build/icon.svg (the
                                    # source, on Apple's 1024/824 icon grid)
                                    # → build/icon.png, which electron-builder
