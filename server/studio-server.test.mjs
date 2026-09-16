@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { contentHash } from "./scene-edit.mjs";
 import { createStudio, isLocalRequest } from "./studio-server.mjs";
 
@@ -362,6 +363,27 @@ scenes:
     expect(JSON.parse(result.content[0].text)).toMatchObject({ url, showcases: ["nova"] });
     const script = await studio.callTool({ name: "script", arguments: { showcaseId: "nova" } });
     expect(script.content[0].text).toContain("NOVA");
+  });
+
+  it("reports the last page error in studio_info until a page renders", async () => {
+    const { studio } = await startStudio();
+    const studioInfo = async () =>
+      JSON.parse((await studio.callTool({ name: "studio_info", arguments: {} })).content[0].text);
+    cleanups.push(() => clearPageError());
+
+    expect(await studioInfo()).not.toHaveProperty("pageError");
+    recordPageError(new Error("Cannot find module '@/content/showcases'"), {
+      path: "/showcase/nova",
+    });
+    expect((await studioInfo()).pageError).toMatchObject({
+      message: "Cannot find module '@/content/showcases'",
+      path: "/showcase/nova",
+      at: expect.any(String),
+      stack: expect.stringContaining("at "),
+    });
+    /* What src/server.ts does when a later page renders. */
+    clearPageError();
+    expect(await studioInfo()).not.toHaveProperty("pageError");
   });
 
   it("exports the narration script as a background job", async () => {

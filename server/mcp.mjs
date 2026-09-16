@@ -9,6 +9,7 @@
  * same files Claude just edited. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { pageErrorField } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import { screenshotSlide, scriptText, validateShowcases } from "./exporter.mjs";
@@ -26,7 +27,9 @@ export const TOOLS = [
       "showcase the studio is locked to, if any). Call it first to find the studio. " +
       "`history` says whether the studio keeps a git history of the library: " +
       "{git, autoCommit, enabled, available, branch, reason?} — reason explains why commits " +
-      "are off or waiting. enabled is the user's own switch in the studio; don't change it.",
+      "are off or waiting. enabled is the user's own switch in the studio; don't change it. " +
+      "`pageError` {message, stack, path, at} appears when the last studio page failed to " +
+      "render on the server and no page has rendered since: tell the user that error.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -286,6 +289,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
       changes: context.changeLog?.path(),
       ...(context.history ? { history: await context.history.status() } : {}),
+      ...pageErrorField(),
     });
   }
   if (name === "commit_showcase") {

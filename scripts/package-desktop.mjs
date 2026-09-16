@@ -72,8 +72,9 @@ for (const dir of ["electron", "server"]) {
 }
 /* Plain modules the page shares with the shell and the studio server, at
  * their staged-relative ../src paths: the timing model (prompter-script.mjs,
- * exporter.mjs) and the lock rule (electron/main.mjs). */
-for (const shared of ["content/timing.mjs", "lib/window-lock.mjs"]) {
+ * exporter.mjs), the lock rule (electron/main.mjs), and the last page
+ * error (server/mcp.mjs, exporter.mjs). */
+for (const shared of ["content/timing.mjs", "lib/window-lock.mjs", "lib/page-error.mjs"]) {
   mkdirSync(path.join(stage, "src", path.dirname(shared)), { recursive: true });
   cpSync(path.join(repoRoot, "src", shared), path.join(stage, "src", shared));
 }

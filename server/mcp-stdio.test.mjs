@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { createStudioMcp, serveStudioMcp } from "./mcp-stdio.mjs";
 
 const dirs = [];
@@ -18,6 +19,7 @@ function library(...ids) {
 }
 
 afterEach(() => {
+  clearPageError();
   while (dirs.length) rmSync(dirs.pop(), { recursive: true, force: true });
 });
 
@@ -92,6 +94,17 @@ describe("the studio's MCP server", () => {
       changes: path.join(lib, ".studio", "changes.jsonl"),
     });
     expect(started).toEqual([{ showcasesDir: lib, lock, window: true, closed: false }]);
+  });
+
+  it("adds the last page error to studio_start's result", async () => {
+    const lib = library("nova");
+    const { call, read } = server({ ...fakeStudios(), defaultLibrary: () => lib });
+    expect(read(await call("studio_start", {}))).not.toHaveProperty("pageError");
+    recordPageError(new Error("boom"), { path: "/" });
+    expect(read(await call("studio_start", {})).pageError).toMatchObject({
+      message: "boom",
+      path: "/",
+    });
   });
 
   it("never asks for a window when the program can't show one", async () => {

@@ -115,6 +115,10 @@ from the app's source.
 3. Tell the user only what you have seen working. If a check failed, say
    which one and quote its error. Never describe a screenshot or a page
    you didn't get back.
+4. If a check failed because the page didn't load, call `studio_info`
+   and read `pageError`. It holds the error the studio page hit on the
+   server (`message`, `stack`, `path`). Tell the user that error. Don't
+   just say the page didn't load.
 
 ## 5. Finish
 

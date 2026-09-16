@@ -22,6 +22,7 @@
  */
 import path from "node:path";
 import readline from "node:readline";
+import { pageErrorField } from "../src/lib/page-error.mjs";
 import { CHANGE_LOG } from "./change-log.mjs";
 import { resolvePath, studioOptions } from "./launch-options.mjs";
 import { TOOLS, createMcpRpc } from "./mcp.mjs";
@@ -54,6 +55,8 @@ function studioTools({ windows, libraryHelp }) {
         "`changes` is the studio's change log: one JSON line per edit made in the studio. " +
         "`history` says whether the studio commits changes to git: {git, autoCommit, enabled, " +
         "available, branch, reason?}; enabled is the user's own switch, so don't change it. " +
+        "`pageError` {message, stack, path, at} appears when a studio page failed to render " +
+        "on the server and none has rendered since: tell the user that error. " +
         seeIt +
         "Lock the studio to one showcase with `showcase`, or open the New showcase page with " +
         "`new`. The other studio tools start an unlocked studio" +
@@ -162,6 +165,7 @@ export function createStudioMcp({
         guide: path.join(info.library, ".studio", "GUIDE.md"),
         changes: path.join(info.library, CHANGE_LOG),
         ...(current.studio.historyStatus ? { history: await current.studio.historyStatus() } : {}),
+        ...pageErrorField(),
       });
     }
     if (name === "studio_stop") {

@@ -46,6 +46,7 @@ import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { runExport } from "./exporter.mjs";
+import { registerStudio } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { callTool, createMcpHandler } from "./mcp.mjs";
 import { prompterScript } from "./prompter-script.mjs";
@@ -219,6 +220,9 @@ export function createStudio({
   commitDelayMs = 5000,
 }) {
   let showcasesDir = path.resolve(initialDir);
+  /* While this studio runs, the page's error page may show error details
+   * to requests from this machine (src/lib/page-error.mjs). */
+  const unregisterStudio = registerStudio();
   let lock = initialLock;
   let url = null;
   const startedAt = new Date().toISOString();
@@ -889,6 +893,7 @@ scenes:
       }),
 
     async close() {
+      unregisterStudio();
       watcher?.close();
       await history.close();
       terminals?.dispose();

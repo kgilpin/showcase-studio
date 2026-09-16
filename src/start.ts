@@ -1,8 +1,9 @@
 import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { mayShowErrorDetails, recordPageError } from "./lib/page-error.mjs";
 
-const errorMiddleware = createMiddleware().server(async ({ next }) => {
+const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   try {
     return await next();
   } catch (error) {
@@ -10,7 +11,10 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
       throw error;
     }
     console.error(error);
-    return new Response(renderErrorPage(), {
+    /* Kept for the studio's MCP tools (studio_info, validate), since
+     * stderr is hidden when Claude Code runs the studio. */
+    const pageError = recordPageError(error, { path: new URL(request.url).pathname });
+    return new Response(renderErrorPage(mayShowErrorDetails(request) ? pageError : null), {
       status: 500,
       headers: { "content-type": "text/html; charset=utf-8" },
     });

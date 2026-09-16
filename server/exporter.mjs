@@ -25,6 +25,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
+import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
@@ -40,14 +41,32 @@ const SHOT = { width: 660, height: 1434 };
  * because the first capture from source also starts the browser and has
  * the dev server compile the whole app. */
 const PAGE_TIMEOUT_MS = 60_000;
-function withTimeout(promise, message) {
+const PAGE_ERROR_POLL_MS = 250;
+
+/** Races `promise` against the page timeout. When the page at `path`
+ *  fails to render on the server (src/lib/page-error.mjs), it fails at
+ *  once with that error instead of waiting out the timeout; a timeout
+ *  names the captured page error too, when there is one. */
+function withTimeout(promise, message, { path: pagePath } = {}) {
+  const started = Date.now();
   let timer;
+  let poll;
   return Promise.race([
     promise,
     new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(message)), PAGE_TIMEOUT_MS);
+      timer = setTimeout(() => reject(new Error(pageLoadFailureMessage(message))), PAGE_TIMEOUT_MS);
+      if (!pagePath) return;
+      poll = setInterval(() => {
+        const pageError = currentPageError();
+        if (pageError?.path === pagePath && Date.parse(pageError.at) >= started) {
+          reject(new Error(pageLoadFailureMessage(message, pageError)));
+        }
+      }, PAGE_ERROR_POLL_MS);
     }),
-  ]).finally(() => clearTimeout(timer));
+  ]).finally(() => {
+    clearTimeout(timer);
+    clearInterval(poll);
+  });
 }
 
 /** Cooperative cancellation: exports check the signal between captures. */
@@ -334,14 +353,16 @@ export function runExport({
 /** One slide's export page, rendered at half size — returns base64 PNG. */
 export function screenshotSlide(renderer, appUrl, { showcaseId, sceneId } = {}) {
   if (!showcaseId || !sceneId) throw new Error("showcaseId and sceneId are both required");
+  const pagePath = `/showcase/${showcaseId}/export/${sceneId}`;
   return withTimeout(
     withPage(renderer, SHOT, async (page) => {
-      await page.goto(`${appUrl}/showcase/${showcaseId}/export/${sceneId}`);
+      await page.goto(`${appUrl}${pagePath}`);
       await page.evaluate(EXPORT_PAGE_READY);
       return (await page.capture()).toString("base64");
     }),
     `The slide did not render — check the showcase id ("${showcaseId}") and scene id ` +
       `("${sceneId}"), and whether the showcase loads at all (run validate).`,
+    { path: pagePath },
   );
 }
 
@@ -370,5 +391,6 @@ export function validateShowcases(renderer, appUrl) {
       })()`);
     }),
     "The library did not finish loading — is the studio's app page reachable?",
+    { path: "/" },
   );
 }

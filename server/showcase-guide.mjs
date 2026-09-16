@@ -95,6 +95,12 @@ ${
   (preview_start with url). Don't start a studio from a
   .claude/launch.json or the preview's start button: that runs a second
   studio, separate from the one the MCP tools use.
+- When a studio page fails to render on the server, studio_start and
+  studio_info report it as \`pageError\`: {message, stack, path, at}.
+  It stays until a page renders again. validate and screenshot_slide
+  quote it too ("The studio page failed to render: …") instead of
+  saying the page didn't load. That error is the real cause: tell the
+  user what it says.
 - ffmpeg is bundled with the studio at ${ffmpegPath ?? "(unavailable)"}
   (also in $SHOWCASE_STUDIO_FFMPEG). Use it for audio and video work on
   this folder's recordings: extracting audio, cutting clips, probing
