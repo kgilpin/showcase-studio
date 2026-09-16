@@ -38,7 +38,7 @@ function project({ repo = true } = {}) {
   /* Retries: on Windows a folder can't be removed while a git process or
    * the studio's watcher still has it open, which lasts a moment. */
   cleanups.push(() =>
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }),
+    rmSync(dir, { recursive: true, force: true, maxRetries: 30, retryDelay: 200 }),
   );
   const library = path.join(dir, "showcases");
   mkdirSync(path.join(library, "nova", "assets"), { recursive: true });

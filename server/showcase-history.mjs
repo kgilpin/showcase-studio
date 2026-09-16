@@ -504,6 +504,10 @@ export function createShowcaseHistory({
       for (const showcaseDir of waiting) {
         await inTurn(() => commit(showcaseDir, { auto: true })).catch(() => {});
       }
+      /* A commit already running (a git process holding the folder open)
+       * finishes before close resolves, so the caller can remove the
+       * folder — which Windows refuses while git has it. */
+      await queue;
     },
   };
 }

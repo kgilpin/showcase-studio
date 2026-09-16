@@ -45,6 +45,7 @@ import path from "node:path";
 import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
+import { revealInFileManager } from "./export-output.mjs";
 import { runExport } from "./exporter.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
@@ -203,6 +204,7 @@ function locateReferences(text, found) {
  *   renderer      draws pages for screenshots and exports (optional)
  *   features      { terminal: false } turns the embedded terminals off
  *   exportDir     where exports land (<exportDir>/<showcase id>)
+ *   reveal        opens the file manager on a path (export-reveal)
  *   settings      { load, save } — the persisted settings
  *   commitDelayMs how long a showcase must stay unchanged before the
  *                 studio commits it (server/showcase-history.mjs)
@@ -215,6 +217,7 @@ export function createStudio({
   renderer,
   features = {},
   exportDir = path.join(os.homedir(), "Downloads", "showcase-exports"),
+  reveal = revealInFileManager,
   settings = { load: loadSettings, save: saveSettings },
   log = (message) => console.log(message),
   commitDelayMs = 5000,
@@ -385,35 +388,42 @@ add notes specific to this library below, and the studio won't touch them.
 
   /* ---------- exports ---------- */
 
-  const exportJobs = createExportJobs(async (kind, showcaseId, { onProgress, signal }) => {
-    const progress = (label) => {
-      onProgress(label);
-      emit("export", { showcaseId, kind, label });
-    };
-    try {
-      const out = await runExport({
+  /* Every job change goes to every page as the "export" event — the job's
+   * status (export-jobs.mjs), whether the page, the MCP tools, or
+   * --export started it. */
+  const exportJobs = createExportJobs(
+    (kind, showcaseId, { onProgress, signal }) =>
+      runExport({
         renderer,
         appUrl: url,
         showcasesDir,
         kind,
         showcaseId,
         outDir: path.join(exportDir, showcaseId),
-        onProgress: progress,
+        onProgress,
         signal,
-      });
-      emit("export", { showcaseId, kind, label: "done", done: true, out });
-      return out;
-    } catch (error) {
-      emit("export", {
-        showcaseId,
-        kind,
-        label: "failed",
-        done: true,
-        error: String(error?.message ?? error),
-      });
-      throw error;
+      }),
+    { onChange: (status) => emit("export", status) },
+  );
+
+  /** Opens the file manager on a showcase's exports: the job's output
+   *  when `jobId` names a finished job, else the showcase's export
+   *  folder. Paths come from the studio, never from the request. */
+  function revealExport({ showcaseId, jobId } = {}) {
+    const job = jobId ? exportJobs.status(String(jobId)) : undefined;
+    if (job?.status === "done" && job.out && existsSync(job.out)) {
+      reveal(job.out);
+      return { ok: true, path: job.out };
     }
-  });
+    const id = String(showcaseId ?? job?.showcaseId ?? "");
+    if (!id || id !== path.basename(id) || id.startsWith(".")) {
+      return { ok: false, error: `No showcase named "${id}"` };
+    }
+    const dir = path.join(exportDir, id);
+    if (!existsSync(dir)) return { ok: false, error: `${id} has no exports yet` };
+    reveal(dir);
+    return { ok: true, path: dir };
+  }
 
   /* ---------- terminals and MCP ---------- */
 
@@ -767,6 +777,8 @@ scenes:
       const job = exportJobs.cancel(String(jobId ?? ""));
       return job ? { ok: true, job } : { ok: false, error: `No export job named "${jobId}"` };
     },
+    "export-current": () => ({ ok: true, job: exportJobs.current() ?? null }),
+    "export-reveal": revealExport,
     library: setLibrary,
     "terminal-available": () =>
       terminals ? terminals.available() : { ptyReady: false, claude: false },
@@ -895,7 +907,14 @@ scenes:
 
     async close() {
       unregisterStudio();
-      watcher?.close();
+      if (watcher) {
+        /* fs.watch's close() returns before the handle is released; the
+         * "close" event follows. A test deleting the library right after
+         * this would otherwise find it still open on Windows. */
+        const closed = new Promise((resolve) => watcher.once("close", resolve));
+        watcher.close();
+        await closed;
+      }
       /* A reload still waiting would fire after close. */
       clearTimeout(reloadTimer);
       await history.close();

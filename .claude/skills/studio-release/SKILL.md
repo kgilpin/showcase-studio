@@ -128,11 +128,13 @@ gh run download <run id> -n showcase-studio-win-x64 -D <folder>
 gh release upload vX.Y.Z <folder>/Showcase-Studio-X.Y.Z-win-x64.zip <folder>/SHA256SUMS-win-x64
 ```
 
-Known flake: the `Tests` step sometimes fails on Windows with
-`EBUSY: resource busy or locked, rmdir ...Temp\studio-history-...`. That is
-the runner, not the code: `gh run rerun <run id> --failed` and watch
-again. Any other failure is real — read `gh run view <run id> --log-failed`
-and stop.
+If the `Tests` step fails on Windows with
+`EBUSY: resource busy or locked, rmdir ...Temp\studio-...`, a test's temp
+folder was still held open when it was deleted. The studio's close now
+waits for its watcher and any running git commit, and the tests retry
+the delete for six seconds, so this should be rare: `gh run rerun <run id> --failed`
+once, and if it repeats, treat it as real. Any other failure is real —
+read `gh run view <run id> --log-failed` and stop.
 
 Done means `gh release view vX.Y.Z --json assets` lists four assets:
 the Mac zip, `SHA256SUMS`, the Windows zip and `SHA256SUMS-win-x64`.
