@@ -30,7 +30,7 @@
 import { app, BrowserWindow, dialog, Menu, nativeImage, shell } from "electron";
 import http from "node:http";
 import net from "node:net";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
@@ -418,6 +418,11 @@ function serveMcp() {
   };
 
   serveStudioMcp({
+    /* On Windows, process.stdin in Electron's main process closes at once
+     * even when Claude Code has piped MCP messages to it, and the server
+     * would quit before reading any. File descriptor 0 itself is the
+     * pipe, so read it directly there. */
+    ...(process.platform === "win32" ? { input: createReadStream(null, { fd: 0 }) } : {}),
     version: appVersion,
     send,
     cwd: launchCwd,
