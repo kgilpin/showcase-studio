@@ -14,13 +14,29 @@ files:
 asar: false
 # node-pty ships N-API prebuilds (ABI-stable, no Electron rebuild).
 npmRebuild: false
-# No identity configured: electron-builder falls back to ad-hoc signing,
-# which arm64 macOS requires to launch the binary at all.
 # The app icon: build/icon.svg is the source, build/icon.png the 1024px
 # render (npm run build:icon); electron-builder makes the .icns from it.
 icon: build/icon.png
 mac:
-  target: dir
+  # The release artifact, named as plugins/showcase-studio/bin/install-app
+  # downloads it (npm run release:desktop). npm run package:desktop passes
+  # --dir and only leaves the .app in dist-electron/dist/mac-arm64/.
+  target: zip
+  artifactName: Showcase-Studio-${version}-mac-${arch}.${ext}
+  # Signing: electron-builder picks the "Developer ID Application"
+  # certificate in the keychain (team 4532AZUZ6H, SiteForward LLC). With
+  # none installed it falls back to an "Apple Development" certificate,
+  # which runs locally but Gatekeeper rejects on other Macs.
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarization runs when the credentials are in the environment, and is
+  # skipped (with a log line) when they aren't, so local builds still work:
+  #   APPLE_KEYCHAIN_PROFILE  a profile saved by
+  #                           xcrun notarytool store-credentials  (preferred)
+  #   or APPLE_API_KEY (path to the .p8), APPLE_API_KEY_ID, APPLE_API_ISSUER
+  # Never put them in the repo.
+  notarize: true
 # Windows: built on a Windows machine (.github/workflows/desktop-build.yml),
 # because ffmpeg-static and esbuild install programs for the machine that
 # runs npm install. Not signed yet, so SmartScreen warns on first launch.
