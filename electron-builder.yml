@@ -24,9 +24,10 @@ mac:
   target: zip
   artifactName: Showcase-Studio-${version}-mac-${arch}.${ext}
   # Signing: electron-builder picks the "Developer ID Application"
-  # certificate in the keychain (team 4532AZUZ6H, SiteForward LLC). With
-  # none installed it falls back to an "Apple Development" certificate,
-  # which runs locally but Gatekeeper rejects on other Macs.
+  # certificate in the keychain — Kevin Gilpin's own team (W92FJB3KRU),
+  # which also holds the notarization key. With none installed it falls
+  # back to an "Apple Development" certificate, which runs locally but
+  # Gatekeeper rejects on other Macs.
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
