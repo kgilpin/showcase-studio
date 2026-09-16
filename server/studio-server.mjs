@@ -49,6 +49,7 @@ import { callTool, createMcpHandler } from "./mcp.mjs";
 import { prompterScript } from "./prompter-script.mjs";
 import { applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
 import { handleShowcaseRequest, showcaseIndex } from "./showcase-data.mjs";
+import { createShowcaseHistory } from "./showcase-history.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { createTerminals } from "./terminals.mjs";
@@ -76,9 +77,16 @@ library settings — currently just one:
 
     show_in_recent: false   keep this folder out of File > Open Recent
 
-The studio live-reloads whenever files here change. The folder is yours
-to version: run \`git init\` here and commit as you like — the app never
-runs git itself, and switching branches reloads the app automatically.
+The studio live-reloads whenever files here change.
+
+When this folder is inside a git repository, the studio keeps a history:
+a few seconds after a showcase stops changing, it commits that showcase's
+folder (and nothing else) with a message saying what changed. Find those
+commits with \`git log --grep Showcase-Studio\`. Revert one with
+\`git revert <sha>\`, or start a new cut with \`git switch -c <name>\` —
+switching branches reloads the app. The studio never runs \`git init\`:
+run it here yourself to turn history on. To turn commits off, set
+"autoCommit": false in the studio's settings.json.
 `;
 
 /* New folders start with scaffolding only — no sample showcases; the
@@ -192,6 +200,8 @@ function locateReferences(text, found) {
  *   features      { terminal: false } turns the embedded terminals off
  *   exportDir     where exports land (<exportDir>/<showcase id>)
  *   settings      { load, save } — the persisted settings
+ *   commitDelayMs how long a showcase must stay unchanged before the
+ *                 studio commits it (server/showcase-history.mjs)
  */
 export function createStudio({
   showcasesDir: initialDir,
@@ -203,6 +213,7 @@ export function createStudio({
   exportDir = path.join(os.homedir(), "Downloads", "showcase-exports"),
   settings = { load: loadSettings, save: saveSettings },
   log = (message) => console.log(message),
+  commitDelayMs = 5000,
 }) {
   let showcasesDir = path.resolve(initialDir);
   let lock = initialLock;
@@ -349,6 +360,7 @@ add notes specific to this library below, and the studio won't touch them.
          * (.claude/ at any level) never change what pages show. */
         if (filename != null && /^(\.studio|\.git)([/\\]|$)/.test(filename)) return;
         if (filename != null && /(^|[/\\])\.claude([/\\]|$)/.test(filename)) return;
+        history.noteChange(filename);
         pending.add(filename == null ? null : path.join(showcasesDir, filename));
         clearTimeout(timer);
         timer = setTimeout(() => {
@@ -419,7 +431,20 @@ add notes specific to this library below, and the studio won't touch them.
    * in mcp.mjs — lands in <library>/.studio/changes.jsonl
    * (server/change-log.mjs), so a Claude session can follow the user's
    * edits, which the watcher above deliberately doesn't announce. */
-  const changeLog = createChangeLog(() => showcasesDir, { log });
+  /* Commits each showcase's changes to git after a quiet period, when the
+   * library is in a git repository. The watcher reports every file change
+   * to it; logged writes report their showcase too, in case the watcher
+   * misses one. */
+  const history = createShowcaseHistory({
+    getLibrary: () => showcasesDir,
+    settings,
+    delayMs: commitDelayMs,
+    log,
+  });
+  const changeLog = createChangeLog(() => showcasesDir, {
+    log,
+    onAppend: (entry) => history.noteShowcase(entry.showcaseId, entry.kind),
+  });
 
   const mcpContext = {
     info,
@@ -428,6 +453,7 @@ add notes specific to this library below, and the studio won't touch them.
     renderer,
     exportJobs,
     changeLog,
+    history,
   };
   const mcp = createMcpHandler({ version, context: mcpContext });
 
@@ -807,6 +833,9 @@ scenes:
       writeMcpConfig();
     },
 
+    /** The library's git history facts: { git, autoCommit, branch, reason? }. */
+    historyStatus: () => history.status(),
+
     /** Runs one MCP tool in-process (the studio Claude Code starts). */
     callTool: (params) => callTool(mcpContext, params),
 
@@ -824,6 +853,7 @@ scenes:
 
     async close() {
       watcher?.close();
+      await history.close();
       terminals?.dispose();
       for (const res of listeners) res.end();
       listeners.clear();

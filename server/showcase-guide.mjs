@@ -37,7 +37,7 @@ A talking-head recording (a phone selfie video) becomes a showcase like this —
 - Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed. Referencing an asset or graphic that doesn't exist yet is fine: the slide renders a "missing asset" placeholder with a linter warning, and heals when the file lands in assets/.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, then reference them by key.
 - Keep narration natural to read aloud, and slides focused — one idea per slide.
-- This folder may be a git repository the user manages themselves — never run destructive git operations; your job is the content files.`;
+- Never run destructive git operations (reset --hard, force pushes, deleting branches) — see "History" above for how to undo a change safely.`;
 
 /** True when a user-owned CLAUDE.md still carries an inline copy of the
  *  data model from a pre-split seed — those copies drift from the app
@@ -158,6 +158,8 @@ change the files, but nothing tells you. So:
   | asset.add       | names                                                 |
   | asset.delete    | name                                                  |
   | showcase.create | title                                                 |
+  | commit          | sha, message, files — a git commit the studio made    |
+  |                 | (source "studio"; see "History")                      |
 
 - While the user works in the studio, watch that file with the Monitor
   tool, so each of their edits reaches you as it happens:
@@ -174,6 +176,49 @@ change the files, but nothing tells you. So:
   the new version.
 - Your own file-editing tool has no such check. Read the file right
   before you change it.
+
+## History
+When the library is inside a git repository, the studio commits as you
+go. studio_start and studio_info report it as \`history\`:
+{git, autoCommit, branch, reason?}.
+
+    a change in <id>/ ──► ~5 s with no more changes ──► commit of <id>/ only
+
+- Every change counts: studio edits, edit_showcase, and files you or the
+  user change directly (theme.yaml, graphics/, assets/). Only that
+  showcase's folder goes into the commit; other work in the repository
+  is left alone, staged or not.
+- Messages say what changed and who changed it:
+
+      nova: edit intro caption 1 text, point hook at shot-2
+
+      Changes, oldest first:
+      - edit intro caption 1 text (studio UI)
+      - point hook at shot-2 (Claude, via edit_showcase)
+
+      Showcase-Studio: auto-commit
+
+- When you finish a meaningful step, name it: commit_showcase
+  {showcaseId, message} commits the showcase now with your message
+  (e.g. "Retime scenes to the new voiceover"). Call it too before you run
+  git commands yourself. Don't run \`git commit\` for showcase changes.
+- Nothing is committed while a merge, rebase, cherry-pick, revert or
+  bisect is in progress, or on a detached HEAD. If \`history.git\` is
+  false, the library isn't a git repository: offer the user to run
+  \`git init\` there, and ask first.
+- Using the history, when the user asks:
+
+  | to                   | run                                             |
+  | -------------------- | ----------------------------------------------- |
+  | review changes       | git log --stat -- <id>   (git show <sha>)       |
+  | find studio commits  | git log --grep Showcase-Studio -- <id>          |
+  | undo a change        | git revert <sha>   (a new commit; never reset)  |
+  | compare with before  | git diff <sha> -- <id>                          |
+  | start a new cut      | git switch -c <cut-name>                        |
+
+  Look at the history first and confirm which commit the user means. The
+  studio reloads pages when a checkout or switch changes the files, and
+  makes no extra commit for it.
 
 ${SHOWCASE_GUIDE}
 `;

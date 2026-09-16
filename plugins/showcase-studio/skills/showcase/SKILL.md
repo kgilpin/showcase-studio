@@ -117,5 +117,15 @@ from the app's source.
 ## 5. Finish
 
 - Exports: `export`, then `export_status` until it's done.
-- The library may be a git repository the user manages. Commit only when
-  asked.
+- History: when the library is in a git repository, the studio commits
+  each showcase a few seconds after it stops changing. `studio_start`
+  reports this as `history`.
+  - After you finish a meaningful change, call `commit_showcase` with a
+    clear message, such as "Retime scenes to the new voiceover". Don't run
+    `git commit` yourself.
+  - When the user asks to undo, compare, or branch, use git history. Look
+    first (`git log --stat -- <showcase>`) and confirm which change they
+    mean. Undo with `git revert <sha>`, which adds a new commit. Never
+    reset. Branch with `git switch -c <name>`.
+  - If `history` says the library isn't a git repository, offer to run
+    `git init` there. Ask first.

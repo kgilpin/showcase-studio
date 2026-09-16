@@ -23,7 +23,9 @@ export const TOOLS = [
     description:
       "The running studio: its URL (open it to see the studio — in a Claude Code preview, " +
       "open this URL), the library folder, the showcases in it, and the lock (the one " +
-      "showcase the studio is locked to, if any). Call it first to find the studio.",
+      "showcase the studio is locked to, if any). Call it first to find the studio. " +
+      "`history` says whether the studio keeps a git history of the library: " +
+      "{git, autoCommit, branch, reason?} — reason explains why commits are off or waiting.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -109,6 +111,29 @@ export const TOOLS = [
         showcaseId: { type: "string", description: "The showcase's folder name" },
       },
       required: ["showcaseId"],
+    },
+  },
+  {
+    name: "commit_showcase",
+    description:
+      "Commit a showcase's changes to git now, with your own message. The studio already " +
+      "commits each showcase a few seconds after it stops changing; call this after you " +
+      'finish a meaningful step, to give it a clear name ("Retime scenes to the new ' +
+      "voiceover\"), and before you run git commands yourself. Only the showcase's folder " +
+      "is committed — other staged or unstaged work in the repository is left as it is. The " +
+      'subject becomes "<showcaseId>: <message>". Returns {committed: true, sha, message, ' +
+      "files}, or {committed: false, reason} when there was nothing to commit or git isn't " +
+      "ready (not a repository, a merge in progress, a detached HEAD, commits turned off).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        message: {
+          type: "string",
+          description: "What this step did, in plain words (the commit subject)",
+        },
+      },
+      required: ["showcaseId", "message"],
     },
   },
   {
@@ -251,7 +276,7 @@ function staleEditMessage(changeLog, showcaseId, ifVersion, currentVersion) {
 }
 
 /** Runs one tool against a studio. `context` is
- *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, changeLog }. */
+ *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, changeLog, history }. */
 export async function callTool(context, { name, arguments: args = {} } = {}) {
   const showcasesDir = context.getShowcasesDir();
   if (name === "studio_info") {
@@ -259,7 +284,18 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       ...context.info(),
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
       changes: context.changeLog?.path(),
+      ...(context.history ? { history: await context.history.status() } : {}),
     });
+  }
+  if (name === "commit_showcase") {
+    const showcaseId = String(args.showcaseId ?? "");
+    if (!showcaseId || /[/\\]|\.\./.test(showcaseId) || showcaseId.startsWith(".")) {
+      throw new Error("Bad showcase id");
+    }
+    const message = String(args.message ?? "").trim();
+    if (!message) throw new Error("Give the commit a message");
+    if (!context.history) throw new Error("This studio keeps no history");
+    return json(await context.history.commitNow(showcaseId, message));
   }
   if (name === "read_showcase") {
     const showcaseId = String(args.showcaseId ?? "");

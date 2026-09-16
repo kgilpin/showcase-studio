@@ -13,9 +13,10 @@
  * on the compact JSON works:
  *
  *   at          ISO timestamp
- *   source      "ui" | "mcp"
+ *   source      "ui" | "mcp" | "studio" (the studio's own git commits)
  *   showcaseId  the showcase folder
  *   kind        "edit" | "asset.add" | "asset.rename" | "asset.delete" | "showcase.create"
+ *               | "commit" (server/showcase-history.mjs: sha, message, files)
  *
  * then what changed. A line that changed a YAML file also names the file
  * and its content hash before and after (previousVersion, version) —
@@ -33,7 +34,12 @@ export const CHANGE_LOG = path.join(".studio", "changes.jsonl");
 const ROTATED = path.join(".studio", "changes.1.jsonl");
 
 /** A change log for the library `getDir()` names (it can switch). */
-export function createChangeLog(getDir, { maxBytes = 256 * 1024, log = console.warn } = {}) {
+export function createChangeLog(
+  getDir,
+  /* onAppend(entry) runs after each append — the studio uses it to start
+   * that showcase's wait before a git commit. */
+  { maxBytes = 256 * 1024, log = console.warn, onAppend = () => {} } = {},
+) {
   const readLines = (file) => {
     if (!existsSync(file)) return [];
     return readFileSync(file, "utf8")
@@ -66,6 +72,7 @@ export function createChangeLog(getDir, { maxBytes = 256 * 1024, log = console.w
       } catch (error) {
         log(`studio: couldn't write the change log (${error.message})`);
       }
+      onAppend(entry);
       return entry;
     },
 
@@ -83,7 +90,8 @@ export function createChangeLog(getDir, { maxBytes = 256 * 1024, log = console.w
      *  (the file was changed outside the studio, or too long ago). */
     since(showcaseId, file, version, { recent = 10 } = {}) {
       const all = this.entries();
-      const mine = (e) => e.showcaseId === showcaseId;
+      /* Commits don't change files, so they aren't changes to report. */
+      const mine = (e) => e.showcaseId === showcaseId && e.kind !== "commit";
       const sameFile = (e) => mine(e) && e.file === file;
       let start = all.findLastIndex((e) => sameFile(e) && e.version === version) + 1;
       if (start === 0) start = all.findIndex((e) => sameFile(e) && e.previousVersion === version);

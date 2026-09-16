@@ -52,6 +52,8 @@ function studioTools({ windows, libraryHelp }) {
         "Start Showcase Studio — or restart it with other choices — and return its URL as " +
         "`open`, and in `guide` the authoring guide to read before changing any showcase. " +
         "`changes` is the studio's change log: one JSON line per edit made in the studio. " +
+        "`history` says whether the studio commits changes to git: {git, autoCommit, branch, " +
+        "reason?}. " +
         seeIt +
         "Lock the studio to one showcase with `showcase`, or open the New showcase page with " +
         "`new`. The other studio tools start an unlocked studio" +
@@ -159,6 +161,7 @@ export function createStudioMcp({
         open: current.landingUrl(),
         guide: path.join(info.library, ".studio", "GUIDE.md"),
         changes: path.join(info.library, CHANGE_LOG),
+        ...(current.studio.historyStatus ? { history: await current.studio.historyStatus() } : {}),
       });
     }
     if (name === "studio_stop") {

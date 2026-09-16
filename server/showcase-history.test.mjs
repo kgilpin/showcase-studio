@@ -1,0 +1,297 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { commitMessage } from "./showcase-history.mjs";
+import { createStudio } from "./studio-server.mjs";
+
+const cleanups = [];
+afterEach(async () => {
+  while (cleanups.length) await cleanups.pop()();
+});
+
+const DELAY = 150;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const SHOWCASE_YAML = `meta:
+  title: Nova
+scenes:
+  - id: intro
+    theme: statement
+    title: Hello
+    captions:
+      - text: Hi there.
+    media:
+      kind: image
+      asset: shot
+`;
+
+const git = (cwd, ...args) =>
+  execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+
+/** A temp folder holding a showcases library at `showcases/` with one
+ *  showcase, "nova". With `repo`, the folder is a git repository with a
+ *  first commit and its own identity (no global hooks or signing). */
+function project({ repo = true } = {}) {
+  const dir = mkdtempSync(path.join(tmpdir(), "studio-history-"));
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const library = path.join(dir, "showcases");
+  mkdirSync(path.join(library, "nova", "assets"), { recursive: true });
+  writeFileSync(path.join(library, "nova", "showcase.yaml"), SHOWCASE_YAML);
+  writeFileSync(path.join(dir, "notes.txt"), "notes\n");
+  if (repo) {
+    git(dir, "init", "-q", "-b", "main");
+    git(dir, "config", "user.name", "Test User");
+    git(dir, "config", "user.email", "test@example.com");
+    git(dir, "config", "commit.gpgsign", "false");
+    git(dir, "config", "core.hooksPath", path.join(dir, "no-hooks"));
+    git(dir, "add", "-A");
+    git(dir, "commit", "-q", "-m", "start");
+  }
+  return { dir, library };
+}
+
+async function startStudio(library, { delay = DELAY, autoCommit } = {}) {
+  let saved = autoCommit === undefined ? {} : { autoCommit };
+  const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
+  const studio = createStudio({
+    showcasesDir: library,
+    version: "test",
+    settings,
+    exportDir: path.join(library, "..", "exports"),
+    features: { terminal: false },
+    commitDelayMs: delay,
+    log: () => {},
+  });
+  cleanups.push(() => studio.close());
+  const call = async (name, args) => {
+    const result = await studio.callTool({ name, arguments: args });
+    if (result.isError) throw new Error(result.content[0].text);
+    return JSON.parse(result.content[0].text);
+  };
+  const post = (action, body) =>
+    new Promise((resolve) => {
+      const res = {
+        statusCode: 0,
+        headersSent: false,
+        setHeader() {},
+        end: (text) => resolve(JSON.parse(text)),
+      };
+      const req = (async function* () {
+        yield JSON.stringify(body);
+      })();
+      req.method = "POST";
+      req.url = `/studio/api/${action}`;
+      req.headers = { host: "localhost" };
+      req.socket = { remoteAddress: "127.0.0.1" };
+      void studio.handle(req, res, () => resolve(null));
+    });
+  return { studio, call, post };
+}
+
+const commits = (dir) => git(dir, "log", "--format=%s").split("\n");
+
+async function waitFor(check, { timeout = 5000 } = {}) {
+  const start = Date.now();
+  while (!check()) {
+    if (Date.now() - start > timeout) throw new Error("timed out waiting");
+    await sleep(25);
+  }
+}
+
+const editTitle = (value) => ({
+  showcaseId: "nova",
+  edits: [{ field: "scene.set", sceneId: "intro", name: "title", value }],
+});
+
+describe("showcase history", () => {
+  it("groups a studio UI edit and an MCP edit into one commit after the quiet period", async () => {
+    const { dir, library } = await project();
+    const { call, post } = await startStudio(library);
+    await post("scene-edit", {
+      showcaseId: "nova",
+      sceneId: "intro",
+      field: "caption",
+      captionIndex: 0,
+      value: "A new line.",
+    });
+    await call("edit_showcase", {
+      showcaseId: "nova",
+      edits: [{ field: "media.asset", sceneId: "intro", value: "shot-2" }],
+    });
+    writeFileSync(path.join(library, "nova", "theme.yaml"), "colors:\n  primary: red\n");
+
+    await waitFor(() => commits(dir).length === 2);
+    await sleep(DELAY * 4);
+    expect(commits(dir)).toEqual([
+      "nova: edit intro caption 1 text, point intro at shot-2, add theme.yaml",
+      "start",
+    ]);
+    const body = git(dir, "log", "-1", "--format=%b");
+    expect(body).toContain("- edit intro caption 1 text (studio UI)");
+    expect(body).toContain("- point intro at shot-2 (Claude, via edit_showcase)");
+    expect(body).toContain("- add theme.yaml (files changed directly)");
+    expect(git(dir, "log", "-1", "--format=%(trailers:key=Showcase-Studio,valueonly)")).toBe(
+      "auto-commit",
+    );
+    expect(git(dir, "status", "--porcelain", "--", "showcases/nova")).toBe("");
+
+    /* The commit is in the change log. */
+    const lines = readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(lines.at(-1)).toMatchObject({
+      source: "studio",
+      showcaseId: "nova",
+      kind: "commit",
+      sha: git(dir, "rev-parse", "HEAD"),
+      files: ["showcase.yaml", "theme.yaml"],
+    });
+  });
+
+  it("commits only the showcase folder: other staged work stays staged", async () => {
+    const { dir, library } = await project();
+    writeFileSync(path.join(dir, "notes.txt"), "staged by the user\n");
+    git(dir, "add", "notes.txt");
+    writeFileSync(path.join(dir, "scratch.txt"), "not staged\n");
+    const { call } = await startStudio(library);
+    await call("edit_showcase", editTitle("Changed"));
+
+    await waitFor(() => commits(dir).length === 2);
+    expect(git(dir, "show", "--name-only", "--format=", "HEAD")).toBe(
+      "showcases/nova/showcase.yaml",
+    );
+    const status = git(dir, "status", "--porcelain");
+    expect(status).toContain("M  notes.txt");
+    expect(status).toContain("?? scratch.txt");
+    expect(git(dir, "diff", "--cached", "--name-only")).toBe("notes.txt");
+  });
+
+  it("never commits when the library isn't in a git repository, and says so", async () => {
+    const { dir, library } = await project({ repo: false });
+    const { call } = await startStudio(library);
+    await call("edit_showcase", editTitle("Changed"));
+    await sleep(DELAY * 4);
+
+    const info = await call("studio_info", {});
+    expect(info.history).toMatchObject({ git: false, autoCommit: false });
+    expect(info.history.reason).toContain("git init");
+    expect(await call("commit_showcase", { showcaseId: "nova", message: "Try" })).toMatchObject({
+      committed: false,
+    });
+    expect(() => git(dir, "rev-parse", "--git-dir")).toThrow();
+  });
+
+  it("makes no commit when a branch switch leaves the showcase matching a commit", async () => {
+    const { dir, library } = await project();
+    git(dir, "switch", "-q", "-c", "cut");
+    writeFileSync(
+      path.join(library, "nova", "showcase.yaml"),
+      SHOWCASE_YAML.replace("Hello", "Cut"),
+    );
+    git(dir, "commit", "-q", "-am", "a new cut");
+    git(dir, "switch", "-q", "main");
+
+    const { call } = await startStudio(library);
+    expect((await call("studio_info", {})).history).toMatchObject({
+      git: true,
+      autoCommit: true,
+      branch: "main",
+    });
+    git(dir, "switch", "-q", "cut");
+    await sleep(DELAY * 6);
+    git(dir, "switch", "-q", "main");
+    await sleep(DELAY * 6);
+    expect(git(dir, "log", "--all", "--format=%s").split("\n")).toEqual(["a new cut", "start"]);
+  });
+
+  it("waits while a merge is in progress, and commits on the next change after it", async () => {
+    const { dir, library } = await project();
+    const mergeHead = path.join(dir, ".git", "MERGE_HEAD");
+    writeFileSync(mergeHead, `${git(dir, "rev-parse", "HEAD")}\n`);
+    const { call } = await startStudio(library);
+    await call("edit_showcase", editTitle("During the merge"));
+    await sleep(DELAY * 4);
+    expect(commits(dir)).toEqual(["start"]);
+    expect((await call("studio_info", {})).history.reason).toContain("merge");
+    expect(await call("commit_showcase", { showcaseId: "nova", message: "Now" })).toEqual({
+      committed: false,
+      reason: "Not committed: a merge is in progress.",
+    });
+
+    rmSync(mergeHead);
+    await call("edit_showcase", editTitle("After the merge"));
+    await waitFor(() => commits(dir).length === 2);
+    expect(commits(dir)[0]).toBe("nova: edit intro title");
+  });
+
+  it("commit_showcase commits right away with Claude's message", async () => {
+    const { dir, library } = await project();
+    const { call } = await startStudio(library, { delay: 60_000 });
+    await call("edit_showcase", editTitle("Retimed"));
+    const result = await call("commit_showcase", {
+      showcaseId: "nova",
+      message: "Retime scenes to the new voiceover",
+    });
+    expect(result).toEqual({
+      committed: true,
+      sha: git(dir, "rev-parse", "HEAD"),
+      message: "nova: Retime scenes to the new voiceover",
+      files: ["showcase.yaml"],
+    });
+    expect(commits(dir)).toEqual(["nova: Retime scenes to the new voiceover", "start"]);
+    expect(git(dir, "log", "-1", "--format=%b")).toContain(
+      "- edit intro title (Claude, via edit_showcase)",
+    );
+    expect(await call("commit_showcase", { showcaseId: "nova", message: "Again" })).toMatchObject({
+      committed: false,
+      reason: expect.stringContaining("Nothing to commit"),
+    });
+  });
+
+  it("turns off with the autoCommit setting", async () => {
+    const { dir, library } = await project();
+    const { call } = await startStudio(library, { autoCommit: false });
+    await call("edit_showcase", editTitle("Changed"));
+    await sleep(DELAY * 4);
+    expect(commits(dir)).toEqual(["start"]);
+    expect((await call("studio_info", {})).history).toMatchObject({ git: true, autoCommit: false });
+    expect(await call("commit_showcase", { showcaseId: "nova", message: "Try" })).toMatchObject({
+      committed: false,
+      reason: expect.stringContaining("turned off"),
+    });
+  });
+});
+
+describe("commitMessage", () => {
+  it("names changed files no log entry explains, grouped by what happened", () => {
+    const { subject, text } = commitMessage({
+      showcaseId: "gold-traces",
+      files: [
+        { verb: "edit", file: "theme.yaml" },
+        { verb: "edit", file: "graphics/risk.tsx" },
+        { verb: "add", file: "assets/shot.png" },
+      ],
+    });
+    expect(subject).toBe("gold-traces: edit theme.yaml, graphics/risk.tsx; add assets/shot.png");
+    expect(text.endsWith("\n\nShowcase-Studio: auto-commit")).toBe(true);
+  });
+
+  it("keeps the subject short, counting what it leaves out", () => {
+    const edits = ["intro", "risk", "hook", "outro", "cta", "demo"].map((sceneId) => ({
+      field: "scene.set",
+      sceneId,
+      name: "title",
+    }));
+    const { subject, body } = commitMessage({
+      showcaseId: "nova",
+      entries: [{ source: "ui", showcaseId: "nova", kind: "edit", file: "showcase.yaml", edits }],
+      files: [{ verb: "edit", file: "showcase.yaml" }],
+    });
+    expect(subject.length).toBeLessThanOrEqual(72);
+    expect(subject).toMatch(/^nova: edit intro title, edit risk title, .*, and \d more$/);
+    expect(body.split("\n")).toHaveLength(7);
+  });
+});
