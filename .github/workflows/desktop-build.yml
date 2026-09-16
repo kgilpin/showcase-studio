@@ -141,43 +141,6 @@ jobs:
           Write-Host $again
           if ($again -notmatch "already installed") { throw "A second install-app run didn't see the installed app" }
 
-      # Diagnostics, never failing: starts the installed app and each
-      # launcher the way an MCP client does and reports what comes back, so
-      # a failed connection below has its cause in the log.
-      - name: Probe the MCP launchers
-        run: |
-          $env:SHOWCASE_STUDIO_INSTALL_DIR = Join-Path $env:RUNNER_TEMP "apps"
-          $exe = Join-Path $env:SHOWCASE_STUDIO_INSTALL_DIR "Showcase Studio\Showcase Studio.exe"
-          $bin = (Resolve-Path plugins/showcase-studio/bin).Path
-          $probe = ".github/scripts/mcp-probe.mjs"
-          $stop = {
-            Get-CimInstance Win32_Process -Filter "Name = 'Showcase Studio.exe'" |
-              ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-          }
-          node $probe "app directly" $exe --mcp; & $stop
-          node $probe "studio-mcp.cmd" (Join-Path $bin "studio-mcp.cmd"); & $stop
-          node $probe "sh studio-mcp" "C:\Program Files\Git\bin\sh.exe" "$bin/studio-mcp"; & $stop
-          node $probe "extensionless path" "$bin/studio-mcp"; & $stop
-          $env:PROBE_SHELL = "1"
-          node $probe "extensionless path" "`"$bin/studio-mcp`""; & $stop
-          $env:PROBE_SHELL = $null
-
-          # Does the app's stdout reach a pipe at all, and does Electron's
-          # own logging say why it quits?
-          node $probe "app --help" $exe --help; & $stop
-          $env:ELECTRON_ENABLE_LOGGING = "1"
-          node $probe "app --mcp, Electron logging" $exe --mcp; & $stop
-          $env:ELECTRON_ENABLE_LOGGING = $null
-
-          # A bare Electron main process: process.stdin versus fd streams.
-          # The last line: Electron may print "Downloading Electron binary..." first.
-          $electron = node -p "require('./electron/node_modules/electron')" | Select-Object -Last 1
-          foreach ($mode in @("stdin", "fd")) {
-            $env:PROBE_MODE = $mode
-            node $probe "bare electron, $mode" $electron .github/scripts/electron-stdio-probe.cjs
-          }
-          $env:PROBE_MODE = $null
-
       # Claude Code itself, with the plugin installed from this checkout,
       # checks that the plugin's MCP server connects. Run twice: as users
       # normally have it, and with Git Bash's sh off PATH, since which
