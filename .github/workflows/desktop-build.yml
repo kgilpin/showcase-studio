@@ -1,6 +1,6 @@
 # Builds the desktop app on Windows and checks that it starts.
 #
-#   npm ci ─► tests ─► build:desktop ─► package-desktop.mjs ─► electron-builder --win zip
+#   npm ci ─► setup:desktop ─► tests ─► build:desktop ─► package-desktop.mjs ─► electron-builder --win zip
 #                                                                     │
 #                             smoke test: start the app headless, load its pages
 #                                                                     │
@@ -46,9 +46,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
 
       - name: Install
         run: npm ci
+
+      # Electron and electron-builder live in electron/package.json
+      # (scripts/desktop-deps.mjs), not in the root install.
+      - name: Install the desktop shell's dependencies
+        run: npm --prefix electron ci
 
       - name: Tests
         run: npx vitest run
@@ -60,7 +68,7 @@ jobs:
         run: node scripts/package-desktop.mjs
 
       - name: Package
-        run: npx electron-builder --win --publish never
+        run: node scripts/electron-builder.mjs --win --publish never
 
       - name: Smoke test
         run: |

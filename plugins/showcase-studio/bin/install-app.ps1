@@ -40,7 +40,8 @@ if (-not $local) {
 }
 
 if (Test-Path $exe) {
-  $installed = (Get-Item $exe).VersionInfo.ProductVersion
+  # Windows keeps four parts (0.2.0.0); the release has three.
+  $installed = ((Get-Item $exe).VersionInfo.ProductVersion -split "\.")[0..2] -join "."
   if ($installed -eq $version) {
     Write-Output "Showcase Studio $version is already installed at $dest"
     exit 0
