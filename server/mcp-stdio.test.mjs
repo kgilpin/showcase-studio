@@ -20,7 +20,11 @@ function library(...ids) {
 
 afterEach(() => {
   clearPageError();
-  while (dirs.length) rmSync(dirs.pop(), { recursive: true, force: true });
+  /* Retries: on Windows a folder can't be removed while the studio's
+   * watcher still has it open, which lasts a moment. */
+  while (dirs.length) {
+    rmSync(dirs.pop(), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
 });
 
 /** Stands in for a real studio, and records how each one was started and
