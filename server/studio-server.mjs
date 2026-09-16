@@ -532,9 +532,19 @@ scenes:
       const strip = (s) => s.replace(/\.[^.]+$/, "");
       const text = readFileSync(yamlPath, "utf8");
       /* The full file name and, when it has an extension, the bare key —
-       * matched in one pass, so offsets point into the original text. */
+       * matched in one pass, so offsets point into the original text.
+       * When files share a bare name, it means the first of them (see
+       * assetMap in src/content/source.ts). So the bare key is rewritten
+       * only when it means the renamed file, and it becomes the full new
+       * name when the new bare name already means another file. */
+      const files = readdirSync(dir).filter((f) => !f.startsWith("."));
+      const means = (key, except) =>
+        files.find((f) => f !== except && (f === key || strip(f) === key));
       const names = new Map([[oldName, newName]]);
-      if (strip(oldName) !== oldName) names.set(strip(oldName), strip(newName));
+      if (strip(oldName) !== oldName && means(strip(oldName)) === oldName) {
+        const newKey = strip(newName);
+        names.set(strip(oldName), means(newKey, oldName) ? newName : newKey);
+      }
       const re = new RegExp(
         `(^\\s*(?:asset|src|cover):\\s*["']?)(${[...names.keys()].map(esc).join("|")})(["']?\\s*(?:#.*)?)$`,
         "gm",

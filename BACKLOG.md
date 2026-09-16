@@ -9,7 +9,7 @@ found on 2026-09-16, running the studio from source through the plugin.
 
 | # | Item | Kind | Status |
 |---|------|------|--------|
-| 1 | Renaming an asset rewrites references to other assets | Fix | In progress |
+| 1 | Renaming an asset rewrites references to other assets | Fix | Original case not reproduced; a related shared-name bug fixed |
 | 2 | Claude can't see edits made in the studio UI | Feature | Done (`bed6200`) |
 | 3 | The preview button opens the wrong showcase | Fix | Replaced by `47bc44f`: libraries get no `launch.json`; Claude opens the preview itself |
 | 4 | The preview button can't launch the installed app | Fix | Done: the app honors `PORT` and takes `--no-window` (the preview button no longer needs it) |
@@ -50,6 +50,22 @@ matched by mistake.
 
 **Test.** Two scenes: one uses a missing asset, one uses the asset being
 renamed. After the rename, only the second scene changes.
+
+**Status (2026-09-16).** Not reproduced. The rename code only rewrites a
+whole `asset:`, `src:` or `cover:` value that equals the old name, and the
+test above passes. Nothing else on the page rewrites references. If it
+happens again, the change log (`.studio/changes.jsonl`) now records every
+rename with each reference it rewrote, and the automatic git commits show
+the exact change.
+
+Looking for it turned up a real bug of the same kind, now fixed. When two
+files share a bare name, the bare name means the first of them, but a
+rename ignored that:
+
+| Assets | Rename | Before the fix | Now |
+|---|---|---|---|
+| `shot.mp4`, `shot.png`; scene says `asset: shot` (the video) | `shot.png` → `still.png` | `asset: shot` → `still` (now the image) | left alone |
+| `shot.mp4`, `shot.png`, `clip.png` | `shot.mp4` → `clip.mp4` | `asset: shot` → `clip` (means `clip.png`) | → `clip.mp4` |
 
 ### 3. The preview button opens the wrong showcase
 

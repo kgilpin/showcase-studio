@@ -230,6 +230,93 @@ describe("createStudio", () => {
     });
   });
 
+  it("renames only references to the renamed asset, leaving a missing asset's alone", async () => {
+    const yaml = `meta:
+  title: Nova
+scenes:
+  - id: plugin
+    theme: feature
+    title: Plugin
+    captions:
+      - text: One.
+    media:
+      kind: image
+      asset: shot-claude-desktop
+  - id: take
+    theme: footage
+    title: Take
+    captions:
+      - text: Two.
+    media:
+      kind: video
+      asset: showcase-studio-take-2
+`;
+    for (const to of ["video-readthrough-13sec.mp4", "video-readthrough-13sec"]) {
+      const { library, post } = await startStudio();
+      const yamlPath = path.join(library, "nova", "showcase.yaml");
+      writeFileSync(yamlPath, yaml);
+      writeFileSync(path.join(library, "nova", "assets", "showcase-studio-take-2.mp4"), "mp4");
+      expect(
+        await post("asset-rename", { showcaseId: "nova", from: "showcase-studio-take-2.mp4", to }),
+      ).toEqual({ ok: true, name: "video-readthrough-13sec.mp4", updatedReferences: 1 });
+      expect(readFileSync(yamlPath, "utf8")).toBe(
+        yaml.replace("asset: showcase-studio-take-2", "asset: video-readthrough-13sec"),
+      );
+      expect(existsSync(path.join(library, "nova", "assets", "video-readthrough-13sec.mp4"))).toBe(
+        true,
+      );
+    }
+  });
+
+  it("rewrites a shared bare name only when it means the renamed file", async () => {
+    /* shot.mp4 and shot.png share "shot", which means shot.mp4 (the first). */
+    const yaml = `meta:
+  title: Nova
+scenes:
+  - id: one
+    theme: footage
+    captions:
+      - text: One.
+    media:
+      kind: video
+      asset: shot
+  - id: two
+    theme: feature
+    captions:
+      - text: Two.
+    media:
+      kind: image
+      asset: shot.png
+`;
+    const setup = async (...files) => {
+      const studio = await startStudio();
+      const yamlPath = path.join(studio.library, "nova", "showcase.yaml");
+      writeFileSync(yamlPath, yaml);
+      for (const file of files) {
+        writeFileSync(path.join(studio.library, "nova", "assets", file), "x");
+      }
+      return { ...studio, yamlPath };
+    };
+
+    /* Renaming the file "shot" doesn't mean leaves the bare key alone. */
+    const png = await setup("shot.mp4", "shot.png");
+    expect(
+      await png.post("asset-rename", { showcaseId: "nova", from: "shot.png", to: "still" }),
+    ).toMatchObject({ ok: true, name: "still.png", updatedReferences: 1 });
+    expect(readFileSync(png.yamlPath, "utf8")).toBe(
+      yaml.replace("asset: shot.png", "asset: still.png"),
+    );
+
+    /* A new bare name that already means another file gets the full name. */
+    const mp4 = await setup("shot.mp4", "shot.png", "clip.png");
+    expect(
+      await mp4.post("asset-rename", { showcaseId: "nova", from: "shot.mp4", to: "clip" }),
+    ).toMatchObject({ ok: true, name: "clip.mp4", updatedReferences: 1 });
+    expect(readFileSync(mp4.yamlPath, "utf8")).toBe(
+      yaml.replace("asset: shot\n", "asset: clip.mp4\n"),
+    );
+  });
+
   it("sends info when a page connects, and reload when files change outside the studio", async () => {
     const { url, library } = await startStudio();
     const controller = new AbortController();
