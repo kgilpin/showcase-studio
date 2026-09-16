@@ -170,7 +170,8 @@ jobs:
           $env:ELECTRON_ENABLE_LOGGING = $null
 
           # A bare Electron main process: process.stdin versus fd streams.
-          $electron = node -p "require('./electron/node_modules/electron')"
+          # The last line: Electron may print "Downloading Electron binary..." first.
+          $electron = node -p "require('./electron/node_modules/electron')" | Select-Object -Last 1
           foreach ($mode in @("stdin", "fd")) {
             $env:PROBE_MODE = $mode
             node $probe "bare electron, $mode" $electron .github/scripts/electron-stdio-probe.cjs
