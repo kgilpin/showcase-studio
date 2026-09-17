@@ -53,6 +53,11 @@ import { editedText, parseEditable } from "./yaml-text.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 const CAPTION_POSITIONS = ["top", "center", "lower", "bottom"];
+/* The brand mark sits in a corner — there is no banner position, and no
+ * affordance for turning the App Store badge into a watermark. See
+ * src/content/watermark.ts for why. */
+const WATERMARK_POSITIONS = ["top-left", "top-right", "bottom-left", "bottom-right"];
+const WATERMARK_FIELDS = ["asset", "text", "position", "opacity", "scale"];
 
 /* The field whitelists behind scene.set / meta.set / caption.set: how a
  * value validates, and whether an empty value removes the field. `map`
@@ -70,6 +75,9 @@ const SCENE_FIELDS = {
   export: { kind: "boolean", removable: true },
   cta: { kind: "map", map: { label: true, url: true, kind: false }, removable: true },
   note: { kind: "string", removable: true },
+  /* The showcase's brand mark, per scene: false opts this slide out,
+   * true forces it on, a map overrides a field or two for this slide. */
+  watermark: { kind: "watermark", scene: true, removable: true },
 };
 
 const META_FIELDS = {
@@ -84,6 +92,9 @@ const META_FIELDS = {
   cover: { kind: "string", removable: true },
   soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
   notes: { kind: "string", removable: true },
+  /* The persistent brand mark ("bug") drawn in a corner of every slide
+   * (src/content/watermark.ts). */
+  watermark: { kind: "watermark", removable: true },
 };
 
 const CAPTION_FIELDS = {
@@ -129,6 +140,50 @@ function checkFieldValue(fields, where, name, value) {
     case "boolean":
       if (typeof value !== "boolean") throw new Error(`${label} must be true or false`);
       return { value };
+    case "watermark": {
+      /* A scene's watermark may also be a plain false (opt this slide
+       * out) or true (force the showcase's mark back on). */
+      if (spec.scene && typeof value === "boolean") return { value };
+      const shape = spec.scene
+        ? `false, true, or a map of ${WATERMARK_FIELDS.join(", ")}`
+        : `a map of ${WATERMARK_FIELDS.join(", ")}`;
+      if (typeof value !== "object" || Array.isArray(value)) {
+        throw new Error(`${label} must be ${shape}`);
+      }
+      for (const key of Object.keys(value)) {
+        if (!WATERMARK_FIELDS.includes(key)) {
+          throw new Error(
+            `${label}.${key} is not a field — ${label} takes: ${WATERMARK_FIELDS.join(", ")}`,
+          );
+        }
+      }
+      for (const key of ["asset", "text"]) {
+        if (value[key] != null && (typeof value[key] !== "string" || !value[key].trim())) {
+          throw new Error(`${label}.${key} must be text`);
+        }
+      }
+      if (value.position != null && !WATERMARK_POSITIONS.includes(value.position)) {
+        throw new Error(`${label}.position must be a corner: ${WATERMARK_POSITIONS.join(", ")}`);
+      }
+      if (
+        value.opacity != null &&
+        !(typeof value.opacity === "number" && value.opacity >= 0 && value.opacity <= 1)
+      ) {
+        throw new Error(`${label}.opacity must be a number between 0 and 1`);
+      }
+      if (
+        value.scale != null &&
+        !(typeof value.scale === "number" && value.scale >= 0.25 && value.scale <= 3)
+      ) {
+        throw new Error(`${label}.scale must be a number between 0.25 and 3`);
+      }
+      /* A mark with nothing to draw would silently do nothing. The
+       * scene-level form may omit both — it is merged over meta's. */
+      if (!spec.scene && !value.asset && !value.text) {
+        throw new Error(`${label} needs an asset, a text wordmark, or both`);
+      }
+      return { value };
+    }
     case "map": {
       if (typeof value !== "object" || Array.isArray(value)) {
         throw new Error(`${label} must be a map of ${Object.keys(spec.map).join(", ")}`);

@@ -20,6 +20,7 @@ import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source"
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
 import { ASSET_KINDS, mediaKindWarning, type AssetKind } from "./asset-kind";
+import { readWatermark, resolveWatermark, type Watermark, type WatermarkSpec } from "./watermark";
 import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
@@ -142,10 +143,12 @@ export type CaptionStyle = "chip" | "karaoke" | "reveal";
 /* The player previews the export destinations as three view modes: "App
  * Screens" (titles on the slide, captions beside — the screenshot export),
  * "TikTok" (portrait, captions overlaid, titles hidden — the video export),
- * and "4:3" (the embed canvas — the video-43 export). The one per-showcase
- * presentation choice is `meta.embedCaptions`: whether the 4:3 canvas
- * overlays captions (unset follows the voiceover — embed-captions.ts).
- * Caption text always uses the large size. */
+ * and "4:3" (the embed canvas — the video-43 export). Two per-showcase
+ * presentation choices carry across all three: `meta.embedCaptions`,
+ * whether the 4:3 canvas overlays captions (unset follows the voiceover —
+ * embed-captions.ts), and `meta.watermark`, the brand mark drawn in a
+ * corner of every slide (watermark.ts). Caption text always uses the
+ * large size. */
 
 export type Scene = {
   id: string;
@@ -183,6 +186,10 @@ export type Scene = {
   /** Overlay caption painting (see CaptionStyle); resolved from the
    *  scene, else meta.captionStyle, else "chip". */
   captionStyle?: CaptionStyle | undefined;
+  /** The persistent brand mark for this slide, resolved from
+   *  meta.watermark and the scene's own `watermark` override, with the
+   *  mark image already pointed at its served URL (see watermark.ts). */
+  watermark?: Watermark | undefined;
   /** Smaller supporting paragraph shown under `body` (statement theme). */
   support?: string;
   /** Small, low-emphasis line shown under the call to action. */
@@ -216,6 +223,10 @@ export type Showcase = {
   /** Overlay captions on the 4:3 embed canvas, as authored (true/false);
    *  undefined follows the voiceover — see src/content/embed-captions.ts. */
   embedCaptions?: boolean | undefined;
+  /** The showcase-wide brand mark, resolved (see src/content/watermark.ts).
+   *  Scenes carry their own copy — this is the setting, not what any one
+   *  slide draws. */
+  watermark?: Watermark | undefined;
   /** Asset key for the home-page card image (defaults to the app mark). */
   cover?: string | undefined;
   /** Showcase-level authoring notes (see Scene.note) — never rendered in
@@ -254,8 +265,11 @@ type RawMedia =
 
 type RawScene = Omit<
   Scene,
-  "media" | "captions" | "body" | "durationMs" | "theme" | "warnings" | "captionStyle"
+  "media" | "captions" | "body" | "durationMs" | "theme" | "warnings" | "captionStyle" | "watermark"
 > & {
+  /** As authored: false opts this slide out of the showcase's brand
+   *  mark, true forces it on, a map overrides a field or two. */
+  watermark?: unknown;
   /** As authored — normalized (with linter warnings) in buildShowcase. */
   theme?: string;
   media?: RawMedia;
@@ -284,6 +298,9 @@ type RawDoc = {
     /** Overlay captions on the 4:3 embed canvas — validated (with a linter
      *  warning) in buildShowcase; unset follows the voiceover. */
     embedCaptions?: unknown;
+    /** The showcase's persistent brand mark — validated (with linter
+     *  warnings) in buildShowcase; see src/content/watermark.ts. */
+    watermark?: unknown;
     theme?: Record<string, string>;
   };
   scenes: RawScene[];
@@ -637,6 +654,31 @@ function resolveSoundtrack(showcaseId: string, soundtrack: RawDoc["meta"]["sound
   return asset ? { ...soundtrack, src: asset.url } : soundtrack;
 }
 
+/** Points a resolved watermark's mark image at its served URL. As with
+ *  `soundtrack.src`, `asset` may be an asset key, a root-relative path,
+ *  or a full URL — a path or URL passes through untouched. A key with no
+ *  file warns and drops the image (a text-only bug still draws; a bug
+ *  with nothing left to draw disappears). */
+function resolveWatermarkAsset(
+  showcaseId: string,
+  spec: WatermarkSpec | undefined,
+  warn: (message: string) => void,
+): Watermark | undefined {
+  if (!spec) return undefined;
+  if (!spec.asset) return spec;
+  if (/^(https?:)?\/\//.test(spec.asset) || spec.asset.startsWith("/")) {
+    return { ...spec, src: spec.asset };
+  }
+  const entry = assetsByShowcase.get(showcaseId)?.get(spec.asset);
+  if (entry) return { ...spec, src: entry.url, file: entry.file };
+  warn(
+    `watermark asset "${spec.asset}" has no file in the showcase's assets/ folder — ` +
+      `drawing the brand mark without it`,
+  );
+  const { asset: _asset, ...rest } = spec;
+  return rest.text ? rest : undefined;
+}
+
 const KNOWN_THEMES = new Set<SceneTheme>(["statement", "feature", "console", "footage"]);
 
 /** THEME LINTER — normalizes each scene's theme and flags what doesn't
@@ -708,12 +750,32 @@ function buildShowcase(
   doc: RawDoc,
   warn: (sceneId: string, message: string) => void,
 ): Showcase {
+  /* The showcase's brand mark, validated once (its warnings belong to
+   *  the showcase, not to whichever scene is drawn first). */
+  const baseWatermark = readWatermark(doc.meta.watermark, "meta.watermark", (message) =>
+    warn("", message),
+  );
   const scenes: Scene[] = doc.scenes.map((raw) => {
-    const { titleDurationMs: _titleDurationMs, captionsIn: _captionsIn, ...scene } = raw;
+    const {
+      titleDurationMs: _titleDurationMs,
+      captionsIn: _captionsIn,
+      watermark: authoredWatermark,
+      ...scene
+    } = raw;
     const { theme, warnings } = lintScene(raw);
     const media = resolveMedia(showcaseId, scene.media, (message) => warnings.push(message));
     const captionStyle = resolveCaptionStyle(raw.captionStyle ?? doc.meta.captionStyle, (message) =>
       warnings.push(message),
+    );
+    /* A statement slide whose media IS the mark shows the logo full size
+     * already — the small corner copy would be a second one. */
+    const sceneShowsMark = theme === "statement" && media.kind !== "none" && media.frame === "mark";
+    const watermark = resolveWatermarkAsset(
+      showcaseId,
+      resolveWatermark(baseWatermark, authoredWatermark, { sceneShowsMark }, (message) =>
+        warnings.push(message),
+      ),
+      (message) => warnings.push(message),
     );
     warnings.forEach((message) => warn(raw.id, message));
     const timing = resolveSceneTiming(raw, doc.meta.pace);
@@ -724,6 +786,7 @@ function buildShowcase(
       body: timing.captions[0]?.text,
       media,
       captionStyle,
+      ...(watermark ? { watermark } : {}),
       ...(warnings.length > 0 ? { warnings } : {}),
     };
   });
@@ -755,6 +818,11 @@ function buildShowcase(
     id: showcaseId,
     ...doc.meta,
     embedCaptions,
+    watermark: resolveWatermarkAsset(
+      showcaseId,
+      resolveWatermark(baseWatermark, true, {}, () => {}),
+      () => {},
+    ),
     soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
     theme: resolveTheme(showcaseId),
     scenes,
@@ -1111,6 +1179,13 @@ export function showcaseAssets(showcase: Showcase): {
     } else if (media.kind === "graphic") {
       markFile(media.file, scene.id);
     }
+  }
+  /* The brand mark is referenced from meta, not from a scene — without
+   * this it would look unused on the assets page. */
+  const markKey = showcase.watermark?.asset;
+  if (markKey && !/^(https?:)?\/\//.test(markKey) && !markKey.startsWith("/")) {
+    if (showcase.watermark?.file) mark(usedBy, showcase.watermark.file, "watermark");
+    else mark(missing, markKey, "watermark");
   }
   for (const [, entry] of entries) {
     if (showcase.soundtrack?.src && entry.url === showcase.soundtrack.src) {

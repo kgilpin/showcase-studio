@@ -59,8 +59,10 @@ export const TOOLS = [
       "`field` plus its parameters:\n" +
       '- {field: "scene.set", sceneId, name, value} — one scene field: title, eyebrow, theme, ' +
       "support, ctaNote, captionStyle, transition, durationMs, export, id, note (the scene's " +
-      "authoring note — keep working context here, not in YAML comments), or cta " +
-      "({label, url, kind?}). null removes an optional field.\n" +
+      "authoring note — keep working context here, not in YAML comments), cta " +
+      "({label, url, kind?}), or watermark (false opts this slide out of the showcase's brand " +
+      "mark, true forces it on, a map overrides a field or two for this slide). null removes " +
+      "an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom).\n" +
       '- {field: "caption.insert", sceneId, captionIndex, caption: {text, ...}} and ' +
@@ -70,7 +72,12 @@ export const TOOLS = [
       '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
       "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
       "default, which hides them when a synced voiceover is set), cover, notes " +
-      "(showcase-level authoring notes), or soundtrack ({src, volume?, sync?}).\n" +
+      "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), or watermark " +
+      "({asset?, text?, position?, opacity?, scale?}) — the brand mark drawn in a corner of " +
+      "every slide, like a TV network's bug. position is one of the four corners " +
+      "(top-left default); opacity defaults to 0.5. Use an identity mark (a logo, a " +
+      "wordmark), not the App Store badge — that is a call to action and belongs in a " +
+      "scene's cta.\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
       '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +

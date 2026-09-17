@@ -195,6 +195,14 @@ npm run dev -- --new [<library folder>]
 - Asset keys in a showcase's YAML are file names without extension:
   `asset: shot-mirror` resolves to `assets/shot-mirror.png` in that
   showcase's folder. There is no registry to maintain.
+- The persistent brand mark (`meta.watermark`, with a per-scene
+  `watermark` override) is resolved per scene in
+  `src/content/watermark.ts` and drawn by
+  `src/components/showcase/SceneWatermark.tsx` inside each canvas's
+  stage — so the player's three view modes, both video exports, and the
+  App Store screenshot set all get it from one place. It is a corner
+  mark by design: there is no banner position, and the App Store badge
+  belongs in a scene's `cta`, not in the watermark.
 - Per-showcase styling goes in `showcases/<id>/theme.yaml` — a
   whitelisted set of `colors`, `fonts`, `shape`, and `atmosphere` overrides
   applied by the `/showcase/$showcaseId` layout route. A theme can
