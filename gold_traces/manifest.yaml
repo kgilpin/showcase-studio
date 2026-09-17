@@ -3,9 +3,10 @@
 #
 # The curated behavioral baseline: one lean, deterministic trace per
 # node-testable subsystem — the timing model, the YAML edit write path
-# (happy path + a rejection gate), and the data server (index, byte
-# ranges, and the traversal gate). Record command and entry paths are
-# derived; see the skill's SKILL.md.
+# (happy path + a rejection gate), the data server (index, byte ranges,
+# and the traversal gate), and the media build (the whole pipeline plus
+# its two refusals). Record command and entry paths are derived; see the
+# skill's SKILL.md.
 
 schema_version: 2
 
@@ -117,6 +118,24 @@ entries:
     test_name: rewrites a shared bare name only when it means the renamed file
     appmap_path: vitest/rewrites_a_shared_bare_name_only_when_it_means_the_renamed_file.appmap.json
     summary: Asset rename through POST /studio/api/asset-rename — the reference rewrite, including the guard that leaves a shared bare name alone unless it means the renamed file.
+
+  - feature: build-media
+    test_file: server/build-media.test.mjs
+    test_name: derives the words file from the recording's transcript
+    appmap_path: "vitest/derives_the_words_file_from_the_recording's_transcript.appmap.json"
+    summary: A recorded pitch built from its cut list, end to end — the plan read and the durations pinned, the spans joined into the voiceover and cut into clips with ffmpeg, the recording's transcript corrected and remapped onto this cut, and every pin written back through the YAML edit path.
+
+  - feature: build-media
+    test_file: server/build-media.test.mjs
+    test_name: refuses a take whose picture and sound last different times
+    appmap_path: vitest/refuses_a_take_whose_picture_and_sound_last_different_times.appmap.json
+    summary: The cut list's own gate, refused — a scene whose picture and sound don't last the same is rejected while the plan is still being read, before anything is built or any pin is written.
+
+  - feature: build-media
+    test_file: server/build-media.test.mjs
+    test_name: refuses a recording outside the library
+    appmap_path: vitest/refuses_a_recording_outside_the_library.appmap.json
+    summary: The source-path gate's refused branch — a derived cut may name a recording by path, but one that resolves outside the library never becomes a file the build reads.
 
   - feature: page-error
     test_file: server/exporter.test.mjs

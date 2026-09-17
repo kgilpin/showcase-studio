@@ -129,7 +129,12 @@ function AssetsScreen() {
       className="@container min-h-dvh w-full pb-14"
       style={{ background: "var(--gradient-stage)" }}
     >
-      <ShowcaseNav showcaseId={showcaseId} title={showcase.title} current="assets" />
+      <ShowcaseNav
+        showcaseId={showcaseId}
+        title={showcase.title}
+        current="assets"
+        built={showcase.builtFromRecording}
+      />
       <div className="mx-auto box-content max-w-6xl px-6 sm:px-10">
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Assets</p>
