@@ -18,16 +18,7 @@ import { Hammer, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { studio, useBuildJob, type StudioBuildReport, type StudioExportJob } from "@/lib/studio";
-
-/** What a finished build says, in one line. */
-export function buildSummary(report: StudioBuildReport | undefined): string | undefined {
-  if (!report) return undefined;
-  const { built = [], unchanged = [], totalMs } = report;
-  const parts = [built.length === 1 ? "Built 1 file" : `Built ${built.length} files`];
-  if (unchanged.length > 0) parts.push(`${unchanged.length} left alone`);
-  if (typeof totalMs === "number") parts.push(`${(totalMs / 1000).toFixed(1)}s of showcase`);
-  return parts.join(" · ");
-}
+import { buildSummary } from "./build-summary";
 
 function notify(job: StudioExportJob) {
   if (job.status === "done") {

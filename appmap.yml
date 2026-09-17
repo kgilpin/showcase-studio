@@ -5,6 +5,12 @@ language: javascript
 appmap_dir: tmp/appmap
 packages:
   - path: server
+    exclude:
+      # A recursive walk over every node of a YAML document, so its call
+      # count tracks the document's size and nothing else — hundreds of
+      # calls that say the same thing. Its own behavior is covered by
+      # server/yaml-text.test.mjs, and its callers stay in the trace.
+      - blockScalars
   - path: scripts
   - path: electron
   - path: src
