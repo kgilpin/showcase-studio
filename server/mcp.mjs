@@ -61,7 +61,8 @@ export const TOOLS = [
       "support, ctaNote, captionStyle, transition, durationMs, export, id, note (the scene's " +
       "authoring note — keep working context here, not in YAML comments), cta " +
       "({label, url, kind?}), or watermark (false opts this slide out of the showcase's brand " +
-      "mark, true forces it on, a map overrides a field or two for this slide). null removes " +
+      "mark, true forces it on, a map overrides a field or two for this slide — an empty " +
+      'asset or text ("") drops the image or the wordmark there). null removes ' +
       "an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom).\n" +
@@ -75,7 +76,7 @@ export const TOOLS = [
       "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), or watermark " +
       "({asset?, text?, position?, opacity?, scale?}) — the brand mark drawn in a corner of " +
       "every slide, like a TV network's bug. position is one of the four corners " +
-      "(top-left default); opacity defaults to 0.5. Use an identity mark (a logo, a " +
+      "(top-left default); opacity defaults to 0.85. Use an identity mark (a logo, a " +
       "wordmark), not the App Store badge — that is a call to action and belongs in a " +
       "scene's cta.\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +

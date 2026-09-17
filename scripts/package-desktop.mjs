@@ -76,11 +76,12 @@ for (const dir of ["electron", "server"]) {
 }
 /* Plain modules the page shares with the shell and the studio server, at
  * their staged-relative ../src paths: the timing model (prompter-script.mjs,
- * exporter.mjs), the lock rule (electron/main.mjs), the last page
- * error (server/mcp.mjs, exporter.mjs), and export names (the export
- * notification in electron/main.mjs). */
+ * exporter.mjs), the brand mark's rules (edit-yaml.mjs), the lock rule
+ * (electron/main.mjs), the last page error (server/mcp.mjs, exporter.mjs),
+ * and export names (the export notification in electron/main.mjs). */
 for (const shared of [
   "content/timing.mjs",
+  "content/watermark-rules.mjs",
   "lib/window-lock.mjs",
   "lib/page-error.mjs",
   "lib/export-kinds.mjs",

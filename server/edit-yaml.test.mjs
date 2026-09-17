@@ -376,9 +376,10 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
       name: "watermark",
       value: { asset: "vocative-mark", text: "Vocative", position: "top-left", opacity: 0.5 },
     });
-    expect(on).toContain("  watermark:\n");
-    expect(on).toContain("    asset: vocative-mark\n");
-    expect(on).toContain("    position: top-left\n");
+    /* One line, like cta and soundtrack. */
+    expect(on).toContain(
+      "  watermark: { asset: vocative-mark, text: Vocative, position: top-left, opacity: 0.5 }\n",
+    );
     expect(on).toContain("# FIXTURE — the header comment is load-bearing documentation.");
 
     /* Per scene: false opts a slide out, a map overrides a field or two. */
@@ -395,7 +396,15 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
       name: "watermark",
       value: { position: "bottom-right" },
     });
-    expect(moved).toContain("      position: bottom-right\n");
+    expect(moved).toContain("    watermark: { position: bottom-right }\n");
+    /* An empty text drops the wordmark on one slide; null fields are left out. */
+    const imageOnly = applySceneEdit(off, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "watermark",
+      value: { text: "", asset: null },
+    });
+    expect(imageOnly).toContain('    watermark: { text: "" }\n');
 
     const cleared = applySceneEdit(
       applySceneEdit(

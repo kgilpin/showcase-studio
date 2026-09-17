@@ -19,7 +19,7 @@ import { alignCaptionWords, resolveSceneTiming, type WordWindow } from "./timing
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
-import { ASSET_KINDS, mediaKindWarning, type AssetKind } from "./asset-kind";
+import { ASSET_KINDS, assetKind, mediaKindWarning, type AssetKind } from "./asset-kind";
 import { readWatermark, resolveWatermark, type Watermark, type WatermarkSpec } from "./watermark";
 import type { SceneEdit } from "@/lib/studio";
 
@@ -661,7 +661,8 @@ function resolveSoundtrack(showcaseId: string, soundtrack: RawDoc["meta"]["sound
  *  or a full URL — a path or URL passes through untouched. A key with no
  *  file warns and gets no `src`, so the image isn't drawn (a text-only
  *  bug still draws); `file` names it "(missing)", as scene media does,
- *  so the assets page can list it. */
+ *  so the assets page can list it. The mark is drawn as an image, so a
+ *  video or audio file warns and isn't drawn either. */
 function resolveWatermarkAsset(
   showcaseId: string,
   spec: WatermarkSpec | undefined,
@@ -669,11 +670,24 @@ function resolveWatermarkAsset(
 ): Watermark | undefined {
   if (!spec) return undefined;
   if (!spec.asset) return spec;
+  const notAnImage = (file: string) => {
+    const kind = assetKind(file.replace(/[?#].*$/, ""));
+    if (kind === "image" || kind === "other") return false;
+    warn(
+      `watermark asset "${spec.asset}" is ${kind === "audio" ? "an" : "a"} ${kind} file — ` +
+        `the brand mark needs an image, so it is drawn without it`,
+    );
+    return true;
+  };
   if (/^(https?:)?\/\//.test(spec.asset) || spec.asset.startsWith("/")) {
-    return { ...spec, src: spec.asset };
+    return notAnImage(spec.asset) ? spec : { ...spec, src: spec.asset };
   }
   const entry = assetsByShowcase.get(showcaseId)?.get(spec.asset);
-  if (entry) return { ...spec, src: entry.url, file: entry.file };
+  if (entry) {
+    return notAnImage(entry.file)
+      ? { ...spec, file: entry.file }
+      : { ...spec, src: entry.url, file: entry.file };
+  }
   warn(
     `watermark asset "${spec.asset}" has no file in the showcase's assets/ folder — ` +
       `drawing the brand mark without it`,
@@ -811,6 +825,17 @@ function buildShowcase(
         `voiceover word timings ignored: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+  /* A meta.watermark with nothing to draw (the asset line forgotten, or
+   * misspelled) would otherwise just not appear, with no reason given.
+   * Fine when a scene supplies the image or wordmark itself. */
+  if (
+    baseWatermark &&
+    !baseWatermark.asset &&
+    !baseWatermark.text &&
+    !scenes.some((scene) => scene.watermark)
+  ) {
+    warn("", "meta.watermark needs an asset, a text wordmark, or both — no brand mark is drawn");
   }
   const authoredEmbedCaptions = doc.meta.embedCaptions;
   const embedCaptions =
