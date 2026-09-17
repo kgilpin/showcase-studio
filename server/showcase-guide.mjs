@@ -25,16 +25,17 @@ meta.watermark draws a small logo in one corner of every slide, the way a TV net
         asset: vocative-mark     # asset key, root-relative path, or URL
         text: Vocative           # optional wordmark beside the image
         position: top-left       # top-left | top-right | bottom-left | bottom-right
-        opacity: 0.5             # 0-1
+        opacity: 0.85            # 0-1
         scale: 1                 # 0.25-3, on top of the canvas's own bug size
 
-- asset, text, or both — one of them must be there. Everything else has a default: position top-left, opacity 0.5, scale 1.
+- asset, text, or both — one of them must be there. Everything else has a default: position top-left, opacity 0.85, scale 1.
 - It is a CORNER mark, by design: there is no banner position. A full-width band across the frame reads as an ad unit and competes with the captions and the speaker's face. The default corner is a top one because the bottom of the frame belongs to the captions, and in the video export to the platform's own UI as well.
 - Use an IDENTITY mark — a logo, a wordmark. Do NOT use the App Store badge: it is a call to action, and Apple's guidelines give it clear-space and minimum-size rules a small persistent copy would break. The badge belongs on the end card, which is what a scene's cta field is for.
-- Keep the opacity low (the 0.5 default, or lower over busy footage) so the mark reads as authorship rather than advertising.
+- The 0.85 default keeps the mark readable over busy footage; its small corner size is what makes it read as authorship rather than advertising. Lower the opacity only over calm, even backgrounds — a faint mark disappears on video.
 - The mark draws on every slide, in every destination: all three player view modes (App Screens, TikTok, 4:3), the portrait and 4:3 video exports, and the App Store screenshot set.
 - Per scene, watermark: false leaves the bug off that slide, watermark: true forces it on, and a map (e.g. {position: bottom-right, opacity: 0.3}) overrides a field or two for that slide only.
 - One default: a statement slide whose media IS the app mark (frame: mark) skips the bug — the logo is already the hero there, and a second small copy of it looks like a mistake. That is the usual end card. watermark: true on such a scene puts it back.
+- The wordmark is white. theme.yaml's colors.watermark-text changes it (caption colors don't affect it).
 - The mark is decorative chrome: it is hidden from screen readers (so the same logo isn't announced on every slide) and never takes a click.
 
 Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram; style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.

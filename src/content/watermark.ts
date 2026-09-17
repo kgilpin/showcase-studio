@@ -11,7 +11,7 @@
  *       asset: vocative-mark     # asset key, root-relative path, or URL
  *       text: Vocative           # optional wordmark beside the mark
  *       position: top-left       # a corner — never a banner
- *       opacity: 0.5
+ *       opacity: 0.85
  *       scale: 1
  *
  * Two deliberate limits:
@@ -26,8 +26,9 @@
  *
  * The default position is a top corner because the bottom of the frame
  * belongs to the captions (and, in the video export, to the platform's
- * own UI). The default opacity is low so the mark reads as authorship
- * rather than advertising.
+ * own UI). The default opacity is just under solid: the mark has to hold
+ * up over busy footage, and its small corner size is what keeps it
+ * reading as authorship rather than advertising.
  */
 
 const POSITIONS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
@@ -41,7 +42,7 @@ export type WatermarkSpec = {
   /** Wordmark drawn beside the image (or on its own, with no image). */
   text?: string | undefined;
   position: WatermarkPosition;
-  /** 0–1. Low by default: authorship, not advertising. */
+  /** 0–1. Just under solid by default, so it survives busy footage. */
   opacity: number;
   /** Size multiplier on the canvas's own bug size. */
   scale: number;
@@ -57,7 +58,7 @@ export type Watermark = WatermarkSpec & {
 
 export const WATERMARK_DEFAULTS = {
   position: "top-left" as WatermarkPosition,
-  opacity: 0.5,
+  opacity: 0.85,
   scale: 1,
 };
 

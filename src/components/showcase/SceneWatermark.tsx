@@ -12,9 +12,11 @@ const SIZES = {
 };
 
 /** A tight halo plus a soft drop shadow, so the mark stays legible over a
- *  bright frame — a white wordmark on a white screenshot would otherwise
- *  wash out at low opacity. */
-const SHADOW = "drop-shadow(0 0 1px rgba(0,0,0,0.6)) drop-shadow(0 1px 3px rgba(0,0,0,0.45))";
+ *  bright or busy frame — a white wordmark on a pale wall or sky would
+ *  otherwise wash out. Sized in container units, like the mark, so it is
+ *  as strong in the 1320-wide export as in the small player. */
+const SHADOW =
+  "drop-shadow(0 0 0.2cqw rgba(0,0,0,0.7)) drop-shadow(0 0.2cqw 0.9cqw rgba(0,0,0,0.55))";
 
 export function SceneWatermark({
   watermark,
@@ -23,7 +25,8 @@ export function SceneWatermark({
   watermark: Watermark | undefined;
   canvas?: "portrait" | "embed";
 }) {
-  if (!watermark) return null;
+  /* A mark whose image has no file and that has no wordmark draws nothing. */
+  if (!watermark || (!watermark.src && !watermark.text)) return null;
   const size = SIZES[canvas];
   const scale = watermark.scale;
   const inset = `${size.inset}cqw`;
@@ -52,7 +55,7 @@ export function SceneWatermark({
       )}
       {watermark.text && (
         <span
-          className="font-display font-semibold leading-none tracking-tight text-[color:var(--caption-text,#fff)]"
+          className="font-display font-semibold leading-none tracking-tight text-[color:var(--watermark-text,#fff)]"
           style={{ fontSize: `${size.text * scale}cqw`, filter: SHADOW }}
         >
           {watermark.text}
