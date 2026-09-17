@@ -7,6 +7,7 @@ import {
   type WordWindow,
 } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
+import { SceneWatermark } from "./SceneWatermark";
 import { EditableText } from "@/components/studio/EditableText";
 import appStoreBadge from "@/assets/app-store-badge.svg";
 import githubBadge from "@/assets/github-badge.svg";
@@ -100,14 +101,24 @@ function FixedStage({
   children,
   compact,
   frameless,
+  watermark,
 }: {
   children: React.ReactNode;
   compact?: boolean;
   /** Fill the parent edge-to-edge with no device chrome (screenshot export). */
   frameless?: boolean;
+  /** The scene's brand mark, drawn in a corner over everything else.
+   *  It lives here so every theme gets it without repeating itself. */
+  watermark?: Scene["watermark"];
 }) {
+  const bug = <SceneWatermark watermark={watermark} />;
   if (frameless) {
-    return <div className="@container absolute inset-0 overflow-hidden bg-card">{children}</div>;
+    return (
+      <div className="@container absolute inset-0 overflow-hidden bg-card">
+        {children}
+        {bug}
+      </div>
+    );
   }
   return (
     <div
@@ -126,6 +137,7 @@ function FixedStage({
           style={{ boxShadow: "var(--shadow-device)" }}
         >
           {children}
+          {bug}
         </div>
       </div>
     </div>
@@ -225,7 +237,7 @@ export function SceneView({
   if (scene.theme === "statement") {
     const backdrop = scene.media.kind !== "none" && scene.media.frame === "full";
     return (
-      <FixedStage frameless={frameless}>
+      <FixedStage frameless={frameless} watermark={scene.watermark}>
         <div className="relative h-full w-full" style={{ background: "var(--gradient-stage)" }}>
           {backdrop && (
             <>
@@ -309,7 +321,7 @@ export function SceneView({
    * (clearing a title must not remove the way to type a new one). */
   const dropHeader = hasMedia && (isFootage || hideTitle || (!scene.title && !onEditTitle));
   return (
-    <FixedStage compact={hasMedia} frameless={frameless}>
+    <FixedStage compact={hasMedia} frameless={frameless} watermark={scene.watermark}>
       <div
         className={cn("flex h-full w-full flex-col", !hasMedia && !scene.cta && "justify-center")}
         style={{ background: "var(--gradient-stage)" }}

@@ -1,0 +1,63 @@
+import type { Watermark } from "@/content/watermark";
+
+/* The persistent brand mark — see src/content/watermark.ts for the model.
+ * Drawn inside the stage, over everything, in one corner. Sizes are in
+ * container-width units so the bug keeps the same proportion in the
+ * player, the screenshot export, and the video recorder alike; each
+ * canvas has its own base size because the two frames are different
+ * shapes (1320×2868 portrait, 1440×1080 embed). */
+const SIZES = {
+  portrait: { mark: 9, text: 4, gap: 1.8, inset: 5 },
+  embed: { mark: 5, text: 2.4, gap: 1.1, inset: 3 },
+};
+
+/** A tight halo plus a soft drop shadow, so the mark stays legible over a
+ *  bright frame — a white wordmark on a white screenshot would otherwise
+ *  wash out at low opacity. */
+const SHADOW = "drop-shadow(0 0 1px rgba(0,0,0,0.6)) drop-shadow(0 1px 3px rgba(0,0,0,0.45))";
+
+export function SceneWatermark({
+  watermark,
+  canvas = "portrait",
+}: {
+  watermark: Watermark | undefined;
+  canvas?: "portrait" | "embed";
+}) {
+  if (!watermark) return null;
+  const size = SIZES[canvas];
+  const scale = watermark.scale;
+  const inset = `${size.inset}cqw`;
+  const [vertical, horizontal] = watermark.position.split("-");
+  return (
+    /* Decorative chrome: hidden from screen readers so the same logo
+     * isn't announced on every slide, and click-through so it never
+     * steals a tap from the studio's editing affordances. */
+    <div
+      aria-hidden
+      className="pointer-events-none absolute z-30 flex select-none items-center"
+      style={{
+        opacity: watermark.opacity,
+        gap: `${size.gap * scale}cqw`,
+        ...(vertical === "top" ? { top: inset } : { bottom: inset }),
+        ...(horizontal === "left" ? { left: inset } : { right: inset }),
+      }}
+    >
+      {watermark.src && (
+        <img
+          src={watermark.src}
+          alt=""
+          className="w-auto object-contain"
+          style={{ height: `${size.mark * scale}cqw`, filter: SHADOW }}
+        />
+      )}
+      {watermark.text && (
+        <span
+          className="font-display font-semibold leading-none tracking-tight text-[color:var(--caption-text,#fff)]"
+          style={{ fontSize: `${size.text * scale}cqw`, filter: SHADOW }}
+        >
+          {watermark.text}
+        </span>
+      )}
+    </div>
+  );
+}

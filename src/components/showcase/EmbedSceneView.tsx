@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { activeCaption, type CaptionPosition, type Scene } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
+import { SceneWatermark } from "./SceneWatermark";
 import { CtaContent, WordLine } from "./SceneView";
 
 /* The 4:3 embed canvas — the YouTube/desktop rendition of a showcase.
@@ -73,7 +74,7 @@ export function EmbedSceneView({
   if (scene.theme === "statement") {
     const backdrop = scene.media.kind !== "none" && scene.media.frame === "full";
     return (
-      <Stage>
+      <Stage watermark={scene.watermark}>
         {backdrop && (
           <>
             <div className="absolute inset-0">{media}</div>
@@ -129,7 +130,7 @@ export function EmbedSceneView({
     /* Side-by-side, like feature: the spoken line gets the panel instead
      * of covering the speaker. */
     return (
-      <Stage>
+      <Stage watermark={scene.watermark}>
         <div className="flex h-full w-full">
           {/* Eyebrows stay off slides (they label the script pages). */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-[1.8cqw] px-[5cqw] text-left">
@@ -159,7 +160,7 @@ export function EmbedSceneView({
 
   if (scene.theme === "console") {
     return (
-      <Stage>
+      <Stage watermark={scene.watermark}>
         <div className="flex h-full w-full flex-col">
           {scene.title && (
             <div className="shrink-0 px-[4cqw] pt-[2.6cqw] text-center">
@@ -179,7 +180,7 @@ export function EmbedSceneView({
 
   /* feature: text panel beside the full-height phone media. */
   return (
-    <Stage>
+    <Stage watermark={scene.watermark}>
       <div className="flex h-full w-full">
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-[1.6cqw] px-[5cqw] text-left">
           {scene.title && (
@@ -211,13 +212,21 @@ export function EmbedSceneView({
   );
 }
 
-function Stage({ children }: { children: React.ReactNode }) {
+function Stage({
+  children,
+  watermark,
+}: {
+  children: React.ReactNode;
+  /** The scene's brand mark, in a corner over every layout. */
+  watermark?: Scene["watermark"];
+}) {
   return (
     <div
       className="@container absolute inset-0 overflow-hidden"
       style={{ background: "var(--gradient-stage)" }}
     >
       {children}
+      <SceneWatermark watermark={watermark} canvas="embed" />
     </div>
   );
 }

@@ -370,6 +370,79 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     ).toThrow("meta.embedCaptions must be true or false");
   });
 
+  it("sets, overrides per scene, and removes the brand mark", () => {
+    const on = applySceneEdit(DOC, {
+      field: "meta.set",
+      name: "watermark",
+      value: { asset: "vocative-mark", text: "Vocative", position: "top-left", opacity: 0.5 },
+    });
+    expect(on).toContain("  watermark:\n");
+    expect(on).toContain("    asset: vocative-mark\n");
+    expect(on).toContain("    position: top-left\n");
+    expect(on).toContain("# FIXTURE — the header comment is load-bearing documentation.");
+
+    /* Per scene: false opts a slide out, a map overrides a field or two. */
+    const off = applySceneEdit(on, {
+      sceneId: "closing",
+      field: "scene.set",
+      name: "watermark",
+      value: false,
+    });
+    expect(off).toContain("    watermark: false\n");
+    const moved = applySceneEdit(off, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "watermark",
+      value: { position: "bottom-right" },
+    });
+    expect(moved).toContain("      position: bottom-right\n");
+
+    const cleared = applySceneEdit(
+      applySceneEdit(
+        applySceneEdit(moved, {
+          sceneId: "intro",
+          field: "scene.set",
+          name: "watermark",
+          value: null,
+        }),
+        {
+          sceneId: "closing",
+          field: "scene.set",
+          name: "watermark",
+          value: null,
+        },
+      ),
+      { field: "meta.set", name: "watermark", value: null },
+    );
+    expect(cleared).toBe(DOC);
+  });
+
+  it("refuses a brand mark that would draw wrong or nothing", () => {
+    const bad = (value, where = "meta") =>
+      applySceneEdit(DOC, {
+        ...(where === "meta" ? {} : { sceneId: "intro" }),
+        field: `${where}.set`,
+        name: "watermark",
+        value,
+      });
+    /* A corner, never a banner. */
+    expect(() => bad({ asset: "mark", position: "top-banner" })).toThrow(
+      "meta.watermark.position must be a corner",
+    );
+    expect(() => bad({ asset: "mark", opacity: 50 })).toThrow("between 0 and 1");
+    expect(() => bad({ asset: "mark", scale: 9 })).toThrow("between 0.25 and 3");
+    expect(() => bad({ asset: "mark", badge: "app-store" })).toThrow(
+      "meta.watermark.badge is not a field",
+    );
+    expect(() => bad({ position: "top-left" })).toThrow(
+      "meta.watermark needs an asset, a text wordmark, or both",
+    );
+    expect(() => bad("vocative-mark")).toThrow("meta.watermark must be a map of");
+    /* true is a scene-only flag: it forces the showcase's mark back on. */
+    expect(() => bad(true)).toThrow("meta.watermark must be a map of");
+    expect(bad(true, "scene")).toContain("    watermark: true\n");
+  });
+
   it("sets and removes authoring notes on a scene and the meta", () => {
     let out = applySceneEdit(DOC, {
       sceneId: "intro",
