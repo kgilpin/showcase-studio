@@ -221,6 +221,12 @@ export type Showcase = {
   /** Showcase-level authoring notes (see Scene.note) — never rendered in
    *  the player or exports; shown on the script page. */
   notes?: string | undefined;
+  /** True when meta.source names a master recording — this showcase's
+   *  voiceover, clips, word timings and scene durations are all built
+   *  from its cut list (server/build-plan.mjs). The studio offers a
+   *  "Build media" button for these; the player itself is unaffected,
+   *  because the build writes ordinary durationMs pins and assets. */
+  builtFromRecording: boolean;
   /** Resolved styling: CSS-variable overrides (names without the leading
    *  `--`) plus font stylesheet URLs to load. Combined, in order: the
    *  extended showcase's theme, this showcase's theme.yaml, and the
@@ -279,6 +285,10 @@ type RawDoc = {
     notes?: string;
     /** Reading speed in words per second for derived timing (default 3). */
     pace?: number;
+    /** The master recording this showcase is cut from, when it is one.
+     *  Read by the build (server/build-plan.mjs), ignored here: the build
+     *  writes the durationMs pins the player actually follows. */
+    source?: Record<string, unknown>;
     /** Default overlay caption painting for every scene (see CaptionStyle). */
     captionStyle?: string;
     /** Overlay captions on the 4:3 embed canvas — validated (with a linter
@@ -754,6 +764,7 @@ function buildShowcase(
   return {
     id: showcaseId,
     ...doc.meta,
+    builtFromRecording: Boolean(doc.meta.source),
     embedCaptions,
     soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
     theme: resolveTheme(showcaseId),

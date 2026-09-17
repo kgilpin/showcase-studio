@@ -153,11 +153,18 @@ export const TOOLS = [
     name: "transcribe",
     description:
       "Voice-to-text with timestamps: transcribe an audio or video file (whisper.cpp, run " +
-      "locally). Returns sentence segments with per-word timestamps in milliseconds. Use it to " +
-      "align narration to scenes, split a voiceover into scene-scoped clips (cut with ffmpeg at " +
-      "the returned boundaries), or check what a recording actually says — silencedetect only " +
-      "finds pauses, this finds the words. First use downloads the speech model (~142MB), so " +
-      "the first call can take a minute.",
+      "locally). Returns sentence segments with per-word timestamps in milliseconds — whole " +
+      "words, so they match caption words one for one. Use it to find what a recording says " +
+      "and when: choosing cut points for a take, or checking a line — silencedetect only finds " +
+      "pauses, this finds the words. First use downloads the speech model (~142MB), so the " +
+      "first call can take a minute.\n" +
+      "Pass save: true to also write the recording's editable transcript beside it " +
+      "(assets/<recording>.transcript.json). That file is what build_media turns into the " +
+      "showcase's karaoke words file, and it is where a mishearing gets fixed: add to its " +
+      "`corrections` list — {at, text} respells the word starting at that millisecond, " +
+      "{at, text, through} folds the words up to `through` into one, {at, start, end} moves a " +
+      "word whisper placed early. Corrections are re-applied after every re-transcribe, and " +
+      "so is a word you respell in the file itself, so nothing is lost by transcribing again.",
     inputSchema: {
       type: "object",
       properties: {
@@ -168,8 +175,67 @@ export const TOOLS = [
             "root or to any showcase folder (e.g. nova/assets/voiceover.mp3 " +
             "or assets/voiceover.mp3)",
         },
+        save: {
+          type: "boolean",
+          description:
+            "Write the recording's editable transcript beside it, keeping the corrections an " +
+            "existing one carries",
+        },
       },
       required: ["file"],
+    },
+  },
+  {
+    name: "build_media",
+    description:
+      "Build a recorded pitch's media from its cut list — the voiceover, one muted clip per " +
+      "footage scene, the karaoke words file, and every scene's durationMs. Returns a jobId " +
+      "immediately; poll build_status.\n" +
+      "The cut list lives in showcase.yaml: meta.source names the master recording " +
+      "({video, speed}), and each scene's `take` names the span of it that scene owns " +
+      "({from, to} in seconds; {silence: <seconds>} for a card with nothing spoken over it; a " +
+      "list of spans to drop a pause; {audio: [...], video: [...]} when the picture " +
+      "fast-forwards a pause the sound cuts out). Everything else is derived, so the picture " +
+      "and the voice cannot drift apart — never pin durationMs by hand on a built showcase, " +
+      "and never cut clips with your own ffmpeg calls or a script.\n" +
+      "Builds are idempotent: only outputs whose inputs changed are rebuilt. `force` rebuilds " +
+      "everything; `only` limits it to those scene ids.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        force: {
+          type: "boolean",
+          description: "Rebuild every output, even the ones whose inputs are unchanged",
+        },
+        only: {
+          type: "array",
+          items: { type: "string" },
+          description: "Build only these scenes' clips (the voiceover is built when listed too)",
+        },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
+    name: "build_status",
+    description:
+      "Check on a build_media job: status (running | done | failed | canceled), what it is " +
+      "doing now, and when it is done, what it built, what it left alone, the pins it wrote, " +
+      "and any notes worth telling the user.",
+    inputSchema: {
+      type: "object",
+      properties: { jobId: { type: "string" } },
+      required: ["jobId"],
+    },
+  },
+  {
+    name: "build_cancel",
+    description: "Cancel a running build_media job.",
+    inputSchema: {
+      type: "object",
+      properties: { jobId: { type: "string" } },
+      required: ["jobId"],
     },
   },
   {
@@ -282,7 +348,8 @@ function staleEditMessage(changeLog, showcaseId, ifVersion, currentVersion) {
 }
 
 /** Runs one tool against a studio. `context` is
- *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, changeLog, history }. */
+ *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, buildJobs,
+ *  changeLog, history }. */
 export async function callTool(context, { name, arguments: args = {} } = {}) {
   const showcasesDir = context.getShowcasesDir();
   if (name === "studio_info") {
@@ -351,6 +418,21 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       content: [{ type: "text", text: scriptText(showcasesDir, String(args.showcaseId ?? "")) }],
     };
   }
+  if (name === "build_media") {
+    return json(
+      context.buildJobs.start("build", String(args.showcaseId ?? ""), {
+        force: args.force === true,
+        only: Array.isArray(args.only) ? args.only.map(String) : undefined,
+      }),
+    );
+  }
+  if (name === "build_status" || name === "build_cancel") {
+    const jobId = String(args.jobId ?? "");
+    const result =
+      name === "build_cancel" ? context.buildJobs.cancel(jobId) : context.buildJobs.status(jobId);
+    if (!result) throw new Error(`No build job named "${jobId}"`);
+    return json(result);
+  }
   if (name === "export") {
     const kind = String(args.kind ?? "");
     if (!EXPORT_KINDS.includes(kind)) {
@@ -378,7 +460,10 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     }
     let timer;
     const result = await Promise.race([
-      transcribe(audioPath, { progress: (label) => console.log(`transcribe: ${label}`) }),
+      transcribe(audioPath, {
+        save: args.save === true,
+        progress: (label) => console.log(`transcribe: ${label}`),
+      }),
       new Promise((_, reject) => {
         timer = setTimeout(
           () => reject(new Error("Transcription timed out after 5 minutes")),

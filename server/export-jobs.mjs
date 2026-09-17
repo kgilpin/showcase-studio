@@ -1,17 +1,26 @@
-/* Export jobs: the async layer between the exporter and its callers — the
- * MCP export tools and the studio's Export button. Starting a job returns
+/* Background jobs: the async layer between long work and its callers —
+ * the MCP tools and the studio's buttons. A studio runs two of these, one
+ * for exports and one for media builds. Starting a job returns
  * immediately; callers poll status, or follow onChange, and can cancel
- * (cooperative — the exporter checks an AbortSignal between captures).
- * One job runs at a time, whoever started it.
+ * (cooperative — the work checks an AbortSignal between steps). One job
+ * of each kind runs at a time, whoever started it.
  *
- *   start ──► running ──┬──► done      (out: the file or folder)
+ *   start ──► running ──┬──► done      (out: the file or folder, or the
+ *                       │               report a build hands back)
  *                       ├──► failed    (error)
  *                       └──► canceled
  *
  * onChange(status) runs on every step: start, each progress report, and
- * the end. The studio server sends it to its pages as the "export" event. */
+ * the end. The studio server sends it to its pages as the "export" or
+ * "build" event. */
 
-export function createExportJobs(runner, { onChange = () => {} } = {}) {
+/** `name` names the job kind in its ids and refusals ("export", "build"),
+ *  and `poll` is the tool a caller should poll. Anything passed to
+ *  start() after the showcase id reaches the runner unchanged. */
+export function createExportJobs(
+  runner,
+  { onChange = () => {}, name = "export", poll = "export_status" } = {},
+) {
   let seq = 0;
   /** id → job. Finished jobs are kept so late status polls still answer. */
   const jobs = new Map();
@@ -27,17 +36,17 @@ export function createExportJobs(runner, { onChange = () => {} } = {}) {
   const changed = (job) => onChange(statusOf(job));
 
   return {
-    start(kind, showcaseId) {
+    start(kind, showcaseId, options = {}) {
       const active = running();
       if (active) {
         throw new Error(
-          `Export ${active.id} (${active.kind} of ${active.showcaseId}) is already running — ` +
-            `poll export_status or cancel it first.`,
+          `${active.id} (${active.kind} of ${active.showcaseId}) is already running — ` +
+            `poll ${poll} or cancel it first.`,
         );
       }
       const controller = new AbortController();
       const job = {
-        id: `export-${++seq}`,
+        id: `${name}-${++seq}`,
         kind,
         showcaseId,
         status: "running",
@@ -48,6 +57,7 @@ export function createExportJobs(runner, { onChange = () => {} } = {}) {
       latest = job;
       changed(job);
       runner(kind, showcaseId, {
+        ...options,
         onProgress: (label, { step, steps } = {}) => {
           if (job.status !== "running") return;
           job.progress = label;
