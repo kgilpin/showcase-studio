@@ -43,6 +43,25 @@ export type StudioExports = {
   onChange(callback: (job: StudioExportJob) => void): () => void;
 };
 
+/** What a finished media build reports (server/build-media.mjs). */
+export type StudioBuildReport = {
+  built: string[];
+  unchanged: string[];
+  notes: string[];
+  totalMs: number;
+  pins: Record<string, number>;
+};
+
+export type StudioBuilds = {
+  /** Builds a showcase's media from its cut list; fails when one is
+   *  already running. */
+  start(
+    showcaseId: string,
+    options?: { force?: boolean },
+  ): Promise<{ ok: boolean; job?: StudioExportJob; error?: string }>;
+  cancel(jobId: string): Promise<{ ok: boolean; job?: StudioExportJob; error?: string }>;
+};
+
 export type StudioTerminal = {
   /** The filesystem path of a dropped File (only the desktop window knows
    *  it; a browser gives the file name). */
@@ -151,6 +170,9 @@ export type ShowcaseStudio = {
   windowLock(): WindowLock | null;
   /** Exports: one at a time, shared with the MCP export tools. */
   exports: StudioExports;
+  /** Media builds from a showcase's cut list: their own lane, so a
+   *  build and an export don't block each other. */
+  builds: StudioBuilds;
   /** Per-showcase terminals running the user's own Claude Code. */
   terminal: StudioTerminal;
   /** Scaffolding for new showcases (the home page's "+" card). */
@@ -234,7 +256,7 @@ function dispatch(event: string, data: unknown) {
   for (const listener of [...(listeners.get(event) ?? [])]) listener(data);
 }
 
-const EVENTS = ["reload", "info", "export", "terminal-data", "terminal-exit"];
+const EVENTS = ["reload", "info", "export", "build", "terminal-data", "terminal-exit"];
 
 function followEvents() {
   const source = new EventSource(`${API}/events`);
@@ -333,6 +355,40 @@ export function useExportJob(): StudioExportJob | null {
   );
 }
 
+/* ---------- media builds ---------- */
+
+/* The newest media build, kept current the same way as exports: the
+ * "build" events, plus one ask on connect for a build already running. */
+let buildJob: StudioExportJob | null = null;
+
+function setBuildJob(job: StudioExportJob | null) {
+  buildJob = job;
+  dispatch("build-job", job);
+}
+
+on("build", (data) => setBuildJob(data as StudioExportJob));
+on("info", () => {
+  void post<{ ok: boolean; job?: StudioExportJob | null }>("build-current").then((result) => {
+    if (result.ok) setBuildJob(result.job ?? null);
+  });
+});
+
+function createBuilds(): StudioBuilds {
+  return {
+    start: (showcaseId, options) => post("build", { showcaseId, ...options }),
+    cancel: (jobId) => post("build-cancel", { jobId }),
+  };
+}
+
+/** The newest media build (running, or the last to finish). */
+export function useBuildJob(): StudioExportJob | null {
+  return useSyncExternalStore(
+    (onChange) => on("build-job", onChange),
+    () => buildJob,
+    () => null,
+  );
+}
+
 function createTerminal(enabled: boolean): StudioTerminal {
   return {
     pathForFile: (file) => window.showcaseStudioShell?.pathForFile(file) ?? file.name,
@@ -356,6 +412,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
     info: () => info ?? first,
     windowLock: () => info?.lock ?? null,
     exports: createExports(),
+    builds: createBuilds(),
     terminal: createTerminal(first.features.terminal),
     showcases: { create: (name) => post("showcase-create", { name }) },
     scenes: { edit: (payload) => post("scene-edit", payload) },
