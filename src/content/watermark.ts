@@ -3,8 +3,9 @@
  *
  * `meta.watermark` in showcase.yaml turns it on for the whole showcase;
  * a scene's own `watermark` overrides it — `false` opts that slide out,
- * a map changes a field or two for that slide, `true` forces the bug on
- * where the default would have dropped it.
+ * a map changes a field or two for that slide (an empty `asset` or
+ * `text` drops the image or the wordmark there), `true` forces the bug
+ * on where the default would have dropped it.
  *
  *   meta:
  *     watermark:
@@ -31,9 +32,19 @@
  * reading as authorship rather than advertising.
  */
 
-const POSITIONS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
+import {
+  inRange,
+  WATERMARK_DEFAULTS,
+  WATERMARK_FIELDS as FIELDS,
+  WATERMARK_OPACITY as OPACITY,
+  WATERMARK_POSITIONS as POSITIONS,
+  WATERMARK_SCALE as SCALE,
+  type WatermarkPosition,
+} from "./watermark-rules.mjs";
 
-export type WatermarkPosition = (typeof POSITIONS)[number];
+/* The fields, corners, ranges and defaults are in watermark-rules.mjs,
+ * shared with the studio's edit tool (server/edit-yaml.mjs). */
+export { WATERMARK_DEFAULTS, type WatermarkPosition };
 
 /** A validated watermark, every field filled in. */
 export type WatermarkSpec = {
@@ -56,14 +67,6 @@ export type Watermark = WatermarkSpec & {
   file?: string | undefined;
 };
 
-export const WATERMARK_DEFAULTS = {
-  position: "top-left" as WatermarkPosition,
-  opacity: 0.85,
-  scale: 1,
-};
-
-const FIELDS = ["asset", "text", "position", "opacity", "scale"];
-
 /** Validates one authored `watermark` map and returns just the fields it
  *  set, so a scene's map can be merged over the showcase's. Anything
  *  invalid warns and is left out — a bad value never breaks a slide. */
@@ -85,7 +88,9 @@ export function readWatermark(
     }
   }
   if (raw["asset"] != null) {
-    if (typeof raw["asset"] === "string" && raw["asset"].trim()) spec.asset = raw["asset"].trim();
+    /* An empty asset means "no image": on a scene it drops the showcase's
+     * image for that slide, the way an empty text drops the wordmark. */
+    if (typeof raw["asset"] === "string") spec.asset = raw["asset"].trim();
     else warn(`${where}.asset must be an asset key, a root-relative path, or a URL`);
   }
   if (raw["text"] != null) {
@@ -105,13 +110,23 @@ export function readWatermark(
   }
   if (raw["opacity"] != null) {
     const opacity = Number(raw["opacity"]);
-    if (Number.isFinite(opacity) && opacity >= 0 && opacity <= 1) spec.opacity = opacity;
-    else warn(`${where}.opacity must be between 0 and 1 — using ${WATERMARK_DEFAULTS.opacity}`);
+    if (inRange(opacity, OPACITY)) spec.opacity = opacity;
+    else {
+      warn(
+        `${where}.opacity must be between ${OPACITY.min} and ${OPACITY.max} — ` +
+          `using ${WATERMARK_DEFAULTS.opacity}`,
+      );
+    }
   }
   if (raw["scale"] != null) {
     const scale = Number(raw["scale"]);
-    if (Number.isFinite(scale) && scale >= 0.25 && scale <= 3) spec.scale = scale;
-    else warn(`${where}.scale must be between 0.25 and 3 — using ${WATERMARK_DEFAULTS.scale}`);
+    if (inRange(scale, SCALE)) spec.scale = scale;
+    else {
+      warn(
+        `${where}.scale must be between ${SCALE.min} and ${SCALE.max} — ` +
+          `using ${WATERMARK_DEFAULTS.scale}`,
+      );
+    }
   }
   return spec;
 }

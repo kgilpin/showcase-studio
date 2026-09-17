@@ -59,8 +59,9 @@ export function DiagnosticsTray() {
           ))}
           {showcaseWarnings.map((warning, i) => (
             <li key={i} className="leading-relaxed text-amber-400/90">
+              {/* A warning about the showcase itself (its meta) names no scene. */}
               <span className="font-mono">
-                {warning.showcaseId}/{warning.sceneId}
+                {warning.sceneId ? `${warning.showcaseId}/${warning.sceneId}` : warning.showcaseId}
               </span>{" "}
               — {warning.message}
             </li>

@@ -163,4 +163,64 @@ scenes:
     expect(warningsFor("three")[0]).toContain('"gone-too"');
     expect(warningsFor("one")).toEqual([]);
   });
+
+  it("warns when the mark's file is not an image, and draws the wordmark alone", async () => {
+    const showcase = await load("marked", YAML.replace("MARK", "logo"), [
+      "logo.mp4",
+      "alt-mark.png",
+    ]);
+    expect(warningsFor("")).toEqual([expect.stringContaining('"logo" is a video file')]);
+    const one = showcase.scenes[0]!;
+    expect(one.watermark?.src).toBeUndefined();
+    expect(one.watermark?.text).toBe("Brand");
+    /* Still referenced, so the assets page must not call it unused. */
+    expect(
+      showcaseAssets(showcase).assets.find((asset) => asset.name === "logo.mp4")?.usedBy,
+    ).toEqual(["watermark"]);
+  });
+
+  it("warns when meta.watermark has neither an asset nor text", async () => {
+    await load(
+      "bare",
+      `
+meta:
+  title: Bare
+  description: d
+  watermark: { position: top-right, opacity: 0.4 }
+scenes:
+  - id: one
+    theme: feature
+    captions: [{ text: Hi }]
+`,
+    );
+    expect(warningsFor("")).toEqual([expect.stringContaining("needs an asset, a text wordmark")]);
+  });
+
+  it("drops the image or the wordmark on a scene that sets it empty", async () => {
+    const showcase = await load(
+      "marked",
+      `
+meta:
+  title: Marked
+  description: d
+  watermark: { asset: logo, text: Brand }
+scenes:
+  - id: image-only
+    theme: feature
+    watermark: { text: "" }
+    captions: [{ text: Hi }]
+  - id: text-only
+    theme: feature
+    watermark: { asset: "" }
+    captions: [{ text: Hi }]
+`,
+      ["logo.png"],
+    );
+    const [imageOnly, textOnly] = showcase.scenes;
+    expect(imageOnly!.watermark).toMatchObject({ src: "/data/marked/assets/logo.png" });
+    expect(imageOnly!.watermark?.text).toBeUndefined();
+    expect(textOnly!.watermark?.text).toBe("Brand");
+    expect(textOnly!.watermark?.src).toBeUndefined();
+    expect(showcaseWarnings).toEqual([]);
+  });
 });

@@ -50,14 +50,19 @@
  */
 import { isMap, isSeq } from "yaml";
 import { editedText, parseEditable } from "./yaml-text.mjs";
+import {
+  inRange,
+  WATERMARK_FIELDS,
+  WATERMARK_OPACITY,
+  WATERMARK_POSITIONS,
+  WATERMARK_SCALE,
+} from "../src/content/watermark-rules.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 const CAPTION_POSITIONS = ["top", "center", "lower", "bottom"];
 /* The brand mark sits in a corner — there is no banner position, and no
  * affordance for turning the App Store badge into a watermark. See
  * src/content/watermark.ts for why. */
-const WATERMARK_POSITIONS = ["top-left", "top-right", "bottom-left", "bottom-right"];
-const WATERMARK_FIELDS = ["asset", "text", "position", "opacity", "scale"];
 
 /* The field whitelists behind scene.set / meta.set / caption.set: how a
  * value validates, and whether an empty value removes the field. `map`
@@ -157,32 +162,34 @@ function checkFieldValue(fields, where, name, value) {
           );
         }
       }
+      /* On a scene, an empty asset or text drops the showcase's image or
+       * wordmark for that slide. */
       for (const key of ["asset", "text"]) {
-        if (value[key] != null && (typeof value[key] !== "string" || !value[key].trim())) {
+        if (value[key] == null) continue;
+        if (typeof value[key] !== "string" || (!spec.scene && !value[key].trim())) {
           throw new Error(`${label}.${key} must be text`);
         }
       }
       if (value.position != null && !WATERMARK_POSITIONS.includes(value.position)) {
         throw new Error(`${label}.position must be a corner: ${WATERMARK_POSITIONS.join(", ")}`);
       }
-      if (
-        value.opacity != null &&
-        !(typeof value.opacity === "number" && value.opacity >= 0 && value.opacity <= 1)
-      ) {
-        throw new Error(`${label}.opacity must be a number between 0 and 1`);
-      }
-      if (
-        value.scale != null &&
-        !(typeof value.scale === "number" && value.scale >= 0.25 && value.scale <= 3)
-      ) {
-        throw new Error(`${label}.scale must be a number between 0.25 and 3`);
+      for (const [key, range] of [
+        ["opacity", WATERMARK_OPACITY],
+        ["scale", WATERMARK_SCALE],
+      ]) {
+        if (value[key] != null && !inRange(value[key], range)) {
+          throw new Error(`${label}.${key} must be a number between ${range.min} and ${range.max}`);
+        }
       }
       /* A mark with nothing to draw would silently do nothing. The
        * scene-level form may omit both — it is merged over meta's. */
       if (!spec.scene && !value.asset && !value.text) {
         throw new Error(`${label} needs an asset, a text wordmark, or both`);
       }
-      return { value };
+      /* null fields would be written as `key: null`, which the loader
+       * ignores — leave them out. */
+      const set = Object.fromEntries(Object.entries(value).filter(([, v]) => v != null));
+      return { value: set, flow: true };
     }
     case "map": {
       if (typeof value !== "object" || Array.isArray(value)) {
