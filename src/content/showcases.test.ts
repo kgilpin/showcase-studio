@@ -1,0 +1,166 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import {
+  loadFromSource,
+  showcaseAssets,
+  showcasesReady,
+  showcaseWarnings,
+  type Showcase,
+} from "./showcases";
+import type { ShowcaseAsset, ShowcaseData } from "./source";
+
+/* The loader, end to end: YAML text and an asset list in, the resolved
+ * showcase, its warnings and its asset usage out. */
+
+function assets(id: string, ...files: string[]): Map<string, ShowcaseAsset> {
+  const map = new Map<string, ShowcaseAsset>();
+  for (const name of files) {
+    const asset = { url: `/data/${id}/assets/${name}`, file: `${id}/assets/${name}` };
+    map.set(name, asset);
+    map.set(name.replace(/\.[^.]+$/, ""), asset);
+  }
+  return map;
+}
+
+function data(id: string, yaml: string, files: string[]): ShowcaseData {
+  return { id, yaml, assets: assets(id, ...files), words: new Map(), graphics: new Map() };
+}
+
+async function load(id: string, yaml: string, files: string[] = []): Promise<Showcase> {
+  const [showcase] = await loadFromSource({ load: async () => [data(id, yaml, files)] });
+  if (!showcase) throw new Error(`"${id}" did not load`);
+  return showcase;
+}
+
+const warningsFor = (sceneId: string) =>
+  showcaseWarnings.filter((warning) => warning.sceneId === sceneId).map(({ message }) => message);
+
+/* The module loads the bundled library on import; let that finish so it
+ * can't land on top of a test's load. */
+beforeAll(() => showcasesReady);
+
+describe("loading a showcase", () => {
+  it("turns YAML into scenes with resolved media and timing", async () => {
+    const showcase = await load(
+      "plain",
+      `
+meta:
+  title: Plain
+  description: A plain showcase
+scenes:
+  - id: hello
+    theme: feature
+    title: Hello
+    media: { kind: image, asset: shot, alt: A screenshot }
+    captions:
+      - text: One two three four five.
+  - id: clip
+    theme: footage
+    media: { kind: video, asset: talk, alt: A clip }
+    captions:
+      - text: Spoken over the clip.
+`,
+      ["shot.png", "talk.mp4"],
+    );
+    expect(showcase.title).toBe("Plain");
+    expect(showcase.scenes.map((scene) => scene.id)).toEqual(["hello", "clip"]);
+    const [hello, clip] = showcase.scenes;
+    expect(hello!.media).toMatchObject({
+      kind: "image",
+      src: "/data/plain/assets/shot.png",
+      file: "plain/assets/shot.png",
+    });
+    expect(clip!.media).toMatchObject({ kind: "video", src: "/data/plain/assets/talk.mp4" });
+    expect(hello!.durationMs).toBeGreaterThan(0);
+    expect(hello!.body).toBe("One two three four five.");
+    /* footage stays out of the App Store screenshot set by default. */
+    expect(showcase.exportScenes.map((scene) => scene.id)).toEqual(["hello"]);
+    expect(showcaseWarnings).toEqual([]);
+  });
+
+  it("lists a media key with no file as missing, used by its scene", async () => {
+    const showcase = await load(
+      "gap",
+      `
+meta: { title: Gap, description: d }
+scenes:
+  - id: one
+    theme: feature
+    media: { kind: image, asset: not-there, alt: Missing }
+    captions: [{ text: Hi }]
+`,
+    );
+    expect(showcaseAssets(showcase).missing).toEqual([{ key: "not-there", usedBy: ["one"] }]);
+  });
+});
+
+describe("the brand mark", () => {
+  const YAML = `
+meta:
+  title: Marked
+  description: d
+  watermark: { asset: MARK, text: Brand }
+scenes:
+  - id: one
+    theme: feature
+    captions: [{ text: Hi }]
+  - id: two
+    theme: feature
+    watermark: { asset: alt-mark }
+    captions: [{ text: Hi }]
+  - id: three
+    theme: feature
+    watermark: { asset: gone-too }
+    captions: [{ text: Hi }]
+  - id: off
+    theme: feature
+    watermark: false
+    captions: [{ text: Hi }]
+`;
+
+  it("gives every scene the showcase's mark, with per-scene overrides", async () => {
+    const showcase = await load("marked", YAML.replace("MARK", "logo"), [
+      "logo.png",
+      "alt-mark.png",
+    ]);
+    const [one, two, , off] = showcase.scenes;
+    expect(one!.watermark).toMatchObject({
+      src: "/data/marked/assets/logo.png",
+      text: "Brand",
+      position: "top-left",
+    });
+    expect(two!.watermark).toMatchObject({ src: "/data/marked/assets/alt-mark.png" });
+    expect(off!.watermark).toBeUndefined();
+  });
+
+  it("counts the showcase's mark and a scene's own mark as used", async () => {
+    const showcase = await load("marked", YAML.replace("MARK", "logo"), [
+      "logo.png",
+      "alt-mark.png",
+    ]);
+    const usedBy = Object.fromEntries(
+      showcaseAssets(showcase).assets.map((asset) => [asset.name, asset.usedBy]),
+    );
+    expect(usedBy).toEqual({ "logo.png": ["watermark"], "alt-mark.png": ["two"] });
+  });
+
+  it("lists missing mark files as missing, and still draws the wordmark", async () => {
+    const showcase = await load("marked", YAML.replace("MARK", "no-such-mark"), ["alt-mark.png"]);
+    expect(showcaseAssets(showcase).missing).toEqual([
+      { key: "no-such-mark", usedBy: ["watermark"] },
+      { key: "gone-too", usedBy: ["three"] },
+    ]);
+    const one = showcase.scenes[0]!;
+    expect(one.watermark?.src).toBeUndefined();
+    expect(one.watermark?.text).toBe("Brand");
+  });
+
+  it("warns about the showcase's missing mark once, not once per scene", async () => {
+    await load("marked", YAML.replace("MARK", "no-such-mark"), ["alt-mark.png"]);
+    const about = (key: string) =>
+      showcaseWarnings.filter((warning) => warning.message.includes(`"${key}"`));
+    expect(about("no-such-mark").map((warning) => warning.sceneId)).toEqual([""]);
+    expect(warningsFor("three")).toHaveLength(1);
+    expect(warningsFor("three")[0]).toContain('"gone-too"');
+    expect(warningsFor("one")).toEqual([]);
+  });
+});

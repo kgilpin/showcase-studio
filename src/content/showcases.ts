@@ -350,6 +350,8 @@ const THEME_GROUPS: Record<string, Record<string, string>> = {
       "caption-chip",
       "caption-text",
       "caption-word",
+      /* The brand mark's wordmark (watermark.ts) — white unless set. */
+      "watermark-text",
     ].map((name) => [name, name]),
   ),
   fonts: { display: "font-display", body: "font-body" },
@@ -657,8 +659,9 @@ function resolveSoundtrack(showcaseId: string, soundtrack: RawDoc["meta"]["sound
 /** Points a resolved watermark's mark image at its served URL. As with
  *  `soundtrack.src`, `asset` may be an asset key, a root-relative path,
  *  or a full URL — a path or URL passes through untouched. A key with no
- *  file warns and drops the image (a text-only bug still draws; a bug
- *  with nothing left to draw disappears). */
+ *  file warns and gets no `src`, so the image isn't drawn (a text-only
+ *  bug still draws); `file` names it "(missing)", as scene media does,
+ *  so the assets page can list it. */
 function resolveWatermarkAsset(
   showcaseId: string,
   spec: WatermarkSpec | undefined,
@@ -675,8 +678,7 @@ function resolveWatermarkAsset(
     `watermark asset "${spec.asset}" has no file in the showcase's assets/ folder — ` +
       `drawing the brand mark without it`,
   );
-  const { asset: _asset, ...rest } = spec;
-  return rest.text ? rest : undefined;
+  return { ...spec, file: `${spec.asset} (missing)` };
 }
 
 const KNOWN_THEMES = new Set<SceneTheme>(["statement", "feature", "console", "footage"]);
@@ -770,13 +772,18 @@ function buildShowcase(
     /* A statement slide whose media IS the mark shows the logo full size
      * already — the small corner copy would be a second one. */
     const sceneShowsMark = theme === "statement" && media.kind !== "none" && media.frame === "mark";
-    const watermark = resolveWatermarkAsset(
-      showcaseId,
-      resolveWatermark(baseWatermark, authoredWatermark, { sceneShowsMark }, (message) =>
-        warnings.push(message),
-      ),
+    const watermarkSpec = resolveWatermark(
+      baseWatermark,
+      authoredWatermark,
+      { sceneShowsMark },
       (message) => warnings.push(message),
     );
+    /* A missing file for the showcase's own mark is reported once, below;
+     * a scene reports only an asset it named itself. */
+    const ownAsset = watermarkSpec?.asset !== baseWatermark?.asset;
+    const watermark = resolveWatermarkAsset(showcaseId, watermarkSpec, (message) => {
+      if (ownAsset) warnings.push(message);
+    });
     warnings.forEach((message) => warn(raw.id, message));
     const timing = resolveSceneTiming(raw, doc.meta.pace);
     return {
@@ -821,7 +828,7 @@ function buildShowcase(
     watermark: resolveWatermarkAsset(
       showcaseId,
       resolveWatermark(baseWatermark, true, {}, () => {}),
-      () => {},
+      (message) => warn("", message),
     ),
     soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
     theme: resolveTheme(showcaseId),
@@ -834,7 +841,10 @@ function buildShowcase(
   };
 }
 
-async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
+/** Loads a library from a source, replacing whatever was loaded before.
+ *  The app calls it once, below; it is exported so tests can load a small
+ *  library from a fake source. */
+export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   const data = await source.load();
   rawDocs.clear();
   rawTexts.clear();
@@ -1181,11 +1191,14 @@ export function showcaseAssets(showcase: Showcase): {
     }
   }
   /* The brand mark is referenced from meta, not from a scene — without
-   * this it would look unused on the assets page. */
-  const markKey = showcase.watermark?.asset;
-  if (markKey && !/^(https?:)?\/\//.test(markKey) && !markKey.startsWith("/")) {
-    if (showcase.watermark?.file) mark(usedBy, showcase.watermark.file, "watermark");
-    else mark(missing, markKey, "watermark");
+   * this it would look unused on the assets page. A scene that names a
+   * mark of its own is listed under that scene. (`file` is only set for
+   * an asset key, never for a path or URL.) */
+  markFile(showcase.watermark?.file, "watermark");
+  for (const scene of showcase.scenes) {
+    if (scene.watermark?.file !== showcase.watermark?.file) {
+      markFile(scene.watermark?.file, scene.id);
+    }
   }
   for (const [, entry] of entries) {
     if (showcase.soundtrack?.src && entry.url === showcase.soundtrack.src) {

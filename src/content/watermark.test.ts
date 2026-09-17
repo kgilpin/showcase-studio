@@ -53,11 +53,11 @@ describe("resolveWatermark", () => {
       ),
     );
 
-  it("fills in the defaults — a top corner, low opacity", () => {
+  it("fills in the defaults — a top corner, clearly visible", () => {
     const [spec] = resolve(MARK, undefined);
     expect(spec).toEqual({ ...MARK, ...WATERMARK_DEFAULTS });
     expect(WATERMARK_DEFAULTS.position).toBe("top-left");
-    expect(WATERMARK_DEFAULTS.opacity).toBeLessThanOrEqual(0.5);
+    expect(WATERMARK_DEFAULTS.opacity).toBe(0.85);
   });
 
   it("is off when the showcase has no watermark", () => {
