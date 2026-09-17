@@ -11,7 +11,13 @@
  * transcribe() extracts/resamples the audio with the bundled ffmpeg
  * (16kHz mono WAV — whisper's required input), runs whisper with full
  * JSON output, and returns sentence segments with per-word timestamps —
- * what caption-to-audio alignment and voiceover splitting need. */
+ * what caption-to-audio alignment and voiceover splitting need. Whisper's
+ * sub-word tokens are merged into whole words first (transcript.mjs):
+ * the player matches caption words to transcript words one for one, so
+ * "P" + "ank" + "uri" would never match anything.
+ *
+ * With `save`, the result is also written beside the recording as its
+ * editable transcript — see transcript.mjs for what that file is for. */
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -20,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
 import { studioDataDir } from "./settings.mjs";
+import { isWhisperMarker, mergeWhisperWords, saveTranscript } from "./transcript.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
@@ -91,9 +98,10 @@ function run(command, args) {
 
 /** Transcribes an audio or video file. Returns { text, segments } where
  *  each segment is { text, startMs, endMs, words: [{text, startMs,
- *  endMs}] }. Words come from whisper's tokens with special markers
- *  filtered out. */
-export async function transcribe(audioPath, { progress } = {}) {
+ *  endMs}] }, plus { transcript } when `save` wrote the transcript file.
+ *  Words are whole words — whisper's markers dropped, its sub-word
+ *  tokens merged, punctuation folded onto the word before it. */
+export async function transcribe(audioPath, { progress, save = false } = {}) {
   const whisper = whisperPath();
   if (!whisper) {
     throw new Error(
@@ -122,24 +130,37 @@ export async function transcribe(audioPath, { progress } = {}) {
     const out = path.join(work, "out");
     await run(whisper, ["-m", model, "-f", wav, "-ojf", "-of", out]);
     const raw = JSON.parse(readFileSync(`${out}.json`, "utf8"));
-    const segments = (raw.transcription ?? []).map((entry) => ({
+    const tokenSegments = (raw.transcription ?? []).map((entry) => ({
       text: String(entry.text ?? "").trim(),
       startMs: entry.offsets?.from ?? 0,
       endMs: entry.offsets?.to ?? 0,
       words: (entry.tokens ?? [])
-        .filter((token) => token.text && !/^\[_.*_\]$/.test(token.text))
+        .filter((token) => token.text && !isWhisperMarker(token.text))
         .map((token) => ({
           text: token.text,
           startMs: token.offsets?.from ?? 0,
           endMs: token.offsets?.to ?? 0,
         })),
     }));
+    const merged = mergeWhisperWords(tokenSegments);
+    const saved = save ? saveTranscript(audioPath, tokenSegments) : undefined;
+    const segments = saved?.segments ?? merged;
     return {
       text: segments
         .map((s) => s.text)
         .join(" ")
         .trim(),
       segments,
+      ...(saved
+        ? {
+            transcript: {
+              file: saved.file,
+              corrections: saved.corrections,
+              applied: saved.applied,
+              ...(saved.missed.length > 0 ? { missed: saved.missed } : {}),
+            },
+          }
+        : {}),
     };
   } finally {
     await rm(work, { recursive: true, force: true });
