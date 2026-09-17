@@ -1,12 +1,17 @@
 /* End-to-end build of a recorded pitch, against a recording this test
  * makes with the bundled ffmpeg — no library fixtures, no network.
  *
- * The recording is 12 seconds of a counting test pattern over a tone
- * that changes pitch every 2 seconds, which is enough to tell that a
- * clip was cut from the right span and that the joined voiceover is as
- * long as the pins say. */
+ * The recording is 12 seconds of a test pattern over a tone that steps up
+ * a whole tone every second. The steps are what make the result readable:
+ * the pitch at a moment says which second of the recording it came from,
+ * so the built voiceover can be checked for having taken the right spans,
+ * in the right order, with the dropped pause actually dropped.
+ *
+ * The filter graphs these builds produce are checked as text in
+ * build-graph.test.mjs — durations alone can't tell a correct graph from
+ * one that drifts inside. */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +19,53 @@ import { parse } from "yaml";
 import { buildMedia } from "./build-media.mjs";
 import { mediaDuration, runFfmpeg } from "./ffmpeg.mjs";
 import { transcriptJson } from "./transcript.mjs";
+
+/** The tone's pitch in the recording's `second`th second: 300Hz, then a
+ *  whole tone up for each second after it. */
+const toneAt = (second) => 300 + 100 * Math.floor(second);
+
+const PITCH_RATE = 8000;
+
+/** A track decoded once to 8kHz mono samples. Decoding the whole file and
+ *  windowing it here, rather than asking ffmpeg to seek, keeps the
+ *  positions exact: seeking into an mp3 lands on a frame boundary, which
+ *  is nowhere near exact enough to say which second of the recording a
+ *  moment came from. */
+async function samplesOf(file) {
+  const work = mkdtempSync(path.join(os.tmpdir(), "studio-pitch-"));
+  try {
+    const wav = path.join(work, "w.wav");
+    await runFfmpeg([
+      "-y",
+      "-i",
+      file,
+      "-ar",
+      String(PITCH_RATE),
+      "-ac",
+      "1",
+      "-c:a",
+      "pcm_s16le",
+      wav,
+    ]);
+    const pcm = readFileSync(wav).subarray(44);
+    return Int16Array.from({ length: pcm.length / 2 }, (_, i) => pcm.readInt16LE(i * 2));
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+/** The dominant pitch of a window of decoded samples, by counting how
+ *  often the waveform crosses zero — enough to tell 300Hz from 400Hz,
+ *  which is all this needs. Silence reads as near zero. */
+function pitchAt(samples, fromSeconds, { window = 0.4 } = {}) {
+  const start = Math.round(fromSeconds * PITCH_RATE);
+  const end = Math.min(samples.length, start + Math.round(window * PITCH_RATE));
+  let crossings = 0;
+  for (let i = start + 1; i < end; i += 1) {
+    if (samples[i - 1] <= 0 !== samples[i] <= 0) crossings += 1;
+  }
+  return crossings / 2 / ((end - start) / PITCH_RATE);
+}
 
 let library;
 const showcaseId = "pitch";
@@ -87,7 +139,9 @@ beforeAll(async () => {
     "-f",
     "lavfi",
     "-i",
-    "sine=frequency=440:duration=12",
+    /* A tone that steps up every second, so a span's pitch says which
+     * second of the recording it was taken from (toneAt). */
+    "aevalsrc=sin(2*PI*t*(300+100*floor(t))):s=44100:d=12",
     "-c:v",
     "libx264",
     "-preset",
@@ -174,6 +228,45 @@ describe("buildMedia", () => {
     expect(one.built).toEqual(["clip-closing.mp4"]);
   }, 120_000);
 
+  it("joins the right spans, in order, with the dropped pause dropped", async () => {
+    const track = await samplesOf(path.join(assets(), "pitch-voiceover.mp3"));
+    /* The tone steps every second of the recording, so its pitch says
+     * which second of the recording a moment came from. */
+    const at = (second) => Math.round(pitchAt(track, second) / 100) * 100;
+    /* The first 7.5s of the track is the first 7.5s of the recording:
+     * "opening" and "product" are next to each other, so the voice runs
+     * straight through the cut between them. */
+    expect(at(0.3)).toBe(toneAt(0));
+    expect(at(4.3)).toBe(toneAt(4));
+    /* Kept clear of 7.5, where the next span starts — a window that
+     * straddles a cut averages the two pitches. */
+    expect(at(7.0)).toBe(toneAt(7));
+    /* "closing" keeps 6.0-7.5 and then 8.5-10.0, so at 7.6s of the track
+     * the recording's 9th second is playing: the dropped pause is
+     * genuinely gone, not silenced in place. */
+    expect(at(7.6)).toBe(toneAt(8.6));
+    expect(at(8.6)).toBe(toneAt(9.6));
+    /* And the silent card after it really is silent. */
+    expect(pitchAt(track, 9.5)).toBeLessThan(50);
+  }, 120_000);
+
+  it("leaves a cancelled build with no half-written asset", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const result = await build({ force: true, signal: controller.signal }).catch((error) => ({
+      thrown: String(error?.message ?? error),
+    }));
+    /* Refused or thrown, either way — what matters is what is left on
+     * disk: a build writes through a .partial and moves it into place, so
+     * a cancelled one must leave neither a partial nor a truncated asset
+     * where the player would try to use it. */
+    expect(result.ok ?? false).toBe(false);
+    expect(existsSync(path.join(assets(), "pitch-voiceover.mp3.partial"))).toBe(false);
+    expect(existsSync(path.join(assets(), "clip-opening.mp4.partial"))).toBe(false);
+    /* And the assets from the last good build are still playable. */
+    expect(await mediaDuration(path.join(assets(), "pitch-voiceover.mp3"))).toBeGreaterThan(10);
+  }, 120_000);
+
   it("derives the words file from the recording's transcript", async () => {
     writeFileSync(
       path.join(assets(), "take.transcript.json"),
@@ -257,4 +350,240 @@ scenes:
     /* Nothing was written on the way to finding that out. */
     expect(existsSync(path.join(long, "assets", "clip-a.mp4"))).toBe(false);
   }, 60_000);
+
+  /** Writes the one-scene showcase the path tests below build from. */
+  const escapeeNaming = (video) => {
+    const folder = path.join(library, "escapee");
+    mkdirSync(path.join(folder, "assets"), { recursive: true });
+    writeFileSync(
+      path.join(folder, "showcase.yaml"),
+      `meta:
+  title: Escapee
+  description: d
+  source: {video: "${video}"}
+scenes:
+  - id: a
+    theme: footage
+    take: {from: 0, to: 1}
+    captions: []
+    media: {kind: none}
+`,
+    );
+    return folder;
+  };
+
+  it("refuses a recording outside the library", async () => {
+    /* A path is how a derived cut names the recording it shares with
+     * another showcase — it must not become a way out of the library. */
+    for (const video of ["../../take.mp4", "/etc/hosts", "../pitch/../../take.mp4"]) {
+      escapeeNaming(video);
+      const result = await buildMedia({ showcasesDir: library, showcaseId: "escapee" });
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("is not in escapee/assets");
+    }
+  });
+
+  it("takes a recording from another showcase in the same library", async () => {
+    escapeeNaming("../pitch/assets/take.mp4");
+    const result = await buildMedia({
+      showcasesDir: library,
+      showcaseId: "escapee",
+      onProgress: () => {},
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.built).toContain("clip-a.mp4");
+  }, 120_000);
+
+  it("refuses a take whose picture and sound last different times", async () => {
+    /* However the two are cut, they have to last the same, or the
+     * speaker's lips leave their voice behind. Nothing is built. */
+    const drifting = path.join(library, "drifting");
+    mkdirSync(path.join(drifting, "assets"), { recursive: true });
+    writeFileSync(
+      path.join(drifting, "showcase.yaml"),
+      `meta:
+  title: Drifting
+  description: d
+  source: {video: ../pitch/assets/take.mp4}
+scenes:
+  - id: hook
+    theme: footage
+    take:
+      audio: [{from: 0.0, to: 5.0}]
+      video: [{from: 0.0, to: 4.0}]
+    captions: []
+    media: {kind: none}
+`,
+    );
+    const result = await buildMedia({ showcasesDir: library, showcaseId: "drifting" });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("the lips drift");
+    expect(result.error).toContain("4.000s");
+    expect(existsSync(path.join(drifting, "assets", "clip-hook.mp4"))).toBe(false);
+    /* Refused before the showcase.yaml was touched: no pins written. */
+    expect(readFileSync(path.join(drifting, "showcase.yaml"), "utf8")).not.toContain("durationMs");
+  });
+});
+
+/* The retiming path — a showcase played faster than it was recorded. At
+ * the recording's own speed none of it runs, so the case that drifts is
+ * the case that has to be built here. */
+describe("buildMedia at a speed other than the recording's", () => {
+  const id = "faster";
+  let report;
+
+  beforeAll(async () => {
+    mkdirSync(path.join(library, id, "assets"), { recursive: true });
+    writeFileSync(
+      path.join(library, id, "showcase.yaml"),
+      `meta:
+  title: Faster
+  description: The same take, played at 1.1x.
+  source:
+    video: ../pitch/assets/take.mp4
+    speed: 1.1
+    pad: 0.15
+scenes:
+  - id: opening
+    theme: footage
+    take: {from: 0.0, to: 4.4}
+    captions: []
+    media: {kind: none}
+  - id: middle
+    theme: footage
+    take: [{from: 4.4, to: 6.6}, {from: 7.7, to: 9.9}]
+    captions: []
+    media: {kind: none}
+  - id: cta
+    theme: statement
+    title: Get it
+    take: {silence: 2.0}
+    captions: []
+    media: {kind: none}
+`,
+    );
+    report = await buildMedia({ showcasesDir: library, showcaseId: id, onProgress: () => {} });
+  }, 180_000);
+
+  it("pins each scene to its spans divided by the speed", () => {
+    expect(report.error).toBeUndefined();
+    /* 4.4/1.1 = 4.0; (2.2 + 2.2)/1.1 = 4.0; the card is its own 2.0. */
+    expect(report.pins).toEqual({ opening: 4000, middle: 4000, cta: 2000 });
+    expect(report.totalMs).toBe(10_000);
+  });
+
+  it("makes a track as long as the pins say, not as long as the spans", async () => {
+    const seconds = await mediaDuration(path.join(library, id, "assets", "faster-voiceover.mp3"));
+    /* 8.8s of recording at 1.1x is 8s, plus the 2s card and 0.15s of pad.
+     * Retiming span by span would round each of the three spans on its
+     * own and land long. One mp3 frame (26ms) of slack. */
+    expect(seconds).toBeGreaterThanOrEqual(10.0);
+    expect(seconds).toBeLessThan(10.0 + 0.15 + 0.05);
+  }, 60_000);
+
+  it("keeps the silent card its own length, not the speed's", async () => {
+    const track = path.join(library, id, "assets", "faster-voiceover.mp3");
+    /* Speech ends at 8s; the card runs 8s-10s and must be silent for all
+     * of it. A card that wasn't stretched by the speed first would come
+     * out 1.82s, ending the track early. */
+    const samples = await samplesOf(track);
+    expect(pitchAt(samples, 8.2)).toBeLessThan(50);
+    expect(pitchAt(samples, 9.5)).toBeLessThan(50);
+    /* The tone is still there just before the card. */
+    expect(pitchAt(samples, 7.4)).toBeGreaterThan(200);
+  }, 60_000);
+
+  it("cuts each clip to the scene it belongs to", async () => {
+    const opening = await mediaDuration(path.join(library, id, "assets", "clip-opening.mp4"));
+    const middle = await mediaDuration(path.join(library, id, "assets", "clip-middle.mp4"));
+    expect(opening).toBeCloseTo(4.0, 1);
+    expect(middle).toBeCloseTo(4.0, 1);
+  }, 60_000);
+
+  it("points a clip scene with no media of its own at its clip", () => {
+    const doc = parse(readFileSync(path.join(library, id, "showcase.yaml"), "utf8"));
+    expect(doc.scenes[0].media).toEqual({
+      kind: "video",
+      asset: "clip-opening",
+      alt: "On-camera footage",
+    });
+    /* The silent card shows its own thing; the build leaves it alone. */
+    expect(doc.scenes[2].media).toEqual({ kind: "none" });
+  });
+
+  it("says so when the showcase plays a track it didn't build", async () => {
+    const yamlPath = path.join(library, id, "showcase.yaml");
+    writeFileSync(
+      yamlPath,
+      readFileSync(yamlPath, "utf8").replace("src: faster-voiceover", "src: some-other-track"),
+    );
+    const again = await buildMedia({ showcasesDir: library, showcaseId: id, onProgress: () => {} });
+    expect(again.ok).toBe(true);
+    expect(again.notes.join("\n")).toContain("plays a different track than the one just built");
+  }, 120_000);
+});
+
+/* Gain-matching, for a recording assembled from takes at different
+ * levels: each span is measured and brought to the same loudness before
+ * the join, then the finished track is lifted and limited. */
+describe("buildMedia with loudness matching", () => {
+  const id = "levels";
+
+  it("builds a track louder than the quiet recording it came from", async () => {
+    const folder = path.join(library, id);
+    mkdirSync(path.join(folder, "assets"), { recursive: true });
+    /* The same tone, 20dB down — quiet enough that the lift has to move
+     * it a long way. */
+    await runFfmpeg([
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "aevalsrc=0.05*sin(2*PI*t*400):s=44100:d=6",
+      "-c:a",
+      "aac",
+      path.join(folder, "assets", "quiet.m4a"),
+    ]);
+    writeFileSync(
+      path.join(folder, "showcase.yaml"),
+      `meta:
+  title: Levels
+  description: d
+  source:
+    audio: quiet.m4a
+    loudness: {segment: -30, track: -16}
+scenes:
+  - id: a
+    theme: statement
+    title: A
+    take: {from: 0.0, to: 2.0}
+    captions: []
+    media: {kind: none}
+  - id: b
+    theme: statement
+    title: B
+    take: {from: 3.0, to: 5.0}
+    captions: []
+    media: {kind: none}
+`,
+    );
+    const steps = [];
+    const result = await buildMedia({
+      showcasesDir: library,
+      showcaseId: id,
+      onProgress: (label) => steps.push(label),
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.built).toEqual(["levels-voiceover.mp3"]);
+    /* Both passes ran: each span measured, then the whole track lifted. */
+    expect(steps.filter((s) => s.startsWith("measuring level"))).toHaveLength(2);
+    expect(steps.join("\n")).toContain("lifting the track");
+
+    const { measureLoudness } = await import("./ffmpeg.mjs");
+    const built = await measureLoudness(path.join(folder, "assets", "levels-voiceover.mp3"));
+    const before = await measureLoudness(path.join(folder, "assets", "quiet.m4a"));
+    expect(built).toBeGreaterThan(before + 10);
+    /* No video was named, so there are no clips to cut. */
+    expect(existsSync(path.join(folder, "assets", "clip-a.mp4"))).toBe(false);
+  }, 180_000);
 });

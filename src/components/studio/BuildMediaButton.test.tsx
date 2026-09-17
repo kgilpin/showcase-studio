@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { StudioExportJob } from "@/lib/studio";
-import { BuildMediaControl, buildSummary } from "./BuildMediaButton";
+import { BuildMediaControl } from "./BuildMediaButton";
+import { buildSummary } from "./build-summary";
 
 const running: StudioExportJob = {
   jobId: "build-1",

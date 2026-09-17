@@ -128,7 +128,7 @@ async function intoPlace(target, write) {
  *  whether the cut before or after it is continuous with it. A join
  *  between two spans that were next to each other in the recording needs
  *  no fade — fading there would dip perfectly continuous speech. */
-function audioTimeline(cuts) {
+export function audioTimeline(cuts) {
   const flat = [];
   for (const cut of cuts) {
     if (cut.silence != null) {
@@ -150,9 +150,21 @@ function audioTimeline(cuts) {
 
 const SAMPLE_RATE = 44100;
 
-/** The filter graph that joins the timeline into one track. `gains` maps
- *  a span's index to a dB adjustment (loudness matching); absent means
- *  leave it alone.
+/** Where the last spoken span ends on the built timeline — where the
+ *  tail fade belongs, since a silent card after it has nothing to fade. */
+export function spokenSeconds(timeline, speed) {
+  let at = 0;
+  let spoken = 0;
+  for (const entry of timeline) {
+    at += entry.silence ?? (entry.span.to - entry.span.from) / speed;
+    if (entry.span) spoken = at;
+  }
+  return spoken;
+}
+
+/** The filter graph that joins the cuts into one track. `gains` maps a
+ *  span's index in the timeline to a dB adjustment (loudness matching);
+ *  absent means leave it alone.
  *
  *  Every span is cut at the recording's own rate and the whole joined
  *  track is sped up once, at the end. Speeding each span up on its own
@@ -161,7 +173,9 @@ const SAMPLE_RATE = 44100;
  *  between the voice and the pins this is all meant to remove. So the
  *  per-span fades below are in the recording's seconds, and a silent
  *  card is stretched by the speed first so it comes out its own length. */
-function voiceoverGraph(timeline, source, { gains = new Map(), spokenOutSeconds } = {}) {
+export function voiceoverGraph(cuts, source, { gains = new Map() } = {}) {
+  const timeline = audioTimeline(cuts);
+  const spokenOutSeconds = spokenSeconds(timeline, source.speed);
   const parts = [];
   const labels = [];
   const format = `aformat=sample_fmts=fltp:sample_rates=${SAMPLE_RATE}:channel_layouts=mono`;
@@ -193,7 +207,7 @@ function voiceoverGraph(timeline, source, { gains = new Map(), spokenOutSeconds 
   /* The tail fade lands on the last thing actually spoken, so room tone
    * after it settles to nothing instead of stopping dead. It, and the
    * pad, are in the finished track's own seconds. */
-  if (source.fade != null && spokenOutSeconds != null) {
+  if (source.fade != null) {
     after.push(
       `afade=t=out:st=${Math.max(0, spokenOutSeconds - source.fade).toFixed(3)}:d=${source.fade}`,
     );
@@ -203,20 +217,14 @@ function voiceoverGraph(timeline, source, { gains = new Map(), spokenOutSeconds 
 }
 
 async function buildVoiceover({ audioInput, cuts, source, target, signal, onProgress }) {
-  const timeline = audioTimeline(cuts);
-  /* Where the last spoken word's span ends on the built timeline — where
-   * the tail fade belongs. */
-  let spokenOutSeconds = 0;
-  let at = 0;
-  for (const entry of timeline) {
-    const seconds = entry.silence ?? (entry.span.to - entry.span.from) / source.speed;
-    at += seconds;
-    if (entry.span) spokenOutSeconds = at;
-  }
-
   const gains = new Map();
   if (source.loudness?.segment != null) {
-    const spans = timeline.map((entry, i) => [i, entry]).filter(([, entry]) => entry.span);
+    /* A recording assembled from takes at different levels: measure each
+     * kept span and bring it to the same loudness before joining, or the
+     * joins are audible as a jump in level. */
+    const spans = audioTimeline(cuts)
+      .map((entry, i) => [i, entry])
+      .filter(([, entry]) => entry.span);
     for (const [index, entry] of spans) {
       onProgress?.(`measuring level ${gains.size + 1}/${spans.length}…`);
       const measured = await measureLoudness(audioInput, {
@@ -228,7 +236,7 @@ async function buildVoiceover({ audioInput, cuts, source, target, signal, onProg
     }
   }
 
-  const graph = voiceoverGraph(timeline, source, { gains, spokenOutSeconds });
+  const graph = voiceoverGraph(cuts, source, { gains });
   await intoPlace(target, async (partial) => {
     if (source.loudness?.track == null) {
       onProgress?.("building the voiceover…");
@@ -289,7 +297,7 @@ async function buildVoiceover({ audioInput, cuts, source, target, signal, onProg
 
 /* ---------- the clips ---------- */
 
-function clipGraph(cut, source) {
+export function clipGraph(cut, source) {
   const parts = cut.videoSpans.map((span, i) => {
     const rate = span.fit ? (span.to - span.from) / span.fit : 1;
     return `[0:v]trim=${span.from}:${span.to},setpts=(PTS-STARTPTS)/${rate.toFixed(6)}[v${i}]`;
