@@ -480,6 +480,62 @@ scenes:
     });
     expect(status).toBe(403);
   });
+
+  /* Media builds have their own job lane, so a build and an export never
+   * wait on each other. The build itself is server/build-media.test.mjs;
+   * this is the wiring — the page action, the MCP tools, and the "build"
+   * event they both report through. */
+  it("builds media in its own job lane, and says so to pages and to Claude", async () => {
+    const events = [];
+    const { studio, post, url } = await startStudio();
+    const stream = await fetch(`${url}/studio/api/events`);
+    const reader = stream.body.getReader();
+    const reading = (async () => {
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        const text = decoder.decode(value);
+        if (text.includes("event: build")) events.push(text);
+        if (events.length >= 1) return;
+      }
+    })();
+
+    /* "nova" has no meta.source, so the build fails — which is the point:
+     * the failure has to arrive as a build job, not a dropped promise. */
+    const started = await post("build", { showcaseId: "nova" });
+    expect(started.ok).toBe(true);
+    expect(started.job).toMatchObject({ jobId: "build-1", kind: "build", showcaseId: "nova" });
+
+    const settled = async () => {
+      for (let i = 0; i < 50; i += 1) {
+        const { job } = await post("build-current");
+        if (job && job.status !== "running") return job;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      throw new Error("the build never finished");
+    };
+    const job = await settled();
+    expect(job.status).toBe("failed");
+    expect(job.error).toContain("not built from a recording");
+
+    await reading;
+    expect(events.length).toBeGreaterThan(0);
+    await reader.cancel();
+
+    /* The same jobs, through the MCP tools Claude calls. */
+    const call = (name, args) =>
+      studio.callTool({ name, arguments: args }).then((r) => JSON.parse(r.content[0].text));
+    const mcpJob = await call("build_media", { showcaseId: "nova" });
+    expect(mcpJob).toMatchObject({ jobId: "build-2", kind: "build" });
+    expect(await call("build_status", { jobId: mcpJob.jobId })).toMatchObject({
+      jobId: mcpJob.jobId,
+    });
+    expect(await call("build_cancel", { jobId: mcpJob.jobId })).toMatchObject({
+      jobId: mcpJob.jobId,
+    });
+    await expect(call("build_status", { jobId: "nope" })).rejects.toThrow("No build job named");
+  }, 30_000);
 });
 
 /** The library's change log, parsed. */

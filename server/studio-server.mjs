@@ -12,7 +12,7 @@
  *   GET  /studio/api/history    the library's git history status, for the
  *                               "Commit changes to git" switch
  *   GET  /studio/api/events     live events (server-sent events): reload,
- *                               info, export, terminal-data, terminal-exit
+ *                               info, export, build, terminal-data, terminal-exit
  *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below)
  *   POST /mcp                   the MCP tools, for Claude (server/mcp.mjs)
  *
@@ -43,6 +43,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
+import { buildMedia } from "./build-media.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { revealInFileManager } from "./export-output.mjs";
@@ -406,6 +407,35 @@ add notes specific to this library below, and the studio won't touch them.
     { onChange: (status) => emit("export", status) },
   );
 
+  /* ---------- media builds ---------- */
+
+  /* Building a recorded pitch from its cut list (server/build-media.mjs):
+   * the voiceover, the clips, the words file, and every scene's
+   * durationMs, all derived from the spans in showcase.yaml. Its own job
+   * lane, so a build and an export don't block each other, reported to
+   * pages as the "build" event. */
+  const buildJobs = createExportJobs(
+    (_kind, showcaseId, { onProgress, signal, force, only }) =>
+      buildMedia({
+        showcasesDir,
+        showcaseId,
+        force,
+        only,
+        onProgress,
+        signal,
+        beforeWrite: recordSelfWrite,
+      }).then((result) => {
+        if (!result.ok) throw new Error(result.error);
+        logUi(showcaseId, "build", {
+          built: result.built,
+          file: "showcase.yaml",
+          version: result.version,
+        });
+        return result;
+      }),
+    { onChange: (status) => emit("build", status), name: "build", poll: "build_status" },
+  );
+
   /** Opens the file manager on a showcase's exports: the job's output
    *  when `jobId` names a finished job, else the showcase's export
    *  folder. Paths come from the studio, never from the request. */
@@ -470,6 +500,7 @@ add notes specific to this library below, and the studio won't touch them.
     getShowcasesDir: () => showcasesDir,
     renderer,
     exportJobs,
+    buildJobs,
     changeLog,
     history,
   };
@@ -779,6 +810,24 @@ scenes:
     },
     "export-current": () => ({ ok: true, job: exportJobs.current() ?? null }),
     "export-reveal": revealExport,
+    build: ({ showcaseId, force, only }) => {
+      try {
+        return {
+          ok: true,
+          job: buildJobs.start("build", String(showcaseId ?? ""), {
+            force: force === true,
+            only: Array.isArray(only) ? only.map(String) : undefined,
+          }),
+        };
+      } catch (error) {
+        return { ok: false, error: String(error?.message ?? error) };
+      }
+    },
+    "build-cancel": ({ jobId }) => {
+      const job = buildJobs.cancel(String(jobId ?? ""));
+      return job ? { ok: true, job } : { ok: false, error: `No build job named "${jobId}"` };
+    },
+    "build-current": () => ({ ok: true, job: buildJobs.current() ?? null }),
     library: setLibrary,
     "terminal-available": () =>
       terminals ? terminals.available() : { ptyReady: false, claude: false },
