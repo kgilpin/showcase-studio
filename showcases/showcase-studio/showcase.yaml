@@ -6,14 +6,14 @@ meta:
   notes: |-
     Script draft for the plugin pitch: Showcase Studio runs as a Claude Code plugin, so it uses the subscription you already have, every tool on your machine, and plain files you can share across projects.
     Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile) by synth-voiceover.mjs: one clip per caption, each placed in a window of 250 ms lead + spoken length + 450 ms tail (the last caption holds 1.5 s more for the end card). Every caption's durationMs is pinned to its window, and the windows sum to 60732 ms, the audio's length. assets/voiceover-synth.words.json holds the transcribe tool's word timestamps for the karaoke captions. After any caption edit, re-run the synthesis and re-pin, or the voice drifts out of sync.
-    The on-camera scene still plays an old clip cut from video-readthrough-13sec.mp4 (formerly showcase-studio-take-2.mp4), which says the previous script. The recorded voiceover.m4a and voiceover.words.json in assets/ match the previous script and are unused. To record for real: read the final script on the phone teleprompter, cut the on-camera clip, then point soundtrack at the new recording, re-pin, and replace the words file.
+    The on-camera scene still plays assets/scene-1-setup.mp4, an old clip that says the previous script. The master recording it was cut from, and an earlier recorded voiceover, were dropped from this folder: these showcases ship as examples, so only the files the slides use are kept. To record for real: read the final script on the phone teleprompter, cut a new on-camera clip, then point soundtrack at the new recording, re-pin, and replace the words file.
   soundtrack: { src: voiceover-synth, volume: 1, sync: true }
 
 scenes:
   - id: setup
     theme: footage
     eyebrow: On camera
-    note: "The on-camera hook, to be re-recorded. Until then it plays the old clip assets/scene-1-setup.mp4 (cut from video-readthrough-13sec.mp4 at 0-7.9 s, which says the previous line), and the timing follows the new words, so the clip is cut short. fit: contain keeps the landscape framing on the portrait stage. The old scene-2 clip (assets/scene-2-studio.mp4) is no longer used."
+    note: "The on-camera hook, to be re-recorded. Until then it plays the old clip assets/scene-1-setup.mp4, which says the previous line, and the timing follows the new words, so the clip is cut short. fit: contain keeps the landscape framing on the portrait stage. The master recording this was cut from is no longer in the folder (see meta.notes)."
     captions:
       - text: I made this video with Showcase Studio, a Claude Code plugin.
         durationMs: 4516
