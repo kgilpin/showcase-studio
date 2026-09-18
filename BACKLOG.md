@@ -390,8 +390,8 @@ comment that its `media: none` means "not sent". The made-up value itself is
 still there; a later change could drop it so `ScriptPlayer` sees media as
 missing. B and C are open.
 
-**Deploying.** The site deploy needs the publish key (`PROMPTER_PUBLISH_KEY`)
-in the command; see `CLAUDE.md`. Deploy both the Dev and Prod sites.
+**Deploying.** See `CLAUDE.md` for the command. Deploy both the Dev and Prod
+sites.
 
 ---
 

@@ -1,9 +1,18 @@
 import http from "node:http";
 import { Readable } from "node:stream";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { publish } from "../cdk/lambda/publish-core.mjs";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { contentHash } from "./scene-edit.mjs";
 import { createStudio, isLocalRequest } from "./studio-server.mjs";
@@ -54,11 +63,10 @@ async function startStudio({
   ids = ["nova"],
   before,
   reveal = () => {},
+  settings = memorySettings(),
 } = {}) {
   const library = libraryWith(...ids);
   before?.(library);
-  let saved = {};
-  const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
   const studio = createStudio({
     showcasesDir: library,
     lock,
@@ -94,7 +102,14 @@ async function startStudio({
       })
     ).json();
   const info = async () => (await fetch(`${url}/studio/api/info`)).json();
-  return { studio, url, library, saved: () => saved, post, info };
+  return { studio, url, library, saved: () => settings.load(), post, info };
+}
+
+/** The studio's settings.json, in memory. Pass one to two studios to
+ *  have them share it, as studios on one machine do. */
+function memorySettings(initial = {}) {
+  let saved = initial;
+  return { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
 }
 
 describe("createStudio", () => {
@@ -909,5 +924,119 @@ describe("isLocalRequest", () => {
     expect(
       isLocalRequest(request("127.0.0.1", { host: "localhost:1", origin: "https://evil.example" })),
     ).toBe(false);
+  });
+});
+
+describe("sharing the prompter", () => {
+  /* The publish endpoint, in a local HTTP server: the real rules
+   * (cdk/lambda/publish-core.mjs) over an in-memory bucket. */
+  async function publishEndpoint() {
+    const objects = new Map();
+    const store = {
+      head: async (token) => objects.get(token)?.hash ?? null,
+      put: async (token, body, hash) => void objects.set(token, { body, hash }),
+    };
+    const server = http.createServer(async (req, res) => {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const [status, result] = await publish(JSON.parse(body), { store, siteUrl: SITE });
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(result));
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    cleanups.push(() => new Promise((resolve) => server.close(resolve)));
+    return { url: `http://127.0.0.1:${server.address().port}`, objects, store };
+  }
+
+  const SITE = "https://prompter.test";
+  const envUrl = process.env.PROMPTER_PUBLISH_URL;
+  beforeEach(() => delete process.env.PROMPTER_PUBLISH_URL);
+  afterEach(() => {
+    if (envUrl !== undefined) process.env.PROMPTER_PUBLISH_URL = envUrl;
+  });
+
+  const folderOf = (library, id) => realpathSync(path.join(library, id));
+
+  it("saves the link under the showcase folder's path and updates it in place", async () => {
+    const endpoint = await publishEndpoint();
+    const settings = memorySettings({ prompterPublishUrl: endpoint.url });
+    const { post, library } = await startStudio({ settings });
+
+    const first = await post("prompter-publish", { showcaseId: "nova" });
+    expect(first).toMatchObject({ ok: true, replaced: false });
+    const link = settings.load().prompterLinks[folderOf(library, "nova")];
+    expect(first.url).toBe(`${SITE}/p/${link.token}`);
+    expect(link.editKey).toBeTruthy();
+
+    const again = await post("prompter-publish", { showcaseId: "nova" });
+    expect(again).toMatchObject({ ok: true, url: first.url, replaced: false });
+    expect(endpoint.objects.size).toBe(1);
+  });
+
+  it("gives same-named showcases in two libraries their own links", async () => {
+    const endpoint = await publishEndpoint();
+    const settings = memorySettings({ prompterPublishUrl: endpoint.url });
+    const a = await startStudio({ settings });
+    const b = await startStudio({ settings });
+
+    const fromA = await a.post("prompter-publish", { showcaseId: "nova" });
+    const fromB = await b.post("prompter-publish", { showcaseId: "nova" });
+    expect(fromA.url).not.toBe(fromB.url);
+    expect(Object.keys(settings.load().prompterLinks)).toHaveLength(2);
+  });
+
+  it("keeps the link of a showcase whose folder moved", async () => {
+    const endpoint = await publishEndpoint();
+    const [, made] = await publish(
+      { script: { version: 1, scenes: [] } },
+      { store: endpoint.store, siteUrl: SITE },
+    );
+    const gone = path.join(tmpdir(), "no-such-library", "nova");
+    const settings = memorySettings({
+      prompterPublishUrl: endpoint.url,
+      prompterLinks: { [gone]: { token: made.token, editKey: made.editKey } },
+    });
+    const { post, library } = await startStudio({ settings });
+
+    const result = await post("prompter-publish", { showcaseId: "nova" });
+    expect(result).toMatchObject({ ok: true, url: made.url, replaced: false });
+    expect(Object.keys(settings.load().prompterLinks)).toEqual([folderOf(library, "nova")]);
+  });
+
+  it("makes a new link when two moved folders could be the one", async () => {
+    const endpoint = await publishEndpoint();
+    const link = { token: "t".repeat(22), editKey: "k" };
+    const settings = memorySettings({
+      prompterPublishUrl: endpoint.url,
+      prompterLinks: {
+        [path.join(tmpdir(), "gone-1", "nova")]: link,
+        [path.join(tmpdir(), "gone-2", "nova")]: link,
+      },
+    });
+    const { post } = await startStudio({ settings });
+
+    const result = await post("prompter-publish", { showcaseId: "nova" });
+    expect(result).toMatchObject({ ok: true, replaced: false });
+    expect(result.url).not.toContain(link.token);
+    expect(Object.keys(settings.load().prompterLinks)).toHaveLength(3);
+  });
+
+  it("replaces a link that expired, and says so", async () => {
+    const endpoint = await publishEndpoint();
+    const settings = memorySettings({ prompterPublishUrl: endpoint.url });
+    const { post, library } = await startStudio({ settings });
+
+    const first = await post("prompter-publish", { showcaseId: "nova" });
+    endpoint.objects.clear(); // the bucket dropped it after 30 days
+    const next = await post("prompter-publish", { showcaseId: "nova" });
+    expect(next).toMatchObject({ ok: true, replaced: true });
+    expect(next.url).not.toBe(first.url);
+    const link = settings.load().prompterLinks[folderOf(library, "nova")];
+    expect(next.url).toBe(`${SITE}/p/${link.token}`);
+  });
+
+  it("refuses a showcase that isn't there", async () => {
+    const { post } = await startStudio();
+    expect(await post("prompter-publish", { showcaseId: "nope" })).toMatchObject({ ok: false });
   });
 });
