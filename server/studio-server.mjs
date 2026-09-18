@@ -55,6 +55,7 @@ import { prompterScript } from "./prompter-script.mjs";
 import { applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
 import { handleShowcaseRequest, showcaseIndex } from "./showcase-data.mjs";
 import { createShowcaseHistory } from "./showcase-history.mjs";
+import { alreadyOpen, clearPresence, runningStudio, writePresence } from "./studio-presence.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { createTerminals } from "./terminals.mjs";
@@ -715,17 +716,49 @@ scenes:
   /** Switches the library folder (File > Open Folder in the desktop app).
    *  Remembered as the saved library and in Open Recent. A locked studio
    *  never switches. */
-  function setLibrary({ dir } = {}) {
+  async function setLibrary({ dir } = {}) {
     if (lock) return { ok: false, error: "This studio is locked to one showcase" };
     const target = path.resolve(String(dir ?? ""));
     if (!dir || !isDirectory(target)) return { ok: false, error: `${target} is not a folder` };
+    const other = await runningStudio(target, { exceptUrl: url });
+    if (other) return { ok: false, error: alreadyOpen(target, other.url) };
+    release();
     showcasesDir = target;
     const recents = [target, ...(settings.load().recentFolders ?? []).filter((d) => d !== target)];
     settings.save({ showcasesDir: target, recentFolders: recents.slice(0, 8) });
     scaffold();
     watchLibrary();
+    claiming = claim();
     emit("info", info());
     return { ok: true, library: target };
+  }
+
+  /* ---------- one studio per library (server/studio-presence.mjs) ---------- */
+
+  /* The library this studio has recorded itself as having open. */
+  let claimed = null;
+  let claiming = Promise.resolve();
+
+  /** Records this studio in the library's .studio/studio.json — unless a
+   *  live studio already holds it, whose record must stand. (Starting
+   *  anyway is the launcher's choice, e.g. a headless export; it just
+   *  doesn't take the record over.) */
+  async function claim() {
+    if (!url) return;
+    const library = showcasesDir;
+    try {
+      if (await runningStudio(library, { exceptUrl: url })) return;
+      if (library !== showcasesDir) return; // switched while asking
+      writePresence(library, { url });
+      claimed = library;
+    } catch (error) {
+      log(`studio: couldn't record the studio in ${library} (${error.message})`);
+    }
+  }
+
+  function release() {
+    if (claimed) clearPresence(claimed, { url });
+    claimed = null;
   }
 
   const exportJob = (kind, showcaseId) => {
@@ -943,6 +976,7 @@ scenes:
     setUrl(next) {
       url = String(next).replace(/\/$/, "");
       writeMcpConfig();
+      claiming = claim();
     },
 
     /** The library's git history facts (server/showcase-history.mjs status()). */
@@ -965,6 +999,8 @@ scenes:
 
     async close() {
       unregisterStudio();
+      await claiming;
+      release();
       if (watcher) {
         /* fs.watch's close() returns before the handle is released; the
          * "close" event follows. A test deleting the library right after

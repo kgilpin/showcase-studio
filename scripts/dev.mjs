@@ -14,6 +14,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { STUDIO_USAGE, studioOptions } from "../server/launch-options.mjs";
 import { repoRoot, startDevStudio } from "./dev-studio.mjs";
+import { alreadyOpen, runningStudio } from "../server/studio-presence.mjs";
 import { electronBinary } from "./desktop-deps.mjs";
 
 let options;
@@ -37,6 +38,17 @@ try {
 if (options.help) {
   process.stdout.write(STUDIO_USAGE);
   process.exit(0);
+}
+
+/* One studio per library (server/studio-presence.mjs). An export is a
+ * short headless render, meant to run beside an open studio, so it
+ * doesn't ask. */
+if (!options.exportJob) {
+  const other = await runningStudio(options.showcasesDir);
+  if (other) {
+    console.error(alreadyOpen(options.showcasesDir, other.url));
+    process.exit(1);
+  }
 }
 
 const running = await startDevStudio({
