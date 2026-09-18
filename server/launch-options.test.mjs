@@ -61,6 +61,7 @@ describe("studioOptions", () => {
       electron: false,
       mcp: false,
       terminal: true,
+      autoCommit: true,
       window: true,
       showcasesDir: "/home/Showcases",
       lock: null,
@@ -74,6 +75,12 @@ describe("studioOptions", () => {
     expect(studioOptions(["--no-terminal"], context).terminal).toBe(false);
     expect(() => studioOptions(["--no-terminal=1"], context)).toThrow(/doesn't take a value/);
     expect(STUDIO_USAGE).toContain("--no-terminal");
+  });
+
+  it("reads --no-auto-commit as a switch that starts with git commits off", () => {
+    expect(studioOptions(["--no-auto-commit"], context).autoCommit).toBe(false);
+    expect(() => studioOptions(["--no-auto-commit=1"], context)).toThrow(/doesn't take a value/);
+    expect(STUDIO_USAGE).toContain("--no-auto-commit");
   });
 
   it("reads --no-window as a switch for the packaged app, not the window launchers", () => {

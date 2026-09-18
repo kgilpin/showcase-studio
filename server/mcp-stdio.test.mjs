@@ -34,8 +34,8 @@ afterEach(() => {
  *  whether it was stopped. */
 function fakeStudios() {
   const started = [];
-  const startStudio = async ({ showcasesDir, lock, window }) => {
-    const entry = { showcasesDir, lock, window, closed: false };
+  const startStudio = async ({ showcasesDir, lock, window, source }) => {
+    const entry = { showcasesDir, lock, window, source, closed: false };
     started.push(entry);
     const text = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
     return {
@@ -153,6 +153,41 @@ describe("the studio's MCP server", () => {
     });
     await call("studio_start", { library: path.basename(lib), showcase: "nova" });
     expect(started[0]).toMatchObject({ showcasesDir: lib, lock: { showcaseId: "nova" } });
+  });
+
+  it("runs another checkout, with its own showcases, when given a source", async () => {
+    const checkout = library("nova");
+    mkdirSync(path.join(checkout, "scripts"));
+    writeFileSync(path.join(checkout, "scripts", "dev.mjs"), "");
+    const { started, startStudio } = fakeStudios();
+    const libraries = [];
+    const { rpc, call } = server({
+      startStudio,
+      sources: true,
+      defaultLibrary: (source) => {
+        libraries.push(source);
+        return checkout;
+      },
+    });
+    const { result } = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const start = result.tools.find((tool) => tool.name === "studio_start");
+    expect("source" in start.inputSchema.properties).toBe(true);
+
+    await call("studio_start", { source: checkout, showcase: "nova" });
+    expect(libraries).toEqual([checkout]);
+    expect(started[0]).toMatchObject({ showcasesDir: checkout, source: checkout });
+
+    const notACheckout = await call("studio_start", { source: library() });
+    expect(notACheckout.isError).toBe(true);
+    expect(notACheckout.content[0].text).toMatch(/isn't a checkout of Showcase Studio/);
+    expect(started).toHaveLength(1);
+  });
+
+  it("offers no source choice where there is only one build to run", async () => {
+    const { rpc } = server({ ...fakeStudios(), defaultLibrary: () => "/lib" });
+    const { result } = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const start = result.tools.find((tool) => tool.name === "studio_start");
+    expect("source" in start.inputSchema.properties).toBe(false);
   });
 
   it("starts an unlocked studio for the first other tool, and stops it when asked", async () => {

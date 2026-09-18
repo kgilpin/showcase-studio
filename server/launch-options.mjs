@@ -66,13 +66,17 @@ Set by launchers:
   --mcp                      (the Claude Code plugin) Talk MCP on stdin and
                              stdout, with no window until studio_start asks
                              for one.
+  --no-auto-commit           (Claude Code's studio from source) Git commits
+                             default to off, as in every studio Claude Code
+                             starts; the user's own "Commit changes to git"
+                             switch still wins.
 
 Paths can start with ~. Relative paths are resolved from the folder you run
 the command in.
 `;
 
 const VALUE_FLAGS = new Set(["open", "library", "export", "app-url"]);
-const SWITCHES = new Set(["help", "electron", "mcp", "no-terminal", "no-window"]);
+const SWITCHES = new Set(["help", "electron", "mcp", "no-terminal", "no-window", "no-auto-commit"]);
 /* The choices studio_start makes, which --mcp therefore can't take. */
 const NOT_WITH_MCP = ["open", "new", "export", "electron", "app-url", "no-window"];
 
@@ -112,7 +116,7 @@ export function findLibrary(dir) {
 }
 
 /** Parses argv into the studio's options:
- *  `{ help, electron, mcp, terminal, window, showcasesDir, lock, exportJob,
+ *  `{ help, electron, mcp, terminal, autoCommit, window, showcasesDir, lock, exportJob,
  *  appUrl, unknown }`.
  *  `showcasesDir` is `defaultDir` unless --library, --open or --new picks
  *  one. Throws with a plain message when an option is misused or names a
@@ -154,6 +158,7 @@ export function studioOptions(argv, { cwd, defaultDir, home } = {}) {
     electron: given.has("electron"),
     mcp: given.has("mcp"),
     terminal: !given.has("no-terminal"),
+    autoCommit: !given.has("no-auto-commit"),
     window: !given.has("no-window"),
     showcasesDir: defaultDir,
     lock: null,
