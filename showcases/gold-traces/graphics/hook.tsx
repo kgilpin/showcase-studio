@@ -16,8 +16,25 @@ const OPERATIONS = Array.from({ length: 45 }, (_, i) => i < 5);
 function Passed({ x, y, width, label }: { x: number; y: number; width: number; label: string }) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={76} rx={38} fill={GREEN} fillOpacity={0.14} stroke={GREEN} strokeWidth={2} />
-      <text x={x + width / 2} y={y + 50} textAnchor="middle" fill={GREEN} fontSize={34} fontWeight={600}>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={76}
+        rx={38}
+        fill={GREEN}
+        fillOpacity={0.14}
+        stroke={GREEN}
+        strokeWidth={2}
+      />
+      <text
+        x={x + width / 2}
+        y={y + 50}
+        textAnchor="middle"
+        fill={GREEN}
+        fontSize={34}
+        fontWeight={600}
+      >
         ✓ {label}
       </text>
     </g>
@@ -52,7 +69,17 @@ function Legend({ x, y, size, gap }: { x: number; y: number; size: number; gap: 
       <text x={x + size + 12} y={y + size - 4} fill={GREEN} fontSize={30} fontWeight={600}>
         5 fixed
       </text>
-      <rect x={x + gap} y={y} width={size} height={size} rx={5} fill={RED} fillOpacity={0.14} stroke={RED} strokeWidth={2} />
+      <rect
+        x={x + gap}
+        y={y}
+        width={size}
+        height={size}
+        rx={5}
+        fill={RED}
+        fillOpacity={0.14}
+        stroke={RED}
+        strokeWidth={2}
+      />
       <text x={x + gap + size + 12} y={y + size - 4} fill={RED} fontSize={30} fontWeight={600}>
         40 still open
       </text>

@@ -11,14 +11,41 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
 const GREEN = "#34d399";
 
 /** The swap: what the code saw, and what the repository gets. */
-function Swap({ x, y, width, height, arrow }: { x: number; y: number; width: number; height: number; arrow: string }) {
+function Swap({
+  x,
+  y,
+  width,
+  height,
+  arrow,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  arrow: string;
+}) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={height} rx={20} fill="var(--secondary)" stroke="var(--border)" />
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={20}
+        fill="var(--secondary)"
+        stroke="var(--border)"
+      />
       <text x={x + 28} y={y + 46} fill="var(--support)" fontSize={26}>
         recorded while the test ran
       </text>
-      <text x={x + 28} y={y + 100} fill="var(--muted-foreground)" fontSize={28} fontFamily={MONO} textDecoration="line-through">
+      <text
+        x={x + 28}
+        y={y + 100}
+        fill="var(--muted-foreground)"
+        fontSize={28}
+        fontFamily={MONO}
+        textDecoration="line-through"
+      >
         "dana@example.com"
       </text>
       <line
@@ -33,7 +60,14 @@ function Swap({ x, y, width, height, arrow }: { x: number; y: number; width: num
       <text x={x + 96} y={y + 160} fill="var(--support)" fontSize={26}>
         swapped before it is committed
       </text>
-      <text x={x + 28} y={y + 222} fill="var(--primary)" fontSize={32} fontFamily={MONO} fontWeight={600}>
+      <text
+        x={x + 28}
+        y={y + 222}
+        fill="var(--primary)"
+        fontSize={32}
+        fontFamily={MONO}
+        fontWeight={600}
+      >
         "&lt;v1&gt;"
       </text>
       <text x={x + 28} y={y + 268} fill="var(--support)" fontSize={26}>
@@ -47,14 +81,30 @@ function Swap({ x, y, width, height, arrow }: { x: number; y: number; width: num
 function Repo({ x, y, width, height }: { x: number; y: number; width: number; height: number }) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={height} rx={20} fill="var(--secondary)" stroke="var(--primary)" strokeWidth={3} />
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={20}
+        fill="var(--secondary)"
+        stroke="var(--primary)"
+        strokeWidth={3}
+      />
       <text x={x + 28} y={y + 46} fill="var(--support)" fontSize={26}>
         your Git repository
       </text>
       <text x={x + 28} y={y + 108} fill="var(--foreground)" fontSize={32} fontFamily={MONO}>
         src/
       </text>
-      <text x={x + 28} y={y + 160} fill="var(--primary)" fontSize={32} fontFamily={MONO} fontWeight={600}>
+      <text
+        x={x + 28}
+        y={y + 160}
+        fill="var(--primary)"
+        fontSize={32}
+        fontFamily={MONO}
+        fontWeight={600}
+      >
         gold_traces/
       </text>
       <text x={x + 28} y={y + 206} fill="var(--support)" fontSize={26}>
@@ -67,8 +117,25 @@ function Repo({ x, y, width, height }: { x: number; y: number; width: number; he
 function Runner({ x, y, width, label }: { x: number; y: number; width: number; label: string }) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={70} rx={35} fill="var(--muted)" stroke={GREEN} strokeOpacity={0.6} strokeWidth={2} />
-      <text x={x + width / 2} y={y + 46} textAnchor="middle" fill={GREEN} fontSize={28} fontWeight={600}>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={70}
+        rx={35}
+        fill="var(--muted)"
+        stroke={GREEN}
+        strokeOpacity={0.6}
+        strokeWidth={2}
+      />
+      <text
+        x={x + width / 2}
+        y={y + 46}
+        textAnchor="middle"
+        fill={GREEN}
+        fontSize={28}
+        fontWeight={600}
+      >
         {label}
       </text>
     </g>
@@ -102,7 +169,15 @@ export default function Safe() {
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <marker id="gtsf-arrow-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker
+            id="gtsf-arrow-w"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--support)" />
           </marker>
         </defs>
@@ -129,7 +204,15 @@ export default function Safe() {
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <marker id="gtsf-arrow-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker
+            id="gtsf-arrow-t"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--support)" />
           </marker>
         </defs>
