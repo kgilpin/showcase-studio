@@ -6,14 +6,14 @@
  *   CloudFront       serves both; /p/<token> rewrites to the page,
  *                    /scripts/* is never cached so a re-publish shows
  *                    up immediately
- *   Lambda           the one write endpoint: POST { token, script } with
- *                    the publish bearer key writes the script JSON.
- *                    Reached via its Function URL, not CloudFront —
+ *   Lambda           the one write endpoint (lambda/publish-core.mjs):
+ *                    anyone may publish a new script and gets back its
+ *                    token and an edit key; only that edit key updates
+ *                    it. Reached via its Function URL, not CloudFront —
  *                    only the studio calls it.
  *
  * Tokens are unguessable capability URLs; there is no login and no
- * listing. Deploy with PROMPTER_PUBLISH_KEY set — the bearer key the
- * studio must present (any strong random string).
+ * listing, and no secret to deploy with.
  */
 import * as cdk from "aws-cdk-lib";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -34,11 +34,6 @@ export interface PrompterStackProps extends cdk.StackProps {
 export class PrompterStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: PrompterStackProps) {
     super(scope, id, props);
-
-    const publishKey = process.env.PROMPTER_PUBLISH_KEY;
-    if (!publishKey) {
-      throw new Error("Set PROMPTER_PUBLISH_KEY (the studio's publish bearer key) to deploy");
-    }
 
     const bucket = new s3.Bucket(this, "SiteBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -70,6 +65,11 @@ export class PrompterStack extends cdk.Stack {
     });
 
     const origin = origins.S3BucketOrigin.withOriginAccessControl(bucket);
+    /* A script's edit-key hash is stored as its S3 metadata; phones have
+     * no use for it. */
+    const hideKeyHash = new cloudfront.ResponseHeadersPolicy(this, "HideKeyHash", {
+      removeHeaders: ["x-amz-meta-edit-key-sha256"],
+    });
     const distribution = new cloudfront.Distribution(this, "Distribution", {
       comment: `Showcase Studio shared teleprompter (${props.environment})`,
       defaultBehavior: {
@@ -86,6 +86,7 @@ export class PrompterStack extends cdk.Stack {
           origin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          responseHeadersPolicy: hideKeyHash,
         },
       },
     });
@@ -95,19 +96,21 @@ export class PrompterStack extends cdk.Stack {
     const publish = new lambda.Function(this, "PublishFunction", {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "publish.handler",
-      code: lambda.Code.fromAsset(path.join(here, "..", "lambda")),
+      code: lambda.Code.fromAsset(path.join(here, "..", "lambda"), { exclude: ["*.test.mjs"] }),
       timeout: cdk.Duration.seconds(10),
       memorySize: 256,
       environment: {
         BUCKET: bucket.bucketName,
-        PUBLISH_KEY: publishKey,
         SITE_URL: siteUrl,
       },
     });
     bucket.grantPut(publish, "scripts/*");
+    // Reads a script's edit-key hash. The bucket-level list permission this
+    // includes is what makes a missing script answer 404 instead of 403.
+    bucket.grantRead(publish, "scripts/*");
 
     const publishUrl = publish.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.NONE, // bearer key checked in code
+      authType: lambda.FunctionUrlAuthType.NONE, // open: edit keys are checked in code
     });
 
     /* The built page (npm run build:prompter in the app repo). prune is

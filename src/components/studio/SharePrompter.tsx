@@ -11,7 +11,7 @@ import { studio } from "@/lib/studio";
 type ShareState =
   | { kind: "idle" }
   | { kind: "publishing" }
-  | { kind: "shared"; url: string; qr: string }
+  | { kind: "shared"; url: string; qr: string; replaced: boolean }
   | { kind: "error"; message: string };
 
 export function SharePrompter({ showcaseId }: { showcaseId: string }) {
@@ -31,7 +31,7 @@ export function SharePrompter({ showcaseId }: { showcaseId: string }) {
       return;
     }
     const qr = await QRCode.toDataURL(result.url, { width: 480, margin: 1 });
-    setState({ kind: "shared", url: result.url, qr });
+    setState({ kind: "shared", url: result.url, qr, replaced: Boolean(result.replaced) });
   };
 
   const close = () => setState({ kind: "idle" });
@@ -95,6 +95,9 @@ export function SharePrompter({ showcaseId }: { showcaseId: string }) {
                   {copied ? "Copied" : "Copy link"}
                 </button>
                 <p className="mt-4 text-xs leading-relaxed text-support">
+                  {state.replaced
+                    ? "This is a new link — the old one had expired, so send this one instead. "
+                    : ""}
                   Scan to read on the phone — camera takes save on the device. The link stays the
                   same: share again after edits to refresh it.
                 </p>

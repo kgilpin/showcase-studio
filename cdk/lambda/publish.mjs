@@ -1,10 +1,38 @@
-/* The prompter site's one write endpoint: POST { token, script } with
- * the publish bearer key writes scripts/<token>.json. The token is the
- * capability — the caller (the studio) generates it and keeps it stable
- * per showcase so a re-publish updates the same URL. */
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+/* The prompter site's one write endpoint: publish-core.mjs holds the
+ * rules; this file wires them to the bucket. A script lives at
+ * scripts/<token>.json, and the hash of its edit key rides along as the
+ * object's metadata (CloudFront strips it before a narrator's phone sees
+ * the file). */
+import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { publish } from "./publish-core.mjs";
 
 const s3 = new S3Client({});
+const Bucket = process.env.BUCKET;
+const scriptKey = (token) => `scripts/${token}.json`;
+
+const store = {
+  async head(token) {
+    try {
+      const object = await s3.send(new HeadObjectCommand({ Bucket, Key: scriptKey(token) }));
+      return object.Metadata?.["edit-key-sha256"] ?? null;
+    } catch (error) {
+      if (error?.$metadata?.httpStatusCode === 404) return null;
+      throw error;
+    }
+  },
+  async put(token, body, editKeyHash) {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket,
+        Key: scriptKey(token),
+        Body: body,
+        ContentType: "application/json",
+        CacheControl: "no-store",
+        Metadata: { "edit-key-sha256": editKeyHash },
+      }),
+    );
+  },
+};
 
 const respond = (statusCode, body) => ({
   statusCode,
@@ -16,38 +44,12 @@ export const handler = async (event) => {
   if (event.requestContext?.http?.method !== "POST") {
     return respond(405, { error: "POST only" });
   }
-  const auth = event.headers?.authorization ?? "";
-  if (!process.env.PUBLISH_KEY || auth !== `Bearer ${process.env.PUBLISH_KEY}`) {
-    return respond(403, { error: "bad publish key" });
-  }
-
   let payload;
   try {
     payload = JSON.parse(event.isBase64Encoded ? atob(event.body ?? "") : (event.body ?? ""));
   } catch {
     return respond(400, { error: "body must be JSON" });
   }
-  const token = String(payload?.token ?? "");
-  if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) {
-    return respond(400, { error: "token must be 16-64 url-safe characters" });
-  }
-  const script = payload?.script;
-  if (script?.version !== 1 || !Array.isArray(script.scenes)) {
-    return respond(400, { error: "script must be a version-1 prompter snapshot" });
-  }
-  const body = JSON.stringify(script);
-  if (body.length > 512 * 1024) {
-    return respond(413, { error: "script too large" });
-  }
-
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: process.env.BUCKET,
-      Key: `scripts/${token}.json`,
-      Body: body,
-      ContentType: "application/json",
-      CacheControl: "no-store",
-    }),
-  );
-  return respond(200, { ok: true, url: `${process.env.SITE_URL}/p/${token}` });
+  const [status, body] = await publish(payload, { store, siteUrl: process.env.SITE_URL });
+  return respond(status, body);
 };
