@@ -39,6 +39,7 @@ import { showInRecent } from "../server/library-config.mjs";
 import { serveStudioMcp, takeOverStdout } from "../server/mcp-stdio.mjs";
 import { loadSettings, saveSettings } from "../server/settings.mjs";
 import { showcaseIndex } from "../server/showcase-data.mjs";
+import { alreadyOpen, runningStudio } from "../server/studio-presence.mjs";
 import { createStudio } from "../server/studio-server.mjs";
 import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { isPathInLock, lockLandingPath } from "../src/lib/window-lock.mjs";
@@ -540,6 +541,15 @@ app.whenReady().then(async () => {
   if (launchError) {
     fail(launchError);
     return;
+  }
+  /* One studio per library (server/studio-presence.mjs); an export is a
+   * short headless render, meant to run beside an open studio. */
+  if (!appUrl && !options.exportJob) {
+    const other = await runningStudio(options.showcasesDir);
+    if (other) {
+      fail(alreadyOpen(options.showcasesDir, other.url));
+      return;
+    }
   }
   if (!appUrl) {
     try {
