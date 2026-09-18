@@ -1,165 +1,148 @@
 meta:
-  title: Gold Traces — Review the behavior, not the diff
+  title: Gold Traces — Make every important change prove itself
   description: >-
-    Recordings of how your code runs, committed in git and diffed on
-    every release. Catches the side effects, dropped guards, and new
-    queries that green tests and code review miss.
+    Recordings of how your code runs, committed in git and compared on
+    every change. AppMap's review shows what a change really did, what is
+    broken, and which test is missing, before it merges.
+  notes: >-
+    Script draft v3. One real case carries the story: Onlook's partial
+    authorization fix (CVE-2025-63783, from github.com/evlawler/goldtrace-examples).
+    Onlook is named on screen only, never in the voiceover. The dialog is
+    still being edited; once it is final, record the voiceover with AWS
+    Polly's generative Danielle voice and sync the captions to it. Until
+    then timing derives from the copy.
   loop: true
-  notes: |-
-    A showcase for the AppMap gold-traces behavioral-review skills (appmap-gold-traces + appmap-review), focused on what runtime trace diffing catches that static analysis and LLM code review cannot. Grounded in the skill docs at ~/source/appland/skills/appmap-gold-traces.
-    Media is a mix of real captures (assets/, ~1600x1000 landscape) and TSX-drawn diagrams (graphics/). Remaining placeholder assets are labeled .svg files — replace each by deleting the .svg and adding the real capture as .png. The assets page lists the collection with per-scene usage.
+  captionStyle: karaoke
 
 scenes:
-  - id: opening-1
-    theme: statement
-    eyebrow: Opening
-    title: Your tests pass. Your diff looks clean.
+  - id: hook
+    theme: console
+    eyebrow: Hook
+    title: "Onlook: tests passed, change approved, wrong for 7 months"
+    note: Graphic names the repo, the CVE and the PR. The voiceover never says Onlook.
     captions:
-      - text: Your tests pass. Your diff looks clean.
+      - text: An AI agent shipped a security fix. The tests passed, and the change was approved.
+      - text: It protected five operations and missed forty. For seven months, any signed-in user could change anyone's project.
     media:
-      kind: none
-    durationMs: 4000
-    export: false
+      kind: graphic
+      graphic: hook
+      alt: "Onlook security fix: tests passed and approved, five of about forty-five operations fixed, open for seven months"
+      frame: full
 
-  - id: opening-2
-    theme: statement
-    eyebrow: Opening
-    title: So why did checkout queries double? And where did the permission check go?
+  - id: risk
+    theme: console
+    eyebrow: Risk
+    title: Every release is a bet
     captions:
-      - text: So why did checkout queries double? And where did the permission check go?
+      - text: Tests check what you thought to test. Code review checks what the diff says.
+      - text: Neither checks what the change actually does when it runs.
     media:
-      kind: none
-    durationMs: 5000
-    export: false
+      kind: graphic
+      graphic: risk
+      alt: Tests check what you thought to test, code review checks what the diff says, and nothing checks what the change does when it runs
+      frame: full
+    note: "Graphic (graphics/risk.tsx) stacks the two checks people rely on, then the gap neither covers. Staged to the narration: tests at 0s, code review at ~3s, the gap at 6.25s; restage if the captions change."
 
   - id: intro
     theme: statement
     title: AppMap Gold Traces
     captions:
-      - text: AppMap Gold Traces
-      - text: Catch the problems that unit tests and code reads miss.
+      - text: AppMap Gold Traces lets you ship knowing, not hoping, what each change will do.
     media:
       kind: image
       asset: appmap-mark
       alt: "AppMap logo: a white A on a pink circle"
       motion: zoom-in
       frame: mark
-    durationMs: 5000
-    export: false
 
-  - id: baseline
+  - id: how-it-works
     theme: console
-    eyebrow: The baseline
-    title: Record how the code runs. Commit the recordings.
+    eyebrow: How it works
+    title: Record how the code runs. Compare every change.
     captions:
-      - text: Curated tests walk the paths you care about. AppMap records each one as it runs.
-        durationMs: 7500
-      - text: The recordings go in git, a few kilobytes each. That's the baseline.
-    media:
-      kind: image
-      asset: shot-manifest
-      alt: gold_traces/manifest.yaml with curated entries grouped by feature
-      motion: zoom-in
-      frame: full
-    durationMs: 14000
-    export: false
-
-  - id: lifecycle
-    theme: console
-    eyebrow: Record and bless
-    title: Re-record on each release. Bless the intended changes.
-    captions:
-      - text: Each release is re-recorded and compared against the baseline. Unchanged traces stay untouched; changed ones are flagged.
-        durationMs: 10000
-      - text: Intended changes are blessed and committed. The rest stay byte-identical.
+      - text: Your tests run with AppMap recording. Each recording shows the calls, queries, and checks the code actually ran.
+      - text: The recordings are committed as a baseline. On every change, they're recorded again and compared.
     media:
       kind: graphic
       graphic: lifecycle
-      alt: "Diagram: gold tests are recorded, digest-compared to the committed baseline, and each trace is blessed, seeded, or left unchanged"
+      alt: Record, commit as the baseline, compare every change
       frame: full
-    durationMs: 14000
-    export: false
 
-  - id: side-effects
+  - id: recordings
     theme: console
-    eyebrow: Side effects
-    title: "Scenario: An unintended behavior change"
+    eyebrow: What the recordings showed
+    title: Onlook's fix, as it actually ran
     captions:
-      - text: Suppose you touched the discount calculation; and now the trace shows the notification service now fires twice per order.
-        durationMs: 7000
-      - text: A code read wouldn't reveal this side effect. From a trace, it's obvious.
+      - text: Here's that security fix, recorded. On the operations it touched, the new membership check runs, and a stranger is refused.
+      - text: On the ones it didn't touch, the same stranger still reads the project, rewrites its run command, and removes its owner.
     media:
       kind: graphic
-      graphic: side-effects
-      alt: "Diagram: the diff's two files beside the recorded call graph, with a notification call highlighted outside the change's stated scope"
+      graphic: onlook-recordings
+      alt: The operations the change fixed refuse a stranger; the ones it did not fix are still open, letting a stranger read your project, change what runs, and remove you
       frame: full
-    durationMs: 14500
-    export: false
 
-  - id: absence
+  - id: review
     theme: console
-    eyebrow: Missing guards
-    title: "Scenario: A dropped permission check"
+    eyebrow: The review
+    title: The review of Onlook's fix leads with findings
     captions:
-      - text: Some changes can silently skip or disable security checks; but tests still pass.
-        durationMs: 7000
-      - text: When a security-labeled function disappears from a code path, the behavior change is flagged.
+      - text: From those recordings, AppMap writes a review. It leads with the findings, one high, one medium, one low.
+      - text: "The high finding blocks the merge, and explains the fix: Add a permission check to every operation that takes a project ID."
     media:
       kind: graphic
-      graphic: absence
-      alt: "Diagram: the baseline call path runs authorize() with a security.authz label; the new path skips it, flagged in red, while tests pass"
+      graphic: review
+      alt: "Findings ranked high, medium and low, the merge blocked, and the fix: one permission check on every operation"
       frame: full
-    durationMs: 14000
-    export: false
 
-  - id: deterministic
+  - id: proof
     theme: console
-    eyebrow: Change detection
-    title: Changes are computed, not guessed or vibed
+    eyebrow: Proof
+    title: Important changes must be proven
     captions:
-      - text: "Each recording is reduced to a digest of its structure: the calls, their order, the queries. Timing and ephemeral values don't affect it."
-        durationMs: 11000
-      - text: Same input, same answer, every run. When a trace is flagged, behavior changed.
+      - text: "For every important change, Gold Traces asks one question: is there a test whose recording shows the new behavior?"
+      - text: If there isn't, the change isn't finished, and the review says which test is missing.
     media:
       kind: graphic
-      graphic: deterministic
-      alt: "Diagram: a sequence diagram with a security.authz label on the changed call, above a strip of digest-ignored values: elapsed time, ids, parameter values"
+      graphic: proof
+      alt: "Proven: a recording shows the new behavior. Not proven: the review names the test to add"
       frame: full
-    durationMs: 17500
-    export: false
 
-  - id: sanitized
+  - id: checks
     theme: console
-    eyebrow: Safe to commit
-    title: The recordings themselves hold no secret or private data
+    eyebrow: Checks performed
+    title: Every check, on every change
     captions:
-      - text: Before a recording goes into git, every captured value is replaced with a meaningless token.
-        durationMs: 8500
-      - text: So committed traces never contain secrets like customer data or environment keys.
+      - text: "Reading code can only show you so much."
+      - text: "AppMap review finds the things code reads can miss: code outside the diff, missing permission checks, and new queries."
+      - text: Every finding points to hard evidence - the runtime trace.
     media:
-      kind: image
-      asset: shot-sanitize
-      alt: "Sanitized recording JSON: parameter values replaced by tokens like <v1> and <v8>"
-      motion: zoom-in
+      kind: graphic
+      graphic: checks
+      alt: A review sees the changed lines; AppMap also finds side effects, missing permission checks and new queries, and every finding cites the recording
       frame: full
-    durationMs: 14000
-    export: false
+  - id: safe
+    theme: console
+    eyebrow: Safe to adopt
+    title: Stays in your repository
+    note: Diagram shows the swap, then the repository with a laptop and CI. The third caption (the review runs in your own coding agent) was cut; the diagram no longer claims it.
+    captions:
+      - text: Before a recording is committed, every value it captured, like a name or an email, is swapped for a placeholder.
+      - text: The recordings live in your Git repository, next to your code, and run on a laptop or in CI.
+    media:
+      kind: graphic
+      graphic: safe
+      alt: A recorded value swapped for a placeholder before it is committed, and the recordings living in your Git repository beside the code, run from a laptop or CI
+      frame: full
 
   - id: outro
     theme: statement
-    title: Gold Traces
+    title: AppMap Gold Traces
     captions:
-      - text: Gold Traces
-      - text: Behavioral review for every release
-    cta:
-      label: Learn more at appmap.io
-      url: https://appmap.io
-      kind: link
+      - text: Make every important change prove itself.
+    cta: { label: Get AppMap at appmap.io, url: https://appmap.io, kind: link }
     media:
       kind: image
       asset: appmap-mark
       alt: "AppMap logo: a white A on a pink circle"
       motion: zoom-in
       frame: mark
-    durationMs: 7000
-    export: false
