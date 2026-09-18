@@ -187,9 +187,13 @@ export type ShowcaseStudio = {
   };
   /** Shares the script as a phone teleprompter: publishes the narration
    *  snapshot to the prompter site and returns the capability URL. The
-   *  URL is stable per showcase — publishing again updates it in place. */
+   *  URL is stable per showcase folder — publishing again updates it in
+   *  place. `replaced` is true when the old link couldn't be updated (it
+   *  expired) and this is a new one to send. */
   prompter: {
-    publish(showcaseId: string): Promise<{ ok: boolean; url?: string; error?: string }>;
+    publish(
+      showcaseId: string,
+    ): Promise<{ ok: boolean; url?: string; replaced?: boolean; error?: string }>;
   };
   /** The studio's git history, and the switch that turns commits on
    *  and off (studio-wide, in effect at once). */

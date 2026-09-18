@@ -25,13 +25,13 @@
  * reload when files change outside the studio. callTool runs the MCP tools
  * in-process, for the studio Claude Code starts over stdio
  * (scripts/studio-mcp.mjs). */
-import { randomBytes } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmdirSync,
   statSync,
@@ -116,6 +116,12 @@ const GUIDE_IMPORT = "@.studio/GUIDE.md";
  * files it wrote, which begin with this marker line; a launch.json
  * without it is the user's own and is left alone. */
 const LAUNCH_MARKER = "// Written by Showcase Studio";
+
+/* The production prompter site's publish endpoint (the PublishUrl output
+ * of cdk/'s ShowcasePrompterStack-Prod). It changes only if that stack's
+ * publish function is replaced. */
+const PROMPTER_PUBLISH_URL =
+  "https://zg6kaabzhvp2m55d2zrug7n3d40agpus.lambda-url.us-east-1.on.aws/";
 
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -677,40 +683,65 @@ scenes:
 
   /* Shares a showcase's script as a phone teleprompter: derives the
    * snapshot (server/prompter-script.mjs) and POSTs it to the prompter
-   * site's publish endpoint (cdk/). The token — the capability in the URL
-   * — is generated once per showcase and remembered, so publishing again
-   * updates the same link the narrator already has. Configure with
-   * prompterPublishUrl / prompterPublishKey in settings.json (or the
-   * PROMPTER_PUBLISH_URL / PROMPTER_PUBLISH_KEY secrets in the
-   * environment). */
+   * site's publish endpoint (cdk/lambda/publish-core.mjs). Anyone may
+   * publish. The first publish gets back the link's token and an edit
+   * key, saved in settings under the showcase folder's full path, so
+   * publishing again updates the link the narrator already has:
+   *
+   *   prompterLinks: { "<showcase folder>": { token, editKey } }
+   *
+   * A folder that was moved or renamed keeps its link when exactly one
+   * saved folder of the same name no longer exists. A link that can't be
+   * updated any more (expired, or the key no longer matches) is replaced
+   * by a new one, and the result says so. The endpoint defaults to the
+   * production site; prompterPublishUrl in settings.json or
+   * PROMPTER_PUBLISH_URL in the environment points it elsewhere. */
   async function publishPrompter({ showcaseId } = {}) {
     const id = String(showcaseId ?? "");
     if (badName(id)) return { ok: false, error: "Bad showcase id" };
+    let folder;
+    try {
+      folder = realpathSync(path.join(showcasesDir, id));
+    } catch {
+      return { ok: false, error: `No showcase named "${id}"` };
+    }
     const saved = settings.load();
-    const publishUrl = process.env.PROMPTER_PUBLISH_URL ?? saved.prompterPublishUrl;
-    const publishKey = process.env.PROMPTER_PUBLISH_KEY ?? saved.prompterPublishKey;
-    if (!publishUrl || !publishKey) {
-      return {
-        ok: false,
-        error:
-          "Prompter sharing is not configured — set prompterPublishUrl and " +
-          "prompterPublishKey in the studio settings (or the PROMPTER_PUBLISH_* env vars)",
-      };
+    const publishUrl =
+      process.env.PROMPTER_PUBLISH_URL ?? saved.prompterPublishUrl ?? PROMPTER_PUBLISH_URL;
+    const links = { ...saved.prompterLinks };
+    if (!links[folder]) {
+      const moved = Object.keys(links).filter(
+        (other) => path.basename(other) === id && !existsSync(other),
+      );
+      if (moved.length === 1) {
+        links[folder] = links[moved[0]];
+        delete links[moved[0]];
+      }
     }
-    const tokens = saved.prompterTokens ?? {};
-    const token = tokens[id] ?? randomBytes(16).toString("base64url");
     const script = prompterScript(showcasesDir, id, { publishedAt: new Date().toISOString() });
-    const response = await fetch(publishUrl, {
-      method: "POST",
-      headers: { authorization: `Bearer ${publishKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ token, script }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return { ok: false, error: result.error ?? `Publish failed (${response.status})` };
+    const post = async (body) => {
+      const response = await fetch(publishUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return [response.status, await response.json().catch(() => ({}))];
+    };
+
+    let replaced = false;
+    let [status, result] = links[folder]
+      ? await post({ ...links[folder], script })
+      : await post({ script });
+    if (links[folder] && (status === 403 || status === 404)) {
+      replaced = true;
+      [status, result] = await post({ script });
     }
-    settings.save({ prompterTokens: { ...tokens, [id]: token } });
-    return { ok: true, url: result.url };
+    if (status !== 200) {
+      return { ok: false, error: result.error ?? `Publish failed (${status})` };
+    }
+    if (result.token) links[folder] = { token: result.token, editKey: result.editKey };
+    settings.save({ prompterLinks: links });
+    return { ok: true, url: result.url, replaced };
   }
 
   /** Switches the library folder (File > Open Folder in the desktop app).
