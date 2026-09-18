@@ -56,7 +56,7 @@ function project({ repo = true } = {}) {
   return { dir, library };
 }
 
-async function startStudio(library, { delay = DELAY, autoCommit } = {}) {
+async function startStudio(library, { delay = DELAY, autoCommit, features = {} } = {}) {
   let saved = autoCommit === undefined ? {} : { autoCommit };
   const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
   const studio = createStudio({
@@ -64,7 +64,7 @@ async function startStudio(library, { delay = DELAY, autoCommit } = {}) {
     version: "test",
     settings,
     exportDir: path.join(library, "..", "exports"),
-    features: { terminal: false },
+    features: { terminal: false, ...features },
     commitDelayMs: delay,
     log: () => {},
   });
@@ -247,6 +247,70 @@ describe("showcase history", () => {
     expect(commits(dir)[0]).toBe("nova: edit intro title");
   });
 
+  it("never commits a change the studio didn't make — it waits for the studio's next one", async () => {
+    const { dir, library } = await project();
+    const { call } = await startStudio(library);
+    /* An editor, a git checkout, a Claude session's own file tools: none
+     * of them go through the studio, so none of them start a commit. */
+    writeFileSync(path.join(library, "nova", "theme.yaml"), "colors:\n  primary: red\n");
+    await sleep(DELAY * 6);
+    expect(commits(dir)).toEqual(["start"]);
+    expect(git(dir, "status", "--porcelain", "--", "showcases/nova")).toContain("theme.yaml");
+
+    /* The studio's own next write commits the showcase, and the outside
+     * change rides along, named for what it is. */
+    await call("edit_showcase", editTitle("Later"));
+    await waitFor(() => commits(dir).length === 2);
+    expect(commits(dir)[0]).toBe("nova: edit intro title, add theme.yaml");
+    expect(git(dir, "log", "-1", "--format=%b")).toContain(
+      "- add theme.yaml (files changed directly)",
+    );
+  });
+
+  it("makes no timer commits in the studio Claude Code starts, and says why", async () => {
+    const { dir, library } = await project();
+    const { call } = await startStudio(library, { features: { autoCommit: false } });
+    const { history } = await call("studio_info", {});
+    expect(history).toMatchObject({
+      git: true,
+      autoCommit: false,
+      enabled: false,
+      available: true,
+    });
+    expect(history.reason).toContain("commit_showcase");
+
+    await call("edit_showcase", editTitle("Unhurried"));
+    await sleep(DELAY * 6);
+    expect(commits(dir)).toEqual(["start"]);
+  });
+
+  it("still commits with commit_showcase there — that off stops only the timer", async () => {
+    const { dir, library } = await project();
+    const { call } = await startStudio(library, { features: { autoCommit: false } });
+    await call("edit_showcase", editTitle("Finished"));
+    const result = await call("commit_showcase", {
+      showcaseId: "nova",
+      message: "Retitle the intro",
+    });
+    expect(result).toMatchObject({ committed: true });
+    expect(commits(dir)).toEqual(["nova: Retitle the intro", "start"]);
+  });
+
+  it("lets the user's own switch win over that default, either way", async () => {
+    const { dir, library } = await project();
+    /* Switched on: the timer commits, as in any other studio. */
+    const on = await startStudio(library, { autoCommit: true, features: { autoCommit: false } });
+    await on.call("edit_showcase", editTitle("Switched on"));
+    await waitFor(() => commits(dir).length === 2);
+
+    /* Switched off: everything stops, commit_showcase too. */
+    const off = await startStudio(library, { autoCommit: false, features: { autoCommit: false } });
+    await off.call("edit_showcase", editTitle("Switched off"));
+    const refused = await off.call("commit_showcase", { showcaseId: "nova", message: "No" });
+    expect(refused.committed).toBe(false);
+    expect(refused.reason).toContain("switch");
+  });
+
   it("commit_showcase commits right away with Claude's message", async () => {
     const { dir, library } = await project();
     const { call } = await startStudio(library, { delay: 60_000 });
@@ -404,6 +468,58 @@ describe("commitMessage", () => {
     });
     expect(subject).toBe("gold-traces: edit theme.yaml, graphics/risk.tsx; add assets/shot.png");
     expect(text.endsWith("\n\nShowcase-Studio: auto-commit")).toBe(true);
+  });
+
+  it("counts files instead of naming them when the names don't fit", () => {
+    /* The migration that motivated this: three groups of files, and a
+     * subject that named only the first group — past the limit — and
+     * hid a whole migration behind "and 2 more". */
+    const files = [
+      ...["shot-manifest.png", "shot-sanitize.png", "shot-sql.png"].map((f) => `assets/${f}`),
+      ...["absence", "deterministic", "side-effects"].map((f) => `graphics/${f}.tsx`),
+    ].map((file) => ({ verb: "delete", file }));
+    files.push(
+      ...["graphics/lifecycle.tsx", "showcase.yaml", "theme.yaml"].map((file) => ({
+        verb: "edit",
+        file,
+      })),
+      ...["checks", "hook", "onlook-recordings", "proof", "review", "risk", "safe"].map((f) => ({
+        verb: "add",
+        file: `graphics/${f}.tsx`,
+      })),
+    );
+    const { subject, body } = commitMessage({ showcaseId: "gold-traces", files });
+    expect(subject).toBe("gold-traces: delete 6 files, edit 3 files, add 7 graphics");
+    expect(subject.length).toBeLessThanOrEqual(72);
+    /* Every name is still in the body. */
+    expect(body).toContain("graphics/side-effects.tsx");
+    expect(body).toContain("graphics/onlook-recordings.tsx");
+  });
+
+  it("counts assets added through the studio the same way", () => {
+    const names = Array.from({ length: 9 }, (_, i) => `screenshot-${i + 1}.png`);
+    const { subject } = commitMessage({
+      showcaseId: "nova",
+      entries: [{ source: "ui", showcaseId: "nova", kind: "asset.add", names }],
+    });
+    expect(subject).toBe("nova: add 9 assets");
+  });
+
+  it("names the tool a saved transcript came through", () => {
+    const { subject, body } = commitMessage({
+      showcaseId: "nova",
+      entries: [
+        {
+          source: "mcp",
+          tool: "transcribe",
+          showcaseId: "nova",
+          kind: "transcript",
+          file: "assets/take-1.transcript.json",
+        },
+      ],
+    });
+    expect(subject).toBe("nova: save the transcript assets/take-1.transcript.json");
+    expect(body).toContain("(Claude, via transcribe)");
   });
 
   it("keeps the subject short, counting what it leaves out", () => {

@@ -29,10 +29,17 @@
  * history-auto-commit action); it takes effect at once, because every
  * check reads the settings again.
  *
- * A git operation the user or Claude runs (checkout, revert, switching
- * branches) changes files, so it reaches us like any other change. It
- * leaves the showcase folder matching a commit, so `git status` is clean
- * and nothing is committed. */
+ * When the user has never set it, `autoCommitDefault` decides. It is off
+ * in the studio Claude Code starts, and that off is narrower: it stops the
+ * timer only. The session commits its own work with commit_showcase, and a
+ * timer committing the same files underneath it would only make noise.
+ *
+ * What starts the timer is the studio's own writes — the change log, not
+ * the file watcher. A change made anywhere else (an editor, a git
+ * checkout or revert, another program, a Claude session's own file
+ * tools) belongs to whoever made it: it never starts a commit, and only
+ * rides along, named as "files changed directly", in the next commit the
+ * studio makes of that showcase. */
 import { execFile } from "node:child_process";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
@@ -42,6 +49,10 @@ export const TRAILER = "Showcase-Studio";
 const SUBJECT_LIMIT = 72;
 const TURNED_OFF =
   'Commits are turned off (the studio\'s "Commit changes to git" switch, autoCommit: false in its settings).';
+const AGENT_DEFAULT_OFF =
+  "Automatic commits are off in the studio Claude Code starts: commit what you finish with " +
+  "commit_showcase. The user can turn automatic commits on with the studio's " +
+  '"Commit changes to git" switch.';
 
 /* A folder's real, full path, for comparing it with the path git reports.
  * The native form: on Windows it expands short names like RUNNER~1 (which
@@ -110,6 +121,12 @@ const verbFor = (code) => {
 };
 
 const SOURCES = { ui: "studio UI", mcp: "Claude, via edit_showcase" };
+/** Who made a change, for the commit body. An MCP entry names the tool it
+ *  came through when it wasn't edit_showcase (a saved transcript). */
+const whoOf = (entry) =>
+  entry.source === "mcp" && entry.tool
+    ? `Claude, via ${entry.tool}`
+    : (SOURCES[entry.source] ?? entry.source);
 
 /** One short phrase per change log edit, e.g. "edit intro caption 1 text". */
 function describeEdit(edit = {}) {
@@ -153,11 +170,10 @@ function describeEntry(entry) {
         phrases: (entry.edits ?? []).map((edit) => clean(describeEdit(edit))),
         files: entry.file ? [entry.file] : [],
       };
-    case "asset.add":
-      return {
-        phrases: [`add ${(entry.names ?? []).map((n) => `assets/${n}`).join(", ")}`],
-        files: (entry.names ?? []).map((n) => `assets/${n}`),
-      };
+    case "asset.add": {
+      const files = (entry.names ?? []).map((n) => `assets/${n}`);
+      return { phrases: [`add ${files.join(", ")}`], files, short: countPhrase("add", files) };
+    }
     case "asset.rename":
       return {
         phrases: [`rename assets/${entry.from} to ${entry.to}`],
@@ -167,9 +183,39 @@ function describeEntry(entry) {
       return { phrases: [`delete assets/${entry.name}`], files: [`assets/${entry.name}`] };
     case "showcase.create":
       return { phrases: ["create the showcase"], files: ["showcase.yaml"] };
+    case "transcript":
+      return { phrases: [`save the transcript ${entry.file}`], files: [entry.file] };
     default:
       return { phrases: [entry.kind], files: [] };
   }
+}
+
+/** What a group of files reads as when their names don't fit the
+ *  subject: "add 7 graphics", "delete 6 files". One file keeps its name. */
+const FOLDER_NOUNS = { assets: "assets", graphics: "graphics" };
+function countPhrase(verb, files) {
+  if (files.length === 1) return `${verb} ${files[0]}`;
+  const folders = new Set(files.map((file) => (file.includes("/") ? file.split("/")[0] : "")));
+  const noun = folders.size === 1 ? FOLDER_NOUNS[[...folders][0]] : undefined;
+  return `${verb} ${files.length} ${noun ?? "files"}`;
+}
+
+/** Joins phrases into a subject no longer than SUBJECT_LIMIT, counting
+ *  the phrases it had to leave out. `left` is how many were dropped. */
+function fitSubject(showcaseId, phrases) {
+  let subject = `${showcaseId}: ${phrases[0] ?? "update"}`;
+  for (let i = 1; i < phrases.length; i += 1) {
+    const rest = phrases.length - i - 1;
+    const tail = rest > 0 ? `, and ${rest} more` : "";
+    /* "; " between phrases that list files, which have commas of their own. */
+    const joiner = phrases[i].includes(",") || phrases[i - 1].includes(",") ? "; " : ", ";
+    const next = `${subject}${joiner}${phrases[i]}`;
+    if ((next + tail).length > SUBJECT_LIMIT) {
+      return { subject: `${subject}, and ${phrases.length - i} more`, left: phrases.length - i };
+    }
+    subject = next;
+  }
+  return { subject, left: 0 };
 }
 
 /** The commit message for one showcase's changes: a subject, a body that
@@ -179,40 +225,48 @@ function describeEntry(entry) {
  *    files    [{ verb, file }] from git status, relative to the showcase
  *    message  a message of Claude's own (commit_showcase), if any */
 export function commitMessage({ showcaseId, entries = [], files = [], message }) {
-  const lines = []; // [{ phrase, who }]
+  const lines = []; // [{ phrase, who, short? }]
   const explained = new Set();
   for (const entry of entries) {
-    const { phrases, files: covered } = describeEntry(entry);
+    const { phrases, files: covered, short } = describeEntry(entry);
     covered.forEach((file) => explained.add(file));
-    const who = SOURCES[entry.source] ?? entry.source;
+    const who = whoOf(entry);
     for (const phrase of phrases) {
-      if (!lines.some((l) => l.phrase === phrase && l.who === who)) lines.push({ phrase, who });
+      if (lines.some((l) => l.phrase === phrase && l.who === who)) continue;
+      lines.push({ phrase, who, ...(short && phrases.length === 1 ? { short } : {}) });
     }
   }
   const unexplained = files.filter(({ file }) => !explained.has(file));
   const byVerb = new Map();
   for (const { verb, file } of unexplained) byVerb.set(verb, [...(byVerb.get(verb) ?? []), file]);
-  const fileGroups = [...byVerb].map(([verb, names]) => `${verb} ${names.join(", ")}`);
-  for (const group of fileGroups) lines.push({ phrase: group, who: "files changed directly" });
+  for (const [verb, names] of byVerb) {
+    lines.push({
+      phrase: `${verb} ${names.join(", ")}`,
+      short: countPhrase(verb, names),
+      who: "files changed directly",
+    });
+  }
 
   let subject;
   if (message) {
     subject = message.startsWith(`${showcaseId}: `) ? message : `${showcaseId}: ${message}`;
   } else {
+    /* Names make the best subject, when they fit. When they don't, the
+     * same changes as counts ("add 7 graphics, delete 6 files") usually
+     * do — and that beats a subject that names the first group and hides
+     * the rest behind "and 2 more". The body always has every name. */
     const phrases = [...new Set(lines.map((l) => l.phrase))];
-    subject = `${showcaseId}: ${phrases[0] ?? "update"}`;
-    for (let i = 1; i < phrases.length; i += 1) {
-      const rest = phrases.length - i - 1;
-      const tail = rest > 0 ? `, and ${rest} more` : "";
-      /* "; " between phrases that list files, which have commas of their own. */
-      const joiner = phrases[i].includes(",") || phrases[i - 1].includes(",") ? "; " : ", ";
-      const next = `${subject}${joiner}${phrases[i]}`;
-      if ((next + tail).length > SUBJECT_LIMIT) {
-        subject += `, and ${phrases.length - i} more`;
-        break;
-      }
-      subject = next;
+    const shortOf = new Map(lines.map((l) => [l.phrase, l.short ?? l.phrase]));
+    const over = (fit) => fit.subject.length > SUBJECT_LIMIT;
+    let fit = fitSubject(showcaseId, phrases);
+    if (fit.left > 0 || over(fit)) {
+      const counted = fitSubject(
+        showcaseId,
+        phrases.map((phrase) => shortOf.get(phrase)),
+      );
+      if (over(fit) || counted.left < fit.left) fit = counted;
     }
+    subject = fit.subject;
   }
 
   const body = lines.length
@@ -226,7 +280,13 @@ export function commitMessage({ showcaseId, entries = [], files = [], message })
  * Creates the history keeper for a studio.
  *
  *   getLibrary          the current library folder (it can switch)
- *   settings            { load } — `autoCommit: false` turns commits off
+ *   settings            { load } — `autoCommit` turns commits on or off
+ *   autoCommitDefault   what `autoCommit` means when the user has never
+ *                       set it. False in the studio Claude Code starts:
+ *                       that session commits its own work with
+ *                       commit_showcase, and a timer committing the same
+ *                       files underneath it only makes noise. The user's
+ *                       own setting, either way, still wins.
  *   delayMs             the quiet period before a commit
  *   failureCooldownMs   after a failed commit (a hook said no), how long
  *                       automatic commits for that showcase wait
@@ -235,6 +295,7 @@ export function commitMessage({ showcaseId, entries = [], files = [], message })
 export function createShowcaseHistory({
   getLibrary,
   settings = { load: () => ({}) },
+  autoCommitDefault = true,
   delayMs = 5000,
   failureCooldownMs = 60_000,
   gitPath = "git",
@@ -262,7 +323,11 @@ export function createShowcaseHistory({
     return result;
   }
 
-  const enabled = () => settings.load()?.autoCommit !== false;
+  /** Whether commits are on: the user's setting when they have one,
+   *  else this studio's default. */
+  const enabled = () => settings.load()?.autoCommit ?? autoCommitDefault;
+  /** Why they are off, for status() — the two reasons read differently. */
+  const offReason = () => (settings.load()?.autoCommit === false ? TURNED_OFF : AGENT_DEFAULT_OFF);
 
   /** Where the folder sits in git: { root } or { reason }. */
   async function repoOf(dir) {
@@ -329,7 +394,7 @@ export function createShowcaseHistory({
       (await git(["check-ignore", "-q", `${slashed(relLibrary)}/`], repo.root)).code === 0;
     let reason;
     if (ignored) reason = "The library folder is ignored by .gitignore, so nothing is committed.";
-    else if (!on) reason = TURNED_OFF;
+    else if (!on) reason = offReason();
     else if (!branch) reason = "HEAD is detached; the studio commits only on a branch.";
     else {
       const busy = await busyReason(repo.root);
@@ -353,7 +418,12 @@ export function createShowcaseHistory({
     const showcaseId = path.basename(showcaseDir);
     const skip = (reason) => ({ committed: false, reason });
 
-    if (!enabled()) return skip(TURNED_OFF);
+    /* Two different "off"s. The user's switch means "keep the studio out
+     * of my git" and stops every commit, commit_showcase included. The
+     * default in the studio Claude Code starts only stops the timer: the
+     * session still commits its own work with commit_showcase. */
+    if (settings.load()?.autoCommit === false) return skip(TURNED_OFF);
+    if (auto && !enabled()) return skip(AGENT_DEFAULT_OFF);
     if (auto && Date.now() - (failedAt.get(showcaseDir) ?? -Infinity) < failureCooldownMs) {
       return skip("The last commit failed; waiting before trying again.");
     }

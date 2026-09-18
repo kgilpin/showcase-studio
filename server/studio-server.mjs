@@ -203,7 +203,10 @@ function locateReferences(text, found) {
  *   version       the app version (reported in info and MCP)
  *   srcDir        the studio app's source, for the guide and terminals
  *   renderer      draws pages for screenshots and exports (optional)
- *   features      { terminal: false } turns the embedded terminals off
+ *   features      { terminal: false } turns the embedded terminals off;
+ *                 { autoCommit: false } makes git commits off until the
+ *                 user turns them on (the studio Claude Code starts —
+ *                 the session commits its own work)
  *   exportDir     where exports land (<exportDir>/<showcase id>)
  *   reveal        opens the file manager on a path (export-reveal)
  *   settings      { load, save } — the persisted settings
@@ -372,7 +375,12 @@ add notes specific to this library below, and the studio won't touch them.
          * (.claude/ at any level) never change what pages show. */
         if (filename != null && /^(\.studio|\.git)([/\\]|$)/.test(filename)) return;
         if (filename != null && /(^|[/\\])\.claude([/\\]|$)/.test(filename)) return;
-        history.noteChange(filename);
+        /* No commit starts here. The history commits what the studio
+         * wrote, and those writes reach it through the change log
+         * (onAppend below). A change made anywhere else — an editor, a
+         * git checkout, another program, a Claude session's own file
+         * tools — is its author's to commit; it only rides along in the
+         * studio's next commit of that showcase. */
         pending.add(filename == null ? null : path.join(showcasesDir, filename));
         clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => {
@@ -486,6 +494,7 @@ add notes specific to this library below, and the studio won't touch them.
   const history = createShowcaseHistory({
     getLibrary: () => showcasesDir,
     settings,
+    autoCommitDefault: features.autoCommit !== false,
     delayMs: commitDelayMs,
     log,
   });
