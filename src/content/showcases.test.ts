@@ -224,3 +224,45 @@ scenes:
     expect(showcaseWarnings).toEqual([]);
   });
 });
+
+describe("the voiceover's word timings", () => {
+  /* assets/<soundtrack-src>.words.json is found by name — nothing in the
+   * YAML points at it — so the assets page has to know the convention or
+   * it invites deleting the file the karaoke captions depend on. */
+  const YAML = `
+meta:
+  title: Voiced
+  description: A voiced showcase.
+  soundtrack: { src: voiceover, volume: 1, sync: true }
+scenes:
+  - id: one
+    theme: statement
+    title: Hello
+    captions:
+      - text: A spoken line.
+`;
+
+  it("counts the sidecar as used by the soundtrack", async () => {
+    const showcase = await load("voiced", YAML, [
+      "voiceover.m4a",
+      "voiceover.words.json",
+      "stray.words.json",
+    ]);
+    const usage = Object.fromEntries(
+      showcaseAssets(showcase).assets.map((asset) => [asset.name, asset.usedBy]),
+    );
+    expect(usage["voiceover.m4a"]).toEqual(["soundtrack"]);
+    expect(usage["voiceover.words.json"]).toEqual(["word timings"]);
+    /* A sidecar for some other audio is still genuinely unreferenced. */
+    expect(usage["stray.words.json"]).toEqual([]);
+  });
+
+  it("does not invent a sidecar when the showcase has no soundtrack", async () => {
+    const showcase = await load("silent", YAML.replace(/\n  soundtrack:.*/, ""), [
+      "voiceover.words.json",
+    ]);
+    expect(
+      showcaseAssets(showcase).assets.find((a) => a.name === "voiceover.words.json")?.usedBy,
+    ).toEqual([]);
+  });
+});
