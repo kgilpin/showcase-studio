@@ -244,19 +244,29 @@ change the files, but nothing tells you. So:
   before you change it.
 
 ## History
-When the library is inside a git repository, the studio commits as you
-go. studio_start and studio_info report it as \`history\`:
+When the library is inside a git repository, the studio can commit as
+you go. studio_start and studio_info report it as \`history\`:
 {git, autoCommit, enabled, available, branch, reason?}. autoCommit is
-true when commits are really happening; enabled is the user's switch;
+true when the studio commits on its own; enabled is the user's switch;
 available is false when commits can't happen here at all (no git, no
-repository, or the library is in .gitignore).
+repository, or the library is in .gitignore). reason says why, whenever
+the studio isn't committing on its own.
 
-    a change in <id>/ ──► ~5 s with no more changes ──► commit of <id>/ only
+    a studio write to <id>/ ──► ~5 s with no more writes ──► commit of <id>/ only
 
-- Every change counts: studio edits, edit_showcase, and files you or the
-  user change directly (theme.yaml, graphics/, assets/). Only that
-  showcase's folder goes into the commit; other work in the repository
-  is left alone, staged or not.
+- Only the studio's own writes start that clock: studio edits,
+  edit_showcase, asset changes on the Assets page, a media build, a
+  saved transcript. A file you or the user change directly (a TSX
+  graphic, theme.yaml, a file in assets/) never starts a commit. It
+  rides along in the next commit the studio makes of that showcase,
+  listed as "files changed directly". Only that showcase's folder goes
+  into a commit; other work in the repository is left alone, staged or
+  not.
+- In the studio Claude Code starts, the studio makes no commits on its
+  own (autoCommit is false, and reason says so). Committing is your job
+  there: when you finish a meaningful step, call commit_showcase. That
+  matters most for files you wrote with your own tools — a graphic or a
+  theme.yaml stays uncommitted until you do.
 - Messages say what changed and who changed it:
 
       nova: edit intro caption 1 text, point hook at shot-2
@@ -276,8 +286,11 @@ repository, or the library is in .gitignore).
   applies to the whole studio and takes effect at once. It is the
   user's choice: never flip it, and never edit autoCommit in the
   studio's settings.json. A "setting" line in the change log tells you
-  when they change it. While it is off, commit_showcase commits nothing
-  either; if the user wants a checkpoint, tell them the switch is off.
+  when they change it. The switch turned off means "keep the studio out
+  of my git": then commit_showcase commits nothing either, and if the
+  user wants a checkpoint, tell them the switch is off. (That is not the
+  same as the studio Claude Code starts, where only the studio's own
+  commits are off and commit_showcase still works.)
 - Nothing is committed while a merge, rebase, cherry-pick, revert or
   bisect is in progress, or on a detached HEAD. If \`history.git\` is
   false, the library isn't a git repository: offer the user to run

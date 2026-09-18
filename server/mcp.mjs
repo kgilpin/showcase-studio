@@ -128,10 +128,13 @@ export const TOOLS = [
   {
     name: "commit_showcase",
     description:
-      "Commit a showcase's changes to git now, with your own message. The studio already " +
-      "commits each showcase a few seconds after it stops changing; call this after you " +
-      'finish a meaningful step, to give it a clear name ("Retime scenes to the new ' +
-      "voiceover\"), and before you run git commands yourself. Only the showcase's folder " +
+      "Commit a showcase's changes to git now, with your own message. In the studio Claude " +
+      "Code starts, the studio makes no commits on its own — this is how your work gets " +
+      "committed, including files you wrote with your own tools (a TSX graphic, " +
+      "theme.yaml). Elsewhere the studio commits its own writes a few seconds after they " +
+      "stop. Either way, call this after you finish a meaningful step, to give it a clear " +
+      'name ("Retime scenes to the new voiceover"), and before you run git commands ' +
+      "yourself. Only the showcase's folder " +
       "is committed — other staged or unstaged work in the repository is left as it is. The " +
       'subject becomes "<showcaseId>: <message>". Returns {committed: true, sha, message, ' +
       "files}, or {committed: false, reason} when there was nothing to commit or git isn't " +
@@ -479,6 +482,24 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
         );
       }),
     ]).finally(() => clearTimeout(timer));
+    /* A saved transcript is a file the studio wrote into a showcase, so
+     * it goes in the change log like any other studio write — that is
+     * what lets the history commit it (server/showcase-history.mjs). A
+     * recording at the library root or outside it belongs to no
+     * showcase, and is left to its owner. */
+    const saved = result.transcript?.file;
+    const rel = saved ? path.relative(showcasesDir, saved) : "";
+    const inLibrary = rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+    const [showcaseId, ...rest] = inLibrary ? rel.split(/[/\\]/) : [];
+    if (showcaseId && rest.length > 0) {
+      context.changeLog?.append({
+        source: "mcp",
+        tool: "transcribe",
+        showcaseId,
+        kind: "transcript",
+        file: rest.join("/"),
+      });
+    }
     return json({ file: audioPath, ...result });
   }
   if (name === "screenshot_slide") {

@@ -34,6 +34,11 @@ serveStudioMcp({
   libraryHelp:
     "the folder Claude Code runs in, when it holds showcases or is one; otherwise the studio repo's showcases/",
   startStudio: ({ showcasesDir, lock }) =>
-    startDevStudio({ showcasesDir, lock, features: { terminal: false }, log }),
+    startDevStudio({
+      showcasesDir,
+      lock,
+      features: { terminal: false, autoCommit: false },
+      log,
+    }),
   onExit: () => process.exit(0),
 });

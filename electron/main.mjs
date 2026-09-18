@@ -477,7 +477,11 @@ function serveMcp() {
     windows: true,
     startStudio: async ({ showcasesDir, lock, window }) => {
       await app.whenReady();
-      const running = await startAppStudio({ showcasesDir, lock, features: { terminal: false } });
+      const running = await startAppStudio({
+        showcasesDir,
+        lock,
+        features: { terminal: false, autoCommit: false },
+      });
       studio = running.studio;
       appUrl = running.url;
       if (window) {
