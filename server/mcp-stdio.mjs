@@ -58,8 +58,10 @@ function studioTools({ windows, libraryHelp }) {
         "`pageError` {message, stack, path, at} appears when a studio page failed to render " +
         "on the server and none has rendered since: tell the user that error. " +
         seeIt +
-        "Lock the studio to one showcase with `showcase`, or open the New showcase page with " +
-        "`new`. The other studio tools start an unlocked studio" +
+        "To show the user a showcase, pass `showcase`: the studio locks to it, with no Home " +
+        "link and nothing else from the library. Leave it out only when the user wants the " +
+        "whole library. `new` opens the New showcase page instead. The other studio tools " +
+        "start an unlocked studio" +
         (windows ? ", with no window," : "") +
         " on first use.",
       inputSchema: {
@@ -67,7 +69,9 @@ function studioTools({ windows, libraryHelp }) {
         properties: {
           showcase: {
             type: "string",
-            description: "Lock the studio to this showcase (its folder name in the library)",
+            description:
+              "The showcase to show the user (its folder name in the library); the studio " +
+              "locks to it. Pass it whenever the user wants to see or work on one showcase.",
           },
           new: {
             type: "boolean",
