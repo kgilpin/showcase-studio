@@ -1239,6 +1239,14 @@ export function showcaseAssets(showcase: Showcase): {
   for (const [, entry] of entries) {
     if (showcase.soundtrack?.src && entry.url === showcase.soundtrack.src) {
       mark(usedBy, entry.file, "soundtrack");
+      /* The voiceover's word timings are found by name, not by a field
+       * anything points at (assets/<soundtrack-src>.words.json — see
+       * buildShowcase). Without this the sidecar reads as unreferenced
+       * on the assets page, which invites deleting the file that keeps
+       * the karaoke captions on the real voice. */
+      const name = entry.file.split("/").at(-1)!;
+      const sidecar = entries.get(`${name.replace(/\.[^.]+$/, "")}.words.json`);
+      if (sidecar) mark(usedBy, sidecar.file, "word timings");
       break;
     }
   }
