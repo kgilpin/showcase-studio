@@ -157,10 +157,18 @@ npm run dev -- --new [<library folder>]
 #                   plugin runs scripts/studio-mcp.mjs with Node 22 instead.
 #                   Its library defaults to the folder Claude Code runs in.
 # The preview shows the studio the MCP tools started: Claude opens
-# studio_start's URL. Libraries get no .claude/launch.json — a preview
-# button studio would be a second one the tools don't use — and the
-# studio removes the ones earlier versions wrote. This repo's own
-# .claude/launch.json `studio` still runs npm run dev for UI work.
+# studio_start's URL. There is no .claude/launch.json, in libraries or in
+# this repo. A preview-button studio would be a second studio on the same
+# library: the tools wouldn't use it, and its commits would sweep up the
+# session's work in progress. (The studio removes the ones earlier
+# versions wrote into libraries.) For UI work, studio_start's studio is
+# already the npm run dev studio from source, with hot reload.
+# One catch: the MCP server loads server/ once, when the session starts.
+# After you change server code, the studio keeps running the old code
+# until the MCP server itself restarts (reconnect it, or start a new
+# session) — studio_stop and studio_start alone don't reload it. For the
+# embedded terminals, which the MCP studio turns off, run npm run dev in
+# a terminal.
 ```
 
 ## Where things live
