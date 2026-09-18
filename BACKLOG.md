@@ -28,6 +28,7 @@ found on 2026-09-16, running the studio from source through the plugin.
 | 17 | Gold traces for the studio server tests are stale | Chore | Done (see the gold-traces refresh commit) |
 | 18 | The settings tooltip opens by itself | Fix | Done (`26f9fc4`) |
 | 19 | The shared prompter shows "No media" on every slide | Fix | Column hidden on the shared page; sending stills (B) and colors (C) open |
+| 20 | Recorded pitches need a build step in the product | Feature | Done 2026-09-17 (`50d4765`, tests and gold traces `769e99e`) |
 
 ---
 
@@ -391,3 +392,167 @@ missing. B and C are open.
 
 **Deploying.** The site deploy needs the publish key (`PROMPTER_PUBLISH_KEY`)
 in the command; see `CLAUDE.md`. Deploy both the Dev and Prod sites.
+
+---
+
+### 20. Recorded pitches need a build step in the product
+
+**What happens today.** The guide's "Recorded pitches" section is a recipe, not
+a feature. It tells the author to extract the audio with ffmpeg, transcribe the
+recording, cut one silent clip per idea at word boundaries, save a words file,
+and pin each scene's `durationMs` so the pins add up to the voiceover's length.
+Every step shares one set of numbers: the cut points. Nothing in the product
+holds that list, so each library grows a script to hold it instead.
+
+In one user's library there are three, written by Claude in earlier sessions:
+
+| Script | Lines | Job |
+|---|---|---|
+| `feature-photos/build_media.py` | 83 | voiceover + clips for one showcase |
+| `interview-berlin/build_media.py` | 111 | same job, different showcase |
+| `founder-compact/build_media.py` | 122 | same job, different showcase |
+| `interview-berlin/build_cuts.py` | ~200 | two derived cuts sharing one edit list |
+| `interview-berlin/build_words.py` | ~100 | writes the `.words.json` the player reads |
+
+Two of the `build_media.py` files differ by 216 lines of diff. They are
+copy-and-diverge, not a shared tool. None of them are tested. On 2026-09-17 one
+was found pointing at an ffmpeg inside a checkout that no longer existed on the
+machine — it would have failed the moment anyone ran it, and nothing would have
+caught that earlier.
+
+The coupling to `showcase.yaml` is manual too. The script prints the
+`durationMs` pins and the author copies them across by hand. Get one wrong and
+the voice drifts out of sync with the picture, with no error anywhere.
+
+**Why a script can't be the answer.** The recipe has to run wherever the studio
+runs, and Python is not something the studio can assume:
+
+| Platform | Python 3 present? |
+|---|---|
+| Windows | No. Windows ships an App Execution Alias named `python.exe` that opens the Microsoft Store. It is on `PATH` and it is not Python. |
+| macOS | Only with Xcode Command Line Tools. `/usr/bin/python3` is a shim that prompts to install them. |
+| Linux | Usually, but not in minimal containers. |
+
+The studio already ships everything the recipe needs: Node (it is an Electron
+app), ffmpeg (`ffmpeg-static`, also exposed as `$SHOWCASE_STUDIO_FFMPEG`), and
+whisper with an on-demand model download. The build belongs there.
+
+**What the product should do.** Put the cut list in the data and derive
+everything else from it. Sketch, not a final shape:
+
+```yaml
+meta:
+  source:
+    video: assets/Interview - Alex.MOV   # the master recording
+    speed: 1.1                              # applied to audio and video
+scenes:
+  - id: alex-intro
+    theme: footage
+    clip: {from: 28.300, to: 35.600}        # seconds in the master recording
+    captions:
+      - text: Hello, I'm Alex. I just graduated from Stanford...
+```
+
+What that buys:
+
+- **`durationMs` stops being pinned.** The studio knows the span and the speed,
+  so it knows the duration. The hand-copied pins — and the drift they cause —
+  go away entirely.
+- **The voiceover is derived.** The studio joins the kept spans in scene order,
+  retimes them, and writes the synced soundtrack. It cannot disagree with the
+  scene timeline, because both come from the same list.
+- **The clips are derived.** One muted clip per footage scene, tone-mapped,
+  frame-accurate.
+- **Shared spans are free.** Two cuts naming the same recording and the same
+  span get the same clip. Address the output by a hash of (recording, span,
+  speed) and the dedupe falls out; today a script does it with symlinks.
+- **A silent scene is just a scene with no `clip`.** The end card in these cuts
+  needed trailing silence padded into the voiceover by hand so the durations
+  still summed correctly.
+
+**The build.** A "Build media" action in the studio and a `build_media` MCP
+tool, both idempotent: rebuild only the outputs whose inputs changed. Report
+what was rebuilt and how long each clip is. Outputs go to `assets/` as they do
+now, so a library that has already been built by hand keeps working.
+
+**The words file, which is a separable win.** `assets/<soundtrack>.words.json`
+is already part of the format — the player reads it for `karaoke` and `reveal`
+captions. But `transcribe` returns the timestamps as data and saves nothing, so
+authors need a script to write the file. The tool should be able to write it
+directly. Two things learned from `build_words.py`:
+
+- Whisper emits sub-word tokens (`P` + `ank` + `uri`) and the player matches
+  caption words one to one, so the writer has to merge tokens into whole words
+  and fold punctuation onto the word before it.
+- Corrections have to survive a re-transcribe. That script keeps a map of
+  misheard words keyed by start time. On 2026-09-17 a second kind was needed:
+  whisper had placed a run of words about 1.2s early — inside stretches that
+  `silencedetect` reports as silence — so a timestamp correction map was added
+  too. Both belong in the product as an editable transcript, not in a script.
+
+**Migration.** Support `clip` alongside the existing pinned `durationMs`. A
+showcase with clips already built and durations already pinned keeps rendering
+untouched. Converting one means naming the master recording and moving each
+span out of the script — the numbers are already there.
+
+**Open questions, as answered.**
+
+- _Cut list in `showcase.yaml` or a sibling `build.yaml`?_ In `showcase.yaml`.
+  The keys are scene ids either way, so a sibling file would have to be kept in
+  step with the scenes by hand — the copying problem again, in a new place.
+- _Master recordings are large._ Still the author's problem. The build does
+  check that a take doesn't run past the end of the recording, which is the
+  failure that used to pass silently.
+- _Does a derived cut name a showcase or a recording?_ A recording, by path:
+  `video: ../interview-berlin/assets/Interview.MOV`, resolved inside the
+  library and nowhere else. It reads that recording's transcript too, so the
+  cut gets its karaoke captions from the take that heard the whole thing.
+  Inheriting captions across showcases is a separate feature, not needed here.
+
+**What shipped** (`50d4765`; tests and gold traces in `769e99e`).
+
+`meta.source` names the master recording and the speed; each scene's `take`
+names the span it owns. `build_media` (MCP) and "Build media" (the button in
+the showcase tab bar) derive the voiceover, one muted clip per footage scene,
+the karaoke words file, and every `durationMs` — written back through the
+normal edit path, so comments survive. Builds are idempotent through a
+fingerprint of each output's inputs in `<library>/.studio/build/<id>.json`.
+
+Three scene kinds, and every scene must have one, so none is forgotten: a take
+on a footage scene cuts a clip; the same take on any other theme is spoken
+over; `take: {silence: N}` is a card with nothing spoken over it. Several spans
+drop a pause, and `{audio: [...], video: [...]}` with `fit` lets the picture
+fast-forward a pause the sound cuts out — the build refuses a take whose two
+sides last different times, which is the invariant the scripts relied on and
+never checked.
+
+`transcribe` gained `save`, which writes the recording's editable transcript
+with a `corrections` list that survives a re-transcribe. Two merging bugs
+turned up while writing it down: whisper's `[_TT_309]` marker didn't match the
+filter (which only caught markers ending `_]`) and was folded onto the last
+word of every segment, and an opening quote was folded onto the word before it
+instead of the word it opens.
+
+Nothing in the player knows about `take`: the build writes ordinary pins and
+assets, so a showcase already built by hand keeps rendering untouched.
+
+**Checked** by rebuilding three showcases with the scripts unused —
+`feature-photos`, `interview-berlin-social` and
+`founder-compact`. Every clip came out the same length to the
+millisecond, including the two whose pauses are fast-forwarded; the voiceovers
+match the hand-cut ones at 0.99 envelope correlation; the derived words file
+for the social cut matches `build_words.py`'s output word for word, within 5ms.
+Every pin matched too, except four interior boundaries in the founder teaser,
+where the hand-maintained file had drifted by one 10ms step each while keeping
+the same total.
+
+Two things the arithmetic fixed along the way. Pins land on a cumulative 10ms
+grid, so they add up to exactly the track built from the same spans. And the
+joined track is retimed once rather than span by span: per-span retiming rounds
+each span to a whole sample, which had accumulated about 100ms across the
+Berlin social cut — the voice drifting away from the pins that drive the
+captions.
+
+**Not done.** The three `build_media.py` files, `build_cuts.py` and
+`build_words.py` are still in that library; converting those showcases
+means moving the spans into their `showcase.yaml` and deleting the scripts.
