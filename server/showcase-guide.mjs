@@ -200,6 +200,39 @@ ${
   the same queue, so an export may already be running when you start one. (The repo's npm export scripts only cover the showcases bundled
   in the app repo — for this folder, use the MCP tools.)
 
+## When another studio already has this library open
+Only one studio opens a library at a time. If studio_start finds another
+one running on this folder — another Claude session, most likely, or the
+user's own — it starts nothing and answers {started: false, alreadyOpen,
+git, next}. The other studio tools refuse the same way until you call
+studio_start. Don't work on the same files as another session: the edits
+collide, and each session's commits pick up the other's unfinished work.
+
+    library in git ──► offer a worktree: a separate copy with its own studio
+    not in git ─────► say where the other studio is open, and ask the user
+
+- In git, offer a worktree: a second copy of the repository, made from
+  its last commit, on its own branch, with its own studio. Say first what
+  the copy won't have. git.notInGit lists showcase files git doesn't
+  track, such as recordings kept out of git on purpose; their slides
+  would show a missing asset. git.uncommitted lists changes not committed
+  yet, perhaps the other session's work in progress.
+- If the user agrees: run git.worktree.add with a name and a branch of
+  your choosing, move this session into the new folder (Claude Code's
+  EnterWorktree tool, with that path; or ask the user to start a new
+  session there), then call studio_start with library set to
+  git.worktree.library.
+- Work and commit there as usual, with commit_showcase. Your commits land
+  on the worktree's branch. Bringing them back is a git merge, and when
+  to do it is the user's call — the other session may still be changing
+  the same showcase. When you're done, tell the user the branch name.
+- Not in git, a copy can't be made: tell the user where the other studio
+  is open, and ask whether to stop here or run a second studio on the
+  same files anyway.
+- Pass studio_start alongside: true only when the user has chosen a
+  second studio on the same files. After that, restarting that studio
+  with other choices doesn't ask again.
+
 ## Working alongside the user
 The user may edit a showcase in the studio while you work on it: titles,
 captions, media, caption colors, asset uploads and renames. Those edits
