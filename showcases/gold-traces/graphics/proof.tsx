@@ -26,7 +26,15 @@ function Mark({ cx, cy, r, proven }: { cx: number; cy: number; r: number; proven
   const color = proven ? GREEN : RED;
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r} fill={color} fillOpacity={0.16} stroke={color} strokeWidth={3} />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r}
+        fill={color}
+        fillOpacity={0.16}
+        stroke={color}
+        strokeWidth={3}
+      />
       {proven ? (
         <polyline
           points={`${cx - r * 0.45},${cy} ${cx - r * 0.12},${cy + r * 0.38} ${cx + r * 0.5},${cy - r * 0.4}`}
@@ -47,10 +55,30 @@ function Mark({ cx, cy, r, proven }: { cx: number; cy: number; r: number; proven
 }
 
 /** The recorded path a test drives: what "proven" means. */
-function ProvenPath({ x, y, width, height }: { x: number; y: number; width: number; height: number }) {
+function ProvenPath({
+  x,
+  y,
+  width,
+  height,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={height} rx={20} fill="var(--secondary)" stroke={GREEN} strokeWidth={2} strokeOpacity={0.6} />
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={20}
+        fill="var(--secondary)"
+        stroke={GREEN}
+        strokeWidth={2}
+        strokeOpacity={0.6}
+      />
       <text x={x + 28} y={y + 48} fill="var(--support)" fontSize={26}>
         what proof looks like
       </text>

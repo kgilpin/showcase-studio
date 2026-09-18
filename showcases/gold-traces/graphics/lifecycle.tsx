@@ -12,10 +12,28 @@ const PINK = "var(--primary)";
 const RECORDING = ["POST /project", "→ permission check", "→ update project", "→ 200 OK"];
 const BASELINE = ["request", "permission check", "update project"];
 
-function Recording({ x, y, width, height }: { x: number; y: number; width: number; height: number }) {
+function Recording({
+  x,
+  y,
+  width,
+  height,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={height} rx={20} fill="var(--secondary)" stroke="var(--border)" />
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={20}
+        fill="var(--secondary)"
+        stroke="var(--border)"
+      />
       <text x={x + 28} y={y + 48} fill="var(--support)" fontSize={26}>
         one test run, recorded
       </text>
@@ -71,7 +89,13 @@ function Column({
         </text>
       ))}
       {extra && (
-        <text x={x + 24} y={y + 100 + BASELINE.length * 48} fill={PINK} fontSize={28} fontWeight={600}>
+        <text
+          x={x + 24}
+          y={y + 100 + BASELINE.length * 48}
+          fill={PINK}
+          fontSize={28}
+          fontWeight={600}
+        >
           + new query
         </text>
       )}
@@ -106,7 +130,15 @@ export default function Lifecycle() {
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <marker id="gtlc-arrow-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker
+            id="gtlc-arrow-w"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--support)" />
           </marker>
         </defs>
@@ -116,7 +148,15 @@ export default function Lifecycle() {
         </g>
 
         <g className="gtlc-s2">
-          <line x1="580" y1="200" x2="640" y2="200" stroke="var(--support)" strokeWidth="4" markerEnd="url(#gtlc-arrow-w)" />
+          <line
+            x1="580"
+            y1="200"
+            x2="640"
+            y2="200"
+            stroke="var(--support)"
+            strokeWidth="4"
+            markerEnd="url(#gtlc-arrow-w)"
+          />
           <Column x={660} y={40} width={280} height={330} heading="baseline, in git" />
           <Column x={960} y={40} width={280} height={330} heading="this change" extra />
         </g>
@@ -135,7 +175,15 @@ export default function Lifecycle() {
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <marker id="gtlc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker
+            id="gtlc-arrow"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--support)" />
           </marker>
         </defs>
@@ -145,7 +193,15 @@ export default function Lifecycle() {
         </g>
 
         <g className="gtlc-s2">
-          <line x1="380" y1="380" x2="380" y2="440" stroke="var(--support)" strokeWidth="4" markerEnd="url(#gtlc-arrow)" />
+          <line
+            x1="380"
+            y1="380"
+            x2="380"
+            y2="440"
+            stroke="var(--support)"
+            strokeWidth="4"
+            markerEnd="url(#gtlc-arrow)"
+          />
           <Column x={40} y={460} width={330} height={330} heading="baseline, in git" />
           <Column x={390} y={460} width={330} height={330} heading="this change" extra />
         </g>

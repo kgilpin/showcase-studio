@@ -98,7 +98,15 @@ function Path({
         strokeWidth={4}
         markerEnd={`url(#${marker})`}
       />
-      <Step x={x} y={y + gap + 24} width={width} label={checkLabel} color={color} dashed={missing} strong={!missing} />
+      <Step
+        x={x}
+        y={y + gap + 24}
+        width={width}
+        label={checkLabel}
+        color={color}
+        dashed={missing}
+        strong={!missing}
+      />
       <line
         x1={x + width / 2}
         y1={y + gap + 98}
@@ -140,7 +148,15 @@ export default function OnlookRecordings() {
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <marker id="gtor-arrow-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker
+            id="gtor-arrow-w"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--support)" />
           </marker>
         </defs>
@@ -190,7 +206,15 @@ export default function OnlookRecordings() {
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <marker id="gtor-arrow-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker
+            id="gtor-arrow-t"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--support)" />
           </marker>
         </defs>
@@ -226,7 +250,15 @@ export default function OnlookRecordings() {
             so a stranger
           </text>
           {STILL_OPEN.map((line, i) => (
-            <text key={line} x="380" y={620 + i * 56} textAnchor="middle" fill={RED} fontSize={32} fontWeight={600}>
+            <text
+              key={line}
+              x="380"
+              y={620 + i * 56}
+              textAnchor="middle"
+              fill={RED}
+              fontSize={32}
+              fontWeight={600}
+            >
               {line}
             </text>
           ))}

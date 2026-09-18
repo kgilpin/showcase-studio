@@ -22,7 +22,14 @@ function Finding({ x, y, width, index }: { x: number; y: number; width: number; 
     <g>
       <rect x={x} y={y} width={width} height={86} rx={16} fill="var(--secondary)" />
       <rect x={x + 20} y={y + 20} width={168} height={46} rx={23} fill={color} />
-      <text x={x + 104} y={y + 52} textAnchor="middle" fill="#0d0a1a" fontSize={26} fontWeight={700}>
+      <text
+        x={x + 104}
+        y={y + 52}
+        textAnchor="middle"
+        fill="#0d0a1a"
+        fontSize={26}
+        fontWeight={700}
+      >
         {severity}
       </text>
       <text x={x + 212} y={y + 54} fill="var(--foreground)" fontSize={30}>
@@ -35,8 +42,25 @@ function Finding({ x, y, width, index }: { x: number; y: number; width: number; 
 function Blocked({ x, y, width }: { x: number; y: number; width: number }) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={104} rx={20} fill={RED} fillOpacity={0.16} stroke={RED} strokeWidth={3} />
-      <text x={x + width / 2} y={y + 68} textAnchor="middle" fill={RED} fontSize={44} fontWeight={700}>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={104}
+        rx={20}
+        fill={RED}
+        fillOpacity={0.16}
+        stroke={RED}
+        strokeWidth={3}
+      />
+      <text
+        x={x + width / 2}
+        y={y + 68}
+        textAnchor="middle"
+        fill={RED}
+        fontSize={44}
+        fontWeight={700}
+      >
         Merge blocked
       </text>
     </g>

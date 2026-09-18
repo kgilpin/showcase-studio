@@ -17,7 +17,15 @@ const CHECKED = [
 function Tick({ cx, cy }: { cx: number; cy: number }) {
   return (
     <g>
-      <circle cx={cx} cy={cy} r={26} fill={GREEN} fillOpacity={0.16} stroke={GREEN} strokeWidth={3} />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={26}
+        fill={GREEN}
+        fillOpacity={0.16}
+        stroke={GREEN}
+        strokeWidth={3}
+      />
       <polyline
         points={`${cx - 12},${cy} ${cx - 3},${cy + 10} ${cx + 13},${cy - 10}`}
         fill="none"
@@ -67,7 +75,14 @@ function Gap({ x, y, width, lines }: { x: number; y: number; width: number; line
         Nothing checks
       </text>
       {lines.map((line, i) => (
-        <text key={line} x={x + 32} y={y + 120 + i * 52} fill="var(--foreground)" fontSize={40} fontWeight={700}>
+        <text
+          key={line}
+          x={x + 32}
+          y={y + 120 + i * 52}
+          fill="var(--foreground)"
+          fontSize={40}
+          fontWeight={700}
+        >
           {line}
         </text>
       ))}

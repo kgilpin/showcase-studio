@@ -51,11 +51,34 @@ export default function Checks() {
           <text x="300" y="150" textAnchor="middle" fill="var(--support)" fontSize="30">
             A code review sees
           </text>
-          <text x="300" y="196" textAnchor="middle" fill="var(--support)" fontSize="34" fontWeight="600">
+          <text
+            x="300"
+            y="196"
+            textAnchor="middle"
+            fill="var(--support)"
+            fontSize="34"
+            fontWeight="600"
+          >
             the changed lines
           </text>
-          <rect x="120" y="230" width="360" height="12" rx="6" fill="var(--support)" fillOpacity="0.4" />
-          <rect x="120" y="254" width="240" height="12" rx="6" fill="var(--support)" fillOpacity="0.4" />
+          <rect
+            x="120"
+            y="230"
+            width="360"
+            height="12"
+            rx="6"
+            fill="var(--support)"
+            fillOpacity="0.4"
+          />
+          <rect
+            x="120"
+            y="254"
+            width="240"
+            height="12"
+            rx="6"
+            fill="var(--support)"
+            fillOpacity="0.4"
+          />
         </g>
 
         {/* Stage 2: what the recordings add */}
@@ -70,8 +93,24 @@ export default function Checks() {
 
         {/* Stage 3: the evidence */}
         <g className="gtck-s3">
-          <rect x="40" y="380" width="1200" height="110" rx="20" fill="none" stroke="var(--primary)" strokeWidth="3" />
-          <text x="640" y="450" textAnchor="middle" fill="var(--foreground)" fontSize="36" fontWeight="600">
+          <rect
+            x="40"
+            y="380"
+            width="1200"
+            height="110"
+            rx="20"
+            fill="none"
+            stroke="var(--primary)"
+            strokeWidth="3"
+          />
+          <text
+            x="640"
+            y="450"
+            textAnchor="middle"
+            fill="var(--foreground)"
+            fontSize="36"
+            fontWeight="600"
+          >
             Every finding cites the recording it came from
           </text>
         </g>
@@ -89,11 +128,34 @@ export default function Checks() {
           <text x="380" y="150" textAnchor="middle" fill="var(--support)" fontSize="30">
             A code review sees
           </text>
-          <text x="380" y="196" textAnchor="middle" fill="var(--support)" fontSize="34" fontWeight="600">
+          <text
+            x="380"
+            y="196"
+            textAnchor="middle"
+            fill="var(--support)"
+            fontSize="34"
+            fontWeight="600"
+          >
             the changed lines
           </text>
-          <rect x="180" y="230" width="400" height="12" rx="6" fill="var(--support)" fillOpacity="0.4" />
-          <rect x="180" y="254" width="260" height="12" rx="6" fill="var(--support)" fillOpacity="0.4" />
+          <rect
+            x="180"
+            y="230"
+            width="400"
+            height="12"
+            rx="6"
+            fill="var(--support)"
+            fillOpacity="0.4"
+          />
+          <rect
+            x="180"
+            y="254"
+            width="260"
+            height="12"
+            rx="6"
+            fill="var(--support)"
+            fillOpacity="0.4"
+          />
         </g>
 
         {/* Stage 2: what the recordings add */}
@@ -108,11 +170,34 @@ export default function Checks() {
 
         {/* Stage 3: the evidence */}
         <g className="gtck-s3">
-          <rect x="40" y="700" width="680" height="170" rx="20" fill="none" stroke="var(--primary)" strokeWidth="3" />
-          <text x="380" y="770" textAnchor="middle" fill="var(--foreground)" fontSize="34" fontWeight="600">
+          <rect
+            x="40"
+            y="700"
+            width="680"
+            height="170"
+            rx="20"
+            fill="none"
+            stroke="var(--primary)"
+            strokeWidth="3"
+          />
+          <text
+            x="380"
+            y="770"
+            textAnchor="middle"
+            fill="var(--foreground)"
+            fontSize="34"
+            fontWeight="600"
+          >
             Every finding cites
           </text>
-          <text x="380" y="816" textAnchor="middle" fill="var(--foreground)" fontSize="34" fontWeight="600">
+          <text
+            x="380"
+            y="816"
+            textAnchor="middle"
+            fill="var(--foreground)"
+            fontSize="34"
+            fontWeight="600"
+          >
             the recording it came from
           </text>
         </g>

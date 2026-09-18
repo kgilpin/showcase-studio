@@ -258,7 +258,7 @@ scenes:
   });
 
   it("does not invent a sidecar when the showcase has no soundtrack", async () => {
-    const showcase = await load("silent", YAML.replace(/\n  soundtrack:.*/, ""), [
+    const showcase = await load("silent", YAML.replace(/\n {2}soundtrack:.*/, ""), [
       "voiceover.words.json",
     ]);
     expect(
