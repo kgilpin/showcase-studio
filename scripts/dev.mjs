@@ -54,7 +54,7 @@ if (!options.exportJob) {
 const running = await startDevStudio({
   showcasesDir: options.showcasesDir,
   lock: options.lock,
-  features: { terminal: options.terminal },
+  features: { terminal: options.terminal, autoCommit: options.autoCommit },
   port: Number(process.env.PORT) || undefined,
 });
 console.log(`studio: ${running.landingUrl()}`);

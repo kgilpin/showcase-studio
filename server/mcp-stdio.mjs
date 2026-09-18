@@ -30,6 +30,7 @@
  * when Claude Code closes stdin. stdout carries MCP messages only, so
  * takeOverStdout sends everything else to stderr.
  */
+import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { CHANGE_LOG } from "./change-log.mjs";
@@ -50,7 +51,7 @@ export function takeOverStdout() {
   return (text) => write(text);
 }
 
-function studioTools({ windows, libraryHelp }) {
+function studioTools({ windows, sources, libraryHelp }) {
   const seeIt = windows
     ? "Pass `window: true` to show the studio in its own desktop window. Without it the " +
       "studio runs with no window: open the `open` URL in a browser (in Claude Code's " +
@@ -82,7 +83,12 @@ function studioTools({ windows, libraryHelp }) {
         "and studio_stop only lets go of it. Its git history follows the user's switch in " +
         "that studio. It opens on the showcase you pass but keeps its own lock (`lock`): an " +
         "unlocked one keeps its Home link. If it is locked to a different showcase, " +
-        "studio_start says so.",
+        "studio_start says so." +
+        (sources
+          ? " Each studio_start runs the studio's source as it is now, so after changing " +
+            "server code, studio_stop then studio_start runs the new code. To try the changes " +
+            "in another checkout, such as a git worktree, pass `source`."
+          : ""),
       inputSchema: {
         type: "object",
         properties: {
@@ -101,6 +107,17 @@ function studioTools({ windows, libraryHelp }) {
             type: "string",
             description: `The showcases folder: absolute, relative, or starting with ~ (default: ${libraryHelp})`,
           },
+          ...(sources
+            ? {
+                source: {
+                  type: "string",
+                  description:
+                    "The checkout of the studio's source to run, such as a git worktree " +
+                    "(default: the one this server runs from). The library defaults to its " +
+                    "showcases/.",
+                },
+              }
+            : {}),
           ...(windows
             ? {
                 window: {
@@ -126,12 +143,16 @@ const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value)
 
 /** The MCP server without its channel. Returns `{ rpc, shutdown }`.
  *
- *  startStudio({ showcasesDir, lock, window })  starts a studio; resolves
- *                         with `{ studio, url, landingUrl(), close() }`
- *  defaultLibrary()       the library when studio_start names none
+ *  startStudio({ showcasesDir, lock, window, source })  starts a studio;
+ *                         resolves with `{ studio, url, landingUrl(facts?),
+ *                         close() }` — landingUrl may use the studio's
+ *                         studio_info facts to find its current page
+ *  defaultLibrary(source) the library when studio_start names none
  *  libraryHelp            that default, in words, for the tool description
- *  cwd                    what a relative library path resolves against
+ *  cwd                    what a relative path resolves against
  *  windows                offer the `window` choice (the app can show one)
+ *  sources                offer the `source` choice (the studio from
+ *                         source, which runs any checkout)
  *  findStudio(library, { exceptUrl })  the live studio that already has
  *                         the library open, as `{ url }`, or null
  *                         (server/studio-presence.mjs) */
@@ -142,6 +163,7 @@ export function createStudioMcp({
   libraryHelp = "the default library",
   cwd,
   windows = false,
+  sources = false,
   findStudio = runningStudio,
   log = (message) => console.error(message),
 }) {
@@ -171,8 +193,15 @@ export function createStudioMcp({
    *  doesn't count, since it is about to stop. */
   async function start(choices = {}) {
     const { showcase, new: fresh, library, window } = choices;
+    const source =
+      sources && choices.source !== undefined
+        ? resolvePath(String(choices.source), { cwd })
+        : undefined;
+    if (source && !existsSync(path.join(source, "scripts", "dev.mjs"))) {
+      throw new Error(`${source} isn't a checkout of Showcase Studio (no scripts/dev.mjs).`);
+    }
     const named = library !== undefined;
-    const libraryDir = named ? resolvePath(String(library), { cwd }) : defaultLibrary();
+    const libraryDir = named ? resolvePath(String(library), { cwd }) : defaultLibrary(source);
     const argv = [];
     if (showcase !== undefined) argv.push(`--open=${path.join(libraryDir, String(showcase))}`);
     if (fresh) argv.push(named ? `--new=${libraryDir}` : "--new");
@@ -189,6 +218,7 @@ export function createStudioMcp({
         showcasesDir: options.showcasesDir,
         lock: options.lock,
         window: windows && window === true,
+        source,
       }));
     running.choices = choices;
     log(`studio: ${running.landingUrl()}${running.shared ? " (already open)" : ""}`);
@@ -196,14 +226,15 @@ export function createStudioMcp({
   }
 
   /** Runs a tool on the running studio, starting one first if none is. A
-   *  shared studio can close under us (the user quit the app); then the
-   *  tool runs once more, on a studio started with the same choices. */
+   *  studio reached by its address can go away under us (the user quit
+   *  the app, a child studio crashed); then the tool runs once more, on a
+   *  studio started with the same choices. */
   async function runTool(params) {
     const current = await inTurn(async () => running ?? start());
     try {
       return [current, await current.studio.callTool(params)];
     } catch (error) {
-      if (!current.shared || !error.unreachable) throw error;
+      if (!error.unreachable) throw error;
       const next = await inTurn(async () => {
         if (running === current) running = undefined;
         return running ?? start(current.choices);
@@ -220,7 +251,7 @@ export function createStudioMcp({
       const facts = JSON.parse(result.content[0].text);
       return json({
         ...facts,
-        open: current.landingUrl(),
+        open: current.landingUrl(facts),
         guide: path.join(facts.library, ".studio", "GUIDE.md"),
         changes: path.join(facts.library, CHANGE_LOG),
         ...(current.shared ? { shared: true } : {}),
@@ -232,7 +263,7 @@ export function createStudioMcp({
     const [current, result] = await runTool(params);
     if (name === "studio_info" && !result.isError) {
       const facts = JSON.parse(result.content[0].text);
-      return json({ ...facts, open: current.landingUrl() });
+      return json({ ...facts, open: current.landingUrl(facts) });
     }
     return result;
   }
@@ -241,7 +272,7 @@ export function createStudioMcp({
     rpc: createMcpRpc({
       version,
       callTool,
-      tools: [...studioTools({ windows, libraryHelp }), ...TOOLS],
+      tools: [...studioTools({ windows, sources, libraryHelp }), ...TOOLS],
     }),
     shutdown: () => inTurn(stop),
   };
