@@ -33,6 +33,11 @@ type Props = {
   record?: boolean;
   /** File-name stem for camera takes (usually the showcase id). */
   takeName?: string;
+  /** Show each scene's media beside the script (a "No media" box when a
+   *  scene has none). The shared prompter page turns it off: its snapshot
+   *  sends no media, so every slide would say "No media" (BACKLOG.md
+   *  #19). The camera preview still shows while the camera is on. */
+  showMedia?: boolean;
 };
 
 /* The same recording API the /record route exposes (declared there). In
@@ -110,7 +115,13 @@ function LinePie({ remainingMs, allottedMs }: { remainingMs: number; allottedMs:
 
 /** Lyrics-style teleprompter: the whole script scrolls continuously and the
  *  current line stays pinned near the top so a narrator reads from one spot. */
-export function ScriptPlayer({ scenes, onExit, record = false, takeName = "script" }: Props) {
+export function ScriptPlayer({
+  scenes,
+  onExit,
+  record = false,
+  takeName = "script",
+  showMedia = true,
+}: Props) {
   const lines = useMemo(() => buildLines(scenes), [scenes]);
   const total = useMemo(() => scenes.reduce((s, x) => s + x.durationMs, 0), [scenes]);
   const [elapsed, setElapsed] = useState(0);
@@ -479,7 +490,13 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
         </div>
 
         <div className="flex min-h-0 flex-1 gap-8 px-6 pb-4 sm:px-12">
-          <div className="hidden w-44 shrink-0 self-center sm:block lg:w-56">
+          <div
+            className={cn(
+              "hidden w-44 shrink-0 self-center lg:w-56",
+              // Without media, the column exists only for the camera preview.
+              (showMedia || camera) && "sm:block",
+            )}
+          >
             {camera && (
               <div className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-card">
                 {/* Mirrored like a phone selfie view so the narrator can frame
@@ -498,7 +515,7 @@ export function ScriptPlayer({ scenes, onExit, record = false, takeName = "scrip
                 )}
               </div>
             )}
-            {media.kind === "graphic" ? (
+            {!showMedia ? null : media.kind === "graphic" ? (
               <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-border bg-card">
                 <media.component />
               </div>

@@ -28,7 +28,10 @@ type PrompterScript = {
 };
 
 /** The snapshot carries only what the prompter reads; the display-only
- *  Scene fields are filled with inert defaults. */
+ *  Scene fields are filled with inert defaults. `media: none` here means
+ *  "not sent", not "this scene has no media" — so the page hides the
+ *  media column (showMedia={false}) rather than let the player say
+ *  "No media" on every slide (BACKLOG.md #19). */
 function toScenes(script: PrompterScript): Scene[] {
   return script.scenes.map((scene) => ({
     theme: "statement",
@@ -86,7 +89,9 @@ export function PrompterApp() {
 
   if (state.kind === "reading") {
     // No onExit: the prompter is this page — there is nowhere to exit to.
-    return <ScriptPlayer scenes={toScenes(state.script)} takeName={state.script.id} />;
+    return (
+      <ScriptPlayer scenes={toScenes(state.script)} takeName={state.script.id} showMedia={false} />
+    );
   }
 
   return (

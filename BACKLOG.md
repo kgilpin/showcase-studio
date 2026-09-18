@@ -27,6 +27,7 @@ found on 2026-09-16, running the studio from source through the plugin.
 | 16 | A page crash only shows "This page didn't load" | Fix | Done |
 | 17 | Gold traces for the studio server tests are stale | Chore | Done (see the gold-traces refresh commit) |
 | 18 | The settings tooltip opens by itself | Fix | Done (`26f9fc4`) |
+| 19 | The shared prompter shows "No media" on every slide | Fix | Column hidden on the shared page; sending stills (B) and colors (C) open |
 
 ---
 
@@ -328,3 +329,65 @@ Opening "Studio settings" (the gear button) moves keyboard focus to the
 "Commit changes to git" switch, and focus opens its tooltip. So the tooltip
 covers part of the page every time the panel opens. Show it on hover, or on
 keyboard focus only (`:focus-visible`).
+
+### 19. The shared prompter shows "No media" on every slide
+
+**What happened.** The Gold Traces script, published to the Dev prompter
+site (`d14fbyq2rpxth5.cloudfront.net/p/…`) and opened on a laptop, showed an
+empty "No media" box beside every slide. On a phone the box doesn't show.
+
+**Why.** The snapshot is narration only, by design (`e42e654`, "Share the
+teleprompter to a phone"): no media, no theme, no assets. The page then
+fills in made-up values for what wasn't sent, and hands them to the studio's
+own `ScriptPlayer`:
+
+```
+showcase.yaml ──► snapshot: narration + timings    (server/prompter-script.mjs)
+                        │
+                  /p/<token> ──► toScenes() adds media: none, theme: statement
+                                        │          (web/prompter/PrompterApp.tsx)
+                                  ScriptPlayer believes it: "No media"
+```
+
+`ScriptPlayer` can't tell "this scene has no media" from "media wasn't sent".
+That made-up value is the real defect; the label is one symptom.
+
+| Screen | Media column | What shows |
+|---|---|---|
+| Phone (below 640px) | Hidden | Fine |
+| Tablet, phone turned sideways, laptop | Shown | "No media" on every slide |
+
+A tablet is a common teleprompter, so this isn't a laptop-only case.
+
+**What the shared page lacks compared to the studio's prompter.**
+
+- **The picture.** In the studio, the scene's media beside each line shows
+  the narrator what the viewer is seeing ("Here's that security fix,
+  recorded"). The shared page never has it, on any screen.
+- **The showcase's colors.** The page uses the default blue theme, because
+  no theme is sent.
+
+**Limits.** The publish endpoint (`cdk/lambda/publish.mjs`) takes one JSON
+document of at most 512 KB and writes only `scripts/<token>.json`. Anything
+beyond JSON needs the endpoint and the stack changed, not just the page.
+
+**Options.**
+
+| Option | What the narrator gets | Work |
+|---|---|---|
+| A. Say "not sent", and hide the column | A clean page, no pictures | Small. See status below. |
+| B. Send a still of each scene | The picture beside each line on tablets and laptops; maybe a small thumbnail on phones | Medium: at publish, capture each scene's still (the screenshot page already shows a scene at its end) and upload them. The endpoint must accept images, or hand out upload URLs; deploy the stack. |
+| C. Send the showcase's colors | The showcase's own look | Small: the theme's colors are a fixed whitelist and fit in the JSON. |
+
+**Privacy (B).** Stills put the scenes' pictures — often app screenshots —
+behind the same link as the script. Anyone with the link can see them for up
+to 30 days (the bucket's lifecycle). Today the link shows only words.
+
+**Status (2026-09-16).** The column is hidden on the shared page:
+`ScriptPlayer` takes `showMedia`, and `PrompterApp` passes `false`, with a
+comment that its `media: none` means "not sent". The made-up value itself is
+still there; a later change could drop it so `ScriptPlayer` sees media as
+missing. B and C are open.
+
+**Deploying.** The site deploy needs the publish key (`PROMPTER_PUBLISH_KEY`)
+in the command; see `CLAUDE.md`. Deploy both the Dev and Prod sites.
