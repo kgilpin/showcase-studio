@@ -70,13 +70,24 @@ Set by launchers:
                              default to off, as in every studio Claude Code
                              starts; the user's own "Commit changes to git"
                              switch still wins.
+  --alongside                (Claude Code's studio from source) Open the
+                             library even though another studio has it open
+                             — only when the user chose a second studio.
 
 Paths can start with ~. Relative paths are resolved from the folder you run
 the command in.
 `;
 
 const VALUE_FLAGS = new Set(["open", "library", "export", "app-url"]);
-const SWITCHES = new Set(["help", "electron", "mcp", "no-terminal", "no-window", "no-auto-commit"]);
+const SWITCHES = new Set([
+  "help",
+  "electron",
+  "mcp",
+  "no-terminal",
+  "no-window",
+  "no-auto-commit",
+  "alongside",
+]);
 /* The choices studio_start makes, which --mcp therefore can't take. */
 const NOT_WITH_MCP = ["open", "new", "export", "electron", "app-url", "no-window"];
 
@@ -159,6 +170,7 @@ export function studioOptions(argv, { cwd, defaultDir, home } = {}) {
     mcp: given.has("mcp"),
     terminal: !given.has("no-terminal"),
     autoCommit: !given.has("no-auto-commit"),
+    alongside: given.has("alongside"),
     window: !given.has("no-window"),
     showcasesDir: defaultDir,
     lock: null,

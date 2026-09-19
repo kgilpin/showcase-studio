@@ -11,7 +11,9 @@
  *
  *   studio_start  starts the studio (or restarts it with other choices)
  *                 and returns its URL — open that URL to see it, or, in
- *                 the app, ask for the studio's own window
+ *                 the app, ask for the studio's own window. When another
+ *                 studio already has the library open, it starts nothing
+ *                 and says what to do instead (alreadyOpen, below)
  *   studio_stop   stops it
  *   the studio's own tools (server/mcp.mjs) use the running studio,
  *                 starting an unlocked one first when none is running
@@ -25,7 +27,9 @@ import path from "node:path";
 import readline from "node:readline";
 import { CHANGE_LOG } from "./change-log.mjs";
 import { resolvePath, studioOptions } from "./launch-options.mjs";
+import { libraryInGit } from "./library-git.mjs";
 import { TOOLS, createMcpRpc } from "./mcp.mjs";
+import { runningStudio } from "./studio-presence.mjs";
 
 /** Keeps stdout for MCP messages: console output and any other stdout
  *  writes (Vite's banner, a library's warning) go to stderr. Returns the
@@ -63,7 +67,12 @@ function studioTools({ windows, sources, libraryHelp }) {
         "whole library. `new` opens the New showcase page instead. The other studio tools " +
         "start an unlocked studio" +
         (windows ? ", with no window," : "") +
-        " on first use." +
+        " on first use. When another studio already has the library open — another Claude " +
+        "session, or the user's own — nothing starts, and the result is {started: false, " +
+        "alreadyOpen, git, next}. Two sessions editing the same files end badly, so do what " +
+        "`next` says: offer the user a git worktree (a separate copy with its own studio), " +
+        "or ask them. Pass `alongside: true` only when the user chooses to run a second " +
+        "studio on the same files anyway." +
         (sources
           ? " Each studio_start runs the studio's source as it is now, so after changing " +
             "server code, studio_stop then studio_start runs the new code. To try the changes " +
@@ -86,6 +95,12 @@ function studioTools({ windows, sources, libraryHelp }) {
           library: {
             type: "string",
             description: `The showcases folder: absolute, relative, or starting with ~ (default: ${libraryHelp})`,
+          },
+          alongside: {
+            type: "boolean",
+            description:
+              "Start even though another studio already has this library open. Only when the " +
+              "user has chosen that over a worktree.",
           },
           ...(sources
             ? {
@@ -119,10 +134,75 @@ function studioTools({ windows, sources, libraryHelp }) {
 
 const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 
+const megabytes = (bytes) => `${Math.round(bytes / 1e6)} MB`;
+
+/** studio_start's answer when another studio already has the library
+ *  open. Nothing is started: two sessions editing the same files end
+ *  badly, whoever started the other studio, so the choice goes to the
+ *  user. In git, the offer is a worktree — a separate copy of the
+ *  repository with its own studio — and the answer spells out the
+ *  commands, and what the copy won't have. Otherwise, the user decides
+ *  between stopping and a second studio on the same files. */
+export async function alreadyOpen(library, url) {
+  const repo = await libraryInGit(library);
+  if (!repo) {
+    return {
+      started: false,
+      alreadyOpen: { url, library },
+      git: null,
+      next:
+        "Another studio already has this library open — another Claude session, or the " +
+        "user's own — and git doesn't track the library, so a separate copy can't be made. " +
+        `Tell the user where it is open (${url}) and ask: stop here and close the other ` +
+        "studio first, or call studio_start with alongside: true to run a second studio on " +
+        "the same files anyway.",
+    };
+  }
+  const place = path.join(repo.root, ".claude", "worktrees", "<name>");
+  const copy = repo.library ? path.join(place, repo.library) : place;
+  const behind = [];
+  if (repo.notInGit.count > 0) {
+    behind.push(
+      `${repo.notInGit.count} showcase file(s) git doesn't track ` +
+        `(${megabytes(repo.notInGit.bytes)}; an asset left out shows as missing on its slide)`,
+    );
+  }
+  if (repo.uncommitted.count > 0) {
+    behind.push(`uncommitted changes to ${repo.uncommitted.count} file(s)`);
+  }
+  return {
+    started: false,
+    alreadyOpen: { url, library },
+    git: {
+      ...repo,
+      worktree: {
+        add: `git -C ${repo.root} worktree add -b <branch> ${place} HEAD`,
+        library: copy,
+      },
+    },
+    next:
+      "Another studio already has this library open — another Claude session, most " +
+      "likely, or the user's own. Two sessions editing the same files end badly, so don't " +
+      "work here. Offer the user a worktree: a separate copy of the repository, from its " +
+      "last commit, with its own studio; the work comes back with a normal git merge. " +
+      (behind.length > 0
+        ? `Tell them what the copy won't have: ${behind.join(", and ")} (see git.notInGit ` +
+          "and git.uncommitted). "
+        : "") +
+      "If they agree: run git.worktree.add (pick a name and a branch), move this session " +
+      "into the new folder (Claude Code's EnterWorktree tool, with that path — or ask the " +
+      "user to start a new session there), then call studio_start with library set to " +
+      "git.worktree.library. If they would rather share these files anyway: studio_start " +
+      "with alongside: true.",
+  };
+}
+
 /** The MCP server without its channel. Returns `{ rpc, shutdown }`.
  *
- *  startStudio({ showcasesDir, lock, window, source })  starts a studio;
- *                         resolves with `{ studio, url, landingUrl(facts?),
+ *  startStudio({ showcasesDir, lock, window, source, alongside })  starts a
+ *                         studio (alongside: the user chose a second one on
+ *                         a library another studio has open); resolves
+ *                         with `{ studio, url, landingUrl(facts?),
  *                         close() }` — landingUrl may use the studio's
  *                         studio_info facts to find its current page
  *  defaultLibrary(source) the library when studio_start names none
@@ -142,6 +222,9 @@ export function createStudioMcp({
   log = (message) => console.error(message),
 }) {
   let running; // { studio, url, landingUrl(facts?), close(), choices }
+  /* The library the user chose a second studio for (alongside: true), so
+   * restarting that studio with other choices doesn't ask again. */
+  let alongsideFor = null;
 
   /* Starts and stops run one at a time; tool calls wait for their turn. */
   let queue = Promise.resolve();
@@ -160,9 +243,10 @@ export function createStudioMcp({
 
   /** Starts the studio with the same choices --open, --new and --library
    *  offer, checked by the same code — before the running studio stops, so
-   *  a wrong choice leaves it running. */
+   *  a wrong choice leaves it running. Resolves with the running studio,
+   *  or with `{ blocked }` when another studio has the library. */
   async function start(choices = {}) {
-    const { showcase, new: fresh, library, window } = choices;
+    const { showcase, new: fresh, library, window, alongside } = choices;
     const source =
       sources && choices.source !== undefined
         ? resolvePath(String(choices.source), { cwd })
@@ -177,15 +261,24 @@ export function createStudioMcp({
     if (fresh) argv.push(named ? `--new=${libraryDir}` : "--new");
     if (named && showcase === undefined && !fresh) argv.push(`--library=${libraryDir}`);
     const options = studioOptions(argv, { cwd, defaultDir: libraryDir });
-
+    /* One studio per library (server/studio-presence.mjs), unless the user
+     * chose a second one. This session's own studio never counts as the
+     * other one, so restarting it with new choices is fine. */
+    const second = alongside === true || alongsideFor === options.showcasesDir;
+    if (!second) {
+      const other = await runningStudio(options.showcasesDir, { exceptUrl: running?.url });
+      if (other) return { blocked: await alreadyOpen(options.showcasesDir, other.url) };
+    }
     await stop();
     running = await startStudio({
       showcasesDir: options.showcasesDir,
       lock: options.lock,
       window: windows && window === true,
       source,
+      alongside: second,
     });
     running.choices = choices;
+    alongsideFor = second ? options.showcasesDir : null;
     log(`studio: ${running.landingUrl()}`);
     return running;
   }
@@ -195,7 +288,11 @@ export function createStudioMcp({
    *  then the tool runs once more, on a studio started with the same
    *  choices. */
   async function runTool(params) {
+    /* The first studio tool starts a studio when none runs — with the same
+     * check as studio_start, or calling a tool directly would get around
+     * it. A blocked start comes back as [{ blocked }]. */
     const current = await inTurn(async () => running ?? start());
+    if (current.blocked) return [current];
     try {
       return [current, await current.studio.callTool(params)];
     } catch (error) {
@@ -204,6 +301,7 @@ export function createStudioMcp({
         if (running === current) running = undefined;
         return running ?? start(current.choices);
       });
+      if (next.blocked) return [next];
       return [next, await next.studio.callTool(params)];
     }
   }
@@ -211,8 +309,10 @@ export function createStudioMcp({
   async function callTool(params = {}) {
     const { name, arguments: args = {} } = params;
     if (name === "studio_start") {
-      await inTurn(() => start(args));
+      const started = await inTurn(() => start(args));
+      if (started.blocked) return json(started.blocked);
       const [current, result] = await runTool({ name: "studio_info", arguments: {} });
+      if (current.blocked) return json(current.blocked);
       const facts = JSON.parse(result.content[0].text);
       return json({
         ...facts,
@@ -225,6 +325,20 @@ export function createStudioMcp({
       return json({ stopped: await inTurn(stop) });
     }
     const [current, result] = await runTool(params);
+    if (current.blocked) {
+      const { url, library } = current.blocked.alreadyOpen;
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              `Another studio already has ${library} open, at ${url}, so none was started. ` +
+              "Call studio_start: it says what to offer the user.",
+          },
+        ],
+        isError: true,
+      };
+    }
     if (name === "studio_info" && !result.isError) {
       const facts = JSON.parse(result.content[0].text);
       return json({ ...facts, open: current.landingUrl(facts) });

@@ -65,6 +65,13 @@ use. If the user started one with the preview's button, stop it with
 `preview_stop` and open the `open` URL instead. The studio stops when
 this session ends.
 
+If `studio_start` answers `started: false`, another studio already has
+the library open — usually another Claude session. Don't work on the same
+files. Do what its `next` says: in git, offer the user a worktree (a
+separate copy with its own studio) and say what the copy won't have;
+otherwise, ask them. The guide's "When another studio already has this
+library open" has the details.
+
 ## 2. Read the guide first
 
 `studio_start` returns `guide`: the path of the library's
@@ -123,12 +130,14 @@ from the app's source.
 ## 5. Finish
 
 - Exports: `export`, then `export_status` until it's done.
-- History: when the library is in a git repository, the studio commits
-  each showcase a few seconds after it stops changing. `studio_start`
-  reports this as `history`.
+- History: when the library is in a git repository, `studio_start`
+  reports `history`. If `history.autoCommit` is false, the studio makes
+  no commits on its own: nothing is committed until you call
+  `commit_showcase`.
   - After you finish a meaningful change, call `commit_showcase` with a
-    clear message, such as "Retime scenes to the new voiceover". Don't run
-    `git commit` yourself.
+    clear message, such as "Retime scenes to the new voiceover". That
+    includes files you wrote with your own tools, like a graphic or
+    theme.yaml. Don't run `git commit` yourself.
   - When the user asks to undo, compare, or branch, use git history. Look
     first (`git log --stat -- <showcase>`) and confirm which change they
     mean. Undo with `git revert <sha>`, which adds a new commit. Never

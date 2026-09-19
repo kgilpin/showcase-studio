@@ -42,8 +42,9 @@ if (options.help) {
 
 /* One studio per library (server/studio-presence.mjs). An export is a
  * short headless render, meant to run beside an open studio, so it
- * doesn't ask. */
-if (!options.exportJob) {
+ * doesn't ask; nor does Claude's studio when the user chose a second one
+ * (--alongside). Neither takes over the other studio's note. */
+if (!options.exportJob && !options.alongside) {
   const other = await runningStudio(options.showcasesDir);
   if (other) {
     console.error(alreadyOpen(options.showcasesDir, other.url));
