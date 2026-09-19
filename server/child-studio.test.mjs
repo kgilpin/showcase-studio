@@ -99,7 +99,13 @@ describe("startChildStudio", () => {
     expect(logged).toContain("studio: vite: warming up");
 
     await studio.close();
-    expect(existsSync(path.join(dir, "stopped"))).toBe(true);
+    /* On Windows there is no SIGTERM to handle: node ends the process
+     * outright, so a child never gets to tidy up — its note in
+     * .studio/studio.json stays until something asks that address and
+     * nothing answers. Everywhere else the child runs its handler. */
+    if (process.platform !== "win32") {
+      expect(existsSync(path.join(dir, "stopped"))).toBe(true);
+    }
     await expect(studio.studio.callTool({ name: "studio_info" })).rejects.toMatchObject({
       unreachable: true,
     });
