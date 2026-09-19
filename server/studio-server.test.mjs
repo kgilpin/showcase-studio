@@ -365,17 +365,45 @@ scenes:
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let received = "";
-    const waitFor = async (text) => {
-      while (!received.includes(text)) {
-        const { value, done } = await reader.read();
-        if (done) throw new Error(`the event stream ended before "${text}"`);
-        received += decoder.decode(value, { stream: true });
+    let ended = false;
+    /* One reader, running on its own: a read that is abandoned when a
+     * wait gives up would swallow the chunk it was holding. */
+    void (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          received += decoder.decode(value, { stream: true });
+        }
+      } catch {
+        /* the stream was aborted in cleanup */
       }
+      ended = true;
+    })();
+    const waitFor = async (text, ms) => {
+      const deadline = Date.now() + ms;
+      while (!received.includes(text)) {
+        if (ended) throw new Error(`the event stream ended before "${text}"`);
+        if (Date.now() >= deadline) return false;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return true;
     };
-    await waitFor("event: info");
-    writeFileSync(path.join(library, "nova", "showcase.yaml"), SHOWCASE_YAML + "\n");
-    await waitFor("event: reload");
-  }, 10_000);
+    expect(await waitFor("event: info", 5_000)).toBe(true);
+
+    /* A recursive watch takes a moment to start listening, and a change
+     * made inside that moment is never seen — on macOS with the whole
+     * suite running, that moment can outlast the round trip above. It
+     * costs a user nothing (a file changed in the studio's first
+     * milliseconds), but a single write here is a race, so keep
+     * changing the file until a reload comes back. */
+    let reloaded = false;
+    for (let i = 0; !reloaded && i < 20; i++) {
+      writeFileSync(path.join(library, "nova", "showcase.yaml"), `${SHOWCASE_YAML}\n# ${i}\n`);
+      reloaded = await waitFor("event: reload", 500);
+    }
+    expect(reloaded).toBe(true);
+  }, 15_000);
 
   it("answers MCP over HTTP: the tool list and studio_info", async () => {
     const { url } = await startStudio();
