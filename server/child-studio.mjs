@@ -43,15 +43,17 @@ export async function callToolAt(url, params) {
   return reply.result;
 }
 
-/** dev.mjs's options for a studio on `showcasesDir` with `lock`. */
-export function devStudioArgs({ showcasesDir, lock }) {
+/** dev.mjs's options for a studio on `showcasesDir` with `lock` —
+ *  `alongside` when the user chose a second studio on a library another
+ *  one has open, so dev.mjs doesn't refuse it. */
+export function devStudioArgs({ showcasesDir, lock, alongside = false }) {
   const where =
     lock?.kind === "showcase"
       ? `--open=${path.join(showcasesDir, lock.showcaseId)}`
       : lock?.kind === "new"
         ? `--new=${showcasesDir}`
         : `--library=${showcasesDir}`;
-  return [where, "--no-terminal", "--no-auto-commit"];
+  return [where, "--no-terminal", "--no-auto-commit", ...(alongside ? ["--alongside"] : [])];
 }
 
 /** Runs `script` with Node and resolves, once it prints "studio: <url>",

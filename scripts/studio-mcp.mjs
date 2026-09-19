@@ -48,10 +48,10 @@ serveStudioMcp({
   libraryHelp:
     "the folder Claude Code runs in, when it holds showcases or is one; otherwise the " +
     "studio repo's showcases/ — or, with `source`, that checkout's showcases/",
-  startStudio: ({ showcasesDir, lock, source = repoRoot }) =>
+  startStudio: ({ showcasesDir, lock, alongside, source = repoRoot }) =>
     startChildStudio({
       script: path.join(source, "scripts", "dev.mjs"),
-      args: devStudioArgs({ showcasesDir, lock }),
+      args: devStudioArgs({ showcasesDir, lock, alongside }),
       cwd: source,
       log,
     }),

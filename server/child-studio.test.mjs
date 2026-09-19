@@ -60,6 +60,13 @@ describe("devStudioArgs", () => {
       ...off,
     ]);
   });
+
+  it("tells dev.mjs not to refuse a taken library when the user chose a second studio", () => {
+    expect(devStudioArgs({ showcasesDir: "/lib", lock: null, alongside: true })).toContain(
+      "--alongside",
+    );
+    expect(devStudioArgs({ showcasesDir: "/lib", lock: null })).not.toContain("--alongside");
+  });
 });
 
 describe("startChildStudio", () => {

@@ -62,6 +62,7 @@ describe("studioOptions", () => {
       mcp: false,
       terminal: true,
       autoCommit: true,
+      alongside: false,
       window: true,
       showcasesDir: "/home/Showcases",
       lock: null,
@@ -81,6 +82,12 @@ describe("studioOptions", () => {
     expect(studioOptions(["--no-auto-commit"], context).autoCommit).toBe(false);
     expect(() => studioOptions(["--no-auto-commit=1"], context)).toThrow(/doesn't take a value/);
     expect(STUDIO_USAGE).toContain("--no-auto-commit");
+  });
+
+  it("reads --alongside as a switch for a second studio the user chose", () => {
+    expect(studioOptions(["--alongside"], context).alongside).toBe(true);
+    expect(() => studioOptions(["--alongside=1"], context)).toThrow(/doesn't take a value/);
+    expect(STUDIO_USAGE).toContain("--alongside");
   });
 
   it("reads --no-window as a switch for the packaged app, not the window launchers", () => {
