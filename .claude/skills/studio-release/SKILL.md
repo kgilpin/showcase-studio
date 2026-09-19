@@ -14,9 +14,9 @@ says what "done" looks like. Stop and tell the user when a check fails —
 don't work around it.
 
 ```
-preflight ─► version commit ─► Mac build (signed + notarized) ─► push main + tag
-                                                                       │
-                              CI builds Windows from the tag ◄─────────┘
+preflight + behavior review ─► version commit ─► Mac build (signed + notarized) ─► push main + tag
+                                                                                         │
+                              CI builds Windows from the tag ◄───────────────────────────┘
                                           │
       GitHub release: Mac zip + SHA256SUMS now, Windows zip + SHA256SUMS-win-x64 when CI is done
                                           │
@@ -42,6 +42,34 @@ Then the checks that CI would run, locally:
 ```sh
 npx vitest run && npx eslint . && npx tsc --noEmit -p .
 ```
+
+Then a behavior review of everything since the last release, with the
+`appmap-review` skill. The tests say the code does what its tests
+check; the review says what changed in what the code actually does,
+including changes nobody meant to make.
+
+The committed gold traces can be older than the code, so record fresh
+ones first and compare those with the last tag:
+
+```sh
+node .claude/skills/appmap-gold-traces/assets/manage.mjs update --record --dry-run
+node .claude/skills/appmap-review/assets/review.mjs compare --base $(git describe --tags --abbrev=0) --fresh
+```
+
+The dry run records into `tmp/appmap` (ignored by git) and blesses
+nothing. Then interpret the compare as the `appmap-review` skill says,
+and give the user its report.
+
+| Review result | What to do |
+| --- | --- |
+| a 🔴 finding | stop: it is fixed on `main` before the release |
+| a 🟡 finding | show it and ask whether it blocks the release |
+| every change explained | go on |
+
+When the dry run says it would bless traces, the committed baselines
+are behind the code. Ask whether to bless them (`update` without
+`--dry-run`) in their own commit on `main` before the version commit,
+so the next release's review starts from them.
 
 The notarization profile is a keychain item made once with
 `xcrun notarytool store-credentials showcase-studio --key <.p8> --key-id <id> --issuer <uuid>`
