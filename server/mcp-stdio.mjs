@@ -16,18 +16,8 @@
  *   the studio's own tools (server/mcp.mjs) use the running studio,
  *                 starting an unlocked one first when none is running
  *
- * One studio per library (server/studio-presence.mjs): when a studio
- * already has the library open — the user's app, their npm run dev, or
- * another session's studio — studio_start uses it rather than start a
- * second one (server/shared-studio.mjs):
- *
- *   studio_start ─ a live studio has this library?
- *                    yes → use it: its page, its tools at <url>/mcp;
- *                          studio_stop only lets go of it
- *                    no  → start our own, as below
- *
- * A studio of our own lives as long as the Claude Code session: it stops
- * when Claude Code closes stdin. stdout carries MCP messages only, so
+ * The studio lives as long as the Claude Code session: it stops when
+ * Claude Code closes stdin. stdout carries MCP messages only, so
  * takeOverStdout sends everything else to stderr.
  */
 import { existsSync } from "node:fs";
@@ -36,8 +26,6 @@ import readline from "node:readline";
 import { CHANGE_LOG } from "./change-log.mjs";
 import { resolvePath, studioOptions } from "./launch-options.mjs";
 import { TOOLS, createMcpRpc } from "./mcp.mjs";
-import { useOpenStudio } from "./shared-studio.mjs";
-import { runningStudio } from "./studio-presence.mjs";
 
 /** Keeps stdout for MCP messages: console output and any other stdout
  *  writes (Vite's banner, a library's warning) go to stderr. Returns the
@@ -75,15 +63,7 @@ function studioTools({ windows, sources, libraryHelp }) {
         "whole library. `new` opens the New showcase page instead. The other studio tools " +
         "start an unlocked studio" +
         (windows ? ", with no window," : "") +
-        " on first use. " +
-        "When a studio already has the library open — the user's app, their npm run dev, or " +
-        "another Claude session's — studio_start uses that one instead of opening a second: " +
-        "`shared` is true, `version` is that studio's, " +
-        (windows ? "no window opens for it, " : "") +
-        "and studio_stop only lets go of it. Its git history follows the user's switch in " +
-        "that studio. It opens on the showcase you pass but keeps its own lock (`lock`): an " +
-        "unlocked one keeps its Home link. If it is locked to a different showcase, " +
-        "studio_start says so." +
+        " on first use." +
         (sources
           ? " Each studio_start runs the studio's source as it is now, so after changing " +
             "server code, studio_stop then studio_start runs the new code. To try the changes " +
@@ -131,9 +111,7 @@ function studioTools({ windows, sources, libraryHelp }) {
     },
     {
       name: "studio_stop",
-      description:
-        "Stop the studio. (It also stops when this Claude Code session ends.) A shared studio — " +
-        "one that was already open — keeps running; this only lets go of it.",
+      description: "Stop the studio. (It also stops when this Claude Code session ends.)",
       inputSchema: { type: "object", properties: {} },
     },
   ];
@@ -152,10 +130,7 @@ const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value)
  *  cwd                    what a relative path resolves against
  *  windows                offer the `window` choice (the app can show one)
  *  sources                offer the `source` choice (the studio from
- *                         source, which runs any checkout)
- *  findStudio(library, { exceptUrl })  the live studio that already has
- *                         the library open, as `{ url }`, or null
- *                         (server/studio-presence.mjs) */
+ *                         source, which runs any checkout) */
 export function createStudioMcp({
   version,
   startStudio,
@@ -164,12 +139,9 @@ export function createStudioMcp({
   cwd,
   windows = false,
   sources = false,
-  findStudio = runningStudio,
   log = (message) => console.error(message),
 }) {
-  /* { studio, url, landingUrl(), close(), shared?, choices }: shared when
-   * it's a studio that was already open (server/shared-studio.mjs). */
-  let running;
+  let running; // { studio, url, landingUrl(facts?), close(), choices }
 
   /* Starts and stops run one at a time; tool calls wait for their turn. */
   let queue = Promise.resolve();
@@ -188,9 +160,7 @@ export function createStudioMcp({
 
   /** Starts the studio with the same choices --open, --new and --library
    *  offer, checked by the same code — before the running studio stops, so
-   *  a wrong choice leaves it running. A live studio that already has the
-   *  library open is used instead of starting one; our own running studio
-   *  doesn't count, since it is about to stop. */
+   *  a wrong choice leaves it running. */
   async function start(choices = {}) {
     const { showcase, new: fresh, library, window } = choices;
     const source =
@@ -208,27 +178,22 @@ export function createStudioMcp({
     if (named && showcase === undefined && !fresh) argv.push(`--library=${libraryDir}`);
     const options = studioOptions(argv, { cwd, defaultDir: libraryDir });
 
-    const ours = running && !running.shared ? running.url : undefined;
-    const open = await findStudio(options.showcasesDir, { exceptUrl: ours });
-    const next = open ? await useOpenStudio(open.url, options.lock) : undefined;
     await stop();
-    running =
-      next ??
-      (await startStudio({
-        showcasesDir: options.showcasesDir,
-        lock: options.lock,
-        window: windows && window === true,
-        source,
-      }));
+    running = await startStudio({
+      showcasesDir: options.showcasesDir,
+      lock: options.lock,
+      window: windows && window === true,
+      source,
+    });
     running.choices = choices;
-    log(`studio: ${running.landingUrl()}${running.shared ? " (already open)" : ""}`);
+    log(`studio: ${running.landingUrl()}`);
     return running;
   }
 
   /** Runs a tool on the running studio, starting one first if none is. A
-   *  studio reached by its address can go away under us (the user quit
-   *  the app, a child studio crashed); then the tool runs once more, on a
-   *  studio started with the same choices. */
+   *  studio reached by its address (a child studio, from source) can crash;
+   *  then the tool runs once more, on a studio started with the same
+   *  choices. */
   async function runTool(params) {
     const current = await inTurn(async () => running ?? start());
     try {
@@ -254,7 +219,6 @@ export function createStudioMcp({
         open: current.landingUrl(facts),
         guide: path.join(facts.library, ".studio", "GUIDE.md"),
         changes: path.join(facts.library, CHANGE_LOG),
-        ...(current.shared ? { shared: true } : {}),
       });
     }
     if (name === "studio_stop") {

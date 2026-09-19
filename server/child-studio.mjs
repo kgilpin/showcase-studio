@@ -6,7 +6,8 @@
  * the session's start, and a studio_stop and studio_start wouldn't help.
  * So each studio_start runs `node <checkout>/scripts/dev.mjs` — npm run
  * dev, with the terminals off and git commits off by default — and talks to it by
- * address, like any other studio (server/shared-studio.mjs):
+ * address — its tools answer at <url>/mcp, plain JSON-RPC over POST
+ * with no sessions (server/mcp.mjs):
  *
  *   studio_start ── spawn dev.mjs ── "studio: <url>" on its stdout
  *   other tools  ── POST <url>/mcp
@@ -19,7 +20,28 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import readline from "node:readline";
 import { lockLandingPath } from "../src/lib/window-lock.mjs";
-import { callToolAt } from "./shared-studio.mjs";
+
+/** Calls one MCP tool on the studio at `url`, the way a studio's own
+ *  callTool does: resolves with the tool's result. A studio that doesn't
+ *  answer rejects with `unreachable: true` on the error. */
+export async function callToolAt(url, params) {
+  let response;
+  try {
+    response = await fetch(`${url}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params }),
+    });
+  } catch (cause) {
+    throw Object.assign(new Error(`The studio at ${url} isn't answering`, { cause }), {
+      unreachable: true,
+    });
+  }
+  const reply = await response.json().catch(() => null);
+  if (!reply) throw new Error(`The studio at ${url} answered ${response.status}`);
+  if (reply.error) throw new Error(reply.error.message);
+  return reply.result;
+}
 
 /** dev.mjs's options for a studio on `showcasesDir` with `lock`. */
 export function devStudioArgs({ showcasesDir, lock }) {

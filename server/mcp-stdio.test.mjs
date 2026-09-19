@@ -1,13 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import http from "node:http";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearPageError, pageErrorField, recordPageError } from "../src/lib/page-error.mjs";
 import { createStudioMcp, serveStudioMcp } from "./mcp-stdio.mjs";
-import { presenceFile } from "./studio-presence.mjs";
-import { createStudio } from "./studio-server.mjs";
 
 const dirs = [];
 /** A library folder holding the named showcases (each with a showcase.yaml). */
@@ -183,6 +180,34 @@ describe("the studio's MCP server", () => {
     expect(started).toHaveLength(1);
   });
 
+  it("starts a new studio with the same choices when the running one stops answering", async () => {
+    const lib = library("nova");
+    const { started, startStudio } = fakeStudios();
+    let crashed = false;
+    const { call, read } = server({
+      defaultLibrary: () => lib,
+      startStudio: async (options) => {
+        const studio = await startStudio(options);
+        if (started.length > 1) return studio;
+        // The first one is a child studio that crashes after it starts.
+        const answer = studio.studio.callTool;
+        studio.studio.callTool = async (params) => {
+          if (crashed) {
+            throw Object.assign(new Error("The studio isn't answering"), { unreachable: true });
+          }
+          return answer(params);
+        };
+        return studio;
+      },
+    });
+    await call("studio_start", { showcase: "nova" });
+
+    crashed = true;
+    expect(read(await call("validate"))).toEqual({ tool: "validate", library: lib });
+    expect(started).toHaveLength(2);
+    expect(started[1]).toMatchObject({ lock: { kind: "showcase", showcaseId: "nova" } });
+  });
+
   it("offers no source choice where there is only one build to run", async () => {
     const { rpc } = server({ ...fakeStudios(), defaultLibrary: () => "/lib" });
     const { result } = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" });
@@ -206,122 +231,6 @@ describe("the studio's MCP server", () => {
     expect(read(await call("studio_stop"))).toEqual({ stopped: true });
     expect(started[0].closed).toBe(true);
     expect(read(await call("studio_stop"))).toEqual({ stopped: false });
-  });
-});
-
-describe("a studio that already has the library open", () => {
-  /* Real studios on real ports (as in studio-presence.test.mjs): what
-   * answers at the address in .studio/studio.json is the whole question. */
-  const closers = [];
-  afterEach(async () => {
-    while (closers.length) await closers.pop()();
-  });
-
-  /** The user's studio on `dir`, served the way the launchers serve it;
-   *  resolves once it has recorded itself in the library. */
-  async function usersStudio(dir, lock = null) {
-    let saved = {};
-    const studio = createStudio({
-      showcasesDir: dir,
-      lock,
-      version: "users-1.0",
-      settings: { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) },
-      exportDir: path.join(dir, ".exports"),
-      features: { terminal: false },
-      log: () => {},
-    });
-    const server = http.createServer((req, res) =>
-      studio.handle(req, res, () => {
-        res.statusCode = 404;
-        res.end();
-      }),
-    );
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const url = `http://127.0.0.1:${server.address().port}`;
-    let closed = false;
-    const close = async () => {
-      if (closed) return;
-      closed = true;
-      await studio.close();
-      server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
-    };
-    closers.push(close);
-    studio.setUrl(url);
-    await vi.waitFor(() => expect(existsSync(presenceFile(dir))).toBe(true));
-    return { url, close };
-  }
-
-  it("uses it instead of starting a second one, and only lets go of it on stop", async () => {
-    const lib = library("nova");
-    const users = await usersStudio(lib);
-    const { started, startStudio } = fakeStudios();
-    const { call, read } = server({ startStudio, defaultLibrary: () => lib });
-
-    const result = read(await call("studio_start", { showcase: "nova" }));
-    expect(result).toMatchObject({
-      shared: true,
-      version: "users-1.0",
-      library: lib,
-      open: `${users.url}/showcase/nova`,
-    });
-    expect(started).toEqual([]);
-
-    // The other tools run in that studio too.
-    expect(read(await call("studio_info"))).toMatchObject({
-      version: "users-1.0",
-      open: `${users.url}/showcase/nova`,
-    });
-
-    expect(read(await call("studio_stop"))).toEqual({ stopped: true });
-    expect((await fetch(`${users.url}/studio/api/info`)).ok).toBe(true);
-  });
-
-  it("says so when that studio is locked to another showcase, and starts nothing", async () => {
-    const lib = library("nova", "vega");
-    await usersStudio(lib, { kind: "showcase", showcaseId: "vega" });
-    const { started, startStudio } = fakeStudios();
-    const { call } = server({ startStudio, defaultLibrary: () => lib });
-
-    const result = await call("studio_start", { showcase: "nova" });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toMatch(/locked to the showcase "vega"/);
-    expect(started).toEqual([]);
-  });
-
-  it("starts its own studio, with the same choices, when that one closes", async () => {
-    const lib = library("nova");
-    const users = await usersStudio(lib);
-    const { started, startStudio } = fakeStudios();
-    const { call, read } = server({ startStudio, defaultLibrary: () => lib });
-    await call("studio_start", { showcase: "nova" });
-
-    await users.close();
-    expect(read(await call("studio_info"))).toMatchObject({
-      library: lib,
-      open: "http://localhost:1234/showcase/nova",
-    });
-    expect(started).toEqual([
-      {
-        showcasesDir: lib,
-        lock: { kind: "showcase", showcaseId: "nova" },
-        window: false,
-        closed: false,
-      },
-    ]);
-  });
-
-  it("doesn't mistake its own studio for another one when it restarts", async () => {
-    const lib = library("nova");
-    const asked = [];
-    const findStudio = async (library, { exceptUrl }) => {
-      asked.push(exceptUrl);
-      return null;
-    };
-    const { call } = server({ ...fakeStudios(), findStudio, defaultLibrary: () => lib });
-    await call("studio_start", { showcase: "nova" });
-    await call("studio_start", {});
-    expect(asked).toEqual([undefined, "http://localhost:1234"]);
   });
 });
 
