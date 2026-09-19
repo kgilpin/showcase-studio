@@ -1,13 +1,5 @@
 import { execFileSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -311,7 +303,11 @@ function repo({ ignoreLibrary = false } = {}) {
   git(root, "config", "core.hooksPath", path.join(root, "no-hooks"));
   git(root, "add", "-A");
   git(root, "commit", "-q", "-m", "start");
-  return { root: realpathSync(root), lib };
+  /* The repository's top folder as git itself reports it — what the
+   * studio compares against. On Windows a temp folder arrives as its
+   * short DOS name (RUNNER~1) that realpathSync leaves alone, while git
+   * answers with the long name and forward slashes. */
+  return { root: git(root, "rev-parse", "--show-toplevel"), lib };
 }
 
 describe("studio_start when another studio has the library open", () => {
