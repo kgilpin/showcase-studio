@@ -103,11 +103,30 @@ export function hasStaleInlineGuide(claudeMd) {
 /** The studio-maintained guide file, regenerated on every app launch so
  *  it always describes the running app: environment facts (paths, tools)
  *  followed by the authoring guide above. */
+/** How to get a whisper.cpp binary on this machine, as indented guide
+ *  lines. whisper.cpp publishes no builds of its own, so outside
+ *  Homebrew there is nothing to install — you build whisper-cli and
+ *  point the studio at it. (Once the studio fetches its own copy, this
+ *  is only for a machine that cannot reach the download.) */
+function whisperAdvice(platform) {
+  if (platform === "darwin") {
+    return `  Install one with \`brew install whisper-cpp\`, or point
+  $SHOWCASE_STUDIO_WHISPER at a whisper-cli binary.`;
+  }
+  if (platform === "win32") {
+    return `  whisper.cpp ships no Windows build to download, so build its
+  whisper-cli and point %SHOWCASE_STUDIO_WHISPER% at whisper-cli.exe.`;
+  }
+  return `  Install a package that provides whisper-cli, or build
+  whisper.cpp's whisper-cli, and point $SHOWCASE_STUDIO_WHISPER at it.`;
+}
+
 export function studioGuide({
   version,
   srcDir,
   ffmpegPath,
   whisperPath,
+  platform = process.platform,
   showcasesDir,
   staleClaudeMd,
 }) {
@@ -180,12 +199,13 @@ ${
     ${whisperPath}
   The speech model downloads once, on the first transcription.`
     : `  It runs whisper.cpp, which is NOT installed on this machine, so
-  transcribe fails until one is: \`brew install whisper-cpp\`, or point
-  $SHOWCASE_STUDIO_WHISPER at a whisper-cli binary. Without it you
-  cannot know when a word is spoken, so caption timings can only be
-  estimated from how long each line takes to read. That estimate drifts
-  from the real voice. If you time captions that way, say so plainly —
-  never let the user believe the words are aligned to the recording.`
+  transcribe fails until one is.
+${whisperAdvice(platform)}
+  Without it you cannot know when a word is spoken, so caption timings
+  can only be estimated from how long each line takes to read. That
+  estimate drifts from the real voice. If you time captions that way,
+  say so plainly — never let the user believe the words are aligned to
+  the recording.`
 }
 - The studio exposes MCP tools (server "showcase-studio", preloaded in
   studio-opened sessions; a session you start yourself gets them with

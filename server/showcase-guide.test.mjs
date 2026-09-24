@@ -25,7 +25,7 @@ describe("what the guide says about voice-to-text", () => {
   });
 
   it("says plainly that there is none, and what that costs", () => {
-    const text = guide({ whisperPath: undefined });
+    const text = guide({ whisperPath: undefined, platform: "darwin" });
     expect(text).toContain("NOT installed on this machine");
     expect(text).toContain("brew install whisper-cpp");
     expect(text).toContain("$SHOWCASE_STUDIO_WHISPER");
@@ -37,5 +37,23 @@ describe("what the guide says about voice-to-text", () => {
     for (const whisperPath of [undefined, "/usr/local/bin/whisper-cli"]) {
       expect(guide({ whisperPath })).not.toContain("Voice-to-text is built in");
     }
+  });
+});
+
+/* The app ships for Windows too, where `brew` means nothing and
+ * whisper.cpp publishes no build to download. */
+describe("how the guide says to get whisper", () => {
+  const without = (platform) => guide({ whisperPath: undefined, platform });
+
+  it("offers Homebrew only on a Mac", () => {
+    expect(without("darwin")).toContain("brew install whisper-cpp");
+    expect(without("win32")).not.toContain("brew");
+    expect(without("linux")).not.toContain("brew");
+  });
+
+  it("uses each platform's way of naming the variable", () => {
+    expect(without("win32")).toContain("%SHOWCASE_STUDIO_WHISPER%");
+    expect(without("win32")).toContain("whisper-cli.exe");
+    expect(without("linux")).toContain("$SHOWCASE_STUDIO_WHISPER");
   });
 });
