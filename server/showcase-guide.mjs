@@ -198,10 +198,10 @@ ${
   prefer transcribe for anything word-aware.
 ${
   whisperPath
-    ? `  It runs whisper.cpp, installed here (also in
-  $SHOWCASE_STUDIO_WHISPER):
-    ${whisperPath}
-  The speech model downloads once, on the first transcription.`
+    ? `  It runs whisper.cpp, which ships with the studio (this one is at
+  ${whisperPath}, also in $SHOWCASE_STUDIO_WHISPER). The speech model is
+  separate and downloads once, on the first transcription — say so if
+  the user is waiting.`
     : `  It runs whisper.cpp, which is NOT installed on this machine, so
   transcribe fails until one is.
 ${whisperAdvice(platform)}

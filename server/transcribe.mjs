@@ -27,18 +27,14 @@ import os from "node:os";
 import path from "node:path";
 import { studioDataDir } from "./settings.mjs";
 import { isWhisperMarker, mergeWhisperWords, saveTranscript } from "./transcript.mjs";
+import { vendoredWhisper } from "./whisper-binary.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
 
-const vendorBinary = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "electron",
-  "vendor",
-  "whisper",
-  "whisper-cli",
-);
+/* The copy that ships with the app: scripts/vendor-whisper.mjs puts it
+ * there, and scripts/package-desktop.mjs refuses to package without it. */
+const vendorBinary = vendoredWhisper(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 
 let resolved;
 /** The whisper binary, or undefined when neither the vendored build nor
