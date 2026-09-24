@@ -1,6 +1,7 @@
 # Builds the desktop app on Windows and checks that it starts.
 #
-#   npm ci ─► setup:desktop ─► tests ─► build:desktop ─► package-desktop.mjs ─► electron-builder --win zip
+#   npm ci ─► setup:desktop ─► tests ─► vendor:whisper ─► build:desktop ─►
+#                                       package-desktop.mjs ─► electron-builder --win zip
 #                                                                     │
 #                             smoke test: start the app headless, load its pages
 #                                                                     │
@@ -61,6 +62,11 @@ jobs:
       - name: Tests
         run: npx vitest run
 
+      # whisper.cpp's Windows build, pinned and checksummed: the app
+      # ships it, and packaging fails without it.
+      - name: Vendor whisper
+        run: npm run vendor:whisper
+
       - name: Build the app server
         run: npm run build:desktop
 
@@ -69,6 +75,14 @@ jobs:
 
       - name: Package
         run: node scripts/electron-builder.mjs --win --publish never
+
+      # The app is meant to transcribe out of the box; a missing binary
+      # would only show up as drifting caption timings months later.
+      - name: The packaged app carries whisper
+        run: |
+          $whisper = "dist-electron/dist/win-unpacked/resources/app/electron/vendor/whisper/whisper-cli.exe"
+          if (-not (Test-Path $whisper)) { throw "No whisper-cli.exe in the packaged app" }
+          & $whisper --help 2>&1 | Select-Object -First 3
 
       - name: Smoke test
         run: |
