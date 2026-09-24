@@ -1,21 +1,96 @@
-/* Builds the studio's own whisper.cpp binary into electron/vendor/whisper/
- * (gitignored). The studio prefers this vendored copy and falls back to a
- * PATH-installed whisper-cli, so running this is only needed on machines
- * without one. Requires cmake and a C/C++ toolchain.
+/* Puts whisper.cpp's whisper-cli into electron/vendor/whisper/
+ * (gitignored), which is what the packaged app ships and what the studio
+ * runs for voice-to-text. The speech model is separate — the studio
+ * downloads it on first transcription.
  *
- *   npm run vendor:whisper
+ *   npm run vendor:whisper          # once; a later run leaves it alone
+ *   npm run vendor:whisper -- --force
  *
- * Downloads the latest whisper.cpp release source, builds the whisper-cli
- * target statically, and copies the binary into place. The speech model is
- * separate — the studio downloads it on first transcription. */
+ * macOS: built from source, because whisper.cpp publishes no whisper-cli
+ * for macOS — only an xcframework. Needs cmake and a C/C++ toolchain.
+ *
+ * Windows: downloaded, because there is a build to download. It comes
+ * from one pinned release, checked against its SHA-256, and only the
+ * files whisper-cli needs are kept (the archive also holds llama, SDL2,
+ * parakeet and the test programs).
+ *
+ * Packaging fails when this hasn't been run, rather than shipping an app
+ * that can't transcribe. */
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
+import { vendoredWhisper, whisperBinaryName } from "../server/whisper-binary.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const vendorDir = path.join(root, "electron", "vendor", "whisper");
+const binary = vendoredWhisper(root);
+const force = process.argv.includes("--force");
+
+if (existsSync(binary) && !force) {
+  console.log(`already vendored: ${binary}\nRun with --force to replace it.`);
+  process.exit(0);
+}
+
+/* One pinned Windows build. whisper.cpp puts its binaries on the rolling
+ * b#### tags, not the version tags, which often carry no files at all. */
+const WINDOWS = {
+  tag: "b5130",
+  file: "whisper-bin-x64.zip",
+  sha256: "f9ec6c52a2e949b62ab51fa21d0d497958f9e41c3010c157c4e42932d5316f3c",
+  /* whisper-cli.exe plus what it loads: whisper.dll, ggml.dll,
+   * ggml-base.dll, and the ggml-cpu-*.dll variants ggml picks from at
+   * run time for the processor it finds. Nothing else in the archive. */
+  keep: (name) => /^(whisper-cli\.exe|whisper\.dll|ggml(-base|-cpu-[a-z0-9]+)?\.dll)$/.test(name),
+};
+
+if (process.platform === "win32") {
+  await vendorWindows();
+  process.exit(0);
+}
+if (process.platform !== "darwin") {
+  throw new Error(
+    `The studio is packaged for macOS and Windows; there is no vendored whisper for ${process.platform}.\n` +
+      "Install whisper-cli yourself and point $SHOWCASE_STUDIO_WHISPER at it.",
+  );
+}
+
+async function vendorWindows() {
+  const url = `https://github.com/ggml-org/whisper.cpp/releases/download/${WINDOWS.tag}/${WINDOWS.file}`;
+  console.log(`downloading ${WINDOWS.tag} ${WINDOWS.file}…`);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+  const zip = Buffer.from(await response.arrayBuffer());
+  const got = createHash("sha256").update(zip).digest("hex");
+  if (got !== WINDOWS.sha256) {
+    throw new Error(
+      `${WINDOWS.file} is not the pinned build: expected ${WINDOWS.sha256}, got ${got}`,
+    );
+  }
+  const work = path.join(os.tmpdir(), `whisper-win-${WINDOWS.tag}`);
+  rmSync(work, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  const archive = path.join(work, WINDOWS.file);
+  writeFileSync(archive, zip);
+  /* Windows 10 and later ship bsdtar, which reads zips. */
+  execFileSync("tar", ["-xf", archive, "-C", work], { stdio: "inherit" });
+  rmSync(vendorDir, { recursive: true, force: true });
+  mkdirSync(vendorDir, { recursive: true });
+  let kept = 0;
+  for (const dir of [work, path.join(work, "Release")]) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      if (!WINDOWS.keep(name)) continue;
+      cpSync(path.join(dir, name), path.join(vendorDir, name));
+      kept += 1;
+    }
+  }
+  rmSync(work, { recursive: true, force: true });
+  if (!existsSync(binary)) throw new Error(`${WINDOWS.file} held no whisper-cli.exe`);
+  console.log(`vendored: ${binary} (${kept} files)`);
+}
 
 const release = await (
   await fetch("https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest")
