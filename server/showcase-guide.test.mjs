@@ -17,10 +17,13 @@ const guide = (options = {}) =>
  * captions by guessing how long each line takes to read — which looks
  * like it worked until you listen to it. */
 describe("what the guide says about voice-to-text", () => {
-  it("names the binary when one is installed", () => {
-    const text = guide({ whisperPath: "/opt/homebrew/bin/whisper-cli" });
-    expect(text).toContain("/opt/homebrew/bin/whisper-cli");
-    expect(text).toContain("The speech model downloads once");
+  it("says it ships with the studio, and names the copy in use", () => {
+    const text = guide({ whisperPath: "/apps/Showcase.app/electron/vendor/whisper/whisper-cli" });
+    expect(text).toContain("/apps/Showcase.app/electron/vendor/whisper/whisper-cli");
+    expect(text).toContain("ships with the studio");
+    /* The model is the one thing that still downloads, and the wait is
+     * long enough that a session should mention it. */
+    expect(text).toContain("downloads once, on the first transcription");
     expect(text).not.toContain("NOT installed");
   });
 

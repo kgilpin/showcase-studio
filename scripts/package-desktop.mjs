@@ -21,6 +21,7 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { vendoredWhisper } from "../server/whisper-binary.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const stage = path.join(repoRoot, "dist-electron", "app");
@@ -60,6 +61,15 @@ writeFileSync(
     2,
   ) + "\n",
 );
+
+/* Voice-to-text ships with the app: without it a new user's first
+ * recording gets caption timings estimated from how long each line takes
+ * to read, which drift from the voice and look right until you listen.
+ * Better to stop the build than to ship that quietly. */
+const whisper = vendoredWhisper(repoRoot);
+if (!existsSync(whisper)) {
+  throw new Error(`No whisper for ${process.platform} at ${whisper}.\nRun: npm run vendor:whisper`);
+}
 
 /* The shell and the studio backend, minus dev-only and test files. */
 for (const dir of ["electron", "server"]) {
