@@ -41,7 +41,12 @@ export function Soundtrack({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !src) return;
-    audio.volume = soundtrack.volume;
+    /* Never assign a value the browser rejects: a non-finite volume
+     * throws, and an uncaught throw here takes the whole page down. The
+     * loader fills a missing one in; this is the backstop for a page
+     * built from bundled content. */
+    const volume = Number(soundtrack.volume);
+    audio.volume = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
     if (paused || muted) {
       audio.pause();
     } else {

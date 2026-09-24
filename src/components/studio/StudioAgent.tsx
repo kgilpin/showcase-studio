@@ -4,6 +4,7 @@ import { ExternalLink, Minus, RotateCcw, Sparkles, TerminalSquare, X } from "luc
 import { studio } from "@/lib/studio";
 import { isCapturePage } from "@/lib/window-lock.mjs";
 import { cn } from "@/lib/utils";
+import { dockWidth } from "./dock-width";
 import { TerminalPane } from "./TerminalPane";
 
 type TermView = "loading" | "chooser" | "integrated" | "external";
@@ -75,9 +76,9 @@ export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
 
   /* The integrated terminal docks as a full-height right sidebar; tell
    * the root layout to pad the content over. */
-  const docked = open && Boolean(showcaseId);
+  const docked = dockWidth({ available, open, showcaseId, capturing });
   useEffect(() => {
-    onDock?.(docked ? 640 : 0);
+    onDock?.(docked);
     return () => onDock?.(0);
   }, [docked, onDock]);
 
