@@ -369,8 +369,10 @@ the studio isn't committing on its own.
   commits are off and commit_showcase still works.)
 - Nothing is committed while a merge, rebase, cherry-pick, revert or
   bisect is in progress, or on a detached HEAD. If \`history.git\` is
-  false, the library isn't a git repository: offer the user to run
-  \`git init\` there, and ask first.
+  false, the library isn't a git repository yet — the studio starts one
+  the first time it saves a change, so there is nothing to do. Its
+  \`reason\` says why when it won't (commits turned off, or a folder too
+  big to put a repository in).
 - Using the history, when the user asks:
 
   | to                   | run                                             |

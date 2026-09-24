@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { commitMessage } from "./showcase-history.mjs";
+import { commitMessage, noIdentityReason, tooBigToInit } from "./showcase-history.mjs";
 import { createStudio } from "./studio-server.mjs";
 
 const cleanups = [];
@@ -112,6 +112,25 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
 
 const commits = (dir) => git(dir, "log", "--format=%s").split("\n");
 
+/* A repository the studio starts has no identity configured in it, so
+ * git takes one from the environment — which a CI runner doesn't have.
+ * Set one for this test, and put the environment back afterwards. */
+function withGitIdentity() {
+  const was = { ...process.env };
+  Object.assign(process.env, {
+    GIT_AUTHOR_NAME: "Test User",
+    GIT_AUTHOR_EMAIL: "test@example.com",
+    GIT_COMMITTER_NAME: "Test User",
+    GIT_COMMITTER_EMAIL: "test@example.com",
+  });
+  cleanups.push(() => {
+    for (const key of Object.keys(process.env)) {
+      if (!(key in was)) delete process.env[key];
+    }
+    Object.assign(process.env, was);
+  });
+}
+
 async function waitFor(check, { timeout = 5000 } = {}) {
   const start = Date.now();
   while (!check()) {
@@ -189,19 +208,49 @@ describe("showcase history", () => {
     expect(git(dir, "diff", "--cached", "--name-only")).toBe("notes.txt");
   });
 
-  it("never commits when the library isn't in a git repository, and says so", async () => {
+  /* A library that isn't in git has no history at all: nothing to
+   * review, nothing to undo. The studio starts one when it first has a
+   * change to commit — not when a library is merely opened. */
+  it("starts a repository the first time it commits, and commits there", async () => {
     const { dir, library } = await project({ repo: false });
+    withGitIdentity();
     const { call } = await startStudio(library);
+
+    /* Opening the library leaves nothing behind. */
+    const info = await call("studio_info", {});
+    expect(info.history).toMatchObject({ git: false, autoCommit: false });
+    expect(info.history.reason).toContain("starts one the first time");
+    expect(() => git(dir, "rev-parse", "--git-dir")).toThrow();
+
+    await call("edit_showcase", editTitle("Changed"));
+    /* The repository doesn't exist yet, so asking it for commits throws
+     * until the studio has made it. */
+    const commitsSoFar = () => {
+      try {
+        return commits(library);
+      } catch {
+        return [];
+      }
+    };
+    await waitFor(() => commitsSoFar().length === 1);
+    expect(commitsSoFar()[0]).toContain("nova");
+    expect(git(library, "show", "--name-only", "--format=", "HEAD")).toBe("nova/showcase.yaml");
+    expect((await call("studio_info", {})).history).toMatchObject({
+      git: true,
+      autoCommit: true,
+    });
+  });
+
+  it("starts none when the user has commits turned off", async () => {
+    const { library } = await project({ repo: false });
+    const { call } = await startStudio(library, { autoCommit: false });
     await call("edit_showcase", editTitle("Changed"));
     await sleep(DELAY * 4);
 
-    const info = await call("studio_info", {});
-    expect(info.history).toMatchObject({ git: false, autoCommit: false });
-    expect(info.history.reason).toContain("git init");
     expect(await call("commit_showcase", { showcaseId: "nova", message: "Try" })).toMatchObject({
       committed: false,
     });
-    expect(() => git(dir, "rev-parse", "--git-dir")).toThrow();
+    expect(() => git(library, "rev-parse", "--git-dir")).toThrow();
   });
 
   it("makes no commit when a branch switch leaves the showcase matching a commit", async () => {
@@ -440,7 +489,7 @@ describe("the Commit changes to git switch", () => {
       available: false,
       branch: null,
     });
-    expect(status.reason).toContain(`git init in ${library}`);
+    expect(status.reason).toContain("starts one the first time it commits");
   });
 
   it("says why the switch can't work when .gitignore hides the library", async () => {
@@ -536,5 +585,42 @@ describe("commitMessage", () => {
     expect(subject.length).toBeLessThanOrEqual(72);
     expect(subject).toMatch(/^nova: edit intro title, edit risk title, .*, and \d more$/);
     expect(body.split("\n")).toHaveLength(7);
+  });
+});
+
+describe("where the studio won't start a repository", () => {
+  /* A repository at one of these would take in everything the user owns,
+   * and the first `git add` would be a disaster to undo. */
+  it("refuses a volume root, the home folder, and anything above it", () => {
+    const home = path.join(path.parse(process.cwd()).root, "Users", "sam");
+    expect(tooBigToInit(home, home)).toBe("your home folder");
+    expect(tooBigToInit(path.parse(process.cwd()).root, home)).toBe("a volume's root folder");
+    expect(tooBigToInit(path.dirname(home), home)).toBe("a folder that contains your home folder");
+  });
+
+  it("is fine with a folder of one's own", () => {
+    const home = path.join(path.parse(process.cwd()).root, "Users", "sam");
+    expect(tooBigToInit(path.join(home, "showcases"), home)).toBeUndefined();
+    expect(tooBigToInit(path.join(home, "work", "demo", "showcases"), home)).toBeUndefined();
+  });
+});
+
+describe("when git doesn't know who the user is", () => {
+  /* git's own message is six lines of shell examples, and someone who has
+   * never used git meets it the first time the studio saves their work. */
+  it("gives the two commands to run, for either way git says it", () => {
+    for (const said of [
+      "Author identity unknown\n*** Please tell me who you are.\n\nrun\n  git config ...",
+      "fatal: unable to auto-detect email address (got 'sam@laptop.(none)')",
+    ]) {
+      const reason = noIdentityReason(said);
+      expect(reason).toContain("git config --global user.name");
+      expect(reason).toContain("git config --global user.email");
+      expect(reason).not.toContain("***");
+    }
+  });
+
+  it("leaves every other failure to be reported as it is", () => {
+    expect(noIdentityReason("error: pathspec 'nova' did not match any file(s)")).toBeUndefined();
   });
 });
