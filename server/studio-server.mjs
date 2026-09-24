@@ -278,6 +278,7 @@ export function createStudio({
         version,
         srcDir: sourceDir,
         ffmpegPath,
+        whisperPath: whisperPath(),
         showcasesDir,
         staleClaudeMd: claudeMd != null && hasStaleInlineGuide(claudeMd),
       }),
