@@ -56,4 +56,15 @@ describe("how the guide says to get whisper", () => {
     expect(without("win32")).toContain("whisper-cli.exe");
     expect(without("linux")).toContain("$SHOWCASE_STUDIO_WHISPER");
   });
+
+  /* whisper.cpp does publish builds — on its b#### tags, not on the
+   * version tags, which is easy to miss and often carry no files at all. */
+  it("points Windows and Linux at the builds that exist", () => {
+    expect(without("win32")).toContain("whisper-bin-x64.zip");
+    expect(without("linux")).toContain("whisper-bin-ubuntu-x64.tar.gz");
+    for (const platform of ["win32", "linux"]) {
+      expect(without(platform)).toContain("b#### tags");
+      expect(without(platform)).not.toContain("ships no Windows build");
+    }
+  });
 });
