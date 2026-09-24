@@ -38,10 +38,34 @@ execFileSync("curl", [
 execFileSync("tar", ["xzf", tarball, "-C", work, "--strip-components", "1"]);
 
 console.log("building whisper-cli (this takes a few minutes)…");
-execFileSync("cmake", ["-B", "build", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF"], {
-  cwd: work,
-  stdio: "inherit",
-});
+/* Say which architecture to build for, rather than letting cmake decide.
+ * An Intel cmake (Homebrew's /usr/local copy, running under Rosetta)
+ * quietly produces an x86_64 binary on an Apple Silicon Mac: it runs,
+ * under Rosetta, without the acceleration this is built for — and it
+ * would need Rosetta on the user's machine too. Such a cmake can't build
+ * for arm64 when asked either, so check first rather than spend five
+ * minutes on a build that ends in a wall of compiler errors. */
+const macArch = os.arch() === "arm64" ? "arm64" : "x86_64";
+const macArchArgs = os.platform() === "darwin" ? [`-DCMAKE_OSX_ARCHITECTURES=${macArch}`] : [];
+if (os.platform() === "darwin") {
+  const cmakePath = execFileSync("which", ["cmake"], { encoding: "utf8" }).trim();
+  const cmakeKind = execFileSync("file", ["-b", cmakePath], { encoding: "utf8" }).trim();
+  if (!cmakeKind.includes(macArch)) {
+    throw new Error(
+      `This Mac is ${macArch}, but ${cmakePath} is ${cmakeKind}, ` +
+        `which can't build for ${macArch}.\n` +
+        "Install one that can:  /opt/homebrew/bin/brew install cmake",
+    );
+  }
+}
+execFileSync(
+  "cmake",
+  ["-B", "build", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF", ...macArchArgs],
+  {
+    cwd: work,
+    stdio: "inherit",
+  },
+);
 execFileSync("cmake", ["--build", "build", "-j", "--target", "whisper-cli"], {
   cwd: work,
   stdio: "inherit",
