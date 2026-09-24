@@ -88,11 +88,12 @@ If nothing is on `main` since the last tag, there is nothing to release:
 say so and stop.
 
 The version is `$ARGUMENTS` when given, else the last tag plus one patch
-level. Three files carry versions, and all three change in one commit:
+level. Four files carry versions, and they all change in one commit:
 
 | File | What |
 | --- | --- |
 | `package.json` `version` | the app |
+| `package-lock.json` `version` (both places) | the same number — `npm i` writes it, or edit it |
 | `plugins/showcase-studio/app-version` | the app version the plugin installs — same number |
 | `plugins/showcase-studio/.claude-plugin/plugin.json` `version` | the plugin — its own number, +1 patch (`claude plugin update` only looks at this) |
 
