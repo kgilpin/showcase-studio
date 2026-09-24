@@ -663,7 +663,15 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
 function resolveSoundtrack(showcaseId: string, soundtrack: RawDoc["meta"]["soundtrack"]) {
   if (!soundtrack) return undefined;
   const asset = soundtrack.src ? assetsByShowcase.get(showcaseId)?.get(soundtrack.src) : undefined;
-  return asset ? { ...soundtrack, src: asset.url } : soundtrack;
+  /* `volume` is optional in the file — the edit tools write a soundtrack
+   * without one — so fill it in here. Full volume is what a voiceover
+   * wants, and it is what the video export already assumed. */
+  const volume = Number(soundtrack.volume);
+  return {
+    ...soundtrack,
+    volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1,
+    ...(asset ? { src: asset.url } : {}),
+  };
 }
 
 /** Points a resolved watermark's mark image at its served URL. As with

@@ -266,3 +266,44 @@ scenes:
     ).toEqual([]);
   });
 });
+
+describe("a soundtrack's volume", () => {
+  const yaml = (soundtrack: string) => `
+meta:
+  title: Voiced
+  description: A voiced showcase.
+  soundtrack: ${soundtrack}
+scenes:
+  - id: one
+    theme: statement
+    title: Hello
+    captions:
+      - text: A spoken line.
+`;
+
+  /* The edit tools write { src, sync } with no volume, and the player
+   * hands the value straight to an <audio> element, which throws on
+   * anything that isn't a finite number — taking the page down with it. */
+  it("is full volume when the file doesn't say", async () => {
+    const showcase = await load("voiced", yaml("{ src: voiceover, sync: true }"), [
+      "voiceover.m4a",
+    ]);
+    expect(showcase.soundtrack).toMatchObject({ volume: 1, sync: true });
+    expect(showcase.soundtrack!.src).toBe("/data/voiced/assets/voiceover.m4a");
+  });
+
+  it("keeps a volume the file sets, and pulls a wild one into range", async () => {
+    const quiet = await load("voiced", yaml("{ src: voiceover, volume: 0.2 }"), ["voiceover.m4a"]);
+    expect(quiet.soundtrack).toMatchObject({ volume: 0.2 });
+    for (const [written, used] of [
+      ["4", 1],
+      ["-1", 0],
+      ["loud", 1],
+    ] as const) {
+      const showcase = await load("voiced", yaml(`{ src: voiceover, volume: ${written} }`), [
+        "voiceover.m4a",
+      ]);
+      expect(showcase.soundtrack).toMatchObject({ volume: used });
+    }
+  });
+});
