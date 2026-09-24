@@ -90,10 +90,12 @@ a few seconds after a showcase stops changing, it commits that showcase's
 folder (and nothing else) with a message saying what changed. Find those
 commits with \`git log --grep Showcase-Studio\`. Revert one with
 \`git revert <sha>\`, or start a new cut with \`git switch -c <name>\` —
-switching branches reloads the app. The studio never runs \`git init\`:
-run it here yourself to turn history on. To turn commits off (or back
-on), use the "Commit changes to git" switch under the gear button at the
-top right of a showcase's screens.
+switching branches reloads the app. If this folder isn't in a git
+repository yet, the studio starts one the first time it has a change to
+save, so there is a history from your first edit. To turn commits off
+(or back on) — which also stops it starting one — use the "Commit
+changes to git" switch under the gear button at the top right of a
+showcase's screens.
 `;
 
 /* New folders start with scaffolding only — no sample showcases; the

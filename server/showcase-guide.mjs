@@ -104,21 +104,25 @@ export function hasStaleInlineGuide(claudeMd) {
  *  it always describes the running app: environment facts (paths, tools)
  *  followed by the authoring guide above. */
 /** How to get a whisper.cpp binary on this machine, as indented guide
- *  lines. whisper.cpp publishes no builds of its own, so outside
- *  Homebrew there is nothing to install — you build whisper-cli and
- *  point the studio at it. (Once the studio fetches its own copy, this
- *  is only for a machine that cannot reach the download.) */
+ *  lines. whisper.cpp publishes builds for Windows and Linux on its
+ *  b#### tags, but for macOS only an xcframework — no whisper-cli — so
+ *  a Mac gets Homebrew's. (Once the app carries its own copy, this is
+ *  only for a machine without one.) */
 function whisperAdvice(platform) {
   if (platform === "darwin") {
     return `  Install one with \`brew install whisper-cpp\`, or point
   $SHOWCASE_STUDIO_WHISPER at a whisper-cli binary.`;
   }
   if (platform === "win32") {
-    return `  whisper.cpp ships no Windows build to download, so build its
-  whisper-cli and point %SHOWCASE_STUDIO_WHISPER% at whisper-cli.exe.`;
+    return `  Download whisper-bin-x64.zip from a whisper.cpp build release
+  (github.com/ggml-org/whisper.cpp/releases — the b#### tags carry the
+  builds; the version tags often carry none) and point
+  %SHOWCASE_STUDIO_WHISPER% at whisper-cli.exe.`;
   }
-  return `  Install a package that provides whisper-cli, or build
-  whisper.cpp's whisper-cli, and point $SHOWCASE_STUDIO_WHISPER at it.`;
+  return `  Download whisper-bin-ubuntu-x64.tar.gz (or -arm64) from a
+  whisper.cpp build release (github.com/ggml-org/whisper.cpp/releases —
+  the b#### tags carry the builds), or install a package that provides
+  whisper-cli, and point $SHOWCASE_STUDIO_WHISPER at it.`;
 }
 
 export function studioGuide({
@@ -365,8 +369,10 @@ the studio isn't committing on its own.
   commits are off and commit_showcase still works.)
 - Nothing is committed while a merge, rebase, cherry-pick, revert or
   bisect is in progress, or on a detached HEAD. If \`history.git\` is
-  false, the library isn't a git repository: offer the user to run
-  \`git init\` there, and ask first.
+  false, the library isn't a git repository yet — the studio starts one
+  the first time it saves a change, so there is nothing to do. Its
+  \`reason\` says why when it won't (commits turned off, or a folder too
+  big to put a repository in).
 - Using the history, when the user asks:
 
   | to                   | run                                             |

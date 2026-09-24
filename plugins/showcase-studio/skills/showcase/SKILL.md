@@ -142,5 +142,6 @@ from the app's source.
     first (`git log --stat -- <showcase>`) and confirm which change they
     mean. Undo with `git revert <sha>`, which adds a new commit. Never
     reset. Branch with `git switch -c <name>`.
-  - If `history` says the library isn't a git repository, offer to run
-    `git init` there. Ask first.
+  - If `history` says the library isn't a git repository, the studio
+    starts one itself the first time it saves a change — don't run
+    `git init`. When it won't, `history.reason` says why.

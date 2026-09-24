@@ -22,9 +22,14 @@
  * The summary comes from the change log entries made since the showcase's
  * last commit, plus the names of any changed files no entry explains.
  *
- * The studio never runs `git init`: a library outside a git repository
- * just reports that it has no history. The setting `autoCommit: false`
- * turns commits off, including commit_showcase. The user sets it with the
+ * A library outside a git repository gets one: the first time the studio
+ * has something to commit, it runs `git init` there, so a new library
+ * has a history from its first change instead of none at all. It never
+ * does this where a repository would sweep up far more than the library
+ * (a home folder, a volume root), and never inside an existing work
+ * tree — that library already has a history. The setting
+ * `autoCommit: false` turns commits off, including commit_showcase, and
+ * turns this off with them: no commits, no repository. The user sets it with the
  * "Commit changes to git" switch in the studio (the studio server's
  * history-auto-commit action); it takes effect at once, because every
  * check reads the settings again.
@@ -60,6 +65,36 @@ const AGENT_DEFAULT_OFF =
  * realpathSync keeps them, and every showcase would look outside its
  * repository. */
 const realpath = (dir) => realpathSync.native(dir);
+
+/** git refuses to commit until it knows who is committing. Its own
+ *  message is six lines of shell examples, and a user who has never used
+ *  git meets it the first time the studio saves their work — so say the
+ *  two commands and nothing else. */
+export function noIdentityReason(stderr) {
+  if (!/Please tell me who you are|unable to auto-detect email address/i.test(stderr)) {
+    return undefined;
+  }
+  return (
+    "git doesn't know who you are yet, so it can't save anything. Run these two " +
+    'commands once, then the studio will keep your history: git config --global user.name "Your ' +
+    'Name" and git config --global user.email "you@example.com".'
+  );
+}
+
+/** Why starting a repository in this folder would be a mistake, or
+ *  undefined when it's fine. A repository at a volume's root or at (or
+ *  above) the home folder would take in everything the user owns, and
+ *  the first `git add` would be a disaster to undo. */
+export function tooBigToInit(dir, home = process.env.HOME || process.env.USERPROFILE) {
+  const resolved = path.resolve(dir);
+  if (resolved === path.parse(resolved).root) return "a volume's root folder";
+  if (!home) return undefined;
+  const homeResolved = path.resolve(home);
+  if (resolved === homeResolved) return "your home folder";
+  if (homeResolved.startsWith(resolved + path.sep))
+    return "a folder that contains your home folder";
+  return undefined;
+}
 
 /** A relative path as git spells it: forward slashes on every platform. */
 const slashed = (rel) => rel.split(path.sep).join("/");
@@ -329,6 +364,30 @@ export function createShowcaseHistory({
   /** Why they are off, for status() — the two reasons read differently. */
   const offReason = () => (settings.load()?.autoCommit === false ? TURNED_OFF : AGENT_DEFAULT_OFF);
 
+  /** Starts a repository for a library that isn't in one, so there is
+   *  somewhere to keep a history. Called when the studio has a change to
+   *  commit — never just because a library was opened, so looking at a
+   *  library leaves nothing behind. Returns {} or { reason }. */
+  async function startRepository(library) {
+    const where = tooBigToInit(library);
+    if (where) {
+      return {
+        reason:
+          `This library is ${where}, and the studio won't start a git repository there. ` +
+          "Move the showcases into a folder of their own, or run git init yourself.",
+      };
+    }
+    const init = await git(["init", "-q"], library);
+    if (init.code !== 0) {
+      return { reason: `The studio couldn't start a git repository: ${init.stderr.trim()}` };
+    }
+    log(
+      `studio: started a git repository in ${library} — showcase changes are committed there, ` +
+        "and the switch in the studio turns that off",
+    );
+    return {};
+  }
+
   /** Where the folder sits in git: { root } or { reason }. */
   async function repoOf(dir) {
     const noGit = "Git isn't installed, so the studio can't keep a history.";
@@ -386,6 +445,12 @@ export function createShowcaseHistory({
     });
     if (!existsSync(library)) return none("The library folder is gone.");
     const repo = await repoOf(library);
+    if (repo.notRepo && on && !tooBigToInit(library)) {
+      return none(
+        "This library isn't in a git repository yet. The studio starts one the first time " +
+          "it commits a change, so your work can be reviewed and undone.",
+      );
+    }
     if (!repo.root) return none(repo.reason);
     const branch = await branchOf(repo.root);
     const relLibrary = path.relative(realpath(repo.root), realpath(library));
@@ -428,7 +493,15 @@ export function createShowcaseHistory({
       return skip("The last commit failed; waiting before trying again.");
     }
     if (!existsSync(library)) return skip("The library folder is gone.");
-    const repo = await repoOf(library);
+    let repo = await repoOf(library);
+    /* No repository yet: make one, rather than throw the change away.
+     * Commits being off has already returned above, so this only ever
+     * happens for a user who is having their work committed. */
+    if (repo.notRepo) {
+      const started = await startRepository(library);
+      if (started.reason) return skip(started.reason);
+      repo = await repoOf(library);
+    }
     if (!repo.root) return skip(repo.reason);
     const { root } = repo;
     const rel = path.relative(realpath(root), path.join(realpath(library), showcaseId));
@@ -497,7 +570,7 @@ export function createShowcaseHistory({
       failedAt.set(showcaseDir, Date.now());
       const why = (done.stderr || done.stdout).trim().split("\n").slice(-5).join("\n");
       log(`studio: couldn't commit ${showcaseId} (${why})`);
-      return skip(`git commit failed: ${why}`);
+      return skip(noIdentityReason(why) ?? `git commit failed: ${why}`);
     }
     failedAt.delete(showcaseDir);
     const sha = (await git(["rev-parse", "HEAD"], root)).stdout.trim();

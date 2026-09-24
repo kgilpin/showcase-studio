@@ -68,10 +68,13 @@ Edits from Claude and edits you make in the studio are both committed.
 | Turn commits off or on  | The "Commit changes to git" switch under the gear button |
 | Undo an older change    | Ask Claude; it finds the commit and runs `git revert`    |
 | Try another cut         | Ask Claude to branch (`git switch -c <name>`)            |
-| Use git in a new folder | Ask Claude; it offers to run `git init` first            |
+| Use git in a new folder | Nothing — the studio starts the repository itself        |
 
-When the folder isn't a git repository, the studio never commits and
-never runs `git init` on its own.
+A folder that isn't in a git repository gets one the first time the
+studio saves a change, so your work has a history from the first edit.
+It won't do that where a repository would take in far more than your
+showcases (a home folder, a volume root), and turning commits off stops
+it too.
 
 ### Exports
 
