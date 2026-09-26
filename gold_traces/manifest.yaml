@@ -51,6 +51,12 @@ entries:
     appmap_path: "vitest/returns_the_edit_error_when_the_YAML_rejects_the_edit,_leaving_the_file_untouched.appmap.json"
     summary: The whitelist gate's negative branch — the YAML edit throws and nothing is written.
 
+  - feature: assets
+    test_file: server/studio-server.test.mjs
+    test_name: add_asset copies files in, names the key, and logs the write
+    appmap_path: "vitest/add_asset_copies_files_in,_names_the_key,_and_logs_the_write.appmap.json"
+    summary: A file on disk into a showcase's assets/ through the MCP tool — the checks, the copy, and the change-log line that makes the history commit it.
+
   - feature: data-server
     test_file: server/showcase-data.test.mjs
     test_name: serves index.json with the folder's index
