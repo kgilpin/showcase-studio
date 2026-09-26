@@ -13,6 +13,11 @@ schema_version: 2
 
 commands:
   framework: vitest
+  # One test file at a time. appmap-node names each worker's temporary
+  # recording after the millisecond it started; two workers starting in
+  # the same millisecond share one file, the first test to begin deletes
+  # it, and the other fails with ENOENT on its .part file.
+  args: --no-file-parallelism
 
 entries:
   - feature: timing
