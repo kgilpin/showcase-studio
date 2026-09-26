@@ -83,7 +83,7 @@ land in `~/Downloads/showcase-exports/<id>`.
 
 | Export    | What you get                                             |
 | --------- | -------------------------------------------------------- |
-| Video     | 1320×2868 portrait MP4 (TikTok and friends), frame-exact |
+| Video     | 1080×1920 (9:16) MP4 for TikTok and friends, frame-exact |
 | Video 4:3 | 1440×1080 MP4 for YouTube and desktop embeds             |
 | Screens   | The App Store screenshot set (6.9", 1320×2868)           |
 | Script    | The narration as plain text                              |

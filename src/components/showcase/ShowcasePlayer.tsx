@@ -11,9 +11,10 @@ import { MediaPicker } from "@/components/studio/MediaPicker";
 import { StylePanel } from "@/components/studio/StylePanel";
 import { captionTimeline, type Showcase } from "@/content/showcases";
 import { embedCaptionsSetting } from "@/content/embed-captions";
-import { FIXED_ASPECT, SceneView } from "./SceneView";
+import { FIXED_ASPECT, SceneView, TIKTOK_ASPECT } from "./SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
 import { ProgressRail } from "./ProgressRail";
+import { StageControls } from "./StageControls";
 import { Soundtrack } from "./Soundtrack";
 import { useMediaPreload } from "./useMediaPreload";
 
@@ -45,14 +46,33 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const [paused, setPaused] = useState(true);
   const [progress, setProgress] = useState(0);
   /* Three exclusive view modes, each previewing an export destination:
-   * "tiktok" (portrait, captions overlaid, titles hidden — the default:
-   * it's the finished-video look), "screens" (App Screens — titles on
-   * the slide, captions beside), and "embed" (the 4:3 canvas for
-   * YouTube/desktop, which composes its own captions). */
+   * "tiktok" (TikTok's 9:16 frame, captions overlaid, titles hidden —
+   * the default: it's the finished-video look), "screens" (App Screens —
+   * the 1320×2868 App Store canvas, titles on the slide, captions
+   * beside), and "embed" (the 4:3 canvas for YouTube/desktop, which
+   * composes its own captions). */
   const [view, setView] = useState<"screens" | "tiktok" | "embed">(() =>
     resume?.view === "screens" || resume?.view === "embed" ? resume.view : "tiktok",
   );
-  const canvas = view === "embed" ? "embed" : "portrait";
+  const canvas = view === "embed" ? "embed" : view === "tiktok" ? "tiktok" : "portrait";
+  /* TikTok view: shade where TikTok's own interface will sit. A viewer
+   * preference, remembered in this browser only. */
+  const [safeArea, setSafeArea] = useState(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem("tiktok-safe-area") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSafeArea = () =>
+    setSafeArea((on) => {
+      try {
+        localStorage.setItem("tiktok-safe-area", on ? "0" : "1");
+      } catch {
+        /* storage unavailable — the switch still works for this page */
+      }
+      return !on;
+    });
   /* Overlay captions on the 4:3 canvas: showcase.yaml's embedCaptions, or
    * the voiceover-based default. The 4:3 toggle below writes it. */
   const embedCaptions = embedCaptionsSetting(showcase);
@@ -202,12 +222,17 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
           </div>
         ) : (
           <>
-            <div className="relative h-full min-h-0 shrink-0" style={{ aspectRatio: FIXED_ASPECT }}>
+            <div
+              className="relative h-full min-h-0 shrink-0"
+              style={{ aspectRatio: canvas === "tiktok" ? TIKTOK_ASPECT : FIXED_ASPECT }}
+            >
               <SceneView
                 key={scene.id}
                 scene={scene}
                 paused={paused}
                 elapsedMs={elapsedMs}
+                canvas={canvas === "tiktok" ? "tiktok" : "portrait"}
+                safeArea={canvas === "tiktok" && safeArea}
                 /* The transcript column always shows the caption; the toggle
                  * only decides whether it ALSO overlays the media. */
                 hideCaption={presentation === "screens"}
@@ -272,6 +297,17 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
         )}
       </div>
 
+      {/* Rendering and playback controls for the current view (the
+       * TikTok view's safe area and picture fit) — between the stage and
+       * the scene rail. Future ones (speed, a scrubber) go here too. */}
+      <StageControls
+        showcaseId={showcase.id}
+        scene={scene}
+        view={view}
+        canEdit={canEdit}
+        safeArea={safeArea}
+        onToggleSafeArea={toggleSafeArea}
+      />
       <div
         className="z-20 flex shrink-0 flex-col items-center gap-4 px-6 py-7 sm:px-10"
         onClick={(e) => e.stopPropagation()}

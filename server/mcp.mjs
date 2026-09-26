@@ -63,11 +63,13 @@ export const TOOLS = [
       "authoring note — keep working context here, not in YAML comments), cta " +
       "({label, url, kind?}), or watermark (false opts this slide out of the showcase's brand " +
       "mark, true forces it on, a map overrides a field or two for this slide — an empty " +
-      'asset or text ("") drops the image or the wordmark there). null removes ' +
+      'asset or text ("") drops the image or the wordmark there), or tiktok ({fit?, focus?, ' +
+      "bands?} — written to media.tiktok: how the scene's picture goes into TikTok's 9:16 " +
+      "frame; fit fill|fit, focus top|center|bottom|<n>%, bands blur|color). null removes " +
       "an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom — each format places these at its " +
-      "own height, clear of TikTok's interface in the portrait video — or an exact height " +
+      "own height, clear of TikTok's interface in the TikTok video — or an exact height " +
       'like "14%": the caption\'s top edge that far down, in every format).\n' +
       '- {field: "caption.insert", sceneId, captionIndex, caption: {text, ...}} and ' +
       '{field: "caption.delete", sceneId, captionIndex}\n' +
@@ -76,7 +78,8 @@ export const TOOLS = [
       '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
       "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
       "default, which hides them when a synced voiceover is set), cover, notes " +
-      "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), or watermark " +
+      "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), tiktok ({fit?, " +
+      "focus?, bands?} — how every scene's picture goes into TikTok's 9:16 frame), or watermark " +
       "({asset?, text?, position?, opacity?, scale?}) — the brand mark drawn in a corner of " +
       "every slide, like a TV network's bug. position is one of the four corners " +
       "(top-left default); opacity defaults to 0.85. Use an identity mark (a logo, a " +
@@ -307,7 +310,7 @@ export const TOOLS = [
       "Start an export of a showcase as a background job — returns a jobId immediately; poll " +
       'export_status (you can keep working meanwhile). Kinds: "video-draft" renders a fast, ' +
       "small MP4 (12fps, half size) — use it freely to check your work while iterating; " +
-      '"video" is the full-quality 1320×2868 render and takes minutes — confirm with the user ' +
+      '"video" is the full-quality 1080×1920 (9:16) TikTok render and takes minutes — confirm with the user ' +
       'before starting one; "video-43" / "video-43-draft" render the 4:3 embed canvas ' +
       "(1440×1080, for YouTube and desktop embeds — feature and footage scenes show text " +
       'beside the media); "screens" captures the App Store screenshot set; "script" ' +

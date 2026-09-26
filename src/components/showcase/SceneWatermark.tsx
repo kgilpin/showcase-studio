@@ -5,9 +5,11 @@ import type { Watermark } from "@/content/watermark";
  * container-width units so the bug keeps the same proportion in the
  * player, the screenshot export, and the video recorder alike; each
  * canvas has its own base size because the two frames are different
- * shapes (1320×2868 portrait, 1440×1080 embed). */
+ * shapes (1320×2868 portrait, 1080×1920 TikTok, 1440×1080 embed). The
+ * two portrait frames are close enough in width to share a size. */
 const SIZES = {
   portrait: { mark: 9, text: 4, gap: 1.8, inset: 5 },
+  tiktok: { mark: 9, text: 4, gap: 1.8, inset: 5 },
   embed: { mark: 5, text: 2.4, gap: 1.1, inset: 3 },
 };
 
@@ -23,7 +25,7 @@ export function SceneWatermark({
   canvas = "portrait",
 }: {
   watermark: Watermark | undefined;
-  canvas?: "portrait" | "embed";
+  canvas?: "portrait" | "tiktok" | "embed";
 }) {
   /* A mark whose image has no file and that has no wordmark draws nothing. */
   if (!watermark || (!watermark.src && !watermark.text)) return null;
