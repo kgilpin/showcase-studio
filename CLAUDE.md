@@ -246,15 +246,17 @@ npm run dev -- --new [<library folder>]
   `showcases.ts`. Narration lives in captions only — titles are on-screen
   text, never spoken or timed. A theme linter warns (diagnostics tray)
   on legacy/incoherent themes but always renders.
-- The player (`ShowcasePlayer.tsx`) stacks three rows under the tab bar:
-  the stage (the slide, with the transcript column beside it), then
-  `StageControls.tsx`, then the scene rail with the view switch and
-  transport. `StageControls`, between the stage and the scene rail, is
-  the place for controls that change how the current view renders or
-  plays: today the TikTok view's Safe area switch and the current
-  scene's picture fit (Fill / Fit, focus, bands — `media.tiktok`).
-  Future rendering and playback controls, such as playback speed or a
-  scrubber, go there too, not in the bottom bar.
+- The player (`ShowcasePlayer.tsx`) stacks its rows under the tab bar:
+  the stage (the slide, with the transcript column beside it), then the
+  scrubber (`Scrubber.tsx` — a slider over the current scene with a time
+  counter; dragging pauses and moves the caption, the video and every CSS
+  animation on the stage to that moment), then `StageControls.tsx`, then
+  the scene rail with the view switch and transport. The rows between
+  the stage and the scene rail are the place for controls that change
+  how the current view renders or plays: today the scrubber, the TikTok
+  view's Safe area switch and the current scene's picture fit (Fill /
+  Fit, focus, bands — `media.tiktok`). Future ones, such as playback
+  speed, go there too, not in the bottom bar.
 - The TikTok view and the `video` / `video-draft` exports are TikTok's
   9:16 frame (1080×1920); App Screens and the screenshot export stay
   1320×2868 (App Store 6.9"). How each picture goes into the 9:16 frame
