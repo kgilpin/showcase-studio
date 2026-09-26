@@ -57,15 +57,26 @@ Show the studio in one place only:
   From source there is no window: give the user the `open` URL to open
   in a browser.
 
-The library is the folder Claude Code runs in when it holds showcases. If
-the user means another folder, pass `library`. Don't start the studio any
+The library is the folder the studio keeps showcases in. By default it
+is the folder Claude Code runs in. If the user means another folder, pass
+`library`. `studio_start` returns the folder in use as `library`, and
+says why in `libraryReason`. Tell the user which folder it is, in full,
+before you create a showcase, so they know where to find it.
+
+If `studio_start` answers `started: false` with `chooseLibrary`, the
+folder Claude Code runs in holds other files, or is the home folder, so
+the studio won't guess. Ask the user the question in `next`, then call
+`studio_start` again with their answer as `library`. A folder that
+doesn't exist yet is created.
+
+Don't start the studio any
 other way: no `npm run dev`, and no `.claude/launch.json` config with
 `preview_start` `name`. Those start a second studio that the tools don't
 use. If the user started one with the preview's button, stop it with
 `preview_stop` and open the `open` URL instead. The studio stops when
 this session ends.
 
-If `studio_start` answers `started: false`, another studio already has
+If `studio_start` answers `started: false` with `alreadyOpen`, another studio already has
 the library open — usually another Claude session. Don't work on the same
 files. Do what its `next` says: in git, offer the user a worktree (a
 separate copy with its own studio) and say what the copy won't have;
