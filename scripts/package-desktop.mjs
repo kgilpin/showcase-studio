@@ -86,10 +86,13 @@ for (const dir of ["electron", "server"]) {
 }
 /* Plain modules the page shares with the shell and the studio server, at
  * their staged-relative ../src paths: the timing model (prompter-script.mjs,
- * exporter.mjs), the brand mark's rules (edit-yaml.mjs), the lock rule
- * (electron/main.mjs), the last page error (server/mcp.mjs, exporter.mjs),
- * and export names (the export notification in electron/main.mjs). */
+ * exporter.mjs), the brand mark's rules and where captions may sit
+ * (edit-yaml.mjs), the lock rule (electron/main.mjs), the last page error
+ * (server/mcp.mjs, exporter.mjs), and export names (the export
+ * notification in electron/main.mjs). scripts/package-desktop.test.mjs
+ * fails when server/ or electron/ imports a src file missing here. */
 for (const shared of [
+  "content/caption-position-rules.mjs",
   "content/timing.mjs",
   "content/watermark-rules.mjs",
   "lib/window-lock.mjs",
