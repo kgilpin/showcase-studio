@@ -332,3 +332,45 @@ scenes:
     }
   });
 });
+
+describe("a theme value YAML cut short", () => {
+  const yaml = (title: string) => `
+meta:
+  title: ${title}
+  description: A themed showcase.
+scenes:
+  - id: one
+    theme: statement
+    title: Hello
+`;
+
+  /* Unquoted, "linear-gradient(100deg, #34e7d6, #0a8f95)" arrives as
+   * "linear-gradient(100deg," — a space and # start a YAML comment. */
+  const parentTheme = `
+colors:
+  primary: "#34e7d6"
+atmosphere:
+  gradient-accent: linear-gradient(100deg, #34e7d6, #0a8f95)
+`;
+
+  it("is left out with a warning, and the showcase and its children still load", async () => {
+    const loaded = await loadFromSource({
+      load: async () => [
+        { ...data("parent", yaml("Parent"), []), themeYaml: parentTheme },
+        { ...data("child", yaml("Child"), []), themeYaml: "extends: parent\n" },
+      ],
+    });
+    const byId = new Map(loaded.map((showcase) => [showcase.id, showcase]));
+    for (const id of ["parent", "child"]) {
+      const theme = byId.get(id)?.theme;
+      expect(theme?.vars["primary"]).toBe("#34e7d6");
+      expect(theme?.vars).not.toHaveProperty("gradient-accent");
+      const messages = showcaseWarnings
+        .filter((warning) => warning.showcaseId === id)
+        .map(({ message }) => message);
+      expect(messages).toEqual([
+        expect.stringContaining("showcases/parent/theme.yaml looks cut off"),
+      ]);
+    }
+  });
+});
