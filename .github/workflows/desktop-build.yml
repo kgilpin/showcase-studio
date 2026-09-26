@@ -11,9 +11,10 @@
 # programs for the machine that runs npm install; a build made on a Mac
 # would carry Mac programs.
 #
-# Runs by hand (Actions > Desktop build > Run workflow), on version tags, and
-# on pull requests that touch the build. It never publishes a release: the
-# zip is a workflow artifact to test first.
+# Runs on version tags (a release) and by hand (Actions > Desktop build >
+# Run workflow) — not on pull requests: a Windows build takes the better
+# part of an hour, so run it by hand on a PR that changes packaging. It
+# never publishes a release: the zip is a workflow artifact to test first.
 
 name: Desktop build
 
@@ -21,14 +22,6 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
-  pull_request:
-    paths:
-      - ".github/workflows/desktop-build.yml"
-      - "electron-builder.yml"
-      - "package.json"
-      - "package-lock.json"
-      - "scripts/**"
-      - "electron/**"
 
 permissions:
   contents: read
