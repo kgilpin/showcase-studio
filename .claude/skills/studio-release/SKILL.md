@@ -52,9 +52,13 @@ The committed gold traces can be older than the code, so record fresh
 ones first and compare those with the last tag:
 
 ```sh
-node .claude/skills/appmap-gold-traces/assets/manage.mjs update --record --dry-run
-node .claude/skills/appmap-review/assets/review.mjs compare --base $(git describe --tags --abbrev=0) --fresh
+node ~/.claude/skills/appmap-gold-traces/assets/manage.mjs update --record --dry-run
+node ~/.claude/skills/appmap-review/assets/review.mjs compare --base $(git describe --tags --abbrev=0) --fresh
 ```
+
+The AppMap skills are installed for the user, not kept in this repo (the
+README's "The AppMap skills" says how). If those paths don't exist, say
+so and stop rather than releasing without the review.
 
 The dry run records into `tmp/appmap` (ignored by git) and blesses
 nothing. Then interpret the compare as the `appmap-review` skill says,

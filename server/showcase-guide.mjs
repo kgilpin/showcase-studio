@@ -216,7 +216,12 @@ ${whisperAdvice(platform)}
   studio-opened sessions; a session you start yourself gets them with
   \`claude --mcp-config .studio/mcp.json\` from the library root):
   read_showcase {showcaseId} returns showcase.yaml as it is now, with
-  its version; edit_showcase {showcaseId, edits, ifVersion} applies a
+  its version; add_asset {showcaseId, files: [{path, name?}]} copies
+  files on this machine into the showcase's assets/ and returns each
+  asset's key — use it for an image or video the user dropped into the
+  chat (Claude Code writes those to a file and gives you its path) and
+  for screenshots you captured yourself, instead of asking the user to
+  move files by hand; edit_showcase {showcaseId, edits, ifVersion} applies a
   list of structured showcase.yaml edits — scene fields, captions, meta,
   scene insert/move/delete — as one validated, comment-preserving write
   and returns the new version (see the tool's own description for the

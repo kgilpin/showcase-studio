@@ -44,6 +44,7 @@ import os from "node:os";
 import path from "node:path";
 import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { buildMedia } from "./build-media.mjs";
+import { addAssetData } from "./asset-files.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { revealInFileManager } from "./export-output.mjs";
@@ -641,33 +642,10 @@ scenes:
    * assets page. All files arrive in one request (base64) and are all
    * written before the watcher's reload can interrupt; names are
    * de-duplicated (name-2.png), never overwritten. */
-  function addAssets({ showcaseId, files } = {}) {
-    const id = String(showcaseId ?? "");
-    if (badName(id)) return { ok: false, error: "Bad showcase id" };
-    if (!Array.isArray(files) || files.length === 0) return { ok: false, error: "No files" };
-    if (!existsSync(path.join(showcasesDir, id))) {
-      return { ok: false, error: `No showcase named "${id}"` };
-    }
-    const dir = path.join(showcasesDir, id, "assets");
-    mkdirSync(dir, { recursive: true });
-    const written = [];
-    for (const file of files) {
-      const name = String(file?.name ?? "").trim();
-      if (badName(name)) return { ok: false, error: `Bad file name "${name}"` };
-      if (typeof file?.data !== "string" || !file.data) {
-        return { ok: false, error: `No data for "${name}"` };
-      }
-      const ext = path.extname(name);
-      const stem = name.slice(0, name.length - ext.length);
-      let candidate = name;
-      for (let n = 2; existsSync(path.join(dir, candidate)); n += 1) {
-        candidate = `${stem}-${n}${ext}`;
-      }
-      writeFileSync(path.join(dir, candidate), Buffer.from(file.data, "base64"));
-      written.push(candidate);
-    }
-    return { ok: true, names: written };
-  }
+  /* The page's drop target: files arrive as base64 in the request. The
+   * MCP add_asset tool writes the same folder from paths on disk; both
+   * go through server/asset-files.mjs. */
+  const addAssets = (body) => addAssetData(showcasesDir, body);
 
   /* Deletes one asset file (the page confirms first). YAML references are
    * left alone — a dangling key shows up in the assets page's "referenced

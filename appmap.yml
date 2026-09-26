@@ -11,6 +11,11 @@ packages:
       # calls that say the same thing. Its own behavior is covered by
       # server/yaml-text.test.mjs, and its callers stay in the trace.
       - blockScalars
+      # Which advice the guide gives for installing whisper depends on
+      # whether this machine has one — so recording it makes a trace say
+      # more about the machine than about the code. The lookup itself
+      # (whisperPath) stays.
+      - whisperAdvice
   - path: scripts
   - path: electron
   - path: src

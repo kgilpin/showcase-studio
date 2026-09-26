@@ -1,3 +1,0 @@
-[submodule "vendor/appmap-skills"]
-	path = vendor/appmap-skills
-	url = https://github.com/getappmap/skills.git

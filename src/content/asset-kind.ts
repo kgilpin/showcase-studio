@@ -2,26 +2,11 @@
  * page (its kind badges) and the theme linter (a scene whose media kind
  * doesn't match its file renders nothing useful, so it warns). */
 
-export type AssetKind = "image" | "video" | "audio" | "other";
+import { ASSET_KINDS } from "./asset-kinds.mjs";
+import type { AssetKind } from "./asset-kinds.mjs";
 
-export const ASSET_KINDS: Record<string, AssetKind> = {
-  png: "image",
-  jpg: "image",
-  jpeg: "image",
-  webp: "image",
-  gif: "image",
-  svg: "image",
-  mp4: "video",
-  mov: "video",
-  webm: "video",
-  m4v: "video",
-  mp3: "audio",
-  m4a: "audio",
-  wav: "audio",
-  aac: "audio",
-  ogg: "audio",
-};
-
+export { ASSET_KINDS };
+export type { AssetKind };
 /** The kind of a file by its extension; "other" when unrecognized. */
 export function assetKind(file: string): AssetKind {
   const name = file.split("/").at(-1) ?? "";
