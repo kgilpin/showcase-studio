@@ -121,7 +121,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   }, [showcase.id]);
 
   /* Time into the current scene: the clock below advances it, and the
-   * scrubber sets it (seek). */
+   * scrubber sets it (seek), which also pauses the show. */
   const elapsedRef = useRef(0);
   /* The stage's media — videos and CSS animations (motion, overlays,
    * diagrams) — runs on its own clock from when the scene mounted, so a
@@ -129,6 +129,8 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const seek = useCallback(
     (ms: number) => {
+      /* Scrubbing stops the show where it lands. */
+      setPaused(true);
       const offset = Math.min(Math.max(0, ms), scene.durationMs);
       elapsedRef.current = offset;
       setProgress(offset / scene.durationMs);
@@ -148,15 +150,6 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
     },
     [scene.durationMs],
   );
-
-  /* Dragging the scrubber holds the show still; letting go picks up
-   * where it was (playing or paused). */
-  const pausedBeforeScrub = useRef(true);
-  const onScrubStart = useCallback(() => {
-    pausedBeforeScrub.current = pausedRef.current;
-    setPaused(true);
-  }, []);
-  const onScrubEnd = useCallback(() => setPaused(pausedBeforeScrub.current), []);
 
   useEffect(() => {
     let raf = 0;
@@ -344,13 +337,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
        * current view's own controls (the TikTok view's safe area and
        * picture fit). Future ones (playback speed) go here too. */}
       <div className="flex shrink-0 justify-center">
-        <Scrubber
-          positionMs={elapsedMs}
-          durationMs={scene.durationMs}
-          onSeek={seek}
-          onScrubStart={onScrubStart}
-          onScrubEnd={onScrubEnd}
-        />
+        <Scrubber positionMs={elapsedMs} durationMs={scene.durationMs} onSeek={seek} />
       </div>
       <StageControls
         showcaseId={showcase.id}
