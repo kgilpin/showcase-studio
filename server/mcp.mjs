@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pageErrorField } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
+import { addAssetPaths } from "./asset-files.mjs";
 import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import { screenshotSlide, scriptText, validateShowcases } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
@@ -125,6 +126,41 @@ export const TOOLS = [
         showcaseId: { type: "string", description: "The showcase's folder name" },
       },
       required: ["showcaseId"],
+    },
+  },
+  {
+    name: "add_asset",
+    description:
+      "Put files into a showcase's assets/ folder, from paths on this machine. Use it for " +
+      "an image or video the user dropped into the chat (Claude Code writes those to a file " +
+      "and gives you its path), and for anything you captured yourself, such as a screenshot " +
+      "of the user's app. Returns each asset's key — the name without its extension — which " +
+      "is what a scene's media refers to. A name already taken is never overwritten: the " +
+      "copy becomes shot-2.png beside shot.png, and the result says so. Diagrams and " +
+      "explainers don't belong here: write those as TSX graphics (the guide says how).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        files: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "The file to copy in, on this machine" },
+              name: {
+                type: "string",
+                description:
+                  "What to call it in assets/ (default: the file's own name). Name it for " +
+                  "what it shows — the key comes from this.",
+              },
+            },
+            required: ["path"],
+          },
+          description: "The files to add",
+        },
+      },
+      required: ["showcaseId", "files"],
     },
   },
   {
@@ -403,6 +439,18 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
         { type: "text", text },
       ],
     };
+  }
+  if (name === "add_asset") {
+    const showcaseId = String(args.showcaseId ?? "");
+    const result = addAssetPaths(showcasesDir, { showcaseId, files: args.files });
+    if (!result.ok) throw new Error(result.error);
+    context.changeLog?.append({
+      source: "mcp",
+      showcaseId,
+      kind: "asset.add",
+      names: result.assets.map((asset) => asset.name),
+    });
+    return json({ showcaseId, assets: result.assets });
   }
   if (name === "edit_showcase") {
     const showcaseId = String(args.showcaseId ?? "");

@@ -1,5 +1,6 @@
-# Gold-traces manifest (managed by the appmap-gold-traces skill,
-# vendor/appmap-skills — exposed as .claude/skills/appmap-gold-traces).
+# Gold-traces manifest (managed by the appmap-gold-traces skill, which
+# is installed for the user from github.com/getappmap/skills — see the
+# README, "The AppMap skills").
 #
 # The curated behavioral baseline: one lean, deterministic trace per
 # node-testable subsystem — the timing model, the YAML edit write path
@@ -49,6 +50,12 @@ entries:
     test_name: returns the edit error when the YAML rejects the edit, leaving the file untouched
     appmap_path: "vitest/returns_the_edit_error_when_the_YAML_rejects_the_edit,_leaving_the_file_untouched.appmap.json"
     summary: The whitelist gate's negative branch — the YAML edit throws and nothing is written.
+
+  - feature: assets
+    test_file: server/studio-server.test.mjs
+    test_name: add_asset copies files in, names the key, and logs the write
+    appmap_path: "vitest/add_asset_copies_files_in,_names_the_key,_and_logs_the_write.appmap.json"
+    summary: A file on disk into a showcase's assets/ through the MCP tool — the checks, the copy, and the change-log line that makes the history commit it.
 
   - feature: data-server
     test_file: server/showcase-data.test.mjs

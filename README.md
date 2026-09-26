@@ -184,6 +184,24 @@ studio from source with Node 22 or later.
 This repo's `showcases/` folder holds the samples — including
 `showcase-studio`, the studio's own tour, made entirely with the studio.
 
+### The AppMap skills
+
+Changes here are reviewed against recorded test runs — the gold traces in
+`gold_traces/`. Recording them, blessing them, and comparing two
+revisions needs the AppMap skills, which are **not** kept in this repo.
+Install them once, for your user:
+
+```sh
+git clone https://github.com/getappmap/skills.git ~/.appmap/skills
+mkdir -p ~/.claude/skills
+for skill in appmap-gold-traces appmap-record appmap-review appmap-label; do
+  ln -s ~/.appmap/skills/$skill ~/.claude/skills/$skill
+done
+```
+
+A release runs them (`.claude/skills/studio-release`), so they need to be
+installed before you cut one.
+
 ## How it's put together
 
 | Part            | Role                                                                                                                                                                               |
