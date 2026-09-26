@@ -43,45 +43,78 @@ check. If the tools are missing, the server's error message says why
 
 ## 1. Start the studio
 
-| The user gave   | Call                                                   |
-| --------------- | ------------------------------------------------------ |
-| a showcase name | `studio_start` with `showcase: <name>`                 |
-| `new`           | `studio_start` with `new: true`                        |
-| nothing         | `studio_info`, list its `showcases`, and ask which one |
+Every row here is the whole call:
+
+| The situation                                 | The call                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| The user named a showcase                     | `studio_start {showcase: "nova"}`                                   |
+| The user said `new`                           | `studio_start {new: true}`                                          |
+| The user said nothing                         | `studio_info {}`, list its `showcases`, and ask which one           |
+| Their showcases are in another folder         | `studio_start {library: "~/work/demo/showcases", showcase: "nova"}` |
+| The answer was `chooseLibrary` (below)        | the same call again, with `library` set to the user's choice        |
+| You have no preview panel                     | add `window: true`: the studio opens its own window                 |
+| The user chose a second studio on one library | add `alongside: true` (only when they chose it)                     |
 
 Show the studio in one place only:
 
 - **You have a browser preview panel** (a `preview_start` tool): start
   without a window, then open the returned `open` URL with `preview_start`.
-- **You don't:** pass `window: true`. The studio opens its own window.
-  From source there is no window: give the user the `open` URL to open
-  in a browser.
+- **You don't:** pass `window: true`.
+- **From source** there is no window: give the user the `open` URL.
 
-The library is the folder the studio keeps showcases in. By default it
-is the folder Claude Code runs in. If the user means another folder, pass
-`library`. `studio_start` returns the folder in use as `library`, and
-says why in `libraryReason`. Tell the user which folder it is, in full,
-before you create a showcase, so they know where to find it.
+Don't start the studio another way: no `npm run dev`, no
+`.claude/launch.json` with `preview_start` `name`. Those start a second
+studio the tools don't use. If the user started one with the preview's
+button, stop it with `preview_stop` and open the `open` URL instead. The
+studio stops when this session ends.
 
-If `studio_start` answers `started: false` with `chooseLibrary`, the
-folder Claude Code runs in holds other files, or is the home folder, so
-the studio won't guess. Ask the user the question in `next`, then call
-`studio_start` again with their answer as `library`. A folder that
-doesn't exist yet is created.
+**Which folder.** The library is the folder the studio keeps showcases
+in. By default it is the folder Claude Code runs in. `studio_start`
+returns the folder in use as `library`, and says why in
+`libraryReason`. Tell the user which folder it is, in full, before you
+create a showcase, so they know where to find it.
 
-Don't start the studio any
-other way: no `npm run dev`, and no `.claude/launch.json` config with
-`preview_start` `name`. Those start a second studio that the tools don't
-use. If the user started one with the preview's button, stop it with
-`preview_stop` and open the `open` URL instead. The studio stops when
-this session ends.
+**When it answers `started: false`,** nothing started. There are two
+reasons, and the answer says which.
 
-If `studio_start` answers `started: false` with `alreadyOpen`, another studio already has
-the library open — usually another Claude session. Don't work on the same
-files. Do what its `next` says: in git, offer the user a worktree (a
-separate copy with its own studio) and say what the copy won't have;
-otherwise, ask them. The guide's "When another studio already has this
-library open" has the details.
+The folder Claude Code runs in holds other files, or is the home
+folder, so the studio won't guess where showcases go:
+
+```json
+{
+  "started": false,
+  "chooseLibrary": {
+    "folder": "/Users/sam/my-app",
+    "why": "other files",
+    "suggested": "/Users/sam/my-app/showcases"
+  },
+  "next": "…"
+}
+```
+
+Ask the user the question in `next`, then call `studio_start` again with
+their answer as `library`. A folder that doesn't exist yet is created.
+
+Or another studio already has this library open, usually another Claude
+session. You must not work on the same files:
+
+```json
+{
+  "started": false,
+  "alreadyOpen": { "url": "http://127.0.0.1:51734" },
+  "git": {
+    "root": "/Users/sam/demo",
+    "worktree": { "add": "git -C /Users/sam/demo worktree add -b <branch> …" }
+  },
+  "next": "…"
+}
+```
+
+Do what `next` says: in git, offer the user the worktree it spells out,
+and say what the copy won't have (recordings git doesn't track,
+uncommitted changes). Outside git, `git` is null: say where the other
+studio is open and ask them what to do. The guide's "When another studio
+already has this library open" has the details.
 
 ## 2. Read the guide first
 
