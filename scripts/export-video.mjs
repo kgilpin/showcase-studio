@@ -1,13 +1,14 @@
-/* Export each showcase as an MP4 video of the phone-shaped frame.
+/* Export each showcase as an MP4 video of TikTok's 9:16 frame.
  *
  * Opens /showcase/<id>/record (see that route) and captures it two ways:
  *
  *   default      Frame-by-frame: seeks the page to every 1/FPS moment,
- *                screenshots it at deviceScaleFactor 3 (1320x2868), and
+ *                screenshots it at deviceScaleFactor 3 (1080x1920 — TikTok's
+ *                9:16 frame), and
  *                assembles the frames with ffmpeg. Slow but deterministic
  *                and full resolution.
  *   --realtime   Quick draft: plays the showcase in real time and records
- *                it with Playwright's built-in screen recording at 440x956.
+ *                it with Playwright's built-in screen recording at 360x640.
  *                Fast but capped at viewport resolution.
  *
  * Usage:
@@ -124,7 +125,7 @@ function tempDir(prefix) {
  *  showcase's /record page by default; `opts` retargets it (the --prompter
  *  mode records /script?record=1 in a desktop-sized viewport instead). */
 async function captureRealtime(browser, id, totalMs, soundtrack, outDir, opts = {}) {
-  const viewport = opts.viewport ?? { width: 440, height: 956 };
+  const viewport = opts.viewport ?? { width: 360, height: 640 };
   const url = opts.url ?? `${baseUrl}/showcase/${id}/record`;
   const outName = opts.outName ?? "video-draft.mp4";
   const tmpDir = await tempDir(`showcase-${id}-video-`);
@@ -180,7 +181,7 @@ async function captureFrames(browser, id, totalMs, soundtrack, outDir) {
   const framesDir = await tempDir(`showcase-${id}-frames-`);
 
   const context = await browser.newContext({
-    viewport: { width: 440, height: 956 },
+    viewport: { width: 360, height: 640 },
     deviceScaleFactor: scale,
   });
   const page = await context.newPage();

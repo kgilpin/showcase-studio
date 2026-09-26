@@ -9,7 +9,8 @@
  * Screens and videos are written under a partial name and moved into
  * place only when they finish; the previous export is kept, numbered
  * (server/export-output.mjs).
- *   exportVideo      frame-by-frame capture of the /record page driven by
+ *   exportVideo      frame-by-frame capture of the /record page (TikTok's
+ *                    9:16 frame at 1080×1920, or the 4:3 embed) driven by
  *                    window.__record.seek(), assembled into an MP4 with
  *                    the bundled ffmpeg. Exact but slow. The showcase's
  *                    soundtrack (meta.soundtrack.src) is looped under the
@@ -39,6 +40,9 @@ const WIDTH = 1320;
 const HEIGHT = 2868;
 /* Half App Store size — text is readable, MCP payloads stay small. */
 const SHOT = { width: 660, height: 1434 };
+/* The TikTok video: 9:16, TikTok's own shape (half size for drafts). */
+const TIKTOK = { width: 1080, height: 1920 };
+const TIKTOK_DRAFT = { width: 540, height: 960 };
 
 /* A page that navigates or crashes can strand in-flight page scripts
  * (they never settle), which would leave a tool call — and Claude —
@@ -245,8 +249,8 @@ export async function exportVideo({
   fps = 30,
   /** Draft mode: half size, meant for low fps — a fast check render. */
   draft = false,
-  /** "embed" renders the 4:3 canvas (1440×1080) instead of portrait. */
-  canvas = "portrait",
+  /** "embed" renders the 4:3 canvas (1440×1080) instead of TikTok's 9:16. */
+  canvas = "tiktok",
   progress,
   signal,
 }) {
@@ -263,8 +267,8 @@ export async function exportVideo({
       ? { width: 720, height: 540 }
       : { width: 1440, height: 1080 }
     : draft
-      ? SHOT
-      : { width: WIDTH, height: HEIGHT };
+      ? TIKTOK_DRAFT
+      : TIKTOK;
   const framesDir = await mkdtemp(path.join(os.tmpdir(), `studio-${showcaseId}-`));
   try {
     await withPage(renderer, size, async (page) => {
@@ -387,7 +391,7 @@ export function runExport({
   return exportVideo({
     ...options,
     draft,
-    canvas: kind.startsWith("video-43") ? "embed" : "portrait",
+    canvas: kind.startsWith("video-43") ? "embed" : "tiktok",
     fps: Number(process.env.EXPORT_FPS ?? (draft ? 12 : 30)),
   });
 }

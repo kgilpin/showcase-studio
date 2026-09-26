@@ -27,6 +27,9 @@
  *                                                   new asset is a video
  *                                                   and the old an image,
  *                                                   or vice versa)
+ *   { field: "media.tiktok", value }                the scene's own TikTok
+ *                                                   fit (media.tiktok);
+ *                                                   null removes it
  *   { field: "media.set",   media }                 replace the whole
  *                                                   media mapping (the
  *                                                   graphic ↔ asset swap)
@@ -61,6 +64,7 @@ import {
   CAPTION_POSITION_HELP,
   isCaptionPosition,
 } from "../src/content/caption-position-rules.mjs";
+import { TIKTOK_FIELDS, tiktokFieldProblem } from "../src/content/tiktok-fit-rules.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 /* The brand mark sits in a corner — there is no banner position, and no
@@ -86,6 +90,9 @@ const SCENE_FIELDS = {
   /* The showcase's brand mark, per scene: false opts this slide out,
    * true forces it on, a map overrides a field or two for this slide. */
   watermark: { kind: "watermark", scene: true, removable: true },
+  /* How this scene's picture goes into TikTok's 9:16 frame — written to
+   * media.tiktok (src/content/tiktok-fit.ts). */
+  tiktok: { kind: "tiktok", path: ["media", "tiktok"], removable: true },
 };
 
 const META_FIELDS = {
@@ -103,6 +110,9 @@ const META_FIELDS = {
   /* The persistent brand mark ("bug") drawn in a corner of every slide
    * (src/content/watermark.ts). */
   watermark: { kind: "watermark", removable: true },
+  /* How every scene's picture goes into TikTok's 9:16 frame
+   * (src/content/tiktok-fit.ts). */
+  tiktok: { kind: "tiktok", removable: true },
 };
 
 const CAPTION_FIELDS = {
@@ -197,6 +207,16 @@ function checkFieldValue(fields, where, name, value) {
       const set = Object.fromEntries(Object.entries(value).filter(([, v]) => v != null));
       return { value: set, flow: true };
     }
+    case "tiktok": {
+      if (typeof value !== "object" || Array.isArray(value)) {
+        throw new Error(`${label} must be a map of ${TIKTOK_FIELDS.join(", ")}`);
+      }
+      for (const [key, field] of Object.entries(value)) {
+        const problem = tiktokFieldProblem(label, key, field);
+        if (problem) throw new Error(problem);
+      }
+      return { value, flow: true };
+    }
     case "map": {
       if (typeof value !== "object" || Array.isArray(value)) {
         throw new Error(`${label} must be a map of ${Object.keys(spec.map).join(", ")}`);
@@ -252,6 +272,12 @@ export function applySceneEdit(
 ) {
   const needsValue = ["title", "caption", "media.asset", "meta.captionStyle"].includes(field);
   if (needsValue && typeof value !== "string") throw new Error("Missing value");
+
+  /* The stage controls' TikTok fit edit is the whitelisted scene field
+   * of the same name (scene.set name: tiktok, written to media.tiktok). */
+  if (field === "media.tiktok") {
+    return applySceneEdit(text, { sceneId, field: "scene.set", name: "tiktok", value });
+  }
 
   /* Meta edits address the showcase, not a scene. */
   if (field === "meta.captionStyle") {
@@ -367,7 +393,14 @@ export function applySceneEdit(
       );
       if (clash) throw new Error(`A scene with the id "${checked.value}" already exists`);
     }
-    setChecked(doc, ["scenes", index, name], checked);
+    /* A field that lives inside the scene (tiktok → media.tiktok) needs
+     * that part of the scene to exist. */
+    const path = SCENE_FIELDS[name].path ?? [name];
+    if (path.length > 1 && !isMap(doc.getIn(["scenes", index, ...path.slice(0, -1)]))) {
+      if (checked.remove) return editedText(doc);
+      throw new Error(`Scene "${sceneId}" has no ${path.slice(0, -1).join(".")} to set ${name} on`);
+    }
+    setChecked(doc, ["scenes", index, ...path], checked);
   } else if (field === "caption.set") {
     const checked = checkFieldValue(CAPTION_FIELDS, "caption", name, value);
     const captions = doc.getIn(["scenes", index, "captions"]);

@@ -116,6 +116,13 @@ export type SceneEdit =
   /** Replaces the scene's whole media mapping — the op behind swapping
    *  a TSX graphic for an asset (and back, as its own inverse). */
   | { field: "media.set"; media: { kind: string } & Record<string, unknown> }
+  /** The scene's own TikTok fit (media.tiktok — how its picture goes
+   *  into the 9:16 frame). null removes it, so the scene follows
+   *  meta.tiktok and its fit/align again. */
+  | {
+      field: "media.tiktok";
+      value: { fit?: "fill" | "fit"; focus?: string; bands?: "blur" | "color" } | null;
+    }
   /** Showcase-wide overlay caption painting (meta; sceneId is ignored —
    *  pass ""). Empty value deletes, restoring the default. */
   | { field: "meta.captionStyle"; value: "" | "chip" | "karaoke" | "reveal" }

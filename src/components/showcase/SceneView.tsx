@@ -4,6 +4,8 @@ import { SceneMedia } from "./SceneMedia";
 import { captionPlacement } from "./caption-placement";
 import type { CaptionPreset } from "@/content/caption-position-rules.mjs";
 import { SceneWatermark } from "./SceneWatermark";
+import { TikTokSafeArea } from "./TikTokSafeArea";
+import { usesTikTokFit } from "@/content/tiktok-fit";
 import { EditableText } from "@/components/studio/EditableText";
 import appStoreBadge from "@/assets/app-store-badge.svg";
 import githubBadge from "@/assets/github-badge.svg";
@@ -40,8 +42,15 @@ export function CtaContent({
   return <img src={appStoreBadge} alt={cta.label} className={badgeClass} />;
 }
 
-/** iPhone 16 Pro Max screen aspect ratio (1320 x 2868). */
+/** iPhone 16 Pro Max screen aspect ratio (1320 x 2868): the App Screens
+ *  canvas, the App Store screenshot size. */
 export const FIXED_ASPECT = "1320 / 2868";
+
+/** TikTok's frame, 9:16 (1080 x 1920): the TikTok view and video. */
+export const TIKTOK_ASPECT = "1080 / 1920";
+
+/** The two portrait canvases SceneView draws. */
+export type PortraitCanvas = "portrait" | "tiktok";
 
 /** Word-by-word caption painting. The full line is laid out once in its
  *  chip so nothing reflows; each word changes state on its wordTimeline
@@ -83,12 +92,13 @@ export function WordLine({
 }
 
 /** Vertical placement of the overlay caption on a portrait slide —
- *  the TikTok video. TikTok covers about the top 13% (status bar, For
- *  You / Following tabs) and the bottom 25% (username, description,
- *  search and nav bars), so "top" sits just below the tabs, where
+ *  the TikTok video, a 9:16 frame. In the TikTok app the frame fills the
+ *  screen above the tab bar, and TikTok covers about its top 13% (status
+ *  bar, For You / Following tabs, search) and bottom 25% (username,
+ *  description, sound), so "top" sits just below the tabs, where
  *  TikTok's own captions go, and "bottom" (the default) sits just above
- *  the description. An exact height ("14%") is placed by
- *  captionPlacement. */
+ *  the description. TikTokSafeArea draws those areas in the player. An
+ *  exact height ("14%") is placed by captionPlacement. */
 const captionPositionClass: Record<CaptionPreset, string> = {
   top: "top-[13%]",
   center: "top-1/2 -translate-y-1/2",
@@ -101,8 +111,13 @@ function FixedStage({
   compact,
   frameless,
   watermark,
+  canvas = "portrait",
+  safeArea = false,
 }: {
   children: React.ReactNode;
+  canvas?: PortraitCanvas;
+  /** Shade where TikTok's interface will sit (TikTok canvas only). */
+  safeArea?: boolean;
   compact?: boolean;
   /** Fill the parent edge-to-edge with no device chrome (screenshot export). */
   frameless?: boolean;
@@ -110,7 +125,12 @@ function FixedStage({
    *  It lives here so every theme gets it without repeating itself. */
   watermark?: Scene["watermark"];
 }) {
-  const bug = <SceneWatermark watermark={watermark} />;
+  const bug = (
+    <>
+      <SceneWatermark watermark={watermark} canvas={canvas} />
+      {safeArea && canvas === "tiktok" && <TikTokSafeArea />}
+    </>
+  );
   if (frameless) {
     return (
       <div className="@container absolute inset-0 overflow-hidden bg-card">
@@ -126,7 +146,10 @@ function FixedStage({
         compact ? "justify-center p-0" : "justify-center px-3 py-4",
       )}
     >
-      <div className="relative h-full max-w-full" style={{ aspectRatio: FIXED_ASPECT }}>
+      <div
+        className="relative h-full max-w-full"
+        style={{ aspectRatio: canvas === "tiktok" ? TIKTOK_ASPECT : FIXED_ASPECT }}
+      >
         <div
           aria-hidden
           className="absolute -inset-8 rounded-[999px] bg-[image:var(--gradient-accent)] opacity-40 blur-[70px]"
@@ -143,7 +166,8 @@ function FixedStage({
   );
 }
 
-/** Renders one scene inside the iPhone-shaped stage. Type is sized in
+/** Renders one scene inside a portrait stage — the iPhone-shaped App
+ *  Screens canvas, or TikTok's 9:16 frame (`canvas: "tiktok"`). Type is sized in
  *  container-width units so the text keeps the same proportion at any
  *  render size — the in-page player, the screenshot export, and the video
  *  recorder all get the same look. */
@@ -154,10 +178,18 @@ export function SceneView({
   hideCaption = false,
   hideTitle = false,
   frameless = false,
+  canvas = "portrait",
+  safeArea = false,
   onEditTitle,
   onPickMedia,
 }: {
   scene: Scene;
+  /** TikTok canvas: shade where TikTok's own interface will cover the
+   *  video (the player's "Safe area" switch; never in exports). */
+  safeArea?: boolean;
+  /** "tiktok" draws the 9:16 TikTok frame and places pictures by their
+   *  TikTok fit; "portrait" is the App Screens canvas. */
+  canvas?: PortraitCanvas;
   paused: boolean;
   /** Time into the current slide — drives sequential captions. */
   elapsedMs?: number;
@@ -175,7 +207,14 @@ export function SceneView({
   /** Studio editing: clicking the media area opens the asset picker. */
   onPickMedia?: (() => void) | undefined;
 }) {
-  const media = <SceneMedia media={scene.media} durationMs={scene.durationMs} paused={paused} />;
+  const media = (
+    <SceneMedia
+      media={scene.media}
+      durationMs={scene.durationMs}
+      paused={paused}
+      canvas={usesTikTokFit(scene) ? canvas : "portrait"}
+    />
+  );
   /* Editing affordances, rendered inside the slide so they inherit its
    * exact look. The title keeps its element and classes either way; the
    * media areas get an invisible click layer over the whole surface. */
@@ -236,7 +275,12 @@ export function SceneView({
   if (scene.theme === "statement") {
     const backdrop = scene.media.kind !== "none" && scene.media.frame === "full";
     return (
-      <FixedStage frameless={frameless} watermark={scene.watermark}>
+      <FixedStage
+        frameless={frameless}
+        watermark={scene.watermark}
+        canvas={canvas}
+        safeArea={safeArea}
+      >
         <div className="relative h-full w-full" style={{ background: "var(--gradient-stage)" }}>
           {backdrop && (
             <>
@@ -320,7 +364,13 @@ export function SceneView({
    * (clearing a title must not remove the way to type a new one). */
   const dropHeader = hasMedia && (isFootage || hideTitle || (!scene.title && !onEditTitle));
   return (
-    <FixedStage compact={hasMedia} frameless={frameless} watermark={scene.watermark}>
+    <FixedStage
+      compact={hasMedia}
+      frameless={frameless}
+      watermark={scene.watermark}
+      canvas={canvas}
+      safeArea={safeArea}
+    >
       <div
         className={cn("flex h-full w-full flex-col", !hasMedia && !scene.cta && "justify-center")}
         style={{ background: "var(--gradient-stage)" }}
