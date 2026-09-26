@@ -432,14 +432,18 @@ function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
       if (typeof value !== "string" && typeof value !== "number") {
         throw new Error(`"${group}.${key}" in ${file} must be a CSS value (got ${typeof value})`);
       }
-      if (typeof value === "string" && looksCutOff(value)) {
-        throw new Error(
-          `"${group}.${key}" in ${file} looks cut off: "${value}". In YAML a space followed ` +
-            `by # starts a comment, so put the whole value in quotes.`,
-        );
-      }
     }
   }
+}
+
+/** The warning for a theme value YAML cut short (see looksCutOff). The
+ *  value is left out rather than failing the showcase: one bad value in
+ *  a parent theme must not take down every showcase that extends it. */
+function cutOffWarning(where: string, value: string): string {
+  return (
+    `${where} looks cut off: "${value}", so it is left out. In YAML a space followed ` +
+    `by # starts a comment — put the whole value in quotes.`
+  );
 }
 
 function validateMetaTheme(showcaseId: string, theme: Record<string, string>): void {
@@ -448,12 +452,6 @@ function validateMetaTheme(showcaseId: string, theme: Record<string, string>): v
       throw new Error(
         `meta.theme in showcase "${showcaseId}" sets "--${name}", which is not themeable. ` +
           `Themeable variables: ${[...THEMEABLE_VARS].sort().join(", ")}`,
-      );
-    }
-    if (typeof value === "string" && looksCutOff(value)) {
-      throw new Error(
-        `meta.theme "${name}" in showcase "${showcaseId}" looks cut off: "${value}". In YAML a ` +
-          `space followed by # starts a comment, so put the whole value in quotes.`,
       );
     }
   }
@@ -618,6 +616,9 @@ const rawTexts = new Map<string, string>();
 const themeDocs = new Map<string, RawTheme>();
 const rawThemeTexts = new Map<string, string>();
 const resolvedThemes = new Map<string, ResolvedTheme>();
+/** Warnings from resolving each theme (own and inherited), cached and
+ *  cleared with resolvedThemes; buildShowcase reports them. */
+const themeWarnings = new Map<string, string[]>();
 
 function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
   const cached = resolvedThemes.get(showcaseId);
@@ -629,6 +630,7 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
   const doc = themeDocs.get(showcaseId) ?? {};
   let vars: Record<string, string> = {};
   const fontLoads: string[] = [];
+  const warnings: string[] = [];
 
   if (doc.extends) {
     if (!rawDocs.has(doc.extends)) {
@@ -640,6 +642,7 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
     const parent = resolveTheme(doc.extends, [...stack, showcaseId]);
     vars = { ...parent.vars };
     fontLoads.push(...parent.fontLoads);
+    warnings.push(...(themeWarnings.get(doc.extends) ?? []));
   }
 
   for (const [group, keys] of Object.entries(THEME_GROUPS)) {
@@ -647,6 +650,11 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
     if (section == null || typeof section !== "object") continue;
     for (const [key, value] of Object.entries(section)) {
       if (group === "fonts" && key === "load") continue;
+      if (typeof value === "string" && looksCutOff(value)) {
+        const file = `showcases/${showcaseId}/theme.yaml`;
+        warnings.push(cutOffWarning(`"${group}.${key}" in ${file}`, value));
+        continue;
+      }
       vars[keys[key]!] = String(value);
     }
   }
@@ -656,11 +664,18 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
   const metaTheme = rawDocs.get(showcaseId)?.meta.theme;
   if (metaTheme) {
     validateMetaTheme(showcaseId, metaTheme);
-    vars = { ...vars, ...metaTheme };
+    for (const [name, value] of Object.entries(metaTheme)) {
+      if (typeof value === "string" && looksCutOff(value)) {
+        warnings.push(cutOffWarning(`meta.theme "${name}" in showcase "${showcaseId}"`, value));
+        continue;
+      }
+      vars[name] = value;
+    }
   }
 
   const resolved: ResolvedTheme = { vars, fontLoads: [...new Set(fontLoads)] };
   resolvedThemes.set(showcaseId, resolved);
+  themeWarnings.set(showcaseId, warnings);
   return resolved;
 }
 
@@ -793,6 +808,8 @@ function buildShowcase(
 ): Showcase {
   /* The showcase's brand mark, validated once (its warnings belong to
    *  the showcase, not to whichever scene is drawn first). */
+  const showcaseTheme = resolveTheme(showcaseId);
+  for (const message of themeWarnings.get(showcaseId) ?? []) warn("", message);
   const baseWatermark = readWatermark(doc.meta.watermark, "meta.watermark", (message) =>
     warn("", message),
   );
@@ -894,7 +911,7 @@ function buildShowcase(
       (message) => warn("", message),
     ),
     soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
-    theme: resolveTheme(showcaseId),
+    theme: showcaseTheme,
     scenes,
     /* footage defaults out of the screenshot set (a paused frame of
      * someone mid-sentence isn't an App Store screenshot). */
@@ -914,6 +931,7 @@ export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]
   themeDocs.clear();
   rawThemeTexts.clear();
   resolvedThemes.clear();
+  themeWarnings.clear();
   assetsByShowcase.clear();
   wordTimingsByShowcase.clear();
   dataGraphicsByShowcase.clear();
@@ -1085,6 +1103,7 @@ export function applyThemeEditLocal(
     doc[edit.group] = group;
     themeDocs.set(showcaseId, doc);
     resolvedThemes.clear();
+    themeWarnings.clear();
   };
   put(edit.value);
   if (rebuildShowcase(showcaseId)) {
