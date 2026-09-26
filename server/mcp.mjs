@@ -64,8 +64,9 @@ export const TOOLS = [
       "({label, url, kind?}), or watermark (false opts this slide out of the showcase's brand " +
       "mark, true forces it on, a map overrides a field or two for this slide — an empty " +
       'asset or text ("") drops the image or the wordmark there), or tiktok ({fit?, focus?, ' +
-      "bands?} — written to media.tiktok: how the scene's picture goes into TikTok's 9:16 " +
-      "frame; fit fill|fit, focus top|center|bottom|<n>%, bands blur|color). null removes " +
+      "bands?, area?} — written to media.tiktok: how the scene's picture goes into TikTok's " +
+      "9:16 frame; fit fill|fit, focus top|center|bottom|<n>%, bands blur|color, area " +
+      "{top?, right?, bottom?, left?} insets in % of the frame). null removes " +
       "an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom — each format places these at its " +
@@ -79,7 +80,7 @@ export const TOOLS = [
       "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
       "default, which hides them when a synced voiceover is set), cover, notes " +
       "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), tiktok ({fit?, " +
-      "focus?, bands?} — how every scene's picture goes into TikTok's 9:16 frame), or watermark " +
+      "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), or watermark " +
       "({asset?, text?, position?, opacity?, scale?}) — the brand mark drawn in a corner of " +
       "every slide, like a TV network's bug. position is one of the four corners " +
       "(top-left default); opacity defaults to 0.85. Use an identity mark (a logo, a " +

@@ -58,6 +58,12 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
   const [picture, setPicture] = useState<{ src: string; width: number; height: number }>();
   const pictureSrc = media.kind === "image" || media.kind === "video" ? media.src : undefined;
   const hasOverlay = (media.kind === "image" || media.kind === "video") && !!media.overlay;
+  /* A TikTok area puts the box in an element of its own: measure again
+   * when it comes or goes. */
+  const areaKey =
+    canvas === "tiktok" && (media.kind === "image" || media.kind === "video")
+      ? JSON.stringify(media.tiktok?.area ?? null)
+      : "";
   useEffect(() => {
     const el = boxRef.current;
     if (!hasOverlay || !el) return;
@@ -66,7 +72,7 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasOverlay]);
+  }, [hasOverlay, areaKey]);
   useEffect(() => {
     /* An image or video that loaded before this effect ran fires no event. */
     if (!hasOverlay || !pictureSrc) return;
@@ -135,6 +141,7 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
     ? undefined
     : alignClass[media.fadeTo?.align ?? media.align ?? "center"];
   const blurBands = tiktok?.fit === "fit" && tiktok.bands === "blur";
+  const area = tiktok?.area;
   /* The band fill: the same picture, covering the frame, blurred and
    * dimmed so the sharp copy in front reads as the subject. */
   const bandClass =
@@ -146,38 +153,20 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
     Overlay && box && picture?.src === media.src
       ? pictureRect(box, picture, fit === "object-contain" ? "contain" : "cover", {
           x: 50,
-          y: tiktok?.fit === "fill" ? focusPercent(tiktok.focus) : alignPercent[media.align ?? "center"],
+          y:
+            tiktok?.fit === "fill"
+              ? focusPercent(tiktok.focus)
+              : alignPercent[media.align ?? "center"],
         })
       : undefined;
   const onPictureSize = (width: number, height: number) => {
     if (Overlay && width && height) setPicture({ src: media.src, width, height });
   };
 
-  return (
-    <div
-      ref={boxRef}
-      className={cn(
-        "relative h-full w-full",
-        media.frame === "mark" ? "overflow-visible" : "overflow-hidden",
-        className,
-      )}
-    >
-      {blurBands && media.kind === "video" && (
-        <video
-          key={`band-${media.src}`}
-          ref={bandVideoRef}
-          src={media.src}
-          autoPlay
-          muted
-          loop
-          playsInline
-          aria-hidden
-          className={bandClass}
-        />
-      )}
-      {blurBands && media.kind === "image" && (
-        <img key={`band-${media.src}`} src={media.src} alt="" aria-hidden className={bandClass} />
-      )}
+  /* The picture and everything drawn on it. With a TikTok area they go in
+   * that box; the blurred bands still fill the whole frame. */
+  const layers = (
+    <>
       {media.kind === "video" ? (
         <video
           key={media.src}
@@ -215,9 +204,9 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
         />
       )}
       {/* The overlay mounts with the picture, so its CSS animations start
-          when the clip does (the video recorder scrubs both on the same
-          clock). It shares the picture's motion, so a zoom moves both
-          together, and stays hidden until the picture's size is known. */}
+            when the clip does (the video recorder scrubs both on the same
+            clock). It shares the picture's motion, so a zoom moves both
+            together, and stays hidden until the picture's size is known. */}
       {Overlay && (
         <div
           aria-hidden
@@ -240,6 +229,50 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
             <Overlay />
           </div>
         </div>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      ref={area ? undefined : boxRef}
+      className={cn(
+        "relative h-full w-full",
+        media.frame === "mark" ? "overflow-visible" : "overflow-hidden",
+        className,
+      )}
+    >
+      {blurBands && media.kind === "video" && (
+        <video
+          key={`band-${media.src}`}
+          ref={bandVideoRef}
+          src={media.src}
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden
+          className={bandClass}
+        />
+      )}
+      {blurBands && media.kind === "image" && (
+        <img key={`band-${media.src}`} src={media.src} alt="" aria-hidden className={bandClass} />
+      )}
+      {area ? (
+        <div
+          ref={boxRef}
+          className="absolute overflow-hidden"
+          style={{
+            top: `${area.top}%`,
+            right: `${area.right}%`,
+            bottom: `${area.bottom}%`,
+            left: `${area.left}%`,
+          }}
+        >
+          {layers}
+        </div>
+      ) : (
+        layers
       )}
     </div>
   );

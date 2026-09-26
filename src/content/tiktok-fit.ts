@@ -13,6 +13,11 @@
  *               doesn't reach. `bands: blur` fills them with a blurred
  *               copy of the picture (the usual TikTok look); `bands:
  *               color` leaves the plain stage background.
+ *   area        where in the frame the picture goes, as insets from
+ *               each edge ({top: 31%, right: 16%, bottom: 25%, left:
+ *               5%}); fit and fill then work inside that box. Use it to
+ *               keep a picture clear of the captions and of what
+ *               TikTok draws over the video (TikTokSafeArea.tsx).
  *
  *   meta:
  *     tiktok: { fit: fill, focus: 40% }     # every scene
@@ -30,11 +35,14 @@
  */
 
 import type { MediaAlign, MediaFit, Scene } from "./showcases";
-import { tiktokFieldProblem, tiktokFocus } from "./tiktok-fit-rules.mjs";
+import { tiktokArea, tiktokFieldProblem, tiktokFocus } from "./tiktok-fit-rules.mjs";
 
 export type TikTokFitMode = "fill" | "fit";
 export type TikTokBands = "blur" | "color";
 export type TikTokFocus = MediaAlign | `${number}%`;
+/** Where in the 9:16 frame the picture goes: insets from each edge, in
+ *  percent of the frame. Unset, the picture has the whole frame. */
+export type TikTokArea = { top: number; right: number; bottom: number; left: number };
 
 /** A resolved TikTok fit, every field filled in. */
 export type TikTokFit = {
@@ -43,6 +51,10 @@ export type TikTokFit = {
   focus: TikTokFocus;
   /** With fit: what fills the bands beside or above the picture. */
   bands: TikTokBands;
+  /** The part of the frame the picture goes in (fit and fill both work
+   *  inside it); left out when the picture has the whole frame. Blurred
+   *  bands still fill the whole frame. */
+  area?: TikTokArea;
 };
 
 /** A `tiktok` map as authored, checked — any field may be missing. */
@@ -77,6 +89,10 @@ export function readTikTokFit(
     else if (key === "fit") spec.fit = value as TikTokFitMode;
     else if (key === "bands") spec.bands = value as TikTokBands;
     else if (key === "focus") spec.focus = tiktokFocus(value) ?? "center";
+    else if (key === "area") {
+      const area = tiktokArea(value);
+      if (area) spec.area = area;
+    }
   }
   return spec;
 }
@@ -97,7 +113,13 @@ export function resolveTikTokFit(
     scene?.bands ??
     showcase?.bands ??
     (!scene?.fit && !showcase?.fit && media.fit === "contain" ? "color" : "blur");
-  return { fit, focus: scene?.focus ?? showcase?.focus ?? media.align ?? "center", bands };
+  const area = scene?.area ?? showcase?.area;
+  return {
+    fit,
+    focus: scene?.focus ?? showcase?.focus ?? media.align ?? "center",
+    bands,
+    ...(area ? { area } : {}),
+  };
 }
 
 /** Whether a scene's TikTok fit decides how its picture fills the 9:16
