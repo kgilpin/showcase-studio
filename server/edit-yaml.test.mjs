@@ -301,6 +301,23 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     expect(out).toContain("cta: { label: Get NOVA, url: https://novagame.app, kind: link }");
   });
 
+  it("sets a caption to a preset or an exact height", () => {
+    const at = (value) =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "caption.set",
+        captionIndex: 0,
+        name: "position",
+        value,
+      });
+    expect(at("top")).toContain("position: top");
+    expect(at(" 14% ")).toContain("position: 14%");
+    expect(at("12.5%")).toContain("position: 12.5%");
+    for (const bad of ["95%", "14", 14, "-3%", "14 %"]) {
+      expect(() => at(bad)).toThrow("a height from 0% to 90%");
+    }
+  });
+
   it("sets a caption's durationMs and position, and validates them", () => {
     let out = applySceneEdit(DOC, {
       sceneId: "intro",

@@ -20,6 +20,11 @@ import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source"
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
 import { ASSET_KINDS, assetKind, mediaKindWarning, type AssetKind } from "./asset-kind";
+import {
+  CAPTION_POSITION_HELP,
+  isCaptionPosition,
+  type CaptionPreset,
+} from "./caption-position-rules.mjs";
 import { readWatermark, resolveWatermark, type Watermark, type WatermarkSpec } from "./watermark";
 import type { SceneEdit } from "@/lib/studio";
 
@@ -113,12 +118,14 @@ export type SceneMedia =
     }
   | { kind: "none" };
 
-/** Where an overlay caption sits on the slide.
- *  "bottom" (default) floats 18% up from the bottom edge — clear of the
- *  UI TikTok lays over the bottom fifth of the frame,
- *  "center" vertically centered, "lower" 60% of the way down,
- *  "top" near the top of the screenshot. */
-export type CaptionPosition = "top" | "center" | "lower" | "bottom";
+/** Where an overlay caption sits on the slide: a preset — "top",
+ *  "center", "lower", or "bottom" (the default) — or an exact height
+ *  ("14%" puts the caption's top edge 14% down). Each format places a
+ *  preset at its own height: in the portrait TikTok video, top and
+ *  bottom stay clear of the interface TikTok lays over the video. The
+ *  table and the allowed range are in caption-position-rules.mjs,
+ *  shared with the studio's edit tool. */
+export type CaptionPosition = CaptionPreset | `${number}%`;
 
 /** One overlay line. `durationMs` is optional — see the TIMING model in
  *  timing.mjs: all timing derives from the copy unless pinned explicitly.
@@ -816,8 +823,20 @@ function buildShowcase(
     const watermark = resolveWatermarkAsset(showcaseId, watermarkSpec, (message) => {
       if (ownAsset) warnings.push(message);
     });
+    const resolved = resolveSceneTiming(raw, doc.meta.pace);
+    /* An unknown caption position is dropped (the caption falls back to
+     * the default) and reported, rather than leaving the line unplaced. */
+    const captions = resolved.captions.map((caption, i) => {
+      if (caption.position == null || isCaptionPosition(caption.position)) return caption;
+      warnings.push(
+        `captions[${i}].position "${caption.position}" isn't a position — using "bottom" ` +
+          `(positions: ${CAPTION_POSITION_HELP})`,
+      );
+      const { position: _position, ...placed } = caption;
+      return placed;
+    });
+    const timing = { ...resolved, captions };
     warnings.forEach((message) => warn(raw.id, message));
-    const timing = resolveSceneTiming(raw, doc.meta.pace);
     return {
       ...scene,
       ...timing,

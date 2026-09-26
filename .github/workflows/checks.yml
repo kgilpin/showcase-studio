@@ -1,0 +1,46 @@
+# The quick checks, on every pull request and every push to main:
+#
+#   npm ci ─► lint (eslint, with prettier) ─► type-check (tsc) ─► tests (vitest)
+#
+# Runs on Linux in a few minutes. The Windows app build
+# (desktop-build.yml) runs the tests too, but only when a change touches
+# the build.
+
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces the run still going for the old one.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
