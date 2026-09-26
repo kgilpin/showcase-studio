@@ -303,6 +303,19 @@ npm run dev -- --new [<library folder>]
 - All screenshots are plain image files stored in the showcase's own
   `assets/` folder and resolved locally by key.
 
+## Branches
+
+- Name a branch for the kind of change: `fix/<short-name>` for a bug fix,
+  `feature/<short-name>` for something new — for example
+  `fix/new-showcase-library`.
+- The same goes for a worktree's branch. Claude Code's EnterWorktree tool
+  names the branch `worktree-<name>`, so make the worktree with git
+  instead, then move the session into it (EnterWorktree with `path`):
+
+  ```sh
+  git worktree add -b fix/<short-name> .claude/worktrees/<short-name> origin/main
+  ```
+
 ## Committing
 
 - When building a commit, never modify, move, or delete files on disk to
