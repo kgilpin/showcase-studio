@@ -8,9 +8,9 @@
  *   in this repo    the repo's .mcp.json runs it
  *   in a library    the showcase-studio plugin runs it in place of the
  *                   packaged app when SHOWCASE_STUDIO_SRC names this repo
- * The library defaults to the folder Claude Code runs in when it holds
- * showcases or is one, as the packaged app's --mcp does; otherwise this
- * repo's showcases/.
+ * The library comes from the folder Claude Code runs in, as the packaged
+ * app's --mcp does (libraryForClaude). In this repository that is its
+ * showcases folder; with `source`, that checkout's showcases folder.
  *
  * The studio runs as a child process (server/child-studio.mjs), so each
  * studio_start runs the source as it is then — this checkout's, or the
@@ -21,7 +21,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { devStudioArgs, startChildStudio } from "../server/child-studio.mjs";
-import { findLibrary } from "../server/launch-options.mjs";
+import { LIBRARY_FOR_CLAUDE_HELP, libraryForClaude } from "../server/launch-options.mjs";
 import { serveStudioMcp, takeOverStdout } from "../server/mcp-stdio.mjs";
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -43,11 +43,9 @@ serveStudioMcp({
   sources: true,
   defaultLibrary: (source) =>
     source
-      ? path.join(source, "showcases")
-      : (findLibrary(launchCwd) ?? path.join(repoRoot, "showcases")),
-  libraryHelp:
-    "the folder Claude Code runs in, when it holds showcases or is one; otherwise the " +
-    "studio repo's showcases/ — or, with `source`, that checkout's showcases/",
+      ? { library: path.join(source, "showcases"), reason: "the showcases folder in `source`" }
+      : libraryForClaude(launchCwd),
+  libraryHelp: `${LIBRARY_FOR_CLAUDE_HELP} — or, with \`source\`, that checkout's showcases folder`,
   startStudio: ({ showcasesDir, lock, alongside, source = repoRoot }) =>
     startChildStudio({
       script: path.join(source, "scripts", "dev.mjs"),

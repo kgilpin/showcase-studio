@@ -34,7 +34,12 @@ import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
-import { STUDIO_USAGE, findLibrary, studioOptions } from "../server/launch-options.mjs";
+import {
+  LIBRARY_FOR_CLAUDE_HELP,
+  STUDIO_USAGE,
+  libraryForClaude,
+  studioOptions,
+} from "../server/launch-options.mjs";
 import { showInRecent } from "../server/library-config.mjs";
 import { serveStudioMcp, takeOverStdout } from "../server/mcp-stdio.mjs";
 import { loadSettings, saveSettings } from "../server/settings.mjs";
@@ -60,13 +65,12 @@ const appVersion = require_("../package.json").version;
  * relative paths resolve against where npm was started (INIT_CWD).
  * --help prints the options and quits; a bad option is printed with
  * them, then reported in a dialog once the app is ready. The library
- * defaults to the saved folder (File > Open Folder…), then ~/Showcases —
- * except with --mcp, where the folder Claude Code runs in comes first
- * when it holds showcases or is one. */
+ * defaults to the saved folder (File > Open Folder…), then ~/Showcases.
+ * With --mcp, studio_start picks it instead, from the folder Claude Code
+ * runs in (libraryForClaude). */
 const launchCwd = process.env.INIT_CWD ?? process.cwd();
 const mcpRequested = process.argv.includes("--mcp");
-const savedOrHomeDir = loadSettings().showcasesDir ?? path.join(app.getPath("home"), "Showcases");
-const defaultDir = (mcpRequested && findLibrary(launchCwd)) || savedOrHomeDir;
+const defaultDir = loadSettings().showcasesDir ?? path.join(app.getPath("home"), "Showcases");
 let options;
 let launchError = null;
 try {
@@ -471,10 +475,13 @@ function serveMcp() {
     version: appVersion,
     send,
     cwd: launchCwd,
-    defaultLibrary: () => options.showcasesDir,
-    libraryHelp:
-      "the folder Claude Code runs in, when it holds showcases or is one; otherwise the last " +
-      "folder the app opened, or ~/Showcases",
+    /* --library on the command line wins; otherwise the folder Claude
+     * Code runs in, never the app's saved folder or ~/Showcases. */
+    defaultLibrary: () =>
+      process.argv.some((arg) => arg === "--library" || arg.startsWith("--library="))
+        ? { library: options.showcasesDir, reason: "the folder the app was given with --library" }
+        : libraryForClaude(launchCwd),
+    libraryHelp: LIBRARY_FOR_CLAUDE_HELP,
     windows: true,
     startStudio: async ({ showcasesDir, lock, window }) => {
       await app.whenReady();

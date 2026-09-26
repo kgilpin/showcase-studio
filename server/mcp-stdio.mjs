@@ -12,8 +12,10 @@
  *   studio_start  starts the studio (or restarts it with other choices)
  *                 and returns its URL — open that URL to see it, or, in
  *                 the app, ask for the studio's own window. When another
- *                 studio already has the library open, it starts nothing
- *                 and says what to do instead (alreadyOpen, below)
+ *                 studio already has the library open, or the user has
+ *                 to choose the library first, it starts nothing and
+ *                 says what to do instead (alreadyOpen and chooseLibrary,
+ *                 below)
  *   studio_stop   stops it
  *   the studio's own tools (server/mcp.mjs) use the running studio,
  *                 starting an unlocked one first when none is running
@@ -22,7 +24,7 @@
  * Claude Code closes stdin. stdout carries MCP messages only, so
  * takeOverStdout sends everything else to stderr.
  */
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { CHANGE_LOG } from "./change-log.mjs";
@@ -57,6 +59,8 @@ function studioTools({ windows, sources, libraryHelp }) {
         "Start Showcase Studio — or restart it with other choices — and return its URL as " +
         "`open`, and in `guide` the authoring guide to read before changing any showcase. " +
         "`changes` is the studio's change log: one JSON line per edit made in the studio. " +
+        "`library` is the showcases folder in use, and `libraryReason` says why that one: " +
+        "tell the user which folder it is before creating a showcase. " +
         "`history` says whether the studio commits changes to git: {git, autoCommit, enabled, " +
         "available, branch, reason?}; enabled is the user's own switch, so don't change it. " +
         "`pageError` {message, stack, path, at} appears when a studio page failed to render " +
@@ -72,7 +76,10 @@ function studioTools({ windows, sources, libraryHelp }) {
         "alreadyOpen, git, next}. Two sessions editing the same files end badly, so do what " +
         "`next` says: offer the user a git worktree (a separate copy with its own studio), " +
         "or ask them. Pass `alongside: true` only when the user chooses to run a second " +
-        "studio on the same files anyway." +
+        "studio on the same files anyway. When the user has to choose the showcases folder " +
+        "first — the folder Claude Code runs in holds other files, or is the home folder — " +
+        "nothing starts either, and the result is {started: false, chooseLibrary, next}: ask " +
+        "the user what `next` says, then call studio_start with their choice as `library`." +
         (sources
           ? " Each studio_start runs the studio's source as it is now, so after changing " +
             "server code, studio_stop then studio_start runs the new code. To try the changes " +
@@ -94,7 +101,9 @@ function studioTools({ windows, sources, libraryHelp }) {
           },
           library: {
             type: "string",
-            description: `The showcases folder: absolute, relative, or starting with ~ (default: ${libraryHelp})`,
+            description:
+              `The showcases folder: absolute, relative, or starting with ~ (default: ${libraryHelp}). ` +
+              "A folder that doesn't exist yet is created, when the folder above it exists.",
           },
           alongside: {
             type: "boolean",
@@ -197,6 +206,36 @@ export async function alreadyOpen(library, url) {
   };
 }
 
+/** studio_start's answer when the user has to choose the library: the
+ *  folder Claude Code runs in holds other files and no showcases, or is
+ *  the home folder. `ask` is libraryForClaude's (server/launch-options.mjs).
+ *  Nothing is started, and nothing is created, until the user answers. */
+export function chooseLibrary(ask) {
+  const { folder, why, suggested } = ask;
+  const then =
+    "Then call studio_start again with `library` set to the folder they choose (it is " +
+    "created if it doesn't exist yet), and tell them where their showcases will be.";
+  return {
+    started: false,
+    chooseLibrary: ask,
+    next:
+      why === "home"
+        ? `Claude Code runs in ${folder}, the home folder (or the top of a disk). Showcases ` +
+          "put straight into it would be mixed in with everything else there, so no studio " +
+          "was started. Ask the user where their showcases should go: in a new showcases " +
+          `folder, ${suggested} (recommended), or in another folder they name. ${then}`
+        : `The folder Claude Code runs in, ${folder}, holds other files and no showcases, ` +
+          "so no studio was started. Ask the user where their showcases should go: (1) in a " +
+          `new showcases folder inside it, ${suggested} (recommended); (2) in ${folder} ` +
+          "itself, mixed in with the other files; or (3) in another folder they name. " +
+          then,
+  };
+}
+
+/** A default library in either form: a folder, or libraryForClaude's
+ *  `{ library, reason }` / `{ ask }`. */
+const libraryChoice = (value) => (typeof value === "string" ? { library: value } : value);
+
 /** The MCP server without its channel. Returns `{ rpc, shutdown }`.
  *
  *  startStudio({ showcasesDir, lock, window, source, alongside })  starts a
@@ -205,7 +244,10 @@ export async function alreadyOpen(library, url) {
  *                         with `{ studio, url, landingUrl(facts?),
  *                         close() }` — landingUrl may use the studio's
  *                         studio_info facts to find its current page
- *  defaultLibrary(source) the library when studio_start names none
+ *  defaultLibrary(source) the library when studio_start names none: a
+ *                         folder, or libraryForClaude's answer —
+ *                         `{ library, reason }`, or `{ ask }` when the user
+ *                         has to choose
  *  libraryHelp            that default, in words, for the tool description
  *  cwd                    what a relative path resolves against
  *  windows                offer the `window` choice (the app can show one)
@@ -221,7 +263,7 @@ export function createStudioMcp({
   sources = false,
   log = (message) => console.error(message),
 }) {
-  let running; // { studio, url, landingUrl(facts?), close(), choices }
+  let running; // { studio, url, landingUrl(facts?), close(), choices, libraryReason }
   /* The library the user chose a second studio for (alongside: true), so
    * restarting that studio with other choices doesn't ask again. */
   let alongsideFor = null;
@@ -244,7 +286,8 @@ export function createStudioMcp({
   /** Starts the studio with the same choices --open, --new and --library
    *  offer, checked by the same code — before the running studio stops, so
    *  a wrong choice leaves it running. Resolves with the running studio,
-   *  or with `{ blocked }` when another studio has the library. */
+   *  or with `{ blocked }` when another studio has the library or the user
+   *  has to choose one. */
   async function start(choices = {}) {
     const { showcase, new: fresh, library, window, alongside } = choices;
     const source =
@@ -255,7 +298,25 @@ export function createStudioMcp({
       throw new Error(`${source} isn't a checkout of Showcase Studio (no scripts/dev.mjs).`);
     }
     const named = library !== undefined;
-    const libraryDir = named ? resolvePath(String(library), { cwd }) : defaultLibrary(source);
+    const choice = named
+      ? {
+          library: resolvePath(String(library), { cwd }),
+          reason: "the folder studio_start was given",
+        }
+      : libraryChoice(defaultLibrary(source));
+    if (choice.ask) return { blocked: chooseLibrary(choice.ask) };
+    const libraryDir = choice.library;
+    /* The user's answer to chooseLibrary can name a folder to make, such
+     * as a showcases folder inside the one Claude Code runs in. Only one
+     * level: a mistyped path shouldn't make a trail of folders. */
+    if (
+      named &&
+      showcase === undefined &&
+      !existsSync(libraryDir) &&
+      existsSync(path.dirname(libraryDir))
+    ) {
+      mkdirSync(libraryDir);
+    }
     const argv = [];
     if (showcase !== undefined) argv.push(`--open=${path.join(libraryDir, String(showcase))}`);
     if (fresh) argv.push(named ? `--new=${libraryDir}` : "--new");
@@ -278,6 +339,7 @@ export function createStudioMcp({
       alongside: second,
     });
     running.choices = choices;
+    running.libraryReason = choice.reason;
     alongsideFor = second ? options.showcasesDir : null;
     log(`studio: ${running.landingUrl()}`);
     return running;
@@ -316,6 +378,7 @@ export function createStudioMcp({
       const facts = JSON.parse(result.content[0].text);
       return json({
         ...facts,
+        ...(current.libraryReason ? { libraryReason: current.libraryReason } : {}),
         open: current.landingUrl(facts),
         guide: path.join(facts.library, ".studio", "GUIDE.md"),
         changes: path.join(facts.library, CHANGE_LOG),
@@ -326,14 +389,16 @@ export function createStudioMcp({
     }
     const [current, result] = await runTool(params);
     if (current.blocked) {
-      const { url, library } = current.blocked.alreadyOpen;
+      const { alreadyOpen: open } = current.blocked;
       return {
         content: [
           {
             type: "text",
-            text:
-              `Another studio already has ${library} open, at ${url}, so none was started. ` +
-              "Call studio_start: it says what to offer the user.",
+            text: open
+              ? `Another studio already has ${open.library} open, at ${open.url}, so none was ` +
+                "started. Call studio_start: it says what to offer the user."
+              : "No studio was started: the user has to choose the showcases folder first. " +
+                "Call studio_start: it says what to ask.",
           },
         ],
         isError: true,
