@@ -57,9 +57,12 @@ import {
   WATERMARK_POSITIONS,
   WATERMARK_SCALE,
 } from "../src/content/watermark-rules.mjs";
+import {
+  CAPTION_POSITION_HELP,
+  isCaptionPosition,
+} from "../src/content/caption-position-rules.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
-const CAPTION_POSITIONS = ["top", "center", "lower", "bottom"];
 /* The brand mark sits in a corner — there is no banner position, and no
  * affordance for turning the App Store badge into a watermark. See
  * src/content/watermark.ts for why. */
@@ -105,7 +108,7 @@ const META_FIELDS = {
 const CAPTION_FIELDS = {
   text: { kind: "string" },
   durationMs: { kind: "duration", removable: true },
-  position: { kind: "enum", values: CAPTION_POSITIONS, removable: true },
+  position: { kind: "captionPosition", removable: true },
 };
 
 /** Validates one whitelisted-field value. Returns `{ remove: true }` for
@@ -132,6 +135,9 @@ function checkFieldValue(fields, where, name, value) {
         throw new Error(`${label} must be one of: ${spec.values.join(", ")}`);
       }
       return { value };
+    case "captionPosition":
+      if (!isCaptionPosition(value)) throw new Error(`${label} must be ${CAPTION_POSITION_HELP}`);
+      return { value: value.trim() };
     case "duration":
       if (!Number.isInteger(value) || value <= 0) {
         throw new Error(`${label} must be a whole number of milliseconds`);

@@ -1,12 +1,8 @@
 import { cn } from "@/lib/utils";
-import {
-  activeCaption,
-  wordTimeline,
-  type CaptionPosition,
-  type Scene,
-  type WordWindow,
-} from "@/content/showcases";
+import { activeCaption, wordTimeline, type Scene, type WordWindow } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
+import { captionPlacement } from "./caption-placement";
+import type { CaptionPreset } from "@/content/caption-position-rules.mjs";
 import { SceneWatermark } from "./SceneWatermark";
 import { EditableText } from "@/components/studio/EditableText";
 import appStoreBadge from "@/assets/app-store-badge.svg";
@@ -86,15 +82,18 @@ export function WordLine({
   );
 }
 
-/** Vertical placement of the overlay caption on a slide. The default
- *  "bottom" floats 18% up from the edge — clear of TikTok's caption
- *  block, music bar, and seekbar, which own the bottom fifth of the
- *  frame in the overlay (video) presentation. */
-const captionPositionClass: Record<CaptionPosition, string> = {
-  top: "top-5",
+/** Vertical placement of the overlay caption on a portrait slide —
+ *  the TikTok video. TikTok covers about the top 13% (status bar, For
+ *  You / Following tabs) and the bottom 25% (username, description,
+ *  search and nav bars), so "top" sits just below the tabs, where
+ *  TikTok's own captions go, and "bottom" (the default) sits just above
+ *  the description. An exact height ("14%") is placed by
+ *  captionPlacement. */
+const captionPositionClass: Record<CaptionPreset, string> = {
+  top: "top-[13%]",
   center: "top-1/2 -translate-y-1/2",
   lower: "top-[60%] -translate-y-1/2",
-  bottom: "bottom-[18%]",
+  bottom: "bottom-[25%]",
 };
 
 function FixedStage({
@@ -216,7 +215,7 @@ export function SceneView({
   const spoken = caption?.text ?? scene.body;
   const body = spoken === scene.title ? undefined : spoken;
   const captionKey = caption?.text ?? "body";
-  const captionPlacement = captionPositionClass[caption?.position ?? "bottom"];
+  const placement = captionPlacement(caption?.position, captionPositionClass);
   /* What goes inside the chip: the plain line, or its worded painting. */
   const captionBody =
     body != null &&
@@ -384,7 +383,8 @@ export function SceneView({
             {body && !hideCaption && (
               <div
                 key={captionKey}
-                className={cn("caption-fade absolute inset-x-6 text-center", captionPlacement)}
+                className={cn("caption-fade absolute inset-x-6 text-center", placement.className)}
+                style={placement.style}
               >
                 <p className={stageCaptionClass}>
                   <span className="caption-chip">{captionBody}</span>
@@ -410,7 +410,8 @@ export function SceneView({
             {body && !hideCaption && (
               <div
                 key={captionKey}
-                className={cn("caption-fade absolute inset-x-6 text-center", captionPlacement)}
+                className={cn("caption-fade absolute inset-x-6 text-center", placement.className)}
+                style={placement.style}
               >
                 <p className={stageCaptionClass}>
                   <span className="caption-chip">{captionBody}</span>

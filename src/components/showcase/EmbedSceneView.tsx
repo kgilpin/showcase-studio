@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
-import { activeCaption, type CaptionPosition, type Scene } from "@/content/showcases";
+import { activeCaption, type Scene } from "@/content/showcases";
+import type { CaptionPreset } from "@/content/caption-position-rules.mjs";
 import { SceneMedia } from "./SceneMedia";
+import { captionPlacement } from "./caption-placement";
 import { SceneWatermark } from "./SceneWatermark";
 import { CtaContent, WordLine } from "./SceneView";
 
@@ -21,7 +23,7 @@ import { CtaContent, WordLine } from "./SceneView";
  * portrait canvas's approach. */
 export const EMBED_ASPECT = "4 / 3";
 
-const chipPlacement: Record<CaptionPosition, string> = {
+const chipPlacement: Record<CaptionPreset, string> = {
   top: "top-[6%]",
   center: "top-1/2 -translate-y-1/2",
   lower: "top-[60%] -translate-y-1/2",
@@ -49,14 +51,13 @@ export function EmbedSceneView({
    * off the slide. */
   const body = spoken === scene.title ? undefined : spoken;
   const captionKey = caption?.text ?? "body";
+  const placement = captionPlacement(caption?.position, chipPlacement);
 
   const chips = body && (
     <div
       key={captionKey}
-      className={cn(
-        "caption-fade absolute inset-x-[6%] text-center",
-        chipPlacement[caption?.position ?? "bottom"],
-      )}
+      className={cn("caption-fade absolute inset-x-[6%] text-center", placement.className)}
+      style={placement.style}
     >
       <p className="text-[2.6cqw] font-semibold leading-[1.55] text-[color:var(--caption-text,#fff)]">
         <span className="caption-chip">
