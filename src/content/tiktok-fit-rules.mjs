@@ -3,7 +3,8 @@
  * and the studio's edit tool (server/edit-yaml.mjs) read one copy.
  * Types live in tiktok-fit-rules.d.mts; the model is in tiktok-fit.ts. */
 
-export const TIKTOK_FIELDS = ["fit", "focus", "bands"];
+export const TIKTOK_FIELDS = ["fit", "focus", "bands", "area"];
+export const TIKTOK_AREA_SIDES = ["top", "right", "bottom", "left"];
 export const TIKTOK_FITS = ["fill", "fit"];
 export const TIKTOK_BANDS = ["blur", "color"];
 export const TIKTOK_FOCUS_PRESETS = ["top", "center", "bottom"];
@@ -16,6 +17,22 @@ export function tiktokFocus(value) {
   if (TIKTOK_FOCUS_PRESETS.includes(value)) return value;
   const match = typeof value === "string" ? PERCENT.exec(value.trim()) : null;
   return match && Number(match[1]) <= 100 ? `${Number(match[1])}%` : null;
+}
+
+/** The area as numbers — how far in from each edge of the 9:16 frame the
+ *  picture's box starts, in percent ({top: 31, right: 16, bottom: 25,
+ *  left: 5}) — or null when `value` isn't one. A side left out is 0%. */
+export function tiktokArea(value) {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return null;
+  const area = { top: 0, right: 0, bottom: 0, left: 0 };
+  for (const [side, inset] of Object.entries(value)) {
+    if (!TIKTOK_AREA_SIDES.includes(side)) return null;
+    const match = typeof inset === "string" ? PERCENT.exec(inset.trim()) : null;
+    if (!match) return null;
+    area[side] = Number(match[1]);
+  }
+  if (area.top + area.bottom >= 100 || area.left + area.right >= 100) return null;
+  return area;
 }
 
 /** What is wrong with one field of a `tiktok` map, or null when it's fine. */
@@ -34,6 +51,13 @@ export function tiktokFieldProblem(label, key, value) {
     return TIKTOK_BANDS.includes(value)
       ? null
       : `${label}.bands "${value}" isn't a band style — use blur or color`;
+  }
+  if (key === "area") {
+    return tiktokArea(value) != null
+      ? null
+      : `${label}.area isn't an area — use a map of insets from the frame's edges, like ` +
+          `{top: 31%, right: 16%, bottom: 25%, left: 5%} (a side left out is 0%, and ` +
+          `opposite sides must leave room between them)`;
   }
   return `${label} has no field "${key}" — its fields are ${TIKTOK_FIELDS.join(", ")}`;
 }

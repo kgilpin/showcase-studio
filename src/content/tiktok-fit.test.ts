@@ -12,8 +12,35 @@ describe("readTikTokFit", () => {
     expect(spec).toEqual({ fit: "fill", focus: "40%" });
     expect(warnings).toEqual([
       'media.tiktok.bands "stripes" isn\'t a band style — use blur or color',
-      'media.tiktok has no field "zoom" — its fields are fit, focus, bands',
+      'media.tiktok has no field "zoom" — its fields are fit, focus, bands, area',
     ]);
+  });
+
+  it("reads an area as insets from the frame's edges, a missing side as 0%", () => {
+    const warnings: string[] = [];
+    const spec = readTikTokFit(
+      { fit: "fit", area: { top: "31%", right: "16%", bottom: "25%" } },
+      "meta.tiktok",
+      (m) => warnings.push(m),
+    );
+    expect(spec).toEqual({ fit: "fit", area: { top: 31, right: 16, bottom: 25, left: 0 } });
+    expect(warnings).toEqual([]);
+  });
+
+  it("refuses an area whose sides meet or that isn't in percent", () => {
+    const warnings: string[] = [];
+    expect(
+      readTikTokFit({ area: { top: "60%", bottom: "40%" } }, "meta.tiktok", (m) =>
+        warnings.push(m),
+      ),
+    ).toEqual({});
+    expect(readTikTokFit({ area: { top: 10 } }, "meta.tiktok", (m) => warnings.push(m))).toEqual(
+      {},
+    );
+    expect(
+      readTikTokFit({ area: { middle: "10%" } }, "meta.tiktok", (m) => warnings.push(m)),
+    ).toEqual({});
+    expect(warnings).toHaveLength(3);
   });
 
   it("refuses a focus past 100% and a value that isn't a map", () => {
@@ -29,6 +56,16 @@ describe("resolveTikTokFit", () => {
     expect(
       resolveTikTokFit({ bands: "color" }, { fit: "fit", focus: "top" }, { fit: "cover" }),
     ).toEqual({ fit: "fit", focus: "top", bands: "color" });
+  });
+
+  it("takes the showcase's area when the scene sets only its fit", () => {
+    const area = { top: 31, right: 16, bottom: 25, left: 5 };
+    expect(resolveTikTokFit({ fit: "fill" }, { fit: "fit", area }, {})).toEqual({
+      fit: "fill",
+      focus: "center",
+      bands: "blur",
+      area,
+    });
   });
 
   it("keeps a scene that sets nothing as it was: cover fills, align is the focus", () => {
