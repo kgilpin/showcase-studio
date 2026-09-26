@@ -155,6 +155,47 @@ describe("the studio's MCP server", () => {
     expect(started[0]).toMatchObject({ showcasesDir: lib, lock: { showcaseId: "nova" } });
   });
 
+  it("says which library it uses, and why", async () => {
+    const lib = library("nova");
+    const { startStudio } = fakeStudios();
+    const reason = "the folder Claude Code runs in, which holds showcases";
+    const { call, read } = server({
+      startStudio,
+      defaultLibrary: () => ({ library: lib, reason }),
+    });
+    expect(read(await call("studio_start", { new: true }))).toMatchObject({
+      library: lib,
+      libraryReason: reason,
+    });
+    expect(read(await call("studio_start", { library: lib }))).toMatchObject({
+      libraryReason: "the folder studio_start was given",
+    });
+  });
+
+  it("starts nothing when the user has to choose the library, then makes the folder they choose", async () => {
+    const project = library();
+    const suggested = path.join(project, "showcases");
+    const ask = { folder: project, why: "other files", suggested };
+    const { started, startStudio } = fakeStudios();
+    const { call, read } = server({ startStudio, defaultLibrary: () => ({ ask }) });
+
+    const answer = read(await call("studio_start", { new: true }));
+    expect(answer).toMatchObject({ started: false, chooseLibrary: ask });
+    expect(answer.next).toContain(suggested);
+    const other = await call("validate");
+    expect(other.isError).toBe(true);
+    expect(other.content[0].text).toMatch(/choose the showcases folder/);
+    expect(started).toHaveLength(0);
+
+    await call("studio_start", { new: true, library: suggested });
+    expect(existsSync(suggested)).toBe(true);
+    expect(started[0]).toMatchObject({ showcasesDir: suggested, lock: { kind: "new" } });
+    /* Only one level is made: a mistyped path isn't. */
+    const typo = await call("studio_start", { library: path.join(project, "a", "b") });
+    expect(typo.isError).toBe(true);
+    expect(existsSync(path.join(project, "a"))).toBe(false);
+  });
+
   it("runs another checkout, with its own showcases, when given a source", async () => {
     const checkout = library("nova");
     mkdirSync(path.join(checkout, "scripts"));

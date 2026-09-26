@@ -189,7 +189,13 @@ npm run dev -- --new [<library folder>]
 #                   Or from source: set SHOWCASE_STUDIO_SRC=<repo> (e.g. in
 #                   the library's .claude/settings.local.json "env") and the
 #                   plugin runs scripts/studio-mcp.mjs with Node 22 instead.
-#                   Its library defaults to the folder Claude Code runs in.
+#                   Its library defaults to the folder Claude Code runs in
+#                   (or a showcases folder inside it), never the app's last
+#                   folder or ~/Showcases. When that folder holds other
+#                   files, or is the home folder, studio_start starts
+#                   nothing and answers {started: false, chooseLibrary,
+#                   next}, so Claude asks the user
+#                   (libraryForClaude in server/launch-options.mjs).
 # The preview shows the studio the MCP tools started: Claude opens
 # studio_start's URL. To show the user one showcase, call studio_start
 # with showcase: <id>, which locks the studio to it (no Home link); leave

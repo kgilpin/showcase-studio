@@ -45,8 +45,8 @@ Options:
   --library <folder>         Use this showcases folder. Default: this repo's
                              showcases/ from source; in the packaged app, the
                              last folder opened, or ~/Showcases. With --mcp,
-                             the folder Claude Code runs in comes first, when
-                             it holds showcases or is one.
+                             the folder Claude Code runs in; when it holds
+                             other files, Claude asks the user first.
   --export <kind>:<id>       Export one showcase, then quit.
                              Kinds: ${EXPORT_KINDS.join(", ")}.
   --no-terminal              Turn off the studio agent's embedded terminals —
@@ -125,6 +125,69 @@ export function findLibrary(dir) {
   if (existsSync(path.join(dir, "showcase.yaml"))) return path.dirname(dir);
   return undefined;
 }
+
+/** libraryForClaude's rule in words, for studio_start's description. */
+export const LIBRARY_FOR_CLAUDE_HELP =
+  "the folder Claude Code runs in, when it holds showcases, is one, or is empty; or a " +
+  "showcases folder inside it that holds showcases. When it holds other files, or is the " +
+  "home folder, studio_start asks for this instead";
+
+/** The library for a studio that Claude Code starts in `dir`, the folder
+ *  Claude Code runs in. It never falls back to a folder the user didn't
+ *  point at (the app's last folder, or ~/Showcases): a Claude Code session
+ *  works in one folder, and that's where the user looks for new work.
+ *
+ *  Returns `{ library, reason }` when the choice is clear, where `reason`
+ *  says in words why that folder. Returns `{ ask }` when the user has to
+ *  choose — `ask` is `{ folder, why, suggested }`, where `why` is "home"
+ *  (the home folder, or the top of a disk) or "other files" (a folder with
+ *  things in it but no showcases), and `suggested` is a `showcases`
+ *  folder inside it.
+ *
+ *    dir holds showcases                 → dir
+ *    dir is one showcase                 → the folder above it
+ *    dir has .studio/ (set up before)    → dir
+ *    dir/showcases holds showcases, or
+ *    has .studio/ (set up before)        → dir/showcases
+ *    dir is the home folder or a disk    → ask
+ *    dir is empty (dot files aside)      → dir
+ *    anything else                       → ask */
+export function libraryForClaude(dir, { home = homedir() } = {}) {
+  const here = "the folder Claude Code runs in";
+  const found = findLibrary(dir);
+  if (found === dir) return { library: dir, reason: `${here}, which holds showcases` };
+  if (found) return { library: found, reason: `the folder above ${here}, which is a showcase` };
+  if (isDirectory(path.join(dir, ".studio"))) {
+    return { library: dir, reason: `${here}, set up as a showcases folder before` };
+  }
+  const entries = listFolder(dir);
+  /* Matched without regard to case: macOS and Windows would find
+   * ~/Showcases under either spelling, so use the one on disk. */
+  const sub = entries.find((entry) => entry.isDirectory() && /^showcases$/i.test(entry.name));
+  if (sub) {
+    const subDir = path.join(dir, sub.name);
+    if (holdsShowcases(subDir) || isDirectory(path.join(subDir, ".studio"))) {
+      return { library: subDir, reason: `the ${sub.name} folder inside ${here}` };
+    }
+  }
+  const suggested = path.join(dir, sub?.name ?? "showcases");
+  const resolved = path.resolve(dir);
+  if (resolved === path.resolve(home) || resolved === path.parse(resolved).root) {
+    return { ask: { folder: dir, why: "home", suggested } };
+  }
+  if (entries.every((entry) => entry.name.startsWith("."))) {
+    return { library: dir, reason: `${here}, which is empty` };
+  }
+  return { ask: { folder: dir, why: "other files", suggested } };
+}
+
+const listFolder = (dir) => {
+  try {
+    return readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+};
 
 /** Parses argv into the studio's options:
  *  `{ help, electron, mcp, terminal, autoCommit, window, showcasesDir, lock, exportJob,

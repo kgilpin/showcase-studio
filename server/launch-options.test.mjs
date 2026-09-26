@@ -6,6 +6,7 @@ import {
   EXPORT_KINDS,
   STUDIO_USAGE,
   findLibrary,
+  libraryForClaude,
   resolvePath,
   studioOptions,
 } from "./launch-options.mjs";
@@ -38,6 +39,58 @@ describe("findLibrary", () => {
     const empty = library();
     expect(findLibrary(empty)).toBeUndefined();
     expect(findLibrary(path.join(empty, "missing"))).toBeUndefined();
+  });
+});
+
+describe("libraryForClaude", () => {
+  const home = "/Users/nobody";
+
+  it("uses a folder that holds showcases, or the folder above a showcase", () => {
+    const lib = library("nova");
+    expect(libraryForClaude(lib, { home })).toMatchObject({ library: lib });
+    expect(libraryForClaude(path.join(lib, "nova"), { home })).toMatchObject({ library: lib });
+  });
+
+  it("uses an empty folder, even one with hidden files, and says why", () => {
+    const empty = library();
+    mkdirSync(path.join(empty, ".git"));
+    writeFileSync(path.join(empty, ".DS_Store"), "");
+    expect(libraryForClaude(empty, { home })).toEqual({
+      library: empty,
+      reason: "the folder Claude Code runs in, which is empty",
+    });
+  });
+
+  it("asks about a folder with other files in it, suggesting a showcases folder inside", () => {
+    const project = library();
+    writeFileSync(path.join(project, "package.json"), "{}");
+    expect(libraryForClaude(project, { home })).toEqual({
+      ask: { folder: project, why: "other files", suggested: path.join(project, "showcases") },
+    });
+  });
+
+  it("uses a folder the studio set up before, showcases or not", () => {
+    const project = library();
+    writeFileSync(path.join(project, "notes.txt"), "");
+    mkdirSync(path.join(project, ".studio"));
+    expect(libraryForClaude(project, { home })).toMatchObject({ library: project });
+  });
+
+  it("uses a showcases folder inside, spelled as it is on disk", () => {
+    const project = library();
+    writeFileSync(path.join(project, "package.json"), "{}");
+    mkdirSync(path.join(project, "Showcases", "nova"), { recursive: true });
+    writeFileSync(path.join(project, "Showcases", "nova", "showcase.yaml"), "scenes: []\n");
+    expect(libraryForClaude(project, { home })).toMatchObject({
+      library: path.join(project, "Showcases"),
+    });
+  });
+
+  it("asks about the home folder, even when it is empty", () => {
+    const empty = library();
+    expect(libraryForClaude(empty, { home: empty })).toEqual({
+      ask: { folder: empty, why: "home", suggested: path.join(empty, "showcases") },
+    });
   });
 });
 
