@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { MediaAlign, SceneMedia as SceneMediaType, SceneMotion } from "@/content/showcases";
 import { focusPercent, resolveTikTokFit } from "@/content/tiktok-fit";
+import { pictureRect } from "@/content/media-overlay";
 
 const motionClass: Record<SceneMotion, string> = {
   "zoom-in": "motion-zoom-in",
@@ -16,6 +17,9 @@ const alignClass: Record<MediaAlign, string> = {
   center: "object-center",
   bottom: "object-bottom",
 };
+
+/* The same alignments as a vertical object-position, for placing an overlay. */
+const alignPercent: Record<MediaAlign, number> = { top: 0, center: 50, bottom: 100 };
 
 type Props = {
   media: SceneMediaType;
@@ -43,6 +47,37 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
       else void video.play().catch(() => undefined);
     }
   }, [paused, videoSrc]);
+
+  /* An overlay needs two sizes to find the picture: the media box's, and
+   * the picture's own (known once the image or the video's metadata has
+   * loaded). The picture size is kept with its src, so a new asset never
+   * borrows the last one's. */
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [box, setBox] = useState<{ width: number; height: number }>();
+  const [picture, setPicture] = useState<{ src: string; width: number; height: number }>();
+  const pictureSrc = media.kind === "image" || media.kind === "video" ? media.src : undefined;
+  const hasOverlay = (media.kind === "image" || media.kind === "video") && !!media.overlay;
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!hasOverlay || !el) return;
+    const measure = () => setBox({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasOverlay]);
+  useEffect(() => {
+    /* An image or video that loaded before this effect ran fires no event. */
+    if (!hasOverlay || !pictureSrc) return;
+    const video = videoRef.current;
+    const img = imgRef.current;
+    if (video && video.readyState >= 1) {
+      setPicture({ src: pictureSrc, width: video.videoWidth, height: video.videoHeight });
+    } else if (img?.complete && img.naturalWidth) {
+      setPicture({ src: pictureSrc, width: img.naturalWidth, height: img.naturalHeight });
+    }
+  }, [hasOverlay, pictureSrc]);
 
   if (media.kind === "none") return null;
 
@@ -104,9 +139,23 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
    * dimmed so the sharp copy in front reads as the subject. */
   const bandClass =
     "absolute inset-0 h-full w-full scale-110 object-cover blur-[6cqw] brightness-50";
+  /* The overlay's box: exactly where the picture landed, by the same fit
+   * and position the picture itself used. */
+  const Overlay = media.overlay?.component;
+  const overlayRect =
+    Overlay && box && picture?.src === media.src
+      ? pictureRect(box, picture, fit === "object-contain" ? "contain" : "cover", {
+          x: 50,
+          y: tiktok?.fit === "fill" ? focusPercent(tiktok.focus) : alignPercent[media.align ?? "center"],
+        })
+      : undefined;
+  const onPictureSize = (width: number, height: number) => {
+    if (Overlay && width && height) setPicture({ src: media.src, width, height });
+  };
 
   return (
     <div
+      ref={boxRef}
       className={cn(
         "relative h-full w-full",
         media.frame === "mark" ? "overflow-visible" : "overflow-hidden",
@@ -141,14 +190,19 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
           aria-label={media.alt}
           className={cn("relative h-full w-full", fit, align, motion)}
           style={{ ...style, ...focusStyle }}
+          onLoadedMetadata={(e) =>
+            onPictureSize(e.currentTarget.videoWidth, e.currentTarget.videoHeight)
+          }
         />
       ) : (
         <img
           key={media.src}
+          ref={imgRef}
           src={media.src}
           alt={media.alt}
           className={cn("relative h-full w-full", fit, align, motion)}
           style={{ ...style, ...focusStyle }}
+          onLoad={(e) => onPictureSize(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
         />
       )}
       {media.kind === "image" && media.fadeTo && (
@@ -159,6 +213,33 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
           className={cn("motion-cross-fade absolute inset-0 h-full w-full", fit, fadeAlign)}
           style={{ ...style, ...focusStyle }}
         />
+      )}
+      {/* The overlay mounts with the picture, so its CSS animations start
+          when the clip does (the video recorder scrubs both on the same
+          clock). It shares the picture's motion, so a zoom moves both
+          together, and stays hidden until the picture's size is known. */}
+      {Overlay && (
+        <div
+          aria-hidden
+          className={cn("pointer-events-none absolute inset-0", motion, paused && "media-paused")}
+          style={style}
+        >
+          <div
+            className="absolute"
+            style={
+              overlayRect
+                ? {
+                    left: overlayRect.left,
+                    top: overlayRect.top,
+                    width: overlayRect.width,
+                    height: overlayRect.height,
+                  }
+                : { inset: 0, visibility: "hidden" }
+            }
+          >
+            <Overlay />
+          </div>
+        </div>
       )}
     </div>
   );
