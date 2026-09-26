@@ -95,6 +95,11 @@ export type SceneMedia =
       /** The scene's own media.tiktok as authored (checked), when it has
        *  one — the stage controls show it can be reset. */
       tiktokOwn?: TikTokFitSpec | undefined;
+      /** A TSX graphic drawn over the picture (media.overlay): arrows,
+       *  rings and labels that point at what matters in a recording. Its
+       *  box covers exactly the picture as shown, whatever the fit, and
+       *  moves with the picture's motion (media-overlay.ts). */
+      overlay?: { graphic: string; component: ComponentType; file?: string | undefined };
       /** Optional second screenshot that cross-fades in midway through the scene. */
       fadeTo?:
         | {
@@ -275,6 +280,8 @@ type RawMedia =
       fit?: MediaFit;
       /** As authored — checked and resolved in buildShowcase. */
       tiktok?: unknown;
+      /** Graphic key in graphics/, drawn over the picture. */
+      overlay?: string;
       fadeTo?: { asset: string; alt: string; align?: MediaAlign };
     }
   | {
@@ -594,8 +601,24 @@ function resolveMedia(
     const fadeMismatch = mediaKindWarning("image", media.fadeTo.asset, fadeTo.file, "fadeTo");
     if (fadeMismatch) warn(fadeMismatch);
   }
+  /* A missing overlay warns and leaves the picture plain — the slide
+   * still plays, just without its annotations. */
+  let overlay: { graphic: string; component: ComponentType; file?: string | undefined } | undefined;
+  if (media.overlay !== undefined) {
+    if (typeof media.overlay !== "string" || !media.overlay) {
+      warn("media.overlay must be a graphic key (a file name in graphics/, without .tsx)");
+    } else {
+      try {
+        const graphic = resolveGraphic(showcaseId, media.overlay);
+        overlay = { graphic: media.overlay, component: graphic.component, file: graphic.file };
+      } catch (error) {
+        warn(String(error instanceof Error ? error.message : error));
+      }
+    }
+  }
   return {
     kind: media.kind,
+    ...(overlay ? { overlay } : {}),
     src: asset.url,
     asset: media.asset,
     file: asset.file,
