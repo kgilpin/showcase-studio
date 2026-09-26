@@ -119,10 +119,24 @@ from the app's source.
 
 - `theme.yaml`, `assets/`, `graphics/`: edit the files directly. The
   studio reloads by itself.
-- You can't make screenshots or recordings. Ask the user to drop them
-  into the showcase's `assets/` folder, or to paste or drag them onto the
-  studio's Assets page. An image pasted into the Claude chat never
-  reaches a file you can read.
+- Media is either the user's real product or something you build, and
+  both belong in a showcase:
+  - **Their product** — screenshots and recordings. Don't fabricate
+    these. When the user drops an image or video into the chat, Claude
+    Code writes it to a file and gives you the path: pass that path to
+    `add_asset`, which copies it into the showcase's `assets/` and tells
+    you the key to use. Do the same with anything you captured yourself
+    (a simulator, a browser, their screen) when they asked for it, and
+    say what you captured. They can also drop files onto the studio's
+    Assets page, or into the folder.
+  - **Diagrams and explainers you draw** — write them as TSX graphics
+    (`<id>/graphics/<key>.tsx`, used as
+    `media {kind: graphic, graphic: <key>}`). The guide has the rules. A
+    scene explaining a flow or a comparison is often better as a graphic
+    than as a screenshot of a screen that doesn't show it.
+
+  One thing that is never source media: `screenshot_slide` captures a
+  finished slide, not the product.
 
 ## 4. Check before you say it's done
 

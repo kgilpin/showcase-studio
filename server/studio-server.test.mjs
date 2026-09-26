@@ -432,6 +432,57 @@ scenes:
     expect(script.content[0].text).toContain("NOVA");
   });
 
+  /* An image the user drops into the Claude chat, or a screenshot Claude
+   * captured, is a file somewhere else on disk. Without this tool the
+   * user had to find that file and drag it onto the Assets page. */
+  it("add_asset copies files in, names the key, and logs the write", async () => {
+    const { studio, library } = await startStudio();
+    const dropped = path.join(tempDir("chat-drop-"), "image.png");
+    writeFileSync(dropped, "what the user dropped");
+
+    const result = await studio.callTool({
+      name: "add_asset",
+      arguments: { showcaseId: "nova", files: [{ path: dropped, name: "empty-state.png" }] },
+    });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      showcaseId: "nova",
+      assets: [{ name: "empty-state.png", key: "empty-state" }],
+    });
+    const landed = path.join(library, "nova", "assets", "empty-state.png");
+    expect(readFileSync(landed, "utf8")).toBe("what the user dropped");
+
+    /* Logged like every other write the studio makes for someone, so
+     * the history commits it and the page reloads. */
+    const log = readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(log.at(-1)).toMatchObject({
+      source: "mcp",
+      showcaseId: "nova",
+      kind: "asset.add",
+      names: ["empty-state.png"],
+    });
+  });
+
+  it("add_asset says what is wrong instead of writing something unusable", async () => {
+    const { studio } = await startStudio();
+    const notes = path.join(tempDir("chat-drop-"), "notes.txt");
+    writeFileSync(notes, "not media");
+    await expect(
+      studio.callTool({
+        name: "add_asset",
+        arguments: { showcaseId: "nova", files: [{ path: notes }] },
+      }),
+    ).rejects.toThrow(/notes\.txt/);
+    await expect(
+      studio.callTool({
+        name: "add_asset",
+        arguments: { showcaseId: "nova", files: [{ path: "/nope/missing.png" }] },
+      }),
+    ).rejects.toThrow(/\/nope\/missing\.png/);
+  });
+
   it("reports the last page error in studio_info until a page renders", async () => {
     const { studio } = await startStudio();
     const studioInfo = async () =>
