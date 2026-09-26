@@ -4,12 +4,11 @@
  *   0:02.4  [━━━━━━━━━━━━●────────────────]  0:05.0
  *            time into this scene      the scene's length
  *
- * Dragging pauses the player and moves the scene to that moment — the
+ * Moving it pauses the player and moves the scene to that moment — the
  * caption, the picture, the video and the overlay's animations all jump
- * there (ShowcasePlayer's seek). Letting go resumes playback if it was
- * playing. The arrow keys move it in tenths of a second while it has
+ * there (ShowcasePlayer's seek) — and the show stays paused where it
+ * lands. The arrow keys move it in tenths of a second while it has
  * focus; the player's own keys stand aside for it (isTypingTarget). */
-import { useRef } from "react";
 
 /** 0:02.4 — minutes, seconds and tenths. */
 function formatTime(ms: number): string {
@@ -23,29 +22,13 @@ export function Scrubber({
   positionMs,
   durationMs,
   onSeek,
-  onScrubStart,
-  onScrubEnd,
 }: {
   /** Time into the current scene. */
   positionMs: number;
   /** The current scene's length. */
   durationMs: number;
   onSeek: (ms: number) => void;
-  onScrubStart: () => void;
-  onScrubEnd: () => void;
 }) {
-  const scrubbing = useRef(false);
-  const start = () => {
-    if (scrubbing.current) return;
-    scrubbing.current = true;
-    onScrubStart();
-  };
-  const end = () => {
-    if (!scrubbing.current) return;
-    scrubbing.current = false;
-    onScrubEnd();
-  };
-
   return (
     <div
       className="z-20 flex w-full max-w-2xl shrink-0 items-center gap-3 px-6 pt-4 font-mono text-xs tabular-nums text-muted-foreground"
@@ -60,12 +43,6 @@ export function Scrubber({
         max={Math.max(durationMs, 1)}
         step={100}
         value={Math.min(positionMs, durationMs)}
-        onPointerDown={start}
-        onPointerUp={end}
-        onPointerCancel={end}
-        onKeyDown={start}
-        onKeyUp={end}
-        onBlur={end}
         onChange={(e) => onSeek(Number(e.currentTarget.value))}
         className="h-5 flex-1 cursor-pointer accent-[var(--primary)]"
       />

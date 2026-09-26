@@ -47,6 +47,13 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
       else void video.play().catch(() => undefined);
     }
   }, [paused, videoSrc]);
+  /* A video must never run while the player is paused — autoplay can
+   * start one after the effect above has paused it. */
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const holdIfPaused = (e: { currentTarget: HTMLVideoElement }) => {
+    if (pausedRef.current) e.currentTarget.pause();
+  };
 
   /* An overlay needs two sizes to find the picture: the media box's, and
    * the picture's own (known once the image or the video's metadata has
@@ -179,6 +186,7 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
           aria-label={media.alt}
           className={cn("relative h-full w-full", fit, align, motion)}
           style={{ ...style, ...focusStyle }}
+          onPlay={holdIfPaused}
           onLoadedMetadata={(e) =>
             onPictureSize(e.currentTarget.videoWidth, e.currentTarget.videoHeight)
           }
@@ -246,6 +254,7 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
         <video
           key={`band-${media.src}`}
           ref={bandVideoRef}
+          onPlay={holdIfPaused}
           src={media.src}
           autoPlay
           muted
