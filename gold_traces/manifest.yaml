@@ -1,5 +1,6 @@
-# Gold-traces manifest (managed by the appmap-gold-traces skill,
-# vendor/appmap-skills — exposed as .claude/skills/appmap-gold-traces).
+# Gold-traces manifest (managed by the appmap-gold-traces skill, which
+# is installed for the user from github.com/getappmap/skills — see the
+# README, "The AppMap skills").
 #
 # The curated behavioral baseline: one lean, deterministic trace per
 # node-testable subsystem — the timing model, the YAML edit write path

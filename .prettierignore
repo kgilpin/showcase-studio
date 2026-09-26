@@ -7,8 +7,7 @@ package-lock.json
 bun.lock
 routeTree.gen.ts
 
-# Vendored skills, gold-trace baselines, AppMap working data
-vendor
+# Skills, gold-trace baselines, AppMap working data
 .claude
 gold_traces/baseline
 tmp
