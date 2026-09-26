@@ -65,7 +65,9 @@ export const TOOLS = [
       'asset or text ("") drops the image or the wordmark there). null removes ' +
       "an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
-      "durationMs, or position (top|center|lower|bottom).\n" +
+      "durationMs, or position (top|center|lower|bottom — each format places these at its " +
+      "own height, clear of TikTok's interface in the portrait video — or an exact height " +
+      'like "14%": the caption\'s top edge that far down, in every format).\n' +
       '- {field: "caption.insert", sceneId, captionIndex, caption: {text, ...}} and ' +
       '{field: "caption.delete", sceneId, captionIndex}\n' +
       '- {field: "scene.insert", index, scene: {id, theme, captions, media, ...}}, ' +

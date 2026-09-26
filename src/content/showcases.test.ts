@@ -77,6 +77,31 @@ scenes:
     expect(showcaseWarnings).toEqual([]);
   });
 
+  it("keeps caption presets and exact heights, and warns about unknown positions", async () => {
+    const showcase = await load(
+      "placed",
+      `
+meta:
+  title: Placed
+  description: d
+scenes:
+  - id: one
+    theme: feature
+    captions:
+      - { text: Top, position: top }
+      - { text: Exact, position: 14% }
+      - { text: Unknown, position: middle }
+      - { text: Too low, position: 95% }
+`,
+    );
+    const positions = showcase.scenes[0]!.captions.map((caption) => caption.position);
+    expect(positions).toEqual(["top", "14%", undefined, undefined]);
+    expect(warningsFor("one")).toEqual([
+      expect.stringContaining('captions[2].position "middle"'),
+      expect.stringContaining('captions[3].position "95%"'),
+    ]);
+  });
+
   it("lists a media key with no file as missing, used by its scene", async () => {
     const showcase = await load(
       "gap",
