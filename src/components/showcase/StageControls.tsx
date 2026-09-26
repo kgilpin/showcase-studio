@@ -10,8 +10,9 @@
  * media.tiktok (src/content/tiktok-fit.ts) through commitEdit, so they
  * undo with Cmd/Ctrl+Z like any other edit; they show only where a
  * studio serves the page, and only for a scene whose picture fills the
- * frame (usesTikTokFit). Future rendering and playback controls —
- * playback speed, a scrubber — belong in this row too. */
+ * frame (usesTikTokFit). The scrubber sits just above this row
+ * (Scrubber.tsx); future rendering and playback controls, such as
+ * playback speed, belong here too. */
 import { RotateCcw, ScanLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { commitEdit } from "@/lib/edits";

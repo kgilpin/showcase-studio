@@ -15,6 +15,7 @@ import { FIXED_ASPECT, SceneView, TIKTOK_ASPECT } from "./SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
 import { ProgressRail } from "./ProgressRail";
 import { StageControls } from "./StageControls";
+import { Scrubber } from "./Scrubber";
 import { Soundtrack } from "./Soundtrack";
 import { useMediaPreload } from "./useMediaPreload";
 
@@ -119,17 +120,55 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
     return () => window.removeEventListener("beforeunload", save);
   }, [showcase.id]);
 
+  /* Time into the current scene: the clock below advances it, and the
+   * scrubber sets it (seek). */
+  const elapsedRef = useRef(0);
+  /* The stage's media — videos and CSS animations (motion, overlays,
+   * diagrams) — runs on its own clock from when the scene mounted, so a
+   * seek moves those to the new moment too. */
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const seek = useCallback(
+    (ms: number) => {
+      const offset = Math.min(Math.max(0, ms), scene.durationMs);
+      elapsedRef.current = offset;
+      setProgress(offset / scene.durationMs);
+      const root = stageRef.current;
+      if (!root) return;
+      for (const animation of root.getAnimations({ subtree: true })) {
+        animation.currentTime = offset;
+      }
+      for (const video of root.querySelectorAll("video")) {
+        const place = () => {
+          const seconds = offset / 1000;
+          video.currentTime = video.duration ? seconds % video.duration : seconds;
+        };
+        if (video.readyState >= 1) place();
+        else video.addEventListener("loadedmetadata", place, { once: true });
+      }
+    },
+    [scene.durationMs],
+  );
+
+  /* Dragging the scrubber holds the show still; letting go picks up
+   * where it was (playing or paused). */
+  const pausedBeforeScrub = useRef(true);
+  const onScrubStart = useCallback(() => {
+    pausedBeforeScrub.current = pausedRef.current;
+    setPaused(true);
+  }, []);
+  const onScrubEnd = useCallback(() => setPaused(pausedBeforeScrub.current), []);
+
   useEffect(() => {
     let raf = 0;
-    let elapsed = 0;
+    elapsedRef.current = 0;
     let last = performance.now();
 
     const tick = (now: number) => {
       const delta = now - last;
       last = now;
       if (!pausedRef.current) {
-        elapsed += delta;
-        const ratio = Math.min(elapsed / scene.durationMs, 1);
+        elapsedRef.current += delta;
+        const ratio = Math.min(elapsedRef.current / scene.durationMs, 1);
         setProgress(ratio);
         if (ratio >= 1) {
           advanceRef.current();
@@ -188,7 +227,10 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
         current="player"
         built={showcase.builtFromRecording}
       />
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5">
+      <div
+        ref={stageRef}
+        className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5"
+      >
         {canvas === "embed" ? (
           /* The embed canvas composes its own captions, so no transcript
            * column — the scene identity sits in a strip above the frame.
@@ -297,9 +339,19 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
         )}
       </div>
 
-      {/* Rendering and playback controls for the current view (the
-       * TikTok view's safe area and picture fit) — between the stage and
-       * the scene rail. Future ones (speed, a scrubber) go here too. */}
+      {/* Rendering and playback controls — between the stage and the
+       * scene rail: the scrubber first, right under the stage, then the
+       * current view's own controls (the TikTok view's safe area and
+       * picture fit). Future ones (playback speed) go here too. */}
+      <div className="flex shrink-0 justify-center">
+        <Scrubber
+          positionMs={elapsedMs}
+          durationMs={scene.durationMs}
+          onSeek={seek}
+          onScrubStart={onScrubStart}
+          onScrubEnd={onScrubEnd}
+        />
+      </div>
       <StageControls
         showcaseId={showcase.id}
         scene={scene}
