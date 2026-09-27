@@ -64,7 +64,10 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
     version: "test",
     settings,
     exportDir: path.join(library, "..", "exports"),
-    features: { terminal: false, ...features },
+    /* No file watcher: the history needs none (the studio's writes reach
+     * it through the change log), and its reload timer would race each
+     * test's end, so the gold traces would record it only sometimes. */
+    features: { terminal: false, watch: false, ...features },
     commitDelayMs: delay,
     log: () => {},
   });
