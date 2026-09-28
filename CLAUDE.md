@@ -53,10 +53,11 @@ npm run export:screens -- <id>     # showcase (or one) to exports/<id>/
 
 npm run export:video               # render every showcase (or one) as an MP4
 npm run export:video -- <id>       # to exports/<id>/video.mp4 — frame-by-frame
-                                   # at 1320×2868, 30 fps (slow but exact)
+                                   # at 1080×1920 (TikTok's 9:16), 30 fps
+                                   # (slow but exact)
                                    # Video presentation: captions overlaid on
                                    # the media, slide titles hidden
-npm run export:video -- --realtime # quick 440×956 draft (video-draft.mp4)
+npm run export:video -- --realtime # quick 360×640 draft (video-draft.mp4)
 npm run export:video -- --prompter # record the teleprompter (/script page)
                                    # instead: 1280×720 real-time draft to
                                    # exports/<id>/prompter-draft.mp4
@@ -245,6 +246,24 @@ npm run dev -- --new [<library folder>]
   `showcases.ts`. Narration lives in captions only — titles are on-screen
   text, never spoken or timed. A theme linter warns (diagnostics tray)
   on legacy/incoherent themes but always renders.
+- The player (`ShowcasePlayer.tsx`) stacks its rows under the tab bar:
+  the stage (the slide, with the transcript column beside it), then the
+  scrubber (`Scrubber.tsx` — a slider over the current scene with a time
+  counter; dragging pauses and moves the caption, the video and every CSS
+  animation on the stage to that moment), then `StageControls.tsx`, then
+  the scene rail with the view switch and transport. The rows between
+  the stage and the scene rail are the place for controls that change
+  how the current view renders or plays: today the scrubber, the TikTok
+  view's Safe area switch and the current scene's picture fit (Fill /
+  Fit, focus, bands — `media.tiktok`). Future ones, such as playback
+  speed, go there too, not in the bottom bar.
+- The TikTok view and the `video` / `video-draft` exports are TikTok's
+  9:16 frame (1080×1920); App Screens and the screenshot export stay
+  1320×2868 (App Store 6.9"). How each picture goes into the 9:16 frame
+  is its TikTok fit (`src/content/tiktok-fit.ts`, with the rules shared
+  with the edit tool in `tiktok-fit-rules.mjs`). `TikTokSafeArea.tsx`
+  draws the areas TikTok's own interface covers, and the caption presets
+  in `SceneView.tsx` are measured against the same areas.
 - Asset keys in a showcase's YAML are file names without extension:
   `asset: shot-mirror` resolves to `assets/shot-mirror.png` in that
   showcase's folder. There is no registry to maintain.

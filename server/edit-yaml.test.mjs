@@ -387,6 +387,55 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     ).toThrow("meta.embedCaptions must be true or false");
   });
 
+  it("sets the TikTok fit for the showcase and for one scene's media", () => {
+    const meta = applySceneEdit(DOC, {
+      field: "meta.set",
+      name: "tiktok",
+      value: { fit: "fill", focus: "40%" },
+    });
+    expect(meta).toContain("  tiktok: { fit: fill, focus: 40% }\n");
+    const scene = applySceneEdit(meta, {
+      sceneId: "closing",
+      field: "scene.set",
+      name: "tiktok",
+      value: { fit: "fit", bands: "blur" },
+    });
+    expect(scene).toContain(
+      "      alt: The last screenshot\n      tiktok: { fit: fit, bands: blur }\n",
+    );
+    const removed = applySceneEdit(scene, {
+      sceneId: "closing",
+      field: "scene.set",
+      name: "tiktok",
+      value: null,
+    });
+    expect(removed).toBe(meta);
+  });
+
+  it("writes the stage controls' media.tiktok edit like scene.set tiktok", () => {
+    const set = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "media.tiktok",
+      value: { fit: "fill", focus: "top" },
+    });
+    expect(set).toContain(
+      "      alt: The first screenshot\n      tiktok: { fit: fill, focus: top }\n",
+    );
+    expect(applySceneEdit(set, { sceneId: "intro", field: "media.tiktok", value: null })).toBe(DOC);
+  });
+
+  it("refuses a TikTok fit it can't draw", () => {
+    expect(() =>
+      applySceneEdit(DOC, { field: "meta.set", name: "tiktok", value: { fit: "stretch" } }),
+    ).toThrow('meta.tiktok.fit "stretch" isn\'t a fit — use fill or fit');
+    expect(() =>
+      applySceneEdit(DOC, { field: "meta.set", name: "tiktok", value: { focus: "150%" } }),
+    ).toThrow("isn't a focus");
+    expect(() => applySceneEdit(DOC, { field: "meta.set", name: "tiktok", value: "fill" })).toThrow(
+      "meta.tiktok must be a map of fit, focus, bands",
+    );
+  });
+
   it("sets, overrides per scene, and removes the brand mark", () => {
     const on = applySceneEdit(DOC, {
       field: "meta.set",

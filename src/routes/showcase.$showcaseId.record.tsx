@@ -3,11 +3,11 @@ import { flushSync } from "react-dom";
 import { createFileRoute } from "@tanstack/react-router";
 import { getShowcase, type Scene, type Showcase } from "@/content/showcases";
 import { embedCaptionsSetting } from "@/content/embed-captions";
-import { FIXED_ASPECT, SceneView } from "@/components/showcase/SceneView";
+import { SceneView, TIKTOK_ASPECT } from "@/components/showcase/SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "@/components/showcase/EmbedSceneView";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
 
-/* The whole showcase as a playable, phone-shaped frame with no device chrome
+/* The whole showcase as a playable 9:16 TikTok frame with no device chrome
  * and no player controls. `scripts/export-video.mjs` opens this page to render
  * the showcase as a video (see that script for usage). Video presentation:
  * captions overlay the media and slide titles stay out of their way.
@@ -22,15 +22,16 @@ import { collectSceneSources } from "@/components/showcase/useMediaPreload";
  *
  * `?controlled=1` disables the real-time clock so `seek` fully owns time.
  * `?canvas=embed` renders the 4:3 embed canvas (EmbedSceneView) instead
- * of the portrait phone frame.
+ * of the TikTok frame. (`?canvas=portrait`, from before the TikTok frame
+ * was 9:16, means the TikTok frame too.)
  */
 export const Route = createFileRoute("/showcase/$showcaseId/record")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { controlled: boolean; canvas: "portrait" | "embed" } => ({
+  ): { controlled: boolean; canvas: "tiktok" | "embed" } => ({
     controlled:
       search["controlled"] === 1 || search["controlled"] === "1" || search["controlled"] === true,
-    canvas: search["canvas"] === "embed" ? "embed" : "portrait",
+    canvas: search["canvas"] === "embed" ? "embed" : "tiktok",
   }),
   head: ({ params }) => ({
     meta: [{ title: `Record — ${params.showcaseId}` }],
@@ -115,7 +116,7 @@ function Recorder({
 }: {
   showcase: Showcase;
   controlled: boolean;
-  canvas: "portrait" | "embed";
+  canvas: "tiktok" | "embed";
 }) {
   const scenes = showcase.scenes;
   const totalMs = scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
@@ -198,7 +199,7 @@ function Recorder({
     <main className="flex h-dvh w-full items-center justify-center overflow-hidden bg-background">
       <div
         className="relative h-full max-w-full"
-        style={{ aspectRatio: canvas === "embed" ? EMBED_ASPECT : FIXED_ASPECT }}
+        style={{ aspectRatio: canvas === "embed" ? EMBED_ASPECT : TIKTOK_ASPECT }}
       >
         {canvas === "embed" ? (
           <EmbedSceneView
@@ -214,6 +215,7 @@ function Recorder({
             scene={scene}
             paused={paused}
             elapsedMs={clock.elapsedMs}
+            canvas="tiktok"
             frameless
             hideTitle
           />
