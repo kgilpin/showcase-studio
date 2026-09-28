@@ -291,6 +291,17 @@ npm run dev -- --new [<library folder>]
   studio-wide, and off by default in the studio Claude Code starts,
   where the session commits with `commit_showcase`. External file
   changes still reload the whole page.
+- A setting for a whole library — not one showcase — goes in the
+  library's `showcase_settings.yaml` (the library root, beside the
+  showcase folders), read through `server/library-config.mjs`. Don't add
+  a second library-level file, and don't put settings in `.studio/`: the
+  studio's scaffold adds `.studio/` to `.gitignore`, and settings should
+  be committed. The studio writes the file, all comments, into every
+  library it opens, so it also marks a folder as a library
+  (`findLibrary`). When you add a setting, add a commented line for it to
+  `SETTINGS_TEMPLATE` (new libraries show it) and describe it in the
+  authoring guide (`server/showcase-guide.mjs`). Existing libraries keep
+  the file they have, so the guide is how their sessions learn about it.
 - The showcase-authoring knowledge a Claude Code session gets inside a
   showcases folder lives in `server/showcase-guide.mjs` (`SHOWCASE_GUIDE`,
   written to `<folder>/.studio/GUIDE.md` on every launch). When a change
