@@ -75,7 +75,10 @@ async function startStudio({
     settings,
     exportDir: tempDir("studio-exports-"),
     reveal,
-    features,
+    /* No file watcher unless a test asks for one: its 250 ms reload timer
+     * would race each test's end, and the gold traces would record it only
+     * sometimes (issue #12). */
+    features: { watch: false, ...features },
     log: () => {},
   });
   const server = http.createServer(
@@ -358,7 +361,7 @@ scenes:
   });
 
   it("sends info when a page connects, and reload when files change outside the studio", async () => {
-    const { url, library } = await startStudio();
+    const { url, library } = await startStudio({ features: { watch: true } });
     const controller = new AbortController();
     cleanups.push(() => controller.abort());
     const response = await fetch(`${url}/studio/api/events`, { signal: controller.signal });
