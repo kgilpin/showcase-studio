@@ -14,6 +14,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { hasLibrarySettings } from "./library-config.mjs";
 
 export const EXPORT_KINDS = [
   "screens",
@@ -117,11 +118,12 @@ export function resolvePath(value, { cwd = process.cwd(), home = homedir() } = {
   return path.resolve(cwd, expanded);
 }
 
-/** The library `dir` belongs to: `dir` itself when it holds showcases, its
- *  parent when it is one showcase, otherwise undefined. */
+/** The library `dir` belongs to: `dir` itself when it holds showcases or
+ *  has library settings, its parent when it is one showcase, otherwise
+ *  undefined. */
 export function findLibrary(dir) {
   if (!isDirectory(dir)) return undefined;
-  if (holdsShowcases(dir)) return dir;
+  if (holdsShowcases(dir) || hasLibrarySettings(dir)) return dir;
   if (existsSync(path.join(dir, "showcase.yaml"))) return path.dirname(dir);
   return undefined;
 }
@@ -275,9 +277,10 @@ export function studioOptions(argv, { cwd, defaultDir, home } = {}) {
     if (!isDirectory(dir) || !existsSync(path.join(dir, "showcase.yaml"))) {
       throw new Error(`${dir} is not a showcase folder: it has no showcase.yaml.`);
     }
-    /* A library can have its own root showcase.yaml (library settings),
-     * so a showcase.yaml alone doesn't prove this is one showcase. */
-    if (holdsShowcases(dir)) {
+    /* An older library can keep its settings in a root showcase.yaml
+     * (server/library-config.mjs), so a showcase.yaml alone doesn't prove
+     * this is one showcase. */
+    if (holdsShowcases(dir) || hasLibrarySettings(dir)) {
       throw new Error(
         `${dir} is a library of showcases. Pass one showcase folder inside it to --open.`,
       );

@@ -79,8 +79,8 @@ This folder is managed by Showcase Studio. Each showcase is a folder:
     <id>/assets/         screenshots and marks (asset keys = file names without extension)
     <id>/graphics/       optional TSX diagrams (default-export React components, CSS-only animation)
 
-A showcase.yaml at this top level (next to the showcase folders) holds
-library settings — currently just one:
+A showcase_settings.yaml at this top level (next to the showcase
+folders) holds library settings — currently just one:
 
     show_in_recent: false   keep this folder out of File > Open Recent
 
