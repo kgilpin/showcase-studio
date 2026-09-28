@@ -40,6 +40,15 @@ describe("findLibrary", () => {
     expect(findLibrary(empty)).toBeUndefined();
     expect(findLibrary(path.join(empty, "missing"))).toBeUndefined();
   });
+
+  it("takes a library with settings but no showcases yet for a library", () => {
+    const lib = library();
+    writeFileSync(path.join(lib, "showcase_settings.yaml"), "show_in_recent: false\n");
+    expect(findLibrary(lib)).toBe(lib);
+    const older = library();
+    writeFileSync(path.join(older, "showcase.yaml"), "show_in_recent: false\n");
+    expect(findLibrary(older)).toBe(older);
+  });
 });
 
 describe("libraryForClaude", () => {
@@ -228,10 +237,14 @@ describe("studioOptions", () => {
     );
   });
 
-  it("refuses --open on a library, even one with its own root showcase.yaml", () => {
+  it("refuses --open on a library, even one with an older root showcase.yaml", () => {
     const lib = library("nova");
     writeFileSync(path.join(lib, "showcase.yaml"), "show_in_recent: false\n");
     expect(() => studioOptions(["--open", lib], context)).toThrow(/library of showcases/);
+    /* No showcases yet: the settings alone make it a library. */
+    const empty = library();
+    writeFileSync(path.join(empty, "showcase.yaml"), "show_in_recent: false\n");
+    expect(() => studioOptions(["--open", empty], context)).toThrow(/library of showcases/);
   });
 
   it("locks --new to the New page in the given library, or the default one", () => {

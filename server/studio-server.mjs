@@ -58,6 +58,7 @@ import { handleShowcaseRequest, showcaseIndex } from "./showcase-data.mjs";
 import { createShowcaseHistory } from "./showcase-history.mjs";
 import { alreadyOpen, clearPresence, runningStudio, writePresence } from "./studio-presence.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
+import { ensureLibrarySettings } from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { createTerminals } from "./terminals.mjs";
 import { whisperPath } from "./transcribe.mjs";
@@ -70,6 +71,14 @@ try {
   /* exports degrade too; the guide says "(unavailable)" */
 }
 
+/* The README's settings paragraph before the file was renamed. A README
+ * that still has it word for word gets the new one; any other README is
+ * the user's, and stays as it is. */
+const OLD_README_SETTINGS = `A showcase.yaml at this top level (next to the showcase folders) holds
+library settings — currently just one:`;
+const README_SETTINGS = `showcase_settings.yaml at this top level (next to the showcase folders)
+marks this folder as a library and holds its settings — currently just one:`;
+
 const FOLDER_README = `# Showcases
 
 This folder is managed by Showcase Studio. Each showcase is a folder:
@@ -79,8 +88,7 @@ This folder is managed by Showcase Studio. Each showcase is a folder:
     <id>/assets/         screenshots and marks (asset keys = file names without extension)
     <id>/graphics/       optional TSX diagrams (default-export React components, CSS-only animation)
 
-A showcase.yaml at this top level (next to the showcase folders) holds
-library settings — currently just one:
+${README_SETTINGS}
 
     show_in_recent: false   keep this folder out of File > Open Recent
 
@@ -291,8 +299,21 @@ export function createStudio({
       }),
     );
     writeMcpConfig();
-    if (!existsSync(path.join(showcasesDir, "README.md"))) {
-      writeFileSync(path.join(showcasesDir, "README.md"), FOLDER_README);
+    /* The settings file marks the folder as a library. An older
+     * library's had the same name as a showcase's script; rename it. */
+    try {
+      ensureLibrarySettings(showcasesDir);
+    } catch (error) {
+      console.warn(`[studio] couldn't set up showcase_settings.yaml: ${error.message}`);
+    }
+    const readmePath = path.join(showcasesDir, "README.md");
+    if (!existsSync(readmePath)) {
+      writeFileSync(readmePath, FOLDER_README);
+    } else {
+      const readme = readFileSync(readmePath, "utf8");
+      if (readme.includes(OLD_README_SETTINGS)) {
+        writeFileSync(readmePath, readme.replace(OLD_README_SETTINGS, README_SETTINGS));
+      }
     }
     const gitignorePath = path.join(showcasesDir, ".gitignore");
     if (!existsSync(gitignorePath)) {

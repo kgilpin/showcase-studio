@@ -340,7 +340,7 @@ async function chooseShowcasesFolder(win) {
 function buildMenu(win) {
   const home = app.getPath("home");
   /* A folder can opt out of Open Recent with show_in_recent: false in a
-   * root-level showcase.yaml (server/library-config.mjs). It stays in the
+   * root-level showcase_settings.yaml (server/library-config.mjs). It stays in the
    * saved list — flipping the setting back brings it back. */
   const recents = (loadSettings().recentFolders ?? []).filter(
     (dir) => dir !== studioInfo.library && showInRecent(dir),
