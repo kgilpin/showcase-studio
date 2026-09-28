@@ -18,6 +18,8 @@ showcase.yaml:
 
 theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme. Put quotes around any value that contains a # (a hex color, a gradient): in YAML a space followed by # starts a comment, so an unquoted "linear-gradient(100deg, #34e7d6, #0a8f95)" is cut to "linear-gradient(100deg,". The studio warns about a value cut like this and leaves it out.
 
+showcase_settings.yaml (in the library root, beside the showcase folders): settings for the whole library, not for one showcase. It also marks the folder as a library; the studio writes it, all comments, when it opens a library that has none. Today it has one setting: show_in_recent: false keeps the folder out of File > Open Recent in the desktop app. Don't delete it, and don't put a showcase.yaml in the library root — that name belongs to each showcase's script. (Older libraries kept these settings in a root showcase.yaml; the studio renames it when it opens the library.)
+
 ## Brand mark (the corner "bug")
 meta.watermark draws a small logo in one corner of every slide, the way a TV network's bug sits in the corner of a broadcast — for branded editorial cuts (an interview, a founder clip) where the viewer should see whose work it is throughout.
 
