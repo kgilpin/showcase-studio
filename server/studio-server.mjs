@@ -216,8 +216,12 @@ function locateReferences(text, found) {
  *   features      { terminal: false } turns the embedded terminals off;
  *                 { autoCommit: false } makes git commits off until the
  *                 user turns them on (the studio Claude Code starts —
- *                 the session commits its own work)
- *   exportDir     where exports land (<exportDir>/<showcase id>)
+ *                 the session commits its own work); { watch: false }
+ *                 leaves the library unwatched, so pages don't reload on
+ *                 outside changes (tests: the watcher's timer would
+ *                 otherwise race each test's end, and gold traces would
+ *                 record it only sometimes)
+ *   exportDir    where exports land (<exportDir>/<showcase id>)
  *   reveal        opens the file manager on a path (export-reveal)
  *   settings      { load, save } — the persisted settings
  *   commitDelayMs how long a showcase must stay unchanged before the
@@ -379,6 +383,7 @@ add notes specific to this library below, and the studio won't touch them.
   function watchLibrary() {
     watcher?.close();
     clearTimeout(reloadTimer);
+    if (features.watch === false) return;
     const pending = new Set();
     try {
       watcher = watch(showcasesDir, { recursive: true }, (_event, filename) => {
