@@ -1,7 +1,7 @@
 ---
 name: studio-release
 description: Release Showcase Studio from main — bump the version, build the signed and notarized Mac app, tag, let CI build Windows, publish the GitHub release with all four assets, and verify the install as a user. Use when the user asks to release, ship, or publish a new version of the app.
-argument-hint: "[version, e.g. 0.2.2 — default: next patch]"
+argument-hint: "[version, e.g. 0.5.0 — default: chosen from what ships, by semantic versioning]"
 ---
 
 # Release Showcase Studio
@@ -71,9 +71,10 @@ and give the user its report.
 | every change explained | go on |
 
 When the dry run says it would bless traces, the committed baselines
-are behind the code. Ask whether to bless them (`update` without
-`--dry-run`) in their own commit on `main` before the version commit,
-so the next release's review starts from them.
+are behind the code. Ask whether to bless them in their own commit on
+`main` before the version commit, so the next release's review starts
+from them. Bless with `update` alone — no `--record`, no `--dry-run` —
+so it blesses the recordings you just reviewed rather than new ones.
 
 The notarization profile is a keychain item made once with
 `xcrun notarytool store-credentials showcase-studio --key <.p8> --key-id <id> --issuer <uuid>`
@@ -91,15 +92,30 @@ git log --format='%h %s' $(git describe --tags --abbrev=0)..HEAD   # what ships
 If nothing is on `main` since the last tag, there is nothing to release:
 say so and stop.
 
-The version is `$ARGUMENTS` when given, else the last tag plus one patch
-level. Four files carry versions, and they all change in one commit:
+The version is `$ARGUMENTS` when given. Otherwise pick it with
+[semantic versioning](https://semver.org), from what the commit list
+ships to a user — not from habit, and never "plus one patch" by default:
+
+| What ships since the last tag | Bump | Example from 0.4.0 |
+| --- | --- | --- |
+| Only fixes: something that was wrong now works as documented | patch | 0.4.1 |
+| Anything new a user can do or see — a feature, a new setting or file, a new MCP tool or tool input, a changed default — with or without fixes | minor | 0.5.0 |
+| Something that stops working as before: a removed or renamed tool, input, file or YAML field that old libraries or sessions rely on, without a fallback | major (while the version is 0.x, a minor bump, and say so in the notes) | 0.5.0 |
+
+Read the subjects and, when one is unclear, the commit itself. A PR
+named "fix/…" can still add something new (a new file in every
+library, say); the bump follows what it does, not its branch name.
+Tell the user the version you picked and the commits that decided it
+before you change any file.
+
+Four files carry versions, and they all change in one commit:
 
 | File | What |
 | --- | --- |
 | `package.json` `version` | the app |
 | `package-lock.json` `version` (both places) | the same number — `npm i` writes it, or edit it |
 | `plugins/showcase-studio/app-version` | the app version the plugin installs — same number |
-| `plugins/showcase-studio/.claude-plugin/plugin.json` `version` | the plugin — its own number, +1 patch (`claude plugin update` only looks at this) |
+| `plugins/showcase-studio/.claude-plugin/plugin.json` `version` | the plugin — its own number, by the same rules applied to `plugins/showcase-studio/` alone (`git diff <last tag> -- plugins/`): patch when only `app-version` changed, minor when the skill or launcher does something new. It always goes up, because `claude plugin update` only looks at this |
 
 Commit them as `Version X.Y.Z; plugin A.B.C installs it`, with a line or
 two on what the release is. **Do not push yet**: once `app-version` is on
