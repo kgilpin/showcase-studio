@@ -26,6 +26,7 @@ import {
   type CaptionPreset,
 } from "./caption-position-rules.mjs";
 import { readWatermark, resolveWatermark, type Watermark, type WatermarkSpec } from "./watermark";
+import { readTikTokFit, resolveTikTokFit, type TikTokFit, type TikTokFitSpec } from "./tiktok-fit";
 import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
@@ -88,6 +89,17 @@ export type SceneMedia =
       align?: MediaAlign;
       /** Crop to fill ("cover", default) or show the whole image ("contain"). */
       fit?: MediaFit;
+      /** How the picture goes into TikTok's 9:16 frame — resolved from
+       *  `media.tiktok`, `meta.tiktok`, then fit/align (tiktok-fit.ts). */
+      tiktok?: TikTokFit;
+      /** The scene's own media.tiktok as authored (checked), when it has
+       *  one — the stage controls show it can be reset. */
+      tiktokOwn?: TikTokFitSpec | undefined;
+      /** A TSX graphic drawn over the picture (media.overlay): arrows,
+       *  rings and labels that point at what matters in a recording. Its
+       *  box covers exactly the picture as shown, whatever the fit, and
+       *  moves with the picture's motion (media-overlay.ts). */
+      overlay?: { graphic: string; component: ComponentType; file?: string | undefined };
       /** Optional second screenshot that cross-fades in midway through the scene. */
       fadeTo?:
         | {
@@ -266,6 +278,10 @@ type RawMedia =
       frame?: "phone" | "full" | "mark";
       align?: MediaAlign;
       fit?: MediaFit;
+      /** As authored — checked and resolved in buildShowcase. */
+      tiktok?: unknown;
+      /** Graphic key in graphics/, drawn over the picture. */
+      overlay?: string;
       fadeTo?: { asset: string; alt: string; align?: MediaAlign };
     }
   | {
@@ -318,6 +334,9 @@ type RawDoc = {
     /** The showcase's persistent brand mark — validated (with linter
      *  warnings) in buildShowcase; see src/content/watermark.ts. */
     watermark?: unknown;
+    /** How every scene's picture goes into TikTok's 9:16 frame, unless
+     *  the scene's media says otherwise — see src/content/tiktok-fit.ts. */
+    tiktok?: unknown;
     theme?: Record<string, string>;
   };
   scenes: RawScene[];
@@ -582,8 +601,24 @@ function resolveMedia(
     const fadeMismatch = mediaKindWarning("image", media.fadeTo.asset, fadeTo.file, "fadeTo");
     if (fadeMismatch) warn(fadeMismatch);
   }
+  /* A missing overlay warns and leaves the picture plain — the slide
+   * still plays, just without its annotations. */
+  let overlay: { graphic: string; component: ComponentType; file?: string | undefined } | undefined;
+  if (media.overlay !== undefined) {
+    if (typeof media.overlay !== "string" || !media.overlay) {
+      warn("media.overlay must be a graphic key (a file name in graphics/, without .tsx)");
+    } else {
+      try {
+        const graphic = resolveGraphic(showcaseId, media.overlay);
+        overlay = { graphic: media.overlay, component: graphic.component, file: graphic.file };
+      } catch (error) {
+        warn(String(error instanceof Error ? error.message : error));
+      }
+    }
+  }
   return {
     kind: media.kind,
+    ...(overlay ? { overlay } : {}),
     src: asset.url,
     asset: media.asset,
     file: asset.file,
@@ -813,6 +848,7 @@ function buildShowcase(
   const baseWatermark = readWatermark(doc.meta.watermark, "meta.watermark", (message) =>
     warn("", message),
   );
+  const baseTikTok = readTikTokFit(doc.meta.tiktok, "meta.tiktok", (message) => warn("", message));
   const scenes: Scene[] = doc.scenes.map((raw) => {
     const {
       titleDurationMs: _titleDurationMs,
@@ -821,7 +857,22 @@ function buildShowcase(
       ...scene
     } = raw;
     const { theme, warnings } = lintScene(raw);
-    const media = resolveMedia(showcaseId, scene.media, (message) => warnings.push(message));
+    const resolvedMedia = resolveMedia(showcaseId, scene.media, (message) =>
+      warnings.push(message),
+    );
+    const rawMedia = scene.media;
+    const ownTikTok =
+      rawMedia && "tiktok" in rawMedia
+        ? readTikTokFit(rawMedia.tiktok, "media.tiktok", (message) => warnings.push(message))
+        : undefined;
+    const media =
+      resolvedMedia.kind === "image" || resolvedMedia.kind === "video"
+        ? {
+            ...resolvedMedia,
+            tiktok: resolveTikTokFit(ownTikTok, baseTikTok, resolvedMedia),
+            ...(ownTikTok ? { tiktokOwn: ownTikTok } : {}),
+          }
+        : resolvedMedia;
     const captionStyle = resolveCaptionStyle(raw.captionStyle ?? doc.meta.captionStyle, (message) =>
       warnings.push(message),
     );
@@ -1211,6 +1262,19 @@ export function applySceneEditLocal(
       >,
     };
     raw.media = structuredClone(edit.media) as unknown as RawMedia;
+  } else if (edit.field === "media.tiktok") {
+    const media = raw.media;
+    if (!media || media.kind === "none" || media.kind === "graphic") return undefined;
+    const previous = media.tiktok;
+    inverse = {
+      field: "media.tiktok",
+      value:
+        previous && typeof previous === "object"
+          ? (structuredClone(previous) as Extract<SceneEdit, { field: "media.tiktok" }>["value"])
+          : null,
+    };
+    if (edit.value) media.tiktok = structuredClone(edit.value);
+    else delete media.tiktok;
   } else {
     const media = raw.media;
     if (!media || media.kind === "none" || media.kind === "graphic") return undefined;

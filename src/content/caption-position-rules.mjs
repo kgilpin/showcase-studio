@@ -7,10 +7,11 @@
  * top edge sits that far down the slide, in every format.
  *
  * A preset says what the author means ("at the bottom"), and each format
- * picks the height. The portrait format is the TikTok video, and TikTok
- * covers about the top 13% (status bar, tabs) and the bottom 25%
- * (username, description, buttons) with its own interface, so its top
- * and bottom stay inside 13%–75%. The 4:3 embed has nothing laid over
+ * picks the height. The portrait format is the TikTok video, a 9:16
+ * frame that the TikTok app shows above its tab bar, covering about the
+ * top 13% (status bar, tabs, search) and the bottom 25% (username,
+ * description, sound) with its own interface, so its top and bottom
+ * stay inside 13%–75%. (TikTokSafeArea.tsx draws those areas.) The 4:3 embed has nothing laid over
  * it, so its captions sit nearer the edges.
  *
  *   preset    portrait (TikTok)            4:3

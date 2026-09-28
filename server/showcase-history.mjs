@@ -188,6 +188,8 @@ function describeEdit(edit = {}) {
       return `set ${scene} media`;
     case "media.asset":
       return `point ${scene} at ${edit.value}`;
+    case "media.tiktok":
+      return edit.value ? `set ${scene} TikTok fit` : `reset ${scene} TikTok fit`;
     case "theme":
       return `set theme ${edit.name}`;
     default:

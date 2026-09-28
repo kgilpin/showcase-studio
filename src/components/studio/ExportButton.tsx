@@ -36,7 +36,7 @@ import { exportKindFor, exportLabel, type PlayerView } from "@/lib/export-kinds.
 import { studio, useExportJob } from "@/lib/studio";
 
 const SIZES: Record<Exclude<PlayerView, "screens">, string> = {
-  tiktok: "1320×2868",
+  tiktok: "1080×1920",
   embed: "1440×1080",
 };
 
