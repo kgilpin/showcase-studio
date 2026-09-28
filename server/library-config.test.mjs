@@ -1,8 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { hasLibrarySettings, libraryConfig, showInRecent } from "./library-config.mjs";
+import {
+  SETTINGS_TEMPLATE,
+  ensureLibrarySettings,
+  hasLibrarySettings,
+  libraryConfig,
+  migrateLibrarySettings,
+  showInRecent,
+} from "./library-config.mjs";
 
 const dirs = [];
 /** A folder with the given root files: { "showcase_settings.yaml": ... }. */
@@ -71,6 +78,11 @@ describe("an older library's root showcase.yaml", () => {
     expect(libraryConfig(dir)).toEqual({});
     expect(hasLibrarySettings(dir)).toBe(false);
   });
+
+  it("is a showcase's script, not settings, when it has meta", () => {
+    const dir = folderWith({ "showcase.yaml": "meta:\n  title: Draft\n" });
+    expect(hasLibrarySettings(dir)).toBe(false);
+  });
 });
 
 describe("hasLibrarySettings", () => {
@@ -80,5 +92,49 @@ describe("hasLibrarySettings", () => {
       true,
     );
     expect(hasLibrarySettings(folder(null))).toBe(false);
+  });
+});
+
+describe("migrateLibrarySettings", () => {
+  const read = (dir, name) => readFileSync(path.join(dir, name), "utf8");
+
+  it("renames old-style settings to showcase_settings.yaml", () => {
+    const dir = folderWith({ "showcase.yaml": "show_in_recent: false\n" });
+    expect(migrateLibrarySettings(dir)).toBe(true);
+    expect(existsSync(path.join(dir, "showcase.yaml"))).toBe(false);
+    expect(read(dir, "showcase_settings.yaml")).toBe("show_in_recent: false\n");
+  });
+
+  it("leaves a showcase's script, and a folder that already has the new file, alone", () => {
+    const script = folderWith({ "showcase.yaml": "meta:\n  title: Nova\nscenes: []\n" });
+    expect(migrateLibrarySettings(script)).toBe(false);
+    expect(existsSync(path.join(script, "showcase.yaml"))).toBe(true);
+    const both = folderWith({
+      "showcase_settings.yaml": "show_in_recent: true\n",
+      "showcase.yaml": "show_in_recent: false\n",
+    });
+    expect(migrateLibrarySettings(both)).toBe(false);
+    expect(read(both, "showcase.yaml")).toBe("show_in_recent: false\n");
+  });
+});
+
+describe("ensureLibrarySettings", () => {
+  it("writes the commented template, which sets nothing but marks a library", () => {
+    const dir = folder(null);
+    ensureLibrarySettings(dir);
+    expect(readFileSync(path.join(dir, "showcase_settings.yaml"), "utf8")).toBe(SETTINGS_TEMPLATE);
+    expect(libraryConfig(dir)).toEqual({});
+    expect(showInRecent(dir)).toBe(true);
+    expect(hasLibrarySettings(dir)).toBe(true);
+  });
+
+  it("keeps existing settings, and moves old ones rather than writing the template", () => {
+    const kept = folder("show_in_recent: false\n");
+    ensureLibrarySettings(kept);
+    expect(showInRecent(kept)).toBe(false);
+    const old = folderWith({ "showcase.yaml": "show_in_recent: false\n" });
+    ensureLibrarySettings(old);
+    expect(showInRecent(old)).toBe(false);
+    expect(existsSync(path.join(old, "showcase.yaml"))).toBe(false);
   });
 });

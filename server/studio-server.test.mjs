@@ -135,6 +135,37 @@ describe("createStudio", () => {
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
   });
 
+  it("marks the library with a commented showcase_settings.yaml", async () => {
+    const { library } = await startStudio();
+    const settings = readFileSync(path.join(library, "showcase_settings.yaml"), "utf8");
+    expect(settings).toMatch(/marks this folder as a library/);
+    expect(settings.split("\n").every((line) => line === "" || line.startsWith("#"))).toBe(true);
+    expect(readFileSync(path.join(library, "README.md"), "utf8")).toContain(
+      "showcase_settings.yaml",
+    );
+  });
+
+  it("renames an older library's root showcase.yaml and fixes its README", async () => {
+    const { library } = await startStudio({
+      before: (dir) => {
+        writeFileSync(path.join(dir, "showcase.yaml"), "show_in_recent: false\n");
+        writeFileSync(
+          path.join(dir, "README.md"),
+          "# Showcases\n\nA showcase.yaml at this top level (next to the showcase folders) holds\n" +
+            "library settings — currently just one:\n\nMy own notes.\n",
+        );
+      },
+    });
+    expect(existsSync(path.join(library, "showcase.yaml"))).toBe(false);
+    expect(readFileSync(path.join(library, "showcase_settings.yaml"), "utf8")).toBe(
+      "show_in_recent: false\n",
+    );
+    const readme = readFileSync(path.join(library, "README.md"), "utf8");
+    expect(readme).toContain("showcase_settings.yaml at this top level");
+    expect(readme).not.toContain("A showcase.yaml at this top level");
+    expect(readme).toContain("My own notes.");
+  });
+
   it("writes no launch.json, and removes the ones an earlier studio wrote", async () => {
     const own = '{ "version": "0.0.1", "configurations": [] }\n';
     const written =
