@@ -546,3 +546,52 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     );
   });
 });
+
+describe("publish.set", () => {
+  const set = (text, edit) => applySceneEdit(text, { field: "publish.set", ...edit });
+
+  it("creates the publish block right after meta, leaving the rest byte for byte", () => {
+    const out = set(DOC, { name: "caption", value: "Mirror your iPhone." });
+    expect(out).toContain(
+      `  soundtrack: { src: "voiceover", volume: 1.0, sync: true }\n\npublish:\n  caption: Mirror your iPhone.\n\nscenes:\n  # Scene one keeps its comment.`,
+    );
+    expect(out.replace(/\npublish:\n  caption: Mirror your iPhone.\n/, "")).toBe(DOC);
+  });
+
+  it("writes hashtags on one line without #, and a caption with line breaks as a block", () => {
+    let out = set(DOC, { name: "hashtags", value: ["#iphone", "Tech", "tech"] });
+    out = set(out, { name: "caption", value: "Line one\nLine two" });
+    expect(out).toContain(
+      "publish:\n  hashtags: [ iphone, Tech ]\n  caption: |-\n    Line one\n    Line two\n",
+    );
+    expect(set(out, { name: "hashtags", value: "#a b, c" })).toContain("hashtags: [ a, b, c ]");
+  });
+
+  it("sets an override under its destination", () => {
+    const out = set(DOC, { destination: "youtube", name: "title", value: "  A title " });
+    expect(out).toContain("publish:\n  youtube:\n    title: A title\n");
+  });
+
+  it("removes a field with null or empty text, and the block once it is empty", () => {
+    let out = set(DOC, { name: "caption", value: "Shared" });
+    out = set(out, { destination: "tiktok", name: "hashtags", value: ["techtok"] });
+    out = set(out, { destination: "tiktok", name: "hashtags", value: null });
+    expect(out).not.toContain("tiktok");
+    expect(out).toContain("caption: Shared");
+    expect(set(out, { name: "caption", value: "  " })).toBe(DOC);
+    expect(set(DOC, { name: "caption", value: null })).toBe(DOC);
+  });
+
+  it("refuses what a destination doesn't use, unknown destinations, and bad hashtags", () => {
+    expect(() => set(DOC, { destination: "tiktok", name: "title", value: "x" })).toThrow(
+      'publish.tiktok has no field "title" — fields: caption, hashtags',
+    );
+    expect(() => set(DOC, { destination: "myspace", name: "caption", value: "x" })).toThrow(
+      'Unknown destination "myspace"',
+    );
+    expect(() => set(DOC, { name: "hashtags", value: ["two words"] })).toThrow(
+      `"two words" can't be a hashtag`,
+    );
+    expect(() => set(DOC, { name: "title", value: "a\nb" })).toThrow("A title is one line");
+  });
+});

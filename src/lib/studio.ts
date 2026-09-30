@@ -8,6 +8,7 @@
  * The Electron window adds one thing a browser can't have: the real path
  * of a dropped file (window.showcaseStudioShell, electron/preload.cjs). */
 import { useMemo, useSyncExternalStore } from "react";
+import type { DestinationId, PostedText, PublishField } from "@/content/publish-rules.mjs";
 import { isCapturePage, type WindowLock } from "./window-lock.mjs";
 
 /** One export job, as the studio reports it (server/export-jobs.mjs). */
@@ -129,6 +130,15 @@ export type SceneEdit =
   /** Overlay captions on the 4:3 embed canvas (meta; sceneId is ignored —
    *  pass ""). null deletes, returning to the voiceover-based default. */
   | { field: "meta.set"; name: "embedCaptions"; value: boolean | null }
+  /** The text the video is posted with (showcase.yaml's publish: block;
+   *  sceneId is ignored — pass ""): the default, or one destination's
+   *  override. null or "" removes it, so it inherits again. */
+  | {
+      field: "publish.set";
+      destination?: DestinationId | undefined;
+      name: PublishField;
+      value: string | string[] | null;
+    }
   /** Style-panel edits to theme.yaml (sceneId is ignored — pass "").
    *  Whitelisted keys only (server/edit-theme.mjs); empty value deletes,
    *  restoring the default. */
@@ -149,7 +159,112 @@ export type StudioInfo = {
   url: string | null;
   library: string;
   lock: WindowLock | null;
-  features: { terminal: boolean };
+  /** airDrop: the studio can open macOS's AirDrop window (a Mac). */
+  features: { terminal: boolean; airDrop?: boolean };
+};
+
+/** One recorded full-quality export (server/export-records.mjs). */
+export type ShareExport = {
+  id: string;
+  showcaseId: string;
+  kind: string;
+  /** Where the video is now. */
+  file: string;
+  bytes: number;
+  durationMs: number;
+  /** How many frames it rendered, and how long that took. */
+  frames?: number;
+  renderMs?: number;
+  createdAt: string;
+  /** It matches the showcase as it is now. */
+  current: boolean;
+};
+
+/** One export kind's records: the export that matches the showcase now,
+ *  the newest one of any age, and about how long a new one takes. */
+export type ShareExports = {
+  current: ShareExport | null;
+  latest: ShareExport | null;
+  estimateMs: number;
+};
+
+/** One hand-off to a destination (server/share.mjs). */
+export type ShareHandoff = {
+  id: string;
+  destination: DestinationId;
+  method: "computer" | "phone" | "other";
+  exportId?: string;
+  /** Which export was posted: the full-quality video or the draft. */
+  quality?: "full" | "draft";
+  createdAt: string;
+  postUrl?: string;
+  postedAt?: string;
+};
+
+/** One destination's view of the showcase, as the studio resolves it. */
+export type ShareDestination = {
+  id: DestinationId;
+  label: string;
+  uploadUrl: string;
+  uploadHint: string;
+  exportKind: string;
+  fields: PublishField[];
+  limits: { caption: number; title?: number; hashtags?: number; seconds: number };
+  text: PostedText;
+  /** The caption box's text (the description on YouTube). */
+  paste: string;
+  problems: string[];
+};
+
+/** The Share page's data (the share-status action; share_status). */
+export type ShareStatus = {
+  showcaseId: string;
+  /** showcase.yaml's content hash — the base for a publish.set edit. */
+  version: string;
+  title: string;
+  /** How long the showcase runs. */
+  durationMs: number;
+  publish: Record<string, unknown> | null;
+  /** By kind: video, video-draft, video-43, video-43-draft. */
+  exports: Record<string, ShareExports>;
+  destinations: ShareDestination[];
+  handoffs: ShareHandoff[];
+};
+
+export type StudioShare = {
+  status(showcaseId: string): Promise<{ ok: boolean; status?: ShareStatus; error?: string }>;
+  /** Records a hand-off of a current export — the full-quality video,
+   *  or the draft with quality "draft". "computer" also opens the upload
+   *  page in the user's browser; "phone" opens the AirDrop window (a Mac
+   *  only). */
+  handOff(payload: {
+    showcaseId: string;
+    destination: DestinationId;
+    method: "computer" | "phone";
+    quality?: "full" | "draft";
+  }): Promise<{ ok: boolean; handoff?: ShareHandoff; error?: string }>;
+  /** Keeps a post's link with its hand-off. */
+  postLink(payload: {
+    showcaseId: string;
+    destination: DestinationId;
+    url: string;
+    handoffId?: string;
+  }): Promise<{ ok: boolean; handoff?: ShareHandoff; error?: string }>;
+  /** Opens a hand-off's post link in the user's browser. */
+  openPost(payload: {
+    showcaseId: string;
+    handoffId: string;
+  }): Promise<{ ok: boolean; error?: string }>;
+  /** Selects an export's video in Finder or Explorer. */
+  reveal(payload: {
+    showcaseId: string;
+    exportId: string;
+  }): Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** Copies text: with the browser's clipboard when it allows, else
+   *  through the studio (an embedded preview may not allow it). */
+  copy(text: string): Promise<boolean>;
+  /** The URL the page plays an export's video from. */
+  videoUrl(showcaseId: string, exportId: string): string;
 };
 
 /** The library's git history (GET /studio/api/history;
@@ -208,6 +323,9 @@ export type ShowcaseStudio = {
     status(): Promise<StudioHistory | null>;
     setAutoCommit(on: boolean): Promise<{ ok: boolean; history?: StudioHistory; error?: string }>;
   };
+  /** Getting the video onto TikTok, Instagram and YouTube Shorts (the
+   *  Share page). */
+  share: StudioShare;
   /** Asset-collection operations (the assets page). */
   assets: {
     /** Renames an asset file and updates the showcase.yaml references
@@ -236,8 +354,14 @@ declare global {
   interface Window {
     /** The studio client, for debugging and automated checks. */
     showcaseStudio?: ShowcaseStudio;
-    /** The Electron window's extra (electron/preload.cjs). */
-    showcaseStudioShell?: { pathForFile(file: File): string };
+    /** The Electron window's extras (electron/preload.cjs). */
+    showcaseStudioShell?: {
+      pathForFile(file: File): string;
+      /** Starts a drag of a file on disk out of the window, onto another
+       *  app (an upload page in the browser). Only exports can be
+       *  dragged. */
+      startDrag?(file: string): void;
+    };
   }
 }
 
@@ -418,6 +542,26 @@ function createTerminal(enabled: boolean): StudioTerminal {
   };
 }
 
+function createShare(): StudioShare {
+  return {
+    status: (showcaseId) => post("share-status", { showcaseId }),
+    handOff: (payload) => post("share-handoff", payload),
+    postLink: (payload) => post("share-post-link", payload),
+    reveal: (payload) => post("share-reveal", payload),
+    openPost: (payload) => post("share-open-post", payload),
+    copy: async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        return (await post<{ ok: boolean }>("share-copy", { text })).ok;
+      }
+    },
+    videoUrl: (showcaseId, exportId) =>
+      `${API}/export-video?${new URLSearchParams({ showcase: showcaseId, id: exportId })}`,
+  };
+}
+
 function createClient(first: StudioInfo): ShowcaseStudio {
   return {
     info: () => info ?? first,
@@ -428,6 +572,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
     showcases: { create: (name) => post("showcase-create", { name }) },
     scenes: { edit: (payload) => post("scene-edit", payload) },
     prompter: { publish: (showcaseId) => post("prompter-publish", { showcaseId }) },
+    share: createShare(),
     history: {
       status: () => get<StudioHistory>("history"),
       setAutoCommit: (on) => post("history-auto-commit", { on }),

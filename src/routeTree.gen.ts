@@ -16,6 +16,7 @@ import { Route as ShowcaseShowcaseIdIndexRouteImport } from './routes/showcase.$
 import { Route as ShowcaseShowcaseIdAssetsRouteImport } from './routes/showcase.$showcaseId.assets'
 import { Route as ShowcaseShowcaseIdRecordRouteImport } from './routes/showcase.$showcaseId.record'
 import { Route as ShowcaseShowcaseIdScriptRouteImport } from './routes/showcase.$showcaseId.script'
+import { Route as ShowcaseShowcaseIdShareRouteImport } from './routes/showcase.$showcaseId.share'
 import { Route as ShowcaseShowcaseIdExportIndexRouteImport } from './routes/showcase.$showcaseId.export.index'
 import { Route as ShowcaseShowcaseIdExportSceneIdRouteImport } from './routes/showcase.$showcaseId.export.$sceneId'
 
@@ -57,6 +58,11 @@ const ShowcaseShowcaseIdScriptRoute =
     path: '/script',
     getParentRoute: () => ShowcaseShowcaseIdRoute,
   } as any)
+const ShowcaseShowcaseIdShareRoute = ShowcaseShowcaseIdShareRouteImport.update({
+  id: '/share',
+  path: '/share',
+  getParentRoute: () => ShowcaseShowcaseIdRoute,
+} as any)
 const ShowcaseShowcaseIdExportIndexRoute =
   ShowcaseShowcaseIdExportIndexRouteImport.update({
     id: '/export/',
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
+  '/showcase/$showcaseId/share': typeof ShowcaseShowcaseIdShareRoute
   '/showcase/$showcaseId/': typeof ShowcaseShowcaseIdIndexRoute
   '/showcase/$showcaseId/export/$sceneId': typeof ShowcaseShowcaseIdExportSceneIdRoute
   '/showcase/$showcaseId/export/': typeof ShowcaseShowcaseIdExportIndexRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
+  '/showcase/$showcaseId/share': typeof ShowcaseShowcaseIdShareRoute
   '/showcase/$showcaseId': typeof ShowcaseShowcaseIdIndexRoute
   '/showcase/$showcaseId/export/$sceneId': typeof ShowcaseShowcaseIdExportSceneIdRoute
   '/showcase/$showcaseId/export': typeof ShowcaseShowcaseIdExportIndexRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   '/showcase/$showcaseId/assets': typeof ShowcaseShowcaseIdAssetsRoute
   '/showcase/$showcaseId/record': typeof ShowcaseShowcaseIdRecordRoute
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
+  '/showcase/$showcaseId/share': typeof ShowcaseShowcaseIdShareRoute
   '/showcase/$showcaseId/': typeof ShowcaseShowcaseIdIndexRoute
   '/showcase/$showcaseId/export/$sceneId': typeof ShowcaseShowcaseIdExportSceneIdRoute
   '/showcase/$showcaseId/export/': typeof ShowcaseShowcaseIdExportIndexRoute
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
     | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
     | '/showcase/$showcaseId/script'
+    | '/showcase/$showcaseId/share'
     | '/showcase/$showcaseId/'
     | '/showcase/$showcaseId/export/$sceneId'
     | '/showcase/$showcaseId/export/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
     | '/showcase/$showcaseId/script'
+    | '/showcase/$showcaseId/share'
     | '/showcase/$showcaseId'
     | '/showcase/$showcaseId/export/$sceneId'
     | '/showcase/$showcaseId/export'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/showcase/$showcaseId/assets'
     | '/showcase/$showcaseId/record'
     | '/showcase/$showcaseId/script'
+    | '/showcase/$showcaseId/share'
     | '/showcase/$showcaseId/'
     | '/showcase/$showcaseId/export/$sceneId'
     | '/showcase/$showcaseId/export/'
@@ -195,6 +207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShowcaseShowcaseIdScriptRouteImport
       parentRoute: typeof ShowcaseShowcaseIdRoute
     }
+    '/showcase/$showcaseId/share': {
+      id: '/showcase/$showcaseId/share'
+      path: '/share'
+      fullPath: '/showcase/$showcaseId/share'
+      preLoaderRoute: typeof ShowcaseShowcaseIdShareRouteImport
+      parentRoute: typeof ShowcaseShowcaseIdRoute
+    }
     '/showcase/$showcaseId/export/': {
       id: '/showcase/$showcaseId/export/'
       path: '/export'
@@ -216,6 +235,7 @@ interface ShowcaseShowcaseIdRouteChildren {
   ShowcaseShowcaseIdAssetsRoute: typeof ShowcaseShowcaseIdAssetsRoute
   ShowcaseShowcaseIdRecordRoute: typeof ShowcaseShowcaseIdRecordRoute
   ShowcaseShowcaseIdScriptRoute: typeof ShowcaseShowcaseIdScriptRoute
+  ShowcaseShowcaseIdShareRoute: typeof ShowcaseShowcaseIdShareRoute
   ShowcaseShowcaseIdIndexRoute: typeof ShowcaseShowcaseIdIndexRoute
   ShowcaseShowcaseIdExportSceneIdRoute: typeof ShowcaseShowcaseIdExportSceneIdRoute
   ShowcaseShowcaseIdExportIndexRoute: typeof ShowcaseShowcaseIdExportIndexRoute
@@ -225,6 +245,7 @@ const ShowcaseShowcaseIdRouteChildren: ShowcaseShowcaseIdRouteChildren = {
   ShowcaseShowcaseIdAssetsRoute: ShowcaseShowcaseIdAssetsRoute,
   ShowcaseShowcaseIdRecordRoute: ShowcaseShowcaseIdRecordRoute,
   ShowcaseShowcaseIdScriptRoute: ShowcaseShowcaseIdScriptRoute,
+  ShowcaseShowcaseIdShareRoute: ShowcaseShowcaseIdShareRoute,
   ShowcaseShowcaseIdIndexRoute: ShowcaseShowcaseIdIndexRoute,
   ShowcaseShowcaseIdExportSceneIdRoute: ShowcaseShowcaseIdExportSceneIdRoute,
   ShowcaseShowcaseIdExportIndexRoute: ShowcaseShowcaseIdExportIndexRoute,

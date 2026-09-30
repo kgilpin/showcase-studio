@@ -13,6 +13,9 @@
  *                               "Commit changes to git" switch
  *   GET  /studio/api/events     live events (server-sent events): reload,
  *                               info, export, build, terminal-data, terminal-exit
+ *   GET  /studio/api/export-video?showcase=<id>&id=<record id>
+ *                               a recorded export's video, for the Share
+ *                               page's preview (byte ranges, so it seeks)
  *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below)
  *   POST /mcp                   the MCP tools, for Claude (server/mcp.mjs)
  *
@@ -27,6 +30,7 @@
  * (scripts/studio-mcp.mjs). */
 import {
   appendFileSync,
+  createReadStream,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -40,15 +44,15 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import os from "node:os";
 import path from "node:path";
 import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { buildMedia } from "./build-media.mjs";
 import { addAssetData } from "./asset-files.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
-import { revealInFileManager } from "./export-output.mjs";
-import { runExport } from "./exporter.mjs";
+import { DEFAULT_EXPORT_DIR, revealInFileManager } from "./export-output.mjs";
+import { createExportRecords, RECORDED_KINDS, showcaseDurationMs } from "./export-records.mjs";
+import { runExport, videoFps } from "./exporter.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { callTool, createMcpHandler } from "./mcp.mjs";
@@ -60,6 +64,8 @@ import { alreadyOpen, clearPresence, runningStudio, writePresence } from "./stud
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
 import { ensureLibrarySettings } from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
+import { airDrop, canAirDrop } from "./airdrop.mjs";
+import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
 import { createTerminals } from "./terminals.mjs";
 import { whisperPath } from "./transcribe.mjs";
 
@@ -231,6 +237,10 @@ function locateReferences(text, found) {
  *                 record it only sometimes)
  *   exportDir    where exports land (<exportDir>/<showcase id>)
  *   reveal        opens the file manager on a path (export-reveal)
+ *   openUrl       opens a web page in the user's browser (a share
+ *                 hand-off's upload page)
+ *   copyText      puts text on the system clipboard (the share tool)
+ *   sendToPhone   opens the AirDrop window for a file (a Mac only)
  *   settings      { load, save } — the persisted settings
  *   commitDelayMs how long a showcase must stay unchanged before the
  *                 studio commits it (server/showcase-history.mjs)
@@ -242,8 +252,11 @@ export function createStudio({
   srcDir,
   renderer,
   features = {},
-  exportDir = path.join(os.homedir(), "Downloads", "showcase-exports"),
+  exportDir = DEFAULT_EXPORT_DIR,
   reveal = revealInFileManager,
+  openUrl = openInBrowser,
+  copyText = copyToClipboard,
+  sendToPhone = canAirDrop() ? airDrop : null,
   settings = { load: loadSettings, save: saveSettings },
   log = (message) => console.log(message),
   commitDelayMs = 5000,
@@ -270,7 +283,7 @@ export function createStudio({
     url,
     library: showcasesDir,
     lock,
-    features: { terminal: terminalsOn },
+    features: { terminal: terminalsOn, airDrop: sendToPhone != null },
     pid: process.pid,
     startedAt,
   });
@@ -434,23 +447,56 @@ add notes specific to this library below, and the studio won't touch them.
 
   /* ---------- exports ---------- */
 
+  /* The videos, full quality and draft, are recorded
+   * (server/export-records.mjs), so the Share page knows whether the file
+   * on disk still matches the showcase, and about how long a new one
+   * takes. The fingerprint is taken as the export starts: an edit made
+   * while it renders leaves the new file stale, as it should. */
+  const exportRecords = createExportRecords({
+    getLibrary: () => showcasesDir,
+    appVersion: version,
+  });
+  const share = createShare({ getLibrary: () => showcasesDir, exportRecords });
+
+  async function recordedExport(kind, showcaseId, { onProgress, signal } = {}) {
+    const recorded = RECORDED_KINDS.includes(kind);
+    const fingerprint = recorded ? exportRecords.fingerprint(showcaseId) : undefined;
+    const durationMs = recorded ? showcaseDurationMs(showcasesDir, showcaseId) : undefined;
+    const started = Date.now();
+    const out = await runExport({
+      renderer,
+      appUrl: url,
+      showcasesDir,
+      kind,
+      showcaseId,
+      outDir: path.join(exportDir, showcaseId),
+      onProgress,
+      signal,
+    });
+    if (recorded) {
+      try {
+        exportRecords.add({
+          showcaseId,
+          kind,
+          file: out,
+          fingerprint,
+          durationMs,
+          frames: Math.round((durationMs / 1000) * videoFps(kind)),
+          renderMs: Date.now() - started,
+        });
+      } catch (error) {
+        log(`studio: couldn't record the export of ${showcaseId} (${error.message})`);
+      }
+    }
+    return out;
+  }
+
   /* Every job change goes to every page as the "export" event — the job's
    * status (export-jobs.mjs), whether the page, the MCP tools, or
    * --export started it. */
-  const exportJobs = createExportJobs(
-    (kind, showcaseId, { onProgress, signal }) =>
-      runExport({
-        renderer,
-        appUrl: url,
-        showcasesDir,
-        kind,
-        showcaseId,
-        outDir: path.join(exportDir, showcaseId),
-        onProgress,
-        signal,
-      }),
-    { onChange: (status) => emit("export", status) },
-  );
+  const exportJobs = createExportJobs(recordedExport, {
+    onChange: (status) => emit("export", status),
+  });
 
   /* ---------- media builds ---------- */
 
@@ -549,6 +595,10 @@ add notes specific to this library below, and the studio won't touch them.
     buildJobs,
     changeLog,
     history,
+    share,
+    openUrl,
+    copyText,
+    reveal,
   };
   const mcp = createMcpHandler({ version, context: mcpContext });
 
@@ -810,6 +860,51 @@ scenes:
     }
   };
 
+  /* ---------- sharing (server/share.mjs) ---------- */
+
+  const shareAction = (work) => (body) => {
+    try {
+      return { ok: true, ...work(body ?? {}) };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    }
+  };
+
+  /** A recorded export's video, by the ids the page names — the path
+   *  comes from the studio's own record, never from the request. */
+  const exportVideo = (showcaseId, id) => {
+    const record = exportRecords.get(String(showcaseId ?? ""), String(id ?? ""));
+    if (!record) throw new Error(`No export "${id}" of "${showcaseId}" (was the file moved?)`);
+    return record;
+  };
+
+  /** Streams a video with byte-range support: a <video> seeks by asking
+   *  for ranges, and exports are too big to read whole per request. */
+  function sendVideo(req, res, file) {
+    const size = statSync(file).size;
+    const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? "");
+    res.setHeader("Content-Type", "video/mp4");
+    res.setHeader("Accept-Ranges", "bytes");
+    if (!match || (match[1] === "" && match[2] === "")) {
+      res.setHeader("Content-Length", String(size));
+      createReadStream(file).pipe(res);
+      return;
+    }
+    const start = match[1] === "" ? Math.max(0, size - Number(match[2])) : Number(match[1]);
+    const end =
+      match[1] !== "" && match[2] !== "" ? Math.min(Number(match[2]), size - 1) : size - 1;
+    if (start > end || start >= size) {
+      res.statusCode = 416;
+      res.setHeader("Content-Range", `bytes */${size}`);
+      res.end();
+      return;
+    }
+    res.statusCode = 206;
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${size}`);
+    res.setHeader("Content-Length", String(end - start + 1));
+    createReadStream(file, { start, end }).pipe(res);
+  }
+
   const terminalAction = (method) => (body) =>
     terminals ? terminals[method](body) : { ok: false, error: "Terminals are off in this studio" };
 
@@ -890,6 +985,57 @@ scenes:
     },
     "export-current": () => ({ ok: true, job: exportJobs.current() ?? null }),
     "export-reveal": revealExport,
+    "share-status": shareAction(({ showcaseId }) => ({
+      status: share.status(String(showcaseId ?? "")),
+    })),
+    /* A hand-off "from this computer" also opens the destination's
+     * upload page in the user's browser; one "to the phone" opens the
+     * AirDrop window on the video, where the Mac has one. Both run here,
+     * on the studio's machine, so they work the same from the desktop
+     * window, a browser, and Claude Code's preview. */
+    "share-handoff": shareAction(({ showcaseId, destination, method, quality }) => {
+      if (method === "phone" && !sendToPhone) {
+        throw new Error("Sending to the phone needs AirDrop, which only a Mac has");
+      }
+      const result = share.handOff({
+        showcaseId: String(showcaseId ?? ""),
+        destination: String(destination ?? ""),
+        method: String(method ?? ""),
+        quality: quality == null ? "full" : String(quality),
+      });
+      if (result.record.method === "computer") openUrl(result.uploadUrl);
+      if (result.record.method === "phone") sendToPhone(result.record.file);
+      return { handoff: result.record, uploadUrl: result.uploadUrl };
+    }),
+    /* The page copies with the browser's clipboard; an embedded preview
+     * may refuse it, so the studio copies instead. */
+    "share-copy": async ({ text }) => {
+      if (typeof text !== "string") return { ok: false, error: "Nothing to copy" };
+      return (await copyText(text))
+        ? { ok: true }
+        : { ok: false, error: "No clipboard program here (install wl-copy or xclip)" };
+    },
+    "share-post-link": shareAction(({ showcaseId, destination, url: link, handoffId }) => ({
+      handoff: share.recordPostUrl({
+        showcaseId: String(showcaseId ?? ""),
+        destination: destination == null ? undefined : String(destination),
+        url: link,
+        handoffId: handoffId == null ? undefined : String(handoffId),
+      }),
+    })),
+    /* Only a link the studio kept (checked to be on the platform's site)
+     * is opened — never a URL from the request. */
+    "share-open-post": shareAction(({ showcaseId, handoffId }) => {
+      const handoff = share.handoff(String(showcaseId ?? ""), String(handoffId ?? ""));
+      if (!handoff?.postUrl) throw new Error("That hand-off has no post link");
+      openUrl(handoff.postUrl);
+      return {};
+    }),
+    "share-reveal": shareAction(({ showcaseId, exportId }) => {
+      const record = exportVideo(showcaseId, exportId);
+      reveal(record.file);
+      return { path: record.file };
+    }),
     build: ({ showcaseId, force, only }) => {
       try {
         return {
@@ -988,6 +1134,18 @@ scenes:
         openEventStream(req, res);
         return;
       }
+      if (req.method === "GET" && action === "export-video") {
+        const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        let record;
+        try {
+          record = exportVideo(query.get("showcase"), query.get("id"));
+        } catch (error) {
+          sendJson(res, 404, { ok: false, error: error.message });
+          return;
+        }
+        sendVideo(req, res, record.file);
+        return;
+      }
       if (req.method !== "POST" || !Object.hasOwn(ACTIONS, action)) {
         sendJson(res, 404, { ok: false, error: `No studio action "${action}"` });
         return;
@@ -1025,15 +1183,7 @@ scenes:
 
     /** Runs one export now and resolves with its output (--export). */
     exportNow: (kind, showcaseId, { onProgress } = {}) =>
-      runExport({
-        renderer,
-        appUrl: url,
-        showcasesDir,
-        kind,
-        showcaseId,
-        outDir: path.join(exportDir, showcaseId),
-        onProgress,
-      }),
+      recordedExport(kind, showcaseId, { onProgress }),
 
     async close() {
       unregisterStudio();
