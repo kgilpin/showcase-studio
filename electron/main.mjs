@@ -27,10 +27,19 @@
  * quits — used for automated verification (ELECTRON_SMOKE_* below add
  * steps).
  */
-import { app, BrowserWindow, dialog, Menu, nativeImage, Notification, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  Notification,
+  shell,
+} from "electron";
 import http from "node:http";
 import net from "node:net";
-import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
@@ -40,6 +49,7 @@ import {
   libraryForClaude,
   studioOptions,
 } from "../server/launch-options.mjs";
+import { DEFAULT_EXPORT_DIR } from "../server/export-output.mjs";
 import { showInRecent } from "../server/library-config.mjs";
 import { serveStudioMcp, takeOverStdout } from "../server/mcp-stdio.mjs";
 import { loadSettings, saveSettings } from "../server/settings.mjs";
@@ -531,6 +541,23 @@ function serveMcp() {
 }
 
 if (options.mcp) serveMcp();
+
+/* The Share page drags an exported video out of the window, onto an
+ * upload page in the browser. The page names the file; only a video in
+ * the export folder is dragged, so a page can't hand out any other file. */
+ipcMain.on("studio:start-drag", async (event, file) => {
+  let real;
+  try {
+    real = realpathSync(String(file));
+  } catch {
+    return;
+  }
+  const exportsDir = existsSync(DEFAULT_EXPORT_DIR) ? realpathSync(DEFAULT_EXPORT_DIR) : null;
+  if (!exportsDir || !real.startsWith(exportsDir + path.sep) || !real.endsWith(".mp4")) return;
+  const icon = await app.getFileIcon(real, { size: "normal" }).catch(() => null);
+  if (!icon || icon.isEmpty()) return;
+  event.sender.startDrag({ file: real, icon });
+});
 
 app.whenReady().then(async () => {
   /* serveMcp starts studios and windows when Claude asks. */

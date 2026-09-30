@@ -16,6 +16,7 @@ import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import { screenshotSlide, scriptText, validateShowcases } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { transcribe } from "./transcribe.mjs";
+import { DESTINATION_IDS } from "../src/content/publish-rules.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
 
@@ -88,6 +89,12 @@ export const TOOLS = [
       "scene's cta.\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
       '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
+      '- {field: "publish.set", destination?, name, value} — the text the video is posted with ' +
+      "(the top-level publish: block): name caption, hashtags (a list, no #) or title " +
+      "(YouTube Shorts only). Leave destination out to set the default for every destination, " +
+      'or name one — "tiktok", "instagram", "youtube" — to override it there. null or "" ' +
+      "removes the field, so it inherits again. Check the result with share_status, which " +
+      "reports each destination's final text and anything over a platform's limits.\n" +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +
       "result. theme.yaml and comments are not covered — edit those directly.\n" +
       "Returns {applied, version}. Pass ifVersion — the version read_showcase or your last " +
@@ -306,6 +313,69 @@ export const TOOLS = [
     },
   },
   {
+    name: "share_status",
+    description:
+      "Where a showcase stands for posting to TikTok, Instagram and YouTube Shorts: for each " +
+      "destination, the text it would post with (caption, hashtags, title — the showcase's " +
+      "publish: block with that destination's overrides; `from` says where each came from), " +
+      "`paste` (the caption box's text), and `problems` (over a limit, too long a video, no " +
+      "title); the full-quality exports and whether each is `current` (it matches the " +
+      "showcase as it is now); and the hand-offs so far, with their post links. `page` is " +
+      "the Share page's URL — open it for the user. Write the text with edit_showcase " +
+      "(publish.set).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
+    name: "share",
+    description:
+      "Hand a showcase's video off for posting to one destination, from this computer: " +
+      "copies the destination's caption to the clipboard, opens its upload page in the " +
+      "user's browser, and shows the video file in Finder or Explorer. The user then drags " +
+      "the file onto the page, pastes, and posts — nothing is posted for them. Needs a " +
+      'current export: the full-quality video (kind "video"), or with quality: "draft" the ' +
+      'quick draft (kind "video-draft", half size, 12 fps) — good for trying the steps out, ' +
+      "not for the real post. When there isn't one, nothing happens and the result says so " +
+      "(with about how long an export takes) — confirm with the user, run export, wait for " +
+      "export_status to say done, then call share again. Ask the user which destination if " +
+      "they didn't say. To AirDrop the video to a phone instead, send the user to the Share " +
+      "page.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        destination: { type: "string", enum: DESTINATION_IDS },
+        quality: {
+          type: "string",
+          enum: ["full", "draft"],
+          description: "Which export to post (default full)",
+        },
+      },
+      required: ["showcaseId", "destination"],
+    },
+  },
+  {
+    name: "share_record",
+    description:
+      "Keep a post's link once the user has posted: it is saved with the newest hand-off to " +
+      "that destination that has no link yet (or a new record when there is none), and " +
+      "shows in the Share page's history. The link must be on the destination's own site.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        destination: { type: "string", enum: DESTINATION_IDS },
+        url: { type: "string", description: "The post's link" },
+      },
+      required: ["showcaseId", "destination", "url"],
+    },
+  },
+  {
     name: "export",
     description:
       "Start an export of a showcase as a background job — returns a jobId immediately; poll " +
@@ -317,7 +387,8 @@ export const TOOLS = [
       'beside the media); "screens" captures the App Store screenshot set; "script" ' +
       "writes the narration as <id>_script.txt (instant). Output lands in " +
       "~/Downloads/showcase-exports/<id>, named <id>[_43][_draft].mp4 (screenshots in " +
-      "screens/); the previous export is kept numbered (<id>_draft.1.mp4, screens.1/). One " +
+      "screens/); older exports move to history/ in that folder, numbered " +
+      "(history/<id>_draft.1.mp4, history/screens.1/). One " +
       "export runs at a time, shared with the studio's Export button.",
     inputSchema: {
       type: "object",
@@ -402,9 +473,79 @@ function staleEditMessage(changeLog, showcaseId, ifVersion, currentVersion) {
 
 /** Runs one tool against a studio. `context` is
  *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, buildJobs,
- *  changeLog, history }. */
+ *  changeLog, history, share, openUrl, copyText, reveal }. */
 export async function callTool(context, { name, arguments: args = {} } = {}) {
   const showcasesDir = context.getShowcasesDir();
+  const sharePage = (showcaseId) =>
+    context.getUrl()
+      ? `${context.getUrl()}/showcase/${encodeURIComponent(showcaseId)}/share`
+      : null;
+  if (name === "share_status") {
+    const showcaseId = String(args.showcaseId ?? "");
+    return json({ ...context.share.status(showcaseId), page: sharePage(showcaseId) });
+  }
+  if (name === "share") {
+    const showcaseId = String(args.showcaseId ?? "");
+    const destination = String(args.destination ?? "");
+    const quality = args.quality === "draft" ? "draft" : "full";
+    let handoff;
+    try {
+      handoff = context.share.handOff({ showcaseId, destination, method: "computer", quality });
+    } catch (error) {
+      if (!/no current (draft|full-quality) video/.test(error.message)) throw error;
+      const { exports } = context.share.status(showcaseId);
+      const kind = quality === "draft" ? "video-draft" : "video";
+      const minutes = Math.max(1, Math.round(exports[kind].estimateMs / 60_000));
+      const draftReady = quality === "full" && exports["video-draft"].current;
+      return json({
+        handedOff: false,
+        reason: error.message,
+        latestExport: exports[kind].latest,
+        estimateMs: exports[kind].estimateMs,
+        next:
+          `Tell the user the video needs a fresh ${quality === "draft" ? "draft" : "full-quality"} ` +
+          `export — about ${minutes} minute${minutes > 1 ? "s" : ""} — and with their go-ahead ` +
+          `run export {kind: "${kind}"}; when export_status says done, call share again.` +
+          (draftReady
+            ? ' A current draft exists: share with quality: "draft" tries the steps with it now.'
+            : ""),
+        page: sharePage(showcaseId),
+      });
+    }
+    const { problems } = context.share
+      .status(showcaseId)
+      .destinations.find((d) => d.id === destination);
+    const copied = handoff.paste ? await context.copyText(handoff.paste) : false;
+    context.openUrl(handoff.uploadUrl);
+    context.reveal(handoff.video.file);
+    return json({
+      handedOff: true,
+      handoff: handoff.record,
+      video: handoff.video.file,
+      quality,
+      uploadUrl: handoff.uploadUrl,
+      copied,
+      ...(copied ? {} : { paste: handoff.paste }),
+      /* Over a limit, no title: worth telling the user before they post. */
+      problems,
+      next:
+        `Tell the user: the upload page is open in their browser and the video is selected in ` +
+        `their file manager — drag it onto the page, ` +
+        (copied ? "paste the caption (it's on the clipboard)" : "paste the caption below") +
+        (handoff.record.text.title ? `, give it the title "${handoff.record.text.title}"` : "") +
+        ", and post. Ask for the post's link afterwards and keep it with share_record.",
+      page: sharePage(showcaseId),
+    });
+  }
+  if (name === "share_record") {
+    return json(
+      context.share.recordPostUrl({
+        showcaseId: String(args.showcaseId ?? ""),
+        destination: String(args.destination ?? ""),
+        url: args.url,
+      }),
+    );
+  }
   if (name === "studio_info") {
     return json({
       ...context.info(),

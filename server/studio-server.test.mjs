@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import http from "node:http";
+import { createRequire } from "node:module";
 import { Readable } from "node:stream";
 import {
   existsSync,
@@ -14,6 +16,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publish } from "../cdk/lambda/publish-core.mjs";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
+import { createExportRecords } from "./export-records.mjs";
 import { contentHash } from "./scene-edit.mjs";
 import { createStudio, isLocalRequest } from "./studio-server.mjs";
 
@@ -63,9 +66,14 @@ async function startStudio({
   ids = ["nova"],
   before,
   reveal = () => {},
+  openUrl = () => {},
+  copyText = async () => true,
+  sendToPhone = null,
+  renderer,
   settings = memorySettings(),
 } = {}) {
   const library = libraryWith(...ids);
+  const exportDir = tempDir("studio-exports-");
   before?.(library);
   const studio = createStudio({
     showcasesDir: library,
@@ -73,8 +81,12 @@ async function startStudio({
     version: "test",
     srcDir,
     settings,
-    exportDir: tempDir("studio-exports-"),
+    renderer,
+    exportDir,
     reveal,
+    openUrl,
+    copyText,
+    sendToPhone,
     /* No file watcher unless a test asks for one: its 250 ms reload timer
      * would race each test's end, and the gold traces would record it only
      * sometimes (issue #12). */
@@ -105,7 +117,7 @@ async function startStudio({
       })
     ).json();
   const info = async () => (await fetch(`${url}/studio/api/info`)).json();
-  return { studio, url, library, saved: () => settings.load(), post, info };
+  return { studio, url, library, exportDir, saved: () => settings.load(), post, info };
 }
 
 /** The studio's settings.json, in memory. Pass one to two studios to
@@ -585,7 +597,7 @@ scenes:
 
   it("turns the embedded terminals off when asked", async () => {
     const { post, info } = await startStudio({ features: { terminal: false } });
-    expect((await info()).features).toEqual({ terminal: false });
+    expect((await info()).features).toEqual({ terminal: false, airDrop: false });
     expect(await post("terminal-available")).toEqual({ ptyReady: false, claude: false });
     expect(await post("terminal-start", { id: "nova", cols: 80, rows: 24 })).toMatchObject({
       ok: false,
@@ -1152,4 +1164,205 @@ describe("sharing the prompter", () => {
     const { post } = await startStudio();
     expect(await post("prompter-publish", { showcaseId: "nope" })).toMatchObject({ ok: false });
   });
+});
+
+describe("sharing", () => {
+  /** A finished full-quality export of nova, recorded the way the
+   *  studio records one. */
+  function recordExport(library, exportDir) {
+    const dir = path.join(exportDir, "nova");
+    mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, "nova.mp4");
+    writeFileSync(file, "0123456789");
+    const records = createExportRecords({ getLibrary: () => library, appVersion: "test" });
+    return records.add({
+      showcaseId: "nova",
+      kind: "video",
+      file,
+      fingerprint: records.fingerprint("nova"),
+      durationMs: 4000,
+    });
+  }
+
+  it("reports the share status, and saves the post text through scene-edit", async () => {
+    const { post, library, exportDir } = await startStudio();
+    const video = recordExport(library, exportDir);
+    const { status } = await post("share-status", { showcaseId: "nova" });
+    expect(status.exports.video.current).toMatchObject({ id: video.id, current: true });
+    expect(status.destinations.map((d) => d.id)).toEqual(["tiktok", "instagram", "youtube"]);
+
+    const edited = await post("scene-edit", {
+      showcaseId: "nova",
+      sceneId: "",
+      baseHash: status.version,
+      field: "publish.set",
+      destination: "tiktok",
+      name: "hashtags",
+      value: ["techtok"],
+    });
+    expect(edited).toMatchObject({ ok: true });
+    const after = (await post("share-status", { showcaseId: "nova" })).status;
+    expect(after.destinations[0].paste).toBe("#techtok");
+    /* The post's text doesn't make the video stale. */
+    expect(after.exports.video.current).toMatchObject({ id: video.id });
+  });
+
+  it("hands off from this computer by opening the upload page", async () => {
+    const opened = [];
+    const { post, library, exportDir } = await startStudio({ openUrl: (u) => opened.push(u) });
+    expect(
+      await post("share-handoff", {
+        showcaseId: "nova",
+        destination: "tiktok",
+        method: "computer",
+      }),
+    ).toEqual({
+      ok: false,
+      error: 'nova has no current full-quality video — export it first (kind "video")',
+    });
+    const video = recordExport(library, exportDir);
+    const result = await post("share-handoff", {
+      showcaseId: "nova",
+      destination: "tiktok",
+      method: "computer",
+    });
+    expect(result).toMatchObject({ ok: true, handoff: { exportId: video.id, method: "computer" } });
+    expect(opened).toEqual(["https://www.tiktok.com/tiktokstudio/upload"]);
+
+    expect(
+      await post("share-post-link", {
+        showcaseId: "nova",
+        destination: "tiktok",
+        url: "https://www.tiktok.com/@nova/video/1",
+      }),
+    ).toMatchObject({ ok: true, handoff: { id: result.handoff.id } });
+    await post("share-open-post", { showcaseId: "nova", handoffId: result.handoff.id });
+    expect(opened.at(-1)).toBe("https://www.tiktok.com/@nova/video/1");
+  });
+
+  it("sends to the phone only where it can AirDrop", async () => {
+    const sent = [];
+    const withAirDrop = await startStudio({ sendToPhone: (file) => sent.push(file) });
+    const video = recordExport(withAirDrop.library, withAirDrop.exportDir);
+    expect((await withAirDrop.info()).features.airDrop).toBe(true);
+    await withAirDrop.post("share-handoff", {
+      showcaseId: "nova",
+      destination: "instagram",
+      method: "phone",
+    });
+    expect(sent).toEqual([video.file]);
+
+    const without = await startStudio();
+    recordExport(without.library, without.exportDir);
+    expect(
+      await without.post("share-handoff", {
+        showcaseId: "nova",
+        destination: "instagram",
+        method: "phone",
+      }),
+    ).toEqual({ ok: false, error: "Sending to the phone needs AirDrop, which only a Mac has" });
+  });
+
+  it("serves a recorded export's video in byte ranges, and reveals it", async () => {
+    const revealed = [];
+    const { url, library, exportDir, post } = await startStudio({
+      reveal: (p) => revealed.push(p),
+    });
+    const video = recordExport(library, exportDir);
+    const src = `${url}/studio/api/export-video?showcase=nova&id=${video.id}`;
+    const whole = await fetch(src);
+    expect(whole.headers.get("content-type")).toBe("video/mp4");
+    expect(await whole.text()).toBe("0123456789");
+    const part = await fetch(src, { headers: { range: "bytes=2-4" } });
+    expect(part.status).toBe(206);
+    expect(part.headers.get("content-range")).toBe("bytes 2-4/10");
+    expect(await part.text()).toBe("234");
+    expect((await fetch(`${url}/studio/api/export-video?showcase=nova&id=../x`)).status).toBe(404);
+
+    expect(await post("share-reveal", { showcaseId: "nova", exportId: video.id })).toEqual({
+      ok: true,
+      path: video.file,
+    });
+    expect(revealed).toEqual([video.file]);
+  });
+
+  it("gives Claude the share tools", async () => {
+    const opened = [];
+    const copied = [];
+    const revealed = [];
+    const { studio, library, exportDir } = await startStudio({
+      openUrl: (u) => opened.push(u),
+      copyText: async (text) => (copied.push(text), true),
+      reveal: (p) => revealed.push(p),
+    });
+    const call = async (name, args) =>
+      JSON.parse((await studio.callTool({ name, arguments: args })).content[0].text);
+
+    const notYet = await call("share", { showcaseId: "nova", destination: "youtube" });
+    expect(notYet).toMatchObject({ handedOff: false, latestExport: null });
+    expect(notYet.next).toContain('export {kind: "video"}');
+
+    const video = recordExport(library, exportDir);
+    await call("edit_showcase", {
+      showcaseId: "nova",
+      edits: [{ field: "publish.set", name: "caption", value: "Play Nova." }],
+    });
+    const status = await call("share_status", { showcaseId: "nova" });
+    expect(status.page).toMatch(/\/showcase\/nova\/share$/);
+    const done = await call("share", { showcaseId: "nova", destination: "youtube" });
+    expect(done).toMatchObject({ handedOff: true, copied: true, video: video.file });
+    expect(done.next).toContain('give it the title "Nova"');
+    expect(opened).toEqual(["https://www.youtube.com/upload"]);
+    expect(revealed).toEqual([video.file]);
+    expect(copied).toEqual(["Play Nova."]);
+    expect(done.problems).toEqual([]);
+
+    const linked = await call("share_record", {
+      showcaseId: "nova",
+      destination: "youtube",
+      url: "https://youtube.com/shorts/abc",
+    });
+    expect(linked).toMatchObject({
+      id: done.handoff.id,
+      postUrl: "https://youtube.com/shorts/abc",
+    });
+  });
+});
+
+describe("recording exports", () => {
+  it("records a full-quality video export, which the Share page then finds current", async () => {
+    const ffmpeg = createRequire(import.meta.url)("ffmpeg-static");
+    const png = path.join(tempDir("studio-frame-"), "frame.png");
+    execFileSync(ffmpeg, ["-f", "lavfi", "-i", "color=c=red:s=2x2", "-frames:v", "1", png], {
+      stdio: "ignore",
+    });
+    const frame = readFileSync(png);
+    const renderer = {
+      openPage: async () => ({
+        goto: async () => {},
+        evaluate: async () => {},
+        capture: async () => frame,
+        close: async () => {},
+      }),
+    };
+    const { post } = await startStudio({ renderer });
+    const { job } = await post("export", { kind: "video", showcaseId: "nova" });
+    let status = job;
+    for (let i = 0; i < 200 && status.status === "running"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      status = (await post("export-status", { jobId: job.jobId })).job;
+    }
+    expect(status).toMatchObject({ status: "done" });
+    const share = (await post("share-status", { showcaseId: "nova" })).status;
+    expect(share.exports.video.current).toMatchObject({
+      kind: "video",
+      file: status.out,
+      current: true,
+    });
+    /* It was timed, so the next estimate is this studio's own. */
+    const { frames, renderMs } = share.exports.video.current;
+    expect(frames).toBeGreaterThan(0);
+    expect(renderMs).toBeGreaterThan(0);
+    expect(share.exports.video.estimateMs).toBe(Math.round(frames * (renderMs / frames)));
+  }, 30_000);
 });
