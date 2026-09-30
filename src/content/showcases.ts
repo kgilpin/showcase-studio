@@ -1175,6 +1175,9 @@ export function applySceneEditLocal(
 ): SceneEdit | undefined {
   const doc = rawDocs.get(showcaseId);
   if (!doc) return undefined;
+  /* The text a post uses isn't part of the player's model: the Share page
+   * writes it straight to the studio and reads it back. */
+  if (edit.field === "publish.set") return undefined;
   /* Meta edits address the showcase, not a scene (sceneId is ignored). */
   if (edit.field === "meta.captionStyle") {
     const previous = (doc.meta.captionStyle ?? "") as "" | "chip" | "karaoke" | "reveal";

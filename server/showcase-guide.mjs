@@ -15,6 +15,7 @@ showcase.yaml:
 - TikTok fit: the TikTok view and the TikTok video are 1080x1920 (9:16), TikTok's own shape; App Screens stays 1320x2868, the App Store size. A picture that isn't 9:16 — an iPhone screen recording or App Store screenshot is 1320x2868, taller and narrower — goes into the TikTok frame by its tiktok fit. fit: fill fills the frame and crops what sticks out (a 1320x2868 recording loses about 18% of its height); focus picks what stays: top, center, bottom, or a percentage that slides the kept part from the top (0%) to the bottom (100%). fit: fit shows the whole picture, smaller (a 1320x2868 recording fills about 82% of the width), with bands beside it: bands: blur fills them with a blurred copy of the picture (TikTok's usual look), bands: color leaves the plain stage background. meta.tiktok sets it for every scene ({fit: fill, focus: 40%}); a scene's media.tiktok wins field by field. What neither sets comes from the media's fit and align: cover means fill, contain means fit with plain bands, align is the focus — so leaving it all unset keeps a scene as it was. It applies only to image and video media outside the console theme, and never to the app mark (frame: mark). area puts the picture in one part of the frame instead of the whole of it, as insets from each edge in percent of the frame — fit and fill then work inside that box, and blurred bands still fill the whole frame. Use it to keep a picture clear of the captions and of TikTok's interface: with captions at 16% and up to three lines, {top: 31%, right: 16%, bottom: 25%, left: 5%} keeps a picture below them and out of every area TikTok covers. Set it once in meta.tiktok. Check it in the TikTok view: its Safe area switch shades where TikTok's tabs, buttons and description will cover the frame, and the sides a tall phone crops.
 - Captions are the narration, read verbatim in order — one continuous voiceover across the whole showcase; they are the ONLY spoken lines (titles never are). The player previews the export destinations as three view modes: App Screens (titles on the slide, captions in the transcript column), TikTok (captions overlaid, titles hidden), and 4:3 (the embed canvas, which composes its own captions — console slides overlay them on the media unless meta.embedCaptions turns that off, which a synced voiceover does by default). A caption identical to the scene's displayed title is not drawn on the slide (the title already says it) but is still narration.
 - Caption position: where an overlay caption sits on the slide. A preset — top, center, lower (centered 60% down), or bottom (the default) — or an exact height like 14%, which puts the caption's top edge that far down the slide in every format. Each format places the presets at its own height. The TikTok video is 9:16, and in the TikTok app it fills the screen above TikTok's tab bar, which covers about the top 13% of it (status bar, For You / Following tabs, search) and the bottom 25% (username, description, sound), plus a column of buttons down the right side; so in the TikTok video top puts the caption's top edge 13% down (where TikTok puts its own captions) and bottom puts its bottom edge 25% up; the 4:3 embed has nothing laid over it, so there top is 6% down and bottom 8% up. An exact height is the same in every format, so keep one between 13% and about 70% if the video is for TikTok. On a screen recording, pick the spot that covers the least important part of the screen — often a header strip just below 13% (top, or an exact height such as 14%) rather than center or lower, which tend to sit on the action.
+- publish (optional, top level beside meta and scenes): the text the video is posted with — see "Sharing" below. It never changes the video itself.
 - Timing derives from the copy by default: each caption prices out at its reading time (words at meta.pace plus settle and punctuation beats), and a slide is exactly long enough to speak its lines. Only pin durationMs when there is a concrete reason — and on a showcase cut from a recording, never by hand: its take decides, and build_media writes the pin.
 
 theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme. Put quotes around any value that contains a # (a hex color, a gradient): in YAML a space followed by # starts a comment, so an unquoted "linear-gradient(100deg, #34e7d6, #0a8f95)" is cut to "linear-gradient(100deg,". The studio warns about a value cut like this and leaves it out.
@@ -101,6 +102,44 @@ Two more things about footage:
 - Footage video always plays muted, in the player and in every export. The voice only ever comes from meta.soundtrack, which is why the build writes one.
 - The TikTok frame is 9:16 (1080x1920), the shape a phone selfie video already has, so a speaker clip fills it with nothing cropped. A clip cut to another shape goes in by its tiktok fit (see "TikTok fit"): fill crops it, fit shows it whole with bands. App Screens stays 1320x2868 (aspect ~0.46), where fit: cover crops about 18% of a 9:16 clip's width.
 - Footage scenes are left out of the App Store screenshot set by default; add statement or feature scenes if the showcase also needs screenshots.
+
+## Sharing (TikTok, Instagram, YouTube Shorts)
+The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (a tab beside Script and Assets) walks through it; the share tools do the same from here.
+
+What each destination takes:
+
+    destination      video                     text                          limits the studio checks
+    TikTok           the full-quality 9:16     caption + hashtags            4000 characters together; 10 minutes
+    Instagram        export (kind "video")     caption + hashtags            2200 characters together; 30 hashtags; 3 minutes (posts as a Reel)
+    YouTube Shorts   — the same file for all   title, description, hashtags  title 100 characters; description 5000; 60 hashtags; 3 minutes
+
+The text lives in showcase.yaml's top-level publish: block. There is one default for every destination, and each destination can override any field:
+
+    publish:
+      caption: Mirror your iPhone to any screen in 10 seconds.
+      hashtags: [iphone, productivity]
+      tiktok:    { hashtags: [iphone, techtok] }    # replaces the default list
+      instagram: { caption: Mirror your iPhone to any screen. Link in bio. }
+      youtube:   { title: Mirror your iPhone in 10 seconds }
+
+- A field nothing sets falls back: the caption to meta.description, the title (YouTube only) to meta.title.
+- Hashtags are a list of words without the #. On YouTube, caption is the description.
+- Write it with edit_showcase: {field: "publish.set", destination?, name, value}, name caption | hashtags | title. Leave destination out for the default. null or "" removes a field, so it inherits again. The Share page's text fields make the same edit.
+- Then call share_status. It gives each destination's final text (\`from\` says where each field came from), the text to paste, and \`problems\` — anything over a limit, a missing title, a video too long. Fix every problem.
+- Changing the publish block never makes the export stale; changing anything else in the showcase does.
+
+Writing the text:
+- Start from the narration (the script tool). The first line is the hook: TikTok shows about the first 150 characters before "more", Instagram Reels about 55 to 125.
+- TikTok: a short caption and 3 to 5 hashtags. Instagram: a caption that ends with a call to action ("Link in bio" — Instagram captions have no clickable links). YouTube Shorts: a title under 100 characters; the description can be longer.
+- Put no Showcase Studio branding in the text: TikTok's rules forbid a tool's branding on shared posts. The showcase's own brand mark is fine.
+
+Posting:
+- The video must be a current export: share_status shows exports.video.current (full quality) and exports["video-draft"].current (the draft), or null when there is none or the showcase changed since. Each has estimateMs, about how long a new one takes on this machine — roughly 5½ minutes for the full video of a one-minute showcase, and under 2 minutes for its draft. Confirm with the user before a full export {kind: "video"}.
+- The draft (540x960, 12 fps) is for trying the steps out without waiting for a full render: every step works the same with it. Post the full-quality video for real. share and the Share page take either one (quality: "draft").
+- share {showcaseId, destination} hands the video off from this computer: it copies the caption to the clipboard, opens the upload page in the user's browser, and selects the video in Finder or Explorer. Tell the user to drag the file onto the page, paste, and post. Ask which destination if they didn't say.
+- To post from a phone, send the user to the Share page (share_status gives its URL as page): on a Mac it AirDrops the video, which lands in Photos, and the copied caption reaches an iPhone's clipboard too.
+- When the user has posted, ask for the post's link and keep it with share_record {showcaseId, destination, url}. The Share page lists every hand-off with its link.
+- The studio keeps its records of exports and hand-offs in .studio/exports/ and .studio/publishes/ (one small JSON file each). Don't edit them; the videos stay in ~/Downloads/showcase-exports/<id>.
 
 ## Working rules
 - Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
@@ -260,7 +299,8 @@ ${whisperAdvice(platform)}
   plain text (instant). Output lands in ~/Downloads/showcase-exports/<id>,
   named for the showcase: <id>[_43][_draft].mp4, <id>_script.txt, and
   screens/ (numbered scene PNGs). A new export takes the plain name and
-  keeps the previous one numbered (<id>_draft.1.mp4, screens.1/). One
+  moves older ones to history/ there, numbered (history/<id>_draft.1.mp4,
+  history/screens.1/). One
   export runs at a time — the user's Export button in the studio shares
   the same queue, so an export may already be running when you start one. (The repo's npm export scripts only cover the showcases bundled
   in the app repo — for this folder, use the MCP tools.)

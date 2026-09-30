@@ -9,6 +9,17 @@
  *   screens        screens (one kind — no draft)
  */
 
+/** What each video export renders: its frame size and frame rate. The
+ *  exporter (server/exporter.mjs) renders by this table, and the Share
+ *  page's time estimates count frames by it. EXPORT_FPS in the
+ *  environment overrides the frame rate, for tuning. */
+export const VIDEO_FORMATS = {
+  video: { width: 1080, height: 1920, fps: 30 },
+  "video-draft": { width: 540, height: 960, fps: 12 },
+  "video-43": { width: 1440, height: 1080, fps: 30 },
+  "video-43-draft": { width: 720, height: 540, fps: 12 },
+};
+
 /** The export the player's current view previews. */
 export function exportKindFor(view, quality) {
   if (view === "screens") return "screens";
