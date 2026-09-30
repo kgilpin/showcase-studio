@@ -1,21 +1,30 @@
-/* Where finished exports go, and how the previous one is kept.
+/* Where finished exports go, and how the previous ones are kept.
  *
  * An export is written to a hidden partial name next to its final name,
- * and moved in only when it succeeds. Moving it in keeps the older
- * exports, numbered — the plain name is always the newest:
+ * and moved in only when it succeeds. The export folder holds only the
+ * newest export of each kind; moving a new one in moves the older ones
+ * into history/, numbered from the newest:
  *
- *   before:  gold-traces_draft.mp4     gold-traces_draft.1.mp4
+ *   before:  gold-traces_draft.mp4         history/gold-traces_draft.1.mp4
  *   after:   gold-traces_draft.mp4 (new)
- *            gold-traces_draft.1.mp4   (was the plain name)
- *            gold-traces_draft.2.mp4   (was .1)
+ *            history/gold-traces_draft.1.mp4   (was the plain name)
+ *            history/gold-traces_draft.2.mp4   (was .1)
  *
- * A folder (the screenshot set, screens/) is kept the same way: screens.1,
- * screens.2. A failed or canceled export never touches what is there.
+ * A folder (the screenshot set, screens/) is kept the same way:
+ * history/screens.1, history/screens.2. Numbered exports an earlier
+ * studio left beside the plain name (gold-traces_draft.1.mp4) move into
+ * history/ too, after the ones already there. A failed or canceled
+ * export never touches what is there.
  *
  * revealInFileManager opens the system file manager on an export. */
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+
+/** Where exports land unless a studio is told otherwise:
+ *  <Downloads>/showcase-exports/<showcase id>. */
+export const DEFAULT_EXPORT_DIR = path.join(os.homedir(), "Downloads", "showcase-exports");
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -36,23 +45,53 @@ export function partialPath(finalPath, { isDir = false } = {}) {
   return path.join(path.dirname(finalPath), `.${stem}.partial${ext}`);
 }
 
+/** The folder older exports move to, inside an export folder. */
+export const HISTORY_DIR = "history";
+
+/** The numbered copies of an export in `dir` ("clip.2.mp4" → 2), lowest
+ *  number first. */
+export function numberedCopies(dir, stem, ext) {
+  const numbered = new RegExp(`^${escapeRegExp(stem)}\\.(\\d+)${escapeRegExp(ext)}$`);
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names
+    .map((name) => [name, numbered.exec(name)?.[1]])
+    .filter(([, n]) => n != null)
+    .sort((a, b) => Number(a[1]) - Number(b[1]))
+    .map(([name]) => path.join(dir, name));
+}
+
 /** Moves a finished export from `fromPath` to `finalPath`, first moving
- *  each older export up one number (N → N+1, the plain name → 1). Returns
- *  finalPath. */
+ *  the older exports of the same name into history/ and numbering them
+ *  from the newest: the plain name becomes 1, history's 1 becomes 2, and
+ *  so on. Returns finalPath. */
 export function moveIntoPlace(fromPath, finalPath) {
   const isDir = statSync(fromPath).isDirectory();
   const dir = path.dirname(finalPath);
+  const history = path.join(dir, HISTORY_DIR);
   const [stem, ext] = nameParts(finalPath, isDir);
-  const numbered = new RegExp(`^${escapeRegExp(stem)}\\.(\\d+)${escapeRegExp(ext)}$`);
-  const numbers = readdirSync(dir)
-    .map((name) => numbered.exec(name)?.[1])
-    .filter(Boolean)
-    .map(Number)
-    .sort((a, b) => b - a);
-  const withNumber = (n) => path.join(dir, `${stem}.${n}${ext}`);
-  // Highest first, so no rename lands on a name still in use.
-  for (const n of numbers) renameSync(withNumber(n), withNumber(n + 1));
-  if (existsSync(finalPath)) renameSync(finalPath, withNumber(1));
+  /* Newest first: the plain name, history's copies, then any an earlier
+   * studio numbered beside the plain name. */
+  const older = [
+    ...(existsSync(finalPath) ? [finalPath] : []),
+    ...numberedCopies(history, stem, ext),
+    ...numberedCopies(dir, stem, ext),
+  ];
+  if (older.length > 0) {
+    mkdirSync(history, { recursive: true });
+    /* Through hidden names first, so no rename lands on a name still in
+     * use. */
+    const moving = older.map((file, i) => {
+      const temp = path.join(history, `.${stem}.moving-${i}${ext}`);
+      renameSync(file, temp);
+      return temp;
+    });
+    moving.forEach((temp, i) => renameSync(temp, path.join(history, `${stem}.${i + 1}${ext}`)));
+  }
   renameSync(fromPath, finalPath);
   return finalPath;
 }

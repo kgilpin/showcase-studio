@@ -50,8 +50,17 @@
  *                                                   index (no sceneId in
  *                                                   the target; the scene
  *                                                   is the addressed one)
+ *   { field: "publish.set", destination?, name, value }
+ *                                                   the text a showcase is
+ *                                                   posted with: the
+ *                                                   top-level publish:
+ *                                                   block's default, or one
+ *                                                   destination's override
+ *                                                   (src/content/
+ *                                                   publish-rules.mjs); null
+ *                                                   or "" removes it
  */
-import { isMap, isSeq } from "yaml";
+import { isMap, isScalar, isSeq, Scalar } from "yaml";
 import { editedText, parseEditable } from "./yaml-text.mjs";
 import {
   inRange,
@@ -65,6 +74,7 @@ import {
   isCaptionPosition,
 } from "../src/content/caption-position-rules.mjs";
 import { TIKTOK_FIELDS, tiktokFieldProblem } from "../src/content/tiktok-fit-rules.mjs";
+import { checkPublishEdit } from "../src/content/publish-rules.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 /* The brand mark sits in a corner — there is no banner position, and no
@@ -253,6 +263,49 @@ function setChecked(doc, basePath, checked) {
   doc.setIn(basePath, node);
 }
 
+/** The publish.set edit: one field of the top-level publish: block, the
+ *  default (no destination) or one destination's override. The block is
+ *  created right after meta the first time, and an override or block left
+ *  empty is removed, so inheriting again leaves no trace. */
+function setPublishField(text, { destination, name, value }) {
+  const checked = checkPublishEdit({ destination, name, value });
+  const doc = parseEditable(text);
+  if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
+  const root = doc.contents;
+  if (!isMap(root)) throw new Error("showcase.yaml is not a mapping");
+  const block = doc.get("publish");
+  if (block != null && !isMap(block)) throw new Error("publish: in showcase.yaml is not a mapping");
+  const at = destination ? ["publish", destination] : ["publish"];
+  const empty = (path) => {
+    const node = doc.getIn(path);
+    return isMap(node) && node.items.length === 0;
+  };
+
+  if (checked.remove) {
+    if (!block) return text;
+    doc.deleteIn([...at, name]);
+    if (destination && empty(at)) doc.deleteIn(at);
+    if (empty(["publish"])) doc.delete("publish");
+    return editedText(doc);
+  }
+  if (!block) {
+    const pair = doc.createPair("publish", doc.createNode({}));
+    pair.key.spaceBefore = true;
+    const metaAt = root.items.findIndex((item) => isScalar(item.key) && item.key.value === "meta");
+    root.items.splice(metaAt < 0 ? 0 : metaAt + 1, 0, pair);
+  }
+  if (destination && doc.getIn(at) != null && !isMap(doc.getIn(at))) {
+    throw new Error(`publish.${destination} in showcase.yaml is not a mapping`);
+  }
+  const node = doc.createNode(checked.value);
+  /* Hashtags stay on one line; a caption with line breaks is written as
+   * a block, the way an author would type it. */
+  if (Array.isArray(checked.value)) node.flow = true;
+  else if (checked.value.includes("\n")) node.type = Scalar.BLOCK_LITERAL;
+  doc.setIn([...at, name], node);
+  return editedText(doc);
+}
+
 /** Applies one scene edit to showcase.yaml text and returns the new text.
  *  Throws with a plain message when the edit can't be applied. */
 export function applySceneEdit(
@@ -268,6 +321,7 @@ export function applySceneEdit(
     scene,
     media,
     name,
+    destination,
   } = {},
 ) {
   const needsValue = ["title", "caption", "media.asset", "meta.captionStyle"].includes(field);
@@ -300,6 +354,8 @@ export function applySceneEdit(
     setChecked(doc, ["meta", name], checked);
     return editedText(doc);
   }
+
+  if (field === "publish.set") return setPublishField(text, { destination, name, value });
 
   /* Scene insertion addresses a position, not a scene. */
   if (field === "scene.insert") {

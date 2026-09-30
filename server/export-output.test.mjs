@@ -26,19 +26,19 @@ function finish(dir, name, text) {
 const read = (dir, name) => readFileSync(path.join(dir, name), "utf8");
 
 describe("moving a finished export into place", () => {
-  it("keeps older exports numbered, newest at the plain name", () => {
+  it("keeps only the newest beside it, and older ones numbered in history/", () => {
     const dir = outDir();
     finish(dir, "nova_draft.mp4", "first");
     finish(dir, "nova_draft.mp4", "second");
     finish(dir, "nova_draft.mp4", "third");
-    expect(readdirSync(dir).sort()).toEqual([
+    expect(readdirSync(dir).sort()).toEqual(["history", "nova_draft.mp4"]);
+    expect(readdirSync(path.join(dir, "history")).sort()).toEqual([
       "nova_draft.1.mp4",
       "nova_draft.2.mp4",
-      "nova_draft.mp4",
     ]);
     expect(read(dir, "nova_draft.mp4")).toBe("third");
-    expect(read(dir, "nova_draft.1.mp4")).toBe("second");
-    expect(read(dir, "nova_draft.2.mp4")).toBe("first");
+    expect(read(dir, "history/nova_draft.1.mp4")).toBe("second");
+    expect(read(dir, "history/nova_draft.2.mp4")).toBe("first");
   });
 
   it("leaves other exports' numbers alone", () => {
@@ -47,25 +47,32 @@ describe("moving a finished export into place", () => {
     finish(dir, "nova_draft.mp4", "draft 1");
     finish(dir, "nova_draft.mp4", "draft 2");
     finish(dir, "nova.mp4", "full 2");
-    expect(readdirSync(dir).sort()).toEqual([
+    expect(readdirSync(dir).sort()).toEqual(["history", "nova.mp4", "nova_draft.mp4"]);
+    expect(readdirSync(path.join(dir, "history")).sort()).toEqual([
       "nova.1.mp4",
-      "nova.mp4",
       "nova_draft.1.mp4",
-      "nova_draft.mp4",
     ]);
-    expect(read(dir, "nova.1.mp4")).toBe("full");
+    expect(read(dir, "history/nova.1.mp4")).toBe("full");
   });
 
-  it("keeps gaps in the numbering without overwriting", () => {
+  it("moves numbered copies an earlier studio left beside it into history/", () => {
     const dir = outDir();
     writeFileSync(path.join(dir, "nova.mp4"), "a");
+    writeFileSync(path.join(dir, "nova.1.mp4"), "b");
     writeFileSync(path.join(dir, "nova.3.mp4"), "c");
     finish(dir, "nova.mp4", "new");
-    expect(readdirSync(dir).sort()).toEqual(["nova.1.mp4", "nova.4.mp4", "nova.mp4"]);
-    expect(read(dir, "nova.1.mp4")).toBe("a");
+    expect(readdirSync(dir).sort()).toEqual(["history", "nova.mp4"]);
+    expect(readdirSync(path.join(dir, "history")).sort()).toEqual([
+      "nova.1.mp4",
+      "nova.2.mp4",
+      "nova.3.mp4",
+    ]);
+    expect(read(dir, "history/nova.1.mp4")).toBe("a");
+    expect(read(dir, "history/nova.2.mp4")).toBe("b");
+    expect(read(dir, "history/nova.3.mp4")).toBe("c");
   });
 
-  it("numbers folders too: screens, screens.1", () => {
+  it("numbers folders too: screens, history/screens.1", () => {
     const dir = outDir();
     for (const shot of ["one", "two"]) {
       const final = path.join(dir, "screens");
@@ -74,9 +81,9 @@ describe("moving a finished export into place", () => {
       writeFileSync(path.join(partial, "01-intro.png"), shot);
       moveIntoPlace(partial, final);
     }
-    expect(readdirSync(dir).sort()).toEqual(["screens", "screens.1"]);
+    expect(readdirSync(dir).sort()).toEqual(["history", "screens"]);
     expect(read(dir, "screens/01-intro.png")).toBe("two");
-    expect(read(dir, "screens.1/01-intro.png")).toBe("one");
+    expect(read(dir, "history/screens.1/01-intro.png")).toBe("one");
   });
 
   it("writes partials under a hidden name that keeps the extension", () => {

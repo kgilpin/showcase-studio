@@ -7,7 +7,8 @@
  *                    with `export: false` are skipped.
  *
  * Screens and videos are written under a partial name and moved into
- * place only when they finish; the previous export is kept, numbered
+ * place only when they finish; the previous export is kept, numbered, in
+ * the export folder's history/
  * (server/export-output.mjs).
  *   exportVideo      frame-by-frame capture of the /record page (TikTok's
  *                    9:16 frame at 1080×1920, or the 4:3 embed) driven by
@@ -32,6 +33,7 @@ import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { moveIntoPlace, partialPath, removePartial } from "./export-output.mjs";
 import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
+import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
@@ -40,9 +42,6 @@ const WIDTH = 1320;
 const HEIGHT = 2868;
 /* Half App Store size — text is readable, MCP payloads stay small. */
 const SHOT = { width: 660, height: 1434 };
-/* The TikTok video: 9:16, TikTok's own shape (half size for drafts). */
-const TIKTOK = { width: 1080, height: 1920 };
-const TIKTOK_DRAFT = { width: 540, height: 960 };
 
 /* A page that navigates or crashes can strand in-flight page scripts
  * (they never settle), which would leave a tool call — and Claude —
@@ -213,7 +212,7 @@ export async function exportScreens({
         `(or is footage). Set export: true on the scenes to capture.`,
     );
   }
-  // The set goes in screens/; the previous set is kept as screens.1.
+  // The set goes in screens/; the previous set is kept as history/screens.1.
   const finalDir = path.join(outDir, "screens");
   const partial = partialPath(finalDir, { isDir: true });
   removePartial(partial);
@@ -262,13 +261,10 @@ export async function exportVideo({
   const frameCount = Math.round((totalMs / 1000) * fps);
   mkdirSync(outDir, { recursive: true });
   const embed = canvas === "embed";
-  const size = embed
-    ? draft
-      ? { width: 720, height: 540 }
-      : { width: 1440, height: 1080 }
-    : draft
-      ? TIKTOK_DRAFT
-      : TIKTOK;
+  /* The TikTok video is 9:16, TikTok's own shape; drafts are half size. */
+  const { width, height } =
+    VIDEO_FORMATS[`${embed ? "video-43" : "video"}${draft ? "-draft" : ""}`];
+  const size = { width, height };
   const framesDir = await mkdtemp(path.join(os.tmpdir(), `studio-${showcaseId}-`));
   try {
     await withPage(renderer, size, async (page) => {
@@ -362,6 +358,12 @@ export async function exportVideo({
   }
 }
 
+/** The frame rate a video export renders at: its format's (12 for
+ *  drafts, 30 otherwise), or EXPORT_FPS when set, for tuning. */
+export function videoFps(kind) {
+  return Number(process.env.EXPORT_FPS ?? VIDEO_FORMATS[kind]?.fps ?? 30);
+}
+
 /** Runs one export. Kinds: screens, script, video, video-draft, and the
  *  4:3 embed canvas video-43 / video-43-draft. Drafts run 12fps at half
  *  size (EXPORT_FPS overrides the frame rate, for tuning). onProgress
@@ -387,12 +389,11 @@ export function runExport({
   };
   if (kind === "screens") return exportScreens(options);
   if (kind === "script") return exportScript(options);
-  const draft = kind.endsWith("-draft");
   return exportVideo({
     ...options,
-    draft,
+    draft: kind.endsWith("-draft"),
     canvas: kind.startsWith("video-43") ? "embed" : "tiktok",
-    fps: Number(process.env.EXPORT_FPS ?? (draft ? 12 : 30)),
+    fps: videoFps(kind),
   });
 }
 
