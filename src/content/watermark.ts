@@ -12,8 +12,18 @@
  *       asset: my-brand-mark     # asset key, root-relative path, or URL
  *       text: My Brand           # optional wordmark beside the mark
  *       position: top-left       # a corner — never a banner
+ *       inset: 13%               # optional: push it this far from the top (or bottom) edge
+ *       shade: true              # optional: a dark panel behind it (true, or an opacity)
  *       opacity: 0.85
  *       scale: 1
+ *
+ * `inset` keeps the mark in its corner but moves it down (or up, from a
+ * bottom corner) to a height in percent of the frame, the same in every
+ * format — the way an exact caption height works. Its reason is the
+ * platform's own interface: TikTok covers about the top 13% of the video
+ * with its tabs, so a mark at the default corner inset is hidden there.
+ * `shade` draws a dark rounded panel behind the mark for footage where the
+ * drop shadow alone isn't enough to keep it legible.
  *
  * Two deliberate limits:
  *
@@ -36,9 +46,13 @@ import {
   inRange,
   WATERMARK_DEFAULTS,
   WATERMARK_FIELDS as FIELDS,
+  WATERMARK_INSET as INSET,
   WATERMARK_OPACITY as OPACITY,
   WATERMARK_POSITIONS as POSITIONS,
   WATERMARK_SCALE as SCALE,
+  WATERMARK_SHADE as SHADE,
+  watermarkInset,
+  watermarkShade,
   type WatermarkPosition,
 } from "./watermark-rules.mjs";
 
@@ -53,6 +67,11 @@ export type WatermarkSpec = {
   /** Wordmark drawn beside the image (or on its own, with no image). */
   text?: string | undefined;
   position: WatermarkPosition;
+  /** How far the mark sits from the frame's top (or bottom) edge, in
+   *  percent of the frame's height. Absent: the canvas's own corner inset. */
+  inset?: number | undefined;
+  /** Opacity of the dark panel behind the mark; absent or 0 draws none. */
+  shade?: number | undefined;
   /** 0–1. Just under solid by default, so it survives busy footage. */
   opacity: number;
   /** Size multiplier on the canvas's own bug size. */
@@ -105,6 +124,26 @@ export function readWatermark(
       warn(
         `${where}.position must be a corner: ${POSITIONS.join(", ")} — ` +
           `using "${WATERMARK_DEFAULTS.position}"`,
+      );
+    }
+  }
+  if (raw["inset"] != null) {
+    const inset = watermarkInset(raw["inset"]);
+    if (inset != null) spec.inset = inset;
+    else {
+      warn(
+        `${where}.inset must be a height from ${INSET.min}% to ${INSET.max}% ` +
+          `(e.g. "13%": the mark that far from the top or bottom edge) — using the corner`,
+      );
+    }
+  }
+  if (raw["shade"] != null) {
+    const shade = watermarkShade(raw["shade"]);
+    if (shade != null) spec.shade = shade;
+    else {
+      warn(
+        `${where}.shade must be true, false, or an opacity between ${SHADE.min} and ${SHADE.max} ` +
+          `— drawing no shade`,
       );
     }
   }
@@ -162,6 +201,8 @@ export function resolveWatermark(
   return {
     ...(merged.asset ? { asset: merged.asset } : {}),
     ...(merged.text ? { text: merged.text } : {}),
+    ...(merged.inset != null ? { inset: merged.inset } : {}),
+    ...(merged.shade ? { shade: merged.shade } : {}),
     position: merged.position ?? WATERMARK_DEFAULTS.position,
     opacity: merged.opacity ?? WATERMARK_DEFAULTS.opacity,
     scale: merged.scale ?? WATERMARK_DEFAULTS.scale,

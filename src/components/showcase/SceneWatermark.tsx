@@ -32,6 +32,11 @@ export function SceneWatermark({
   const size = SIZES[canvas];
   const scale = watermark.scale;
   const inset = `${size.inset}cqw`;
+  /* An authored inset pushes the mark down (or up) to a height in percent
+   * of the frame — past a platform's own interface — the same in every
+   * format; the side inset stays the canvas's own. */
+  const edge = watermark.inset != null ? `${watermark.inset}%` : inset;
+  const shade = watermark.shade ?? 0;
   const [vertical, horizontal] = watermark.position.split("-");
   return (
     /* Decorative chrome: hidden from screen readers so the same logo
@@ -43,8 +48,17 @@ export function SceneWatermark({
       style={{
         opacity: watermark.opacity,
         gap: `${size.gap * scale}cqw`,
-        ...(vertical === "top" ? { top: inset } : { bottom: inset }),
+        ...(vertical === "top" ? { top: edge } : { bottom: edge }),
         ...(horizontal === "left" ? { left: inset } : { right: inset }),
+        /* The shade: a dark rounded panel behind the mark, for footage
+         * where the drop shadow alone doesn't keep it legible. */
+        ...(shade > 0
+          ? {
+              padding: `${size.gap * 0.6 * scale}cqw ${size.gap * scale}cqw`,
+              borderRadius: "9999px",
+              background: `rgba(0, 0, 0, ${shade})`,
+            }
+          : {}),
       }}
     >
       {watermark.src && (

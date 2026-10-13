@@ -30,10 +30,14 @@ meta.watermark draws a small logo in one corner of every slide, the way a TV net
         asset: my-brand-mark     # asset key, root-relative path, or URL
         text: My Brand           # optional wordmark beside the image
         position: top-left       # top-left | top-right | bottom-left | bottom-right
+        inset: 13%               # optional: how far from the top (or bottom) edge, 0-50%
+        shade: true              # optional: a dark panel behind the mark (true, or an opacity 0-1)
         opacity: 0.85            # 0-1
         scale: 1                 # 0.25-3, on top of the canvas's own bug size
 
-- asset, text, or both — one of them must be there. The asset must be an image file; a video or audio file warns and isn't drawn. Everything else has a default: position top-left, opacity 0.85, scale 1.
+- asset, text, or both — one of them must be there. The asset must be an image file; a video or audio file warns and isn't drawn. Everything else has a default: position top-left, opacity 0.85, scale 1, no inset (the canvas's own corner inset), no shade.
+- inset keeps the mark in its corner but pushes it down (from a top corner) or up (from a bottom corner) to that height, in percent of the frame, the same in every format — like an exact caption height. Use it for TikTok, whose own interface covers about the top 13% of the video: inset: 13% puts the mark where TikTok puts its own captions, just below the tabs. Check it in the TikTok view with the Safe area switch on.
+- shade draws a dark rounded panel behind the mark and wordmark, for footage where the mark's drop shadow alone doesn't keep it legible — a pale sky, a white wall. true is a medium shade (0.45); a number is the panel's opacity.
 - It is a CORNER mark, by design: there is no banner position. A full-width band across the frame reads as an ad unit and competes with the captions and the speaker's face. The default corner is a top one because the bottom of the frame belongs to the captions, and in the video export to the platform's own UI as well.
 - Use an IDENTITY mark — a logo, a wordmark. Do NOT use the App Store badge: it is a call to action, and Apple's guidelines give it clear-space and minimum-size rules a small persistent copy would break. The badge belongs on the end card, which is what a scene's cta field is for.
 - The 0.85 default keeps the mark readable over busy footage; its small corner size is what makes it read as authorship rather than advertising. Lower the opacity only over calm, even backgrounds — a faint mark disappears on video.

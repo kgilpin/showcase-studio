@@ -68,6 +68,10 @@ import {
   WATERMARK_OPACITY,
   WATERMARK_POSITIONS,
   WATERMARK_SCALE,
+  WATERMARK_INSET,
+  WATERMARK_SHADE,
+  watermarkInset,
+  watermarkShade,
 } from "../src/content/watermark-rules.mjs";
 import {
   CAPTION_POSITION_HELP,
@@ -198,6 +202,18 @@ function checkFieldValue(fields, where, name, value) {
       }
       if (value.position != null && !WATERMARK_POSITIONS.includes(value.position)) {
         throw new Error(`${label}.position must be a corner: ${WATERMARK_POSITIONS.join(", ")}`);
+      }
+      if (value.inset != null && watermarkInset(value.inset) == null) {
+        throw new Error(
+          `${label}.inset must be a height from ${WATERMARK_INSET.min}% to ${WATERMARK_INSET.max}% ` +
+            `(e.g. "13%": the mark that far from the top or bottom edge)`,
+        );
+      }
+      if (value.shade != null && watermarkShade(value.shade) == null) {
+        throw new Error(
+          `${label}.shade must be true, false, or an opacity between ` +
+            `${WATERMARK_SHADE.min} and ${WATERMARK_SHADE.max}`,
+        );
       }
       for (const [key, range] of [
         ["opacity", WATERMARK_OPACITY],
