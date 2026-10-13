@@ -506,6 +506,17 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     );
     expect(() => bad({ asset: "mark", opacity: 50 })).toThrow("between 0 and 1");
     expect(() => bad({ asset: "mark", scale: 9 })).toThrow("between 0.25 and 3");
+    /* An inset is a percent of the frame's height, up to half of it. */
+    expect(() => bad({ asset: "mark", inset: 13 })).toThrow(
+      "meta.watermark.inset must be a height from 0% to 50%",
+    );
+    expect(() => bad({ asset: "mark", inset: "60%" })).toThrow("inset must be a height");
+    expect(() => bad({ asset: "mark", shade: "dark" })).toThrow(
+      "meta.watermark.shade must be true, false, or an opacity between 0 and 1",
+    );
+    expect(bad({ asset: "mark", inset: "13%", shade: true })).toContain(
+      "  watermark: { asset: mark, inset: 13%, shade: true }\n",
+    );
     expect(() => bad({ asset: "mark", badge: "app-store" })).toThrow(
       "meta.watermark.badge is not a field",
     );

@@ -40,6 +40,34 @@ describe("readWatermark", () => {
     expect(spec).toBeUndefined();
     expect(warnings[0]).toContain("must be a map");
   });
+
+  it("reads an inset as a percent and a shade as an opacity", () => {
+    const [spec, warnings] = withWarnings((warn) =>
+      readWatermark({ asset: "mark", inset: "13%", shade: true }, "meta.watermark", warn),
+    );
+    expect(spec).toEqual({ asset: "mark", inset: 13, shade: 0.45 });
+    expect(warnings).toEqual([]);
+    const [exact] = withWarnings((warn) =>
+      readWatermark({ asset: "mark", shade: 0.7, inset: "25.5%" }, "meta.watermark", warn),
+    );
+    expect(exact).toEqual({ asset: "mark", inset: 25.5, shade: 0.7 });
+    const [off] = withWarnings((warn) => readWatermark({ shade: false }, "scene watermark", warn));
+    expect(off).toEqual({ shade: 0 });
+  });
+
+  it("warns on an inset that is not a percent in range, and on a bad shade", () => {
+    const [spec, warnings] = withWarnings((warn) =>
+      readWatermark({ asset: "mark", inset: 13, shade: "dark" }, "meta.watermark", warn),
+    );
+    expect(spec).toEqual({ asset: "mark" });
+    expect(warnings.join(" ")).toContain("inset must be a height from 0% to 50%");
+    expect(warnings.join(" ")).toContain("shade must be true, false, or an opacity");
+    const [tooFar, farWarnings] = withWarnings((warn) =>
+      readWatermark({ asset: "mark", inset: "60%" }, "meta.watermark", warn),
+    );
+    expect(tooFar).toEqual({ asset: "mark" });
+    expect(farWarnings[0]).toContain("inset must be");
+  });
 });
 
 describe("resolveWatermark", () => {
@@ -71,6 +99,14 @@ describe("resolveWatermark", () => {
   it("merges a scene's map over the showcase's setting", () => {
     const [spec] = resolve(MARK, { position: "bottom-right", opacity: 0.25 });
     expect(spec).toEqual({ ...MARK, position: "bottom-right", opacity: 0.25, scale: 1 });
+  });
+
+  it("carries the inset and shade, and lets a scene turn the shade off", () => {
+    const base = { ...MARK, inset: 13, shade: 0.45 };
+    const [spec] = resolve(base, undefined);
+    expect(spec).toEqual({ ...MARK, ...WATERMARK_DEFAULTS, inset: 13, shade: 0.45 });
+    const [plain] = resolve(base, { shade: 0 });
+    expect(plain).toEqual({ ...MARK, ...WATERMARK_DEFAULTS, inset: 13 });
   });
 
   it("skips the bug on a statement slide that already shows the mark", () => {
