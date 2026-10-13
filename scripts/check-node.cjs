@@ -8,7 +8,7 @@ const actual = Number(process.versions.node.split(".")[0]);
 if (actual < wanted) {
   console.error(
     `Showcase Studio needs Node ${wanted} or newer; this is Node ${process.version} (${process.execPath}).\n` +
-      "Install it with nvm (https://github.com/nvm-sh/nvm) or Volta (https://volta.sh), then run again.",
+      "Install Volta (brew install volta && volta setup) and open a new terminal; it uses the Node pinned in package.json.",
   );
   process.exit(1);
 }
