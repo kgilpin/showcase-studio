@@ -165,6 +165,9 @@ Exports also run from the app, and from the command line (`--export`).
 For contributors. Development commands and conventions are in
 [CLAUDE.md](CLAUDE.md).
 
+Node 22 comes from [Volta](https://volta.sh), pinned in package.json:
+`brew install volta && volta setup`, then open a new terminal.
+
 ```sh
 npm i
 npm run dev               # the full studio in your browser

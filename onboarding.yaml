@@ -1,0 +1,171 @@
+# Showcase Studio supports macOS only for development. These commands are
+# written for sh on macOS and have no Windows forms.
+entries:
+  - id: homebrew
+    title: Homebrew
+    check: command -v brew
+    failMessage: >-
+      Install Homebrew in Terminal (it asks for your password):
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    troubleshooting: >-
+      On Apple silicon, Homebrew lives in /opt/homebrew. If `which -a brew` lists
+      /usr/local/bin/brew first, that is an Intel copy running under Rosetta.
+
+  - id: volta
+    title: Volta (Node version manager)
+    check: volta --version
+    fix: brew install volta && volta setup
+    dependsOn: [homebrew]
+    failMessage: Run `brew install volta && volta setup`, then open a new terminal.
+    troubleshooting: >-
+      `volta setup` adds ~/.volta/bin to your shell profile. Open a new terminal
+      and restart VS Code so they see it.
+    from:
+      {
+        source: person,
+        file: README.md,
+        section: "## Running from source",
+        sha256: 65f05aa2,
+        date: 2026-10-13,
+      }
+
+  - id: node
+    title: Node 22 (pinned in package.json)
+    check: sh bin/onboarding/node.sh
+    fix: volta run node --version
+    prove: node scripts/check-node.cjs
+    dependsOn: [volta]
+    failMessage: Run `volta setup`, open a new terminal, restart VS Code, and run `node --version` in this folder.
+    troubleshooting: >-
+      Run `which -a node`: ~/.volta/bin/node must come first. An nvm or Homebrew
+      Node earlier on the PATH hides it; remove that line from your shell profile.
+      Old Node versions (v12 has turned up here) can't parse the server modules.
+    from:
+      {
+        source: person,
+        file: CLAUDE.md,
+        section: "## Setup and commands",
+        sha256: 8bc72bc8,
+        date: 2026-10-13,
+      }
+
+  - id: npm-deps
+    title: npm packages
+    check: npm ls --depth=0
+    fix: npm ci
+    prove: node -e "require('node-pty')" && npx vite --version && npx vitest --version
+    dependsOn: [node]
+    failMessage: Run `npm ci` in this folder.
+    troubleshooting: >-
+      npm, not bun, is the package manager (CI runs `npm ci`). If node-pty fails
+      to build, check `xcode-select -p`; install the tools with `xcode-select --install`.
+    from:
+      {
+        source: guessed,
+        file: README.md,
+        section: "## Running from source",
+        sha256: 65f05aa2,
+        date: 2026-10-13,
+      }
+
+  - id: desktop-deps
+    title: Desktop shell packages (Electron)
+    check: npm --prefix electron ls --depth=0
+    fix: npm --prefix electron ci
+    dependsOn: [node]
+    failMessage: Run `npm run setup:desktop`.
+    troubleshooting: >-
+      Only `npm run dev:electron`, `package:desktop` and `release:desktop` need these.
+      Electron downloads its own 300 MB binary the first time it runs.
+    from:
+      {
+        source: guessed,
+        file: CLAUDE.md,
+        section: "## Setup and commands",
+        sha256: 8bc72bc8,
+        date: 2026-10-13,
+      }
+
+  - id: google-chrome
+    title: Google Chrome (renders exports)
+    check: test -d "/Applications/Google Chrome.app"
+    fix: brew install --cask google-chrome
+    dependsOn: [homebrew]
+    failMessage: Run `brew install --cask google-chrome`.
+    troubleshooting: >-
+      Screenshots and video exports use Chrome because Playwright's Chromium
+      can't play MP4 video. Without Chrome, video footage doesn't play in exports.
+
+  - id: playwright-chromium
+    title: Playwright Chromium
+    check: node bin/onboarding/playwright-chromium.js
+    fix: npx playwright install chromium
+    dependsOn: [npm-deps]
+    failMessage: Run `npx playwright install chromium`.
+    troubleshooting: >-
+      The browser must match the installed Playwright version. After a Playwright
+      upgrade, run `npx playwright install chromium` again.
+    from:
+      {
+        source: guessed,
+        file: CLAUDE.md,
+        section: "## Setup and commands",
+        sha256: 8bc72bc8,
+        date: 2026-10-13,
+      }
+
+  - id: cmake
+    title: cmake for this Mac's architecture
+    check: sh bin/onboarding/cmake.sh
+    fix: brew install cmake
+    dependsOn: [homebrew]
+    failMessage: Run `/opt/homebrew/bin/brew install cmake` and make sure /opt/homebrew/bin comes before /usr/local/bin on your PATH.
+    troubleshooting: >-
+      Run `which -a cmake` and `file "$(which cmake)"`. An Intel cmake in
+      /usr/local/bin on Apple silicon can't build whisper; uninstall it with
+      `/usr/local/bin/brew uninstall cmake`.
+    from:
+      {
+        source: guessed,
+        file: CLAUDE.md,
+        section: "## Setup and commands",
+        sha256: 8bc72bc8,
+        date: 2026-10-13,
+      }
+
+  - id: whisper
+    title: whisper.cpp voice-to-text binary
+    check: test -x electron/vendor/whisper/whisper-cli
+    fix: npm run vendor:whisper
+    prove: electron/vendor/whisper/whisper-cli --help
+    dependsOn: [cmake, npm-deps]
+    failMessage: Run `npm run vendor:whisper -- --force`.
+    troubleshooting: >-
+      The build takes a few minutes. It also needs Xcode's command line tools
+      (`xcode-select --install`). The speech model is separate: the studio
+      downloads it on first transcription.
+    from:
+      {
+        source: guessed,
+        file: CLAUDE.md,
+        section: "## Setup and commands",
+        sha256: 8bc72bc8,
+        date: 2026-10-13,
+      }
+
+  - id: appmap-skills
+    title: AppMap skills (gold-trace review and releases)
+    check: sh bin/onboarding/appmap-skills.sh check
+    fix: sh bin/onboarding/appmap-skills.sh fix
+    failMessage: Follow the README's "The AppMap skills" section.
+    troubleshooting: >-
+      The skills are linked into ~/.claude/skills from a clone in ~/.appmap/skills.
+      To update them, run `git -C ~/.appmap/skills pull`.
+    from:
+      {
+        source: guessed,
+        file: README.md,
+        section: "### The AppMap skills",
+        sha256: 07d7861c,
+        date: 2026-10-13,
+      }
