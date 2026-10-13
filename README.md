@@ -194,7 +194,7 @@ Install them once, for your user:
 ```sh
 git clone https://github.com/getappmap/skills.git ~/.appmap/skills
 mkdir -p ~/.claude/skills
-for skill in appmap-gold-traces appmap-record appmap-review appmap-label; do
+for skill in appmap-gold-traces appmap-record appmap-review appmap-config; do
   ln -s ~/.appmap/skills/$skill ~/.claude/skills/$skill
 done
 ```
