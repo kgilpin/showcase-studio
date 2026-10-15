@@ -206,24 +206,24 @@
   ]
  },
  {
-  "text": "Add the plugin to Claude Code from GitHub, and make your first video today.",
+  "text": "Add the Showcase Studio plugin to Claude Code, and make your first video today.",
   "startMs": 47040,
-  "endMs": 53296,
+  "endMs": 53680,
   "words": [
-    { "text": "Add", "startMs": 47348, "endMs": 47348 },
-    { "text": "the", "startMs": 47409, "endMs": 47524 },
-    { "text": "plugin", "startMs": 47524, "endMs": 47877 },
-    { "text": "to", "startMs": 47877, "endMs": 47992 },
-    { "text": "Claude", "startMs": 47992, "endMs": 48276 },
-    { "text": "Code", "startMs": 48291, "endMs": 48529 },
-    { "text": "from", "startMs": 48529, "endMs": 48767 },
-    { "text": "GitHub", "startMs": 48767, "endMs": 49234 },
-    { "text": "and", "startMs": 49234, "endMs": 49411 },
-    { "text": "make", "startMs": 49411, "endMs": 49648 },
-    { "text": "your", "startMs": 49648, "endMs": 49878 },
-    { "text": "first", "startMs": 49878, "endMs": 50001 },
-    { "text": "video", "startMs": 50001, "endMs": 50239 },
-    { "text": "today", "startMs": 50783, "endMs": 50998 }
+    { "text": "Add", "startMs": 47347, "endMs": 47347 },
+    { "text": "the", "startMs": 47423, "endMs": 47532 },
+    { "text": "Showcase", "startMs": 47532, "endMs": 48021 },
+    { "text": "Studio", "startMs": 48021, "endMs": 48375 },
+    { "text": "plugin", "startMs": 48392, "endMs": 48755 },
+    { "text": "to", "startMs": 48797, "endMs": 48881 },
+    { "text": "Claude", "startMs": 48881, "endMs": 49100 },
+    { "text": "Code", "startMs": 49421, "endMs": 49539 },
+    { "text": "and", "startMs": 49572, "endMs": 49733 },
+    { "text": "make", "startMs": 49733, "endMs": 49927 },
+    { "text": "your", "startMs": 50019, "endMs": 50222 },
+    { "text": "first", "startMs": 50222, "endMs": 50289 },
+    { "text": "video", "startMs": 50289, "endMs": 50533 },
+    { "text": "today", "startMs": 51132, "endMs": 51368 }
   ]
  }
  ]
