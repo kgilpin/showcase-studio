@@ -552,9 +552,8 @@ npm run dev -- --new [<library folder>]
   `index.html` (the one landing page), `styles.css`, `_headers`, and
   `media/` (made by `scripts/prepare-media.mjs`). The page names the
   release in its download links (`Showcase-Studio-X.Y.Z-mac-arm64.zip`,
-  `-win-x64.zip`): update them with each release. The Buy button and the
-  YouTube links are placeholders (`data-soon`) until the license manager
-  and the channel exist.
+  `-win-x64.zip`): update them with each release. The YouTube links are
+  placeholders (`data-soon`) until the channel exists.
 - `gold_traces/`: The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
   appmap-node) and `baseline/appmaps/` holds the blessed, sanitized
