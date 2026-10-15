@@ -78,6 +78,34 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # server/studio-server.mjs); prompterPublishUrl in the studio settings
 # points one machine at Dev.
 
+# The marketing site (site/): plain static files on Cloudflare Pages, its
+# own npm package, nothing shared with the studio's build or the AWS stack.
+#   cd site && npm i
+#   npm run dev            serve site/public on http://localhost:8098
+#                          (a small Node server, no dependencies)
+#   npm run dev:wrangler   the same, the way Cloudflare Pages serves it
+#   npm run media          make site/public/media from the repo: the hero
+#                          video from the showcase-studio export, the two
+#                          NOVA example frames from the nova export, and
+#                          the teleprompter picture. Export first, at
+#                          the root: npm run dev -- --export
+#                          video:showcase-studio, and --export
+#                          video-draft:nova. Commit the results.
+#   npm run capture:prompter
+#                          capture the NOVA teleprompter picture into
+#                          site/media-src/ from a studio on :8123 (start
+#                          one at the root: PORT=8123 npm run dev --
+#                          --no-terminal --no-auto-commit --alongside)
+# Deploy (Cloudflare Pages project "showcase-studio", from site/wrangler.toml):
+#   npx wrangler login     once, in a browser
+#   npx wrangler pages project create showcase-studio --production-branch main
+#                          once, the first time
+#   npm run deploy         upload site/public as the live site
+#   npm run deploy:preview upload it to a preview URL instead
+# wrangler refuses to run below a folder holding a stale
+# .wrangler/deploy/config.json (an old studio build can leave one at the
+# repo root, pointing at .output/server/wrangler.json): delete that folder.
+
 npm run export:script              # print every showcase's narration script
 npm run export:script -- <id>      # (or one) as plain text to stdout — the
                                    # same spoken lines as the /script page.
@@ -524,6 +552,13 @@ npm run dev -- --new [<library folder>]
   and an expired link is replaced by a new one (the share dialog says so).
   The endpoint defaults to Prod's; settings `prompterPublishUrl` or
   `PROMPTER_PUBLISH_URL` env points elsewhere.
+- `site/`: The marketing site, deployed to Cloudflare Pages (own npm
+  package; only `wrangler` as a dependency). `public/` is uploaded as is:
+  `index.html` (the one landing page), `styles.css`, `_headers`, and
+  `media/` (made by `scripts/prepare-media.mjs`). The page names the
+  release in its download links (`Showcase-Studio-X.Y.Z-mac-arm64.zip`,
+  `-win-x64.zip`): update them with each release. There is no YouTube
+  link yet: add one to the top bar and the footer when the channel exists.
 - `gold_traces/`: The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
   appmap-node) and `baseline/appmaps/` holds the blessed, sanitized
