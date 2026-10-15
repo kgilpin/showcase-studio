@@ -78,6 +78,15 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # server/studio-server.mjs); prompterPublishUrl in the studio settings
 # points one machine at Dev.
 
+# The license service (cdk/, its own CDK app: bin/license.ts), not yet
+# deployed or called by the studio — docs/licensing.md has the design and
+# the one-time Stripe and SSM setup. Same -c environment=dev|prod
+# convention (→ ShowcaseLicenseStack-Dev / -Prod); prod also needs
+# -c websiteUrl=https://<site>. Stripe keys live in SSM, never in the repo.
+#   cd cdk && npm run synth:license
+#   AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
+# Its rules are tested with the rest: npm test (cdk/lambda-license/).
+
 npm run export:script              # print every showcase's narration script
 npm run export:script -- <id>      # (or one) as plain text to stdout — the
                                    # same spoken lines as the /script page.
@@ -524,6 +533,15 @@ npm run dev -- --new [<library folder>]
   and an expired link is replaced by a new one (the share dialog says so).
   The endpoint defaults to Prod's; settings `prompterPublishUrl` or
   `PROMPTER_PUBLISH_URL` env points elsewhere.
+  Beside it, the license service (`lib/license-stack.ts`, its own app in
+  `bin/license.ts`): one DynamoDB table and one Lambda behind a Function
+  URL, routed by path — `/checkout` (303 to Stripe Checkout, the
+  website's Buy button), `/webhook` (Stripe, signature checked),
+  `/claim` (the thank-you page gets the key), `/check` and `/export`
+  (the studio: license status, and 2 free exports per device per month).
+  Rules in `lambda-license/license-core.mjs`, wired to DynamoDB, Stripe
+  (plain fetch) and SSM by the other files there. Design, open questions
+  and where the studio's check would go: `docs/licensing.md`.
 - `gold_traces/`: The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
   appmap-node) and `baseline/appmaps/` holds the blessed, sanitized

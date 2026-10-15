@@ -6,7 +6,10 @@
   "scripts": {
     "synth": "cdk synth",
     "deploy": "cdk deploy --require-approval never",
-    "diff": "cdk diff"
+    "diff": "cdk diff",
+    "synth:license": "cdk synth --app \"npx tsx bin/license.ts\" -o cdk.out.license",
+    "diff:license": "cdk diff --app \"npx tsx bin/license.ts\" -o cdk.out.license",
+    "deploy:license": "cdk deploy --app \"npx tsx bin/license.ts\" -o cdk.out.license"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.170.0",

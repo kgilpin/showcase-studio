@@ -26,6 +26,7 @@ dist-ssr
 
 # CDK (the prompter site stack)
 cdk/cdk.out/
+cdk/cdk.out.license/
 
 # Editor directories and files
 .vscode/*
