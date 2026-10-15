@@ -189,12 +189,12 @@ p {
 
 .button.primary {
   border: 0;
-  background: var(--accent);
+  background: var(--blue);
   color: #070a16;
 }
 
 .button.primary:hover {
-  background: var(--accent);
+  background: var(--blue);
   filter: brightness(1.08);
 }
 
