@@ -5,7 +5,7 @@ meta:
   captionStyle: karaoke
   notes: |-
     Script draft for the plugin pitch: Showcase Studio runs as a Claude Code plugin, so it uses the subscription you already have, every tool on your machine, and plain files you can share across projects.
-    Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile, us-east-1): one clip per caption (24 kHz mp3), each placed in a window of 250 ms lead + spoken length (rounded up to the millisecond) + 450 ms tail; the last caption holds 1.5 s more for the end card. Every caption's durationMs is pinned to its window, and the windows sum to 53296 ms, the audio's length. assets/voiceover-synth.words.json has one segment per caption window, with the caption's own words and the transcribe tool's word times fitted into the span where that caption's clip is voiced (whisper drifts across caption boundaries, so its times aren't used as they come). After any caption edit, synthesize again, re-pin, and rebuild the words file, or the voice drifts out of sync. Last made 2026-10-15.
+    Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile, us-east-1): one clip per caption (24 kHz mp3), each placed in a window of 250 ms lead + spoken length (rounded up to the millisecond) + 450 ms tail; the last caption holds 1.5 s more for the end card. Every caption's durationMs is pinned to its window, and the windows sum to 53680 ms, the audio's length. assets/voiceover-synth.words.json has one segment per caption window, with the caption's own words and the transcribe tool's word times fitted into the span where that caption's clip is voiced (whisper drifts across caption boundaries, so its times aren't used as they come). After any caption edit, synthesize again, re-pin, and rebuild the words file, or the voice drifts out of sync. Last made 2026-10-15.
     The on-camera scene still plays assets/scene-1-setup.mp4, an old clip that says the previous script. The master recording it was cut from, and an earlier recorded voiceover, were dropped from this folder: these showcases ship as examples, so only the files the slides use are kept. To record for real: read the final script on the phone teleprompter, cut a new on-camera clip, then point soundtrack at the new recording, re-pin, and replace the words file.
   soundtrack: { src: voiceover-synth, volume: 1, sync: true }
 
@@ -110,8 +110,8 @@ scenes:
     captions:
       - text: Videos of your app, made with the Claude Code you already have.
         durationMs: 4180
-      - text: Add the plugin to Claude Code from GitHub, and make your first video today.
-        durationMs: 6256
+      - text: Add the Showcase Studio plugin to Claude Code, and make your first video today.
+        durationMs: 6640
     media:
       kind: graphic
       graphic: plugin-install
@@ -119,4 +119,4 @@ scenes:
     eyebrow: Get it
     cta: { kind: github, label: View on GitHub, url: https://github.com/kgilpin/showcase-studio }
     ctaNote: github.com/kgilpin/showcase-studio
-    note: 'The graphic is graphics/plugin-install.tsx, a stylized terminal: the two plugin commands from the README type in on the second caption ("Add the plugin to Claude Code...", about 4.4 s in). Retime its FIRST constant if that caption moves.'
+    note: 'The graphic is graphics/plugin-install.tsx, a stylized terminal: the two plugin commands from the README type in on the second caption ("Add the Showcase Studio plugin...", about 4.4 s in). Retime its FIRST constant if that caption moves.'
