@@ -251,12 +251,14 @@ export type Showcase = {
   /** Showcase-level authoring notes (see Scene.note) — never rendered in
    *  the player or exports; shown on the script page. */
   notes?: string | undefined;
-  /** True when meta.source names a master recording — this showcase's
-   *  voiceover, clips, word timings and scene durations are all built
-   *  from its cut list (server/build-plan.mjs). The studio offers a
-   *  "Build media" button for these; the player itself is unaffected,
-   *  because the build writes ordinary durationMs pins and assets. */
-  builtFromRecording: boolean;
+  /** True when the studio builds this showcase's voice: meta.source
+   *  names a master recording (its voiceover, clips, word timings and
+   *  scene durations come from its cut list, server/build-plan.mjs), or
+   *  meta.voiceover has Polly read the captions (server/voiceover.mjs).
+   *  The studio offers a "Build media" button for these; the player
+   *  itself is unaffected, because the build writes ordinary durationMs
+   *  pins and assets. */
+  builtMedia: boolean;
   /** Resolved styling: CSS-variable overrides (names without the leading
    *  `--`) plus font stylesheet URLs to load. Combined, in order: the
    *  extended showcase's theme, this showcase's theme.yaml, and the
@@ -326,6 +328,9 @@ type RawDoc = {
      *  Read by the build (server/build-plan.mjs), ignored here: the build
      *  writes the durationMs pins the player actually follows. */
     source?: Record<string, unknown>;
+    /** A synthesized voiceover's settings, when Polly reads the captions.
+     *  Read by the build (server/voiceover.mjs), ignored here. */
+    voiceover?: Record<string, unknown>;
     /** Default overlay caption painting for every scene (see CaptionStyle). */
     captionStyle?: string;
     /** Overlay captions on the 4:3 embed canvas — validated (with a linter
@@ -954,7 +959,7 @@ function buildShowcase(
   return {
     id: showcaseId,
     ...doc.meta,
-    builtFromRecording: Boolean(doc.meta.source),
+    builtMedia: Boolean(doc.meta.source || doc.meta.voiceover),
     embedCaptions,
     watermark: resolveWatermarkAsset(
       showcaseId,

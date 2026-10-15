@@ -335,7 +335,7 @@ npm run dev -- --new [<library folder>]
     `showcase-history.mjs`, `screenshot_slide`, `validate`, `transcribe`
     (with `save`, which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
-    `build-media.mjs`, `export`/`export_status`/`export_cancel`,
+    `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`,
     `share_status`/`share`/`share_record` through `share.mjs`.
   - `export-records.mjs`: a record of each video export, full quality and
     draft, with how long it took to render (the next export's time
@@ -374,6 +374,21 @@ npm run dev -- --new [<library folder>]
     — so nothing is copied across by hand and the picture cannot drift from
     the voice; idempotent through a fingerprint of each output's inputs in
     `<library>/.studio/build/<showcase>.json`.
+  - `voiceover.mjs`: a synthesized voiceover, for a showcase with no
+    recording: `meta.voiceover` names the AWS Polly voice and engine (and,
+    optionally, the AWS profile and region), and the build reads each
+    caption aloud through the `aws` command, so the user's own sign-in
+    works. Each caption gets a window — 250 ms lead, the clip rounded up
+    to the millisecond, 450 ms tail, the last one 1.5 s more — joined
+    from 24 kHz PCM into `assets/<track>.m4a`, so the `durationMs` pins it
+    writes through `scene-edit.mjs` add up to the track exactly. Whisper
+    hears each clip on its own for `assets/<track>.words.json`, its times
+    fitted to where the clip is voiced. Clips (and what whisper heard) are
+    cached in `<library>/.studio/build/voiceover/<showcase>/` by voice,
+    engine and text, so only a changed caption calls Polly again. It runs
+    in the media-build lane: `build_voiceover`, the `voiceover` action,
+    and a plain `build` (the Build media button) of a showcase with
+    `meta.voiceover`.
   - `transcript.mjs`: the recording's editable transcript,
     `assets/<recording>.transcript.json`: whisper's sub-word tokens merged
     into whole words, and a `corrections` list — respell a word, fold two
