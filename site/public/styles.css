@@ -475,8 +475,14 @@ footer {
   color: var(--ink-soft);
 }
 
-footer span {
+footer {
+  align-items: center;
+}
+
+footer .brand {
   margin-right: auto;
+  color: var(--ink);
+  font-size: 15px;
 }
 
 /* Phone width */
