@@ -28,8 +28,7 @@ body {
   margin: 0;
   background:
     radial-gradient(1200px 700px at 70% -10%, rgba(61, 132, 234, 0.28), transparent 70%),
-    radial-gradient(900px 600px at 0% 110%, rgba(69, 191, 130, 0.14), transparent 70%),
-    var(--bg);
+    radial-gradient(900px 600px at 0% 110%, rgba(69, 191, 130, 0.14), transparent 70%), var(--bg);
   background-attachment: fixed;
   color: var(--ink);
   font: 400 17px/1.6 var(--font-body);
@@ -288,22 +287,6 @@ main {
   justify-content: center;
 }
 
-.code {
-  display: block;
-  font-size: 15px;
-  padding: 24px 26px;
-  border-radius: var(--radius);
-  background: #070a16;
-}
-
-.code .k {
-  color: var(--blue);
-}
-
-.code .s {
-  color: var(--green);
-}
-
 .shot {
   display: block;
   max-width: 100%;
@@ -440,11 +423,6 @@ footer span {
     order: 0;
   }
 
-  .code {
-    font-size: 13px;
-    width: 100%;
-  }
-
   .download-grid {
     grid-template-columns: 1fr;
   }
@@ -460,4 +438,36 @@ footer span {
   footer {
     padding: 28px 16px 40px;
   }
+}
+
+/* "Tell the story": a director's note above a frame of the result */
+.direct {
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.note {
+  max-width: 340px;
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 18px 18px 18px 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  font-size: 16px;
+}
+
+.note span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.shot.frame {
+  width: 240px;
+  border-radius: 28px;
 }

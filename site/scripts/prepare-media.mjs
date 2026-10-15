@@ -4,6 +4,7 @@
  *
  *   the showcase-studio video export    →  public/media/hero.mp4  (720×1280, H.264)
  *                                       →  public/media/hero.jpg  (its first second, the poster)
+ *                                       →  public/media/frame.jpg (a finished frame, 50.1 s in)
  *   showcases/showcase-studio/assets/   →  public/media/*.webp    (the feature pictures)
  *
  * Make the export first, from the repo root, with either of:
@@ -46,6 +47,7 @@ run(["-i", video, "-vf", "scale=720:1280", "-c:v", "libx264", "-preset", "slow",
   "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart",
   path.join(out, "hero.mp4")]);
 run(["-ss", "1", "-i", video, "-frames:v", "1", "-vf", "scale=720:1280", "-q:v", "4", path.join(out, "hero.jpg")]);
+run(["-ss", "50.1", "-i", video, "-frames:v", "1", "-vf", "scale=540:960", "-q:v", "4", path.join(out, "frame.jpg")]);
 
 const assets = path.join(repo, "showcases", "showcase-studio", "assets");
 const pictures = [
@@ -57,7 +59,7 @@ for (const [from, to, width] of pictures) {
 }
 
 console.log(`hero video from ${video}`);
-for (const name of ["hero.mp4", "hero.jpg", ...pictures.map((p) => p[1])]) {
+for (const name of ["hero.mp4", "hero.jpg", "frame.jpg", ...pictures.map((p) => p[1])]) {
   const kb = Math.round(statSync(path.join(out, name)).size / 1024);
   console.log(`${name.padEnd(22)} ${kb} KB`);
 }
