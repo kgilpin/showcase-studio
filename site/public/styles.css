@@ -304,30 +304,88 @@ main {
   border-radius: 28px;
 }
 
-.platforms {
+/* "Release it": where the video can go, with each one's logo */
+.destinations {
   display: grid;
-  gap: 12px;
-  margin: 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
   padding: 0;
   list-style: none;
 }
 
-.platforms li {
+.dest {
   display: flex;
   flex-direction: column;
-  padding: 18px 22px;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--bg-raised);
+  background: rgba(7, 10, 22, 0.55);
 }
 
-.platforms strong {
+.dest .logo {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  color: #fff;
+}
+
+.dest .logo svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+}
+
+.dest strong {
   font-weight: 600;
 }
 
-.platforms span {
-  font-size: 15px;
+.dest .what {
+  font-size: 14px;
+  line-height: 1.4;
   color: var(--ink-soft);
+}
+
+.dest.tiktok .logo {
+  background: #000;
+}
+
+.dest.tiktok .logo svg {
+  filter: drop-shadow(-1.5px -1px 0 #25f4ee) drop-shadow(1.5px 1px 0 #fe2c55);
+}
+
+.dest.instagram .logo {
+  background: radial-gradient(
+    circle at 30% 107%,
+    #fdf497 0%,
+    #fd5949 45%,
+    #d6249f 60%,
+    #285aeb 90%
+  );
+}
+
+.dest.youtube .logo {
+  background: #fff;
+  color: #ff0000;
+}
+
+.dest.youtube .logo svg {
+  width: 32px;
+}
+
+.dest.airdrop .logo {
+  background: #1a8cff;
+}
+
+.dest.airdrop .logo svg {
+  fill: none;
 }
 
 /* Download */
