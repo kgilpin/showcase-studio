@@ -36,17 +36,6 @@ scenes:
       graphic: showcase-command
       alt: "Claude Code Desktop: /showcase is typed into the chat, and the studio opens in the Browser pane beside it"
     note: "The graphic is graphics/showcase-command.tsx, a stylized Claude Code Desktop window: /showcase types into the chat, Claude answers, and the studio slides open in the Browser pane."
-  - id: director
-    theme: statement
-    eyebrow: Directing
-    title: Be the director.
-    captions:
-      - text: You're the director of your video.
-        durationMs: 1732
-      - text: Showcase Studio and Claude do the rest.
-        durationMs: 2980
-    media:
-      kind: none
   - id: tools
     theme: console
     eyebrow: Your tools
