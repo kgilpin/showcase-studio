@@ -33,13 +33,20 @@ createServer((req, res) => {
   } catch {
     return res.writeHead(404).end("Not found");
   }
-  const headers = { "Content-Type": types[path.extname(file)] ?? "application/octet-stream", "Accept-Ranges": "bytes" };
+  const headers = {
+    "Content-Type": types[path.extname(file)] ?? "application/octet-stream",
+    "Accept-Ranges": "bytes",
+  };
   // Byte ranges, so Safari plays the video.
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
   if (range) {
     const start = range[1] ? Number(range[1]) : 0;
     const end = range[2] ? Number(range[2]) : stat.size - 1;
-    res.writeHead(206, { ...headers, "Content-Range": `bytes ${start}-${end}/${stat.size}`, "Content-Length": end - start + 1 });
+    res.writeHead(206, {
+      ...headers,
+      "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+      "Content-Length": end - start + 1,
+    });
     return createReadStream(file, { start, end }).pipe(res);
   }
   res.writeHead(200, { ...headers, "Content-Length": stat.size });
