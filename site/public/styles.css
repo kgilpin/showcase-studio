@@ -440,48 +440,85 @@ footer span {
   }
 }
 
-/* "Tell the story": a director's note above a frame of the result */
+/* The examples: a Claude Code chat above a frame of the result */
 .direct {
   flex-direction: column;
   align-items: center;
   gap: 20px;
 }
 
-.note {
-  max-width: 340px;
-  margin: 0;
-  padding: 14px 18px;
-  border-radius: 18px 18px 18px 4px;
-  background: var(--bg-raised);
+.chat {
+  width: 100%;
+  max-width: 400px;
+  padding: 0 16px 16px;
   border: 1px solid var(--line);
-  font-size: 16px;
+  border-radius: 14px;
+  background: #1f1e1d;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  font-size: 15px;
+  line-height: 1.5;
+  color: #e8e6e3;
 }
 
-.note span {
-  display: block;
-  margin-bottom: 4px;
+.chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -16px 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--green);
+  color: rgba(232, 230, 227, 0.55);
+}
+
+.chat-bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.chat-bar i:last-of-type {
+  margin-right: 8px;
+}
+
+.chat p {
+  margin: 0;
+}
+
+.msg.you {
+  margin-left: auto;
+  width: fit-content;
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #33312e;
+}
+
+.tool {
+  margin-top: 14px !important;
+  font-size: 13px;
+  color: rgba(232, 230, 227, 0.5);
+}
+
+.tool::after {
+  content: " ›";
+}
+
+.msg.claude {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px !important;
+}
+
+/* Claude's mark, in Claude's coral */
+.msg.claude::before {
+  content: "✻";
+  flex: none;
+  color: #d97757;
 }
 
 .shot.frame {
   width: 240px;
   border-radius: 28px;
-}
-
-.direct .note + .note {
-  margin-top: -8px;
-}
-
-.note.reply {
-  align-self: flex-end;
-  border-radius: 18px 18px 4px 18px;
-  background: rgba(74, 144, 240, 0.14);
-}
-
-.note.reply span {
-  color: var(--blue);
 }
