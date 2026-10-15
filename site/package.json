@@ -1,0 +1,20 @@
+{
+  "name": "showcase-studio-site",
+  "private": true,
+  "description": "The Showcase Studio marketing site: static files in public/, served by Cloudflare Pages.",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "dev:wrangler": "wrangler pages dev --port 8098",
+    "media": "node scripts/prepare-media.mjs",
+    "capture:prompter": "node scripts/capture-prompter.mjs",
+    "deploy": "wrangler pages deploy --branch main",
+    "deploy:preview": "wrangler pages deploy --branch preview"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
