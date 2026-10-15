@@ -85,11 +85,12 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #                          (a small Node server, no dependencies)
 #   npm run dev:wrangler   the same, the way Cloudflare Pages serves it
 #   npm run media          make site/public/media from the repo: the hero
-#                          video from the showcase-studio export (run
-#                          npm run dev -- --export video:showcase-studio
-#                          at the root first) and the feature screenshots
-#                          from showcases/showcase-studio/assets. Commit
-#                          the results.
+#                          video from the showcase-studio export, the two
+#                          NOVA example frames from the nova export, and
+#                          the teleprompter screenshot. Export first, at
+#                          the root: npm run dev -- --export
+#                          video:showcase-studio, and --export
+#                          video-draft:nova. Commit the results.
 # Deploy (Cloudflare Pages project "showcase-studio", from site/wrangler.toml):
 #   npx wrangler login     once, in a browser
 #   npx wrangler pages project create showcase-studio --production-branch main
