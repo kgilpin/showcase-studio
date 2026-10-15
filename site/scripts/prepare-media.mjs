@@ -6,8 +6,8 @@
  *                                       →  public/media/hero.jpg  (its first second, the poster)
  *   the nova video export               →  public/media/nova-gate.jpg, nova-capture.jpg
  *                                          (two frames of its jump gate scene, the examples
- *                                          in "Give a goal" and "Give notes")
- *   showcases/showcase-studio/assets/   →  public/media/*.webp    (the feature pictures)
+ *                                          in the first two sections)
+ *   media-src/nova-prompter.png         →  public/media/prompter.webp (from npm run capture:prompter)
  *
  * Make the export first, from the repo root, with either of:
  *   npm run dev -- --export video:showcase-studio   (needs no studio running;
@@ -121,30 +121,22 @@ for (const [seconds, name] of [
   ]);
 }
 
-const assets = path.join(repo, "showcases", "showcase-studio", "assets");
-const pictures = [["shot-prompter.png", "prompter.webp", 440]];
-for (const [from, to, width] of pictures) {
-  run([
-    "-i",
-    path.join(assets, from),
-    "-vf",
-    `scale=${width}:-2`,
-    "-c:v",
-    "libwebp",
-    "-quality",
-    "82",
-    path.join(out, to),
-  ]);
-}
+// The teleprompter picture, captured from a running studio by
+// npm run capture:prompter.
+run([
+  "-i",
+  path.join(site, "media-src", "nova-prompter.png"),
+  "-vf",
+  "scale=520:-2",
+  "-c:v",
+  "libwebp",
+  "-quality",
+  "82",
+  path.join(out, "prompter.webp"),
+]);
 
 console.log(`hero video from ${video}\nnova frames from ${nova}`);
-for (const name of [
-  "hero.mp4",
-  "hero.jpg",
-  "nova-gate.jpg",
-  "nova-capture.jpg",
-  ...pictures.map((p) => p[1]),
-]) {
+for (const name of ["hero.mp4", "hero.jpg", "nova-gate.jpg", "nova-capture.jpg", "prompter.webp"]) {
   const kb = Math.round(statSync(path.join(out, name)).size / 1024);
   console.log(`${name.padEnd(22)} ${kb} KB`);
 }
