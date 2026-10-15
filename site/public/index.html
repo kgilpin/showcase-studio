@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Showcase Studio</title>
+    <meta
+      name="description"
+      content="Make short videos of your app by talking to Claude Code. Showcase Studio is a Claude Code plugin for Mac and Windows."
+    />
+    <meta name="theme-color" content="#0a0d1c" />
+    <meta property="og:title" content="Showcase Studio" />
+    <meta property="og:description" content="Make short videos of your app by talking to Claude Code." />
+    <meta property="og:image" content="/media/hero.jpg" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="/">
+        <img src="/icon.svg" alt="" width="36" height="36" />
+        <span>Showcase Studio</span>
+      </a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#download">Download</a>
+        <!-- YouTube channel: set the href when the channel exists, and remove data-soon. -->
+        <a href="#" class="youtube" data-soon aria-disabled="true" title="Coming soon">YouTube</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-text">
+          <p class="eyebrow">A Claude Code plugin for Mac and Windows</p>
+          <h1>Make short videos of your app <em>by talking to Claude&nbsp;Code.</em></h1>
+          <p class="lede">
+            Write the script, drop in your screenshots, and Showcase Studio plays it as a video.
+            Export it for TikTok, Instagram and YouTube Shorts, or as App Store screenshots.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="#download">Download</a>
+            <!-- Buy / license: points nowhere until the license manager exists. -->
+            <a class="button" href="#" data-soon aria-disabled="true">Buy a license <small>Soon</small></a>
+          </div>
+        </div>
+
+        <figure class="phone">
+          <video
+            id="hero-video"
+            src="/media/hero.mp4"
+            poster="/media/hero.jpg"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="Showcase Studio's own showcase: a one-minute video made with Showcase Studio"
+          ></video>
+          <button class="sound" type="button" aria-pressed="false">Sound on</button>
+          <figcaption>This video was made with Showcase Studio.</figcaption>
+        </figure>
+      </section>
+
+      <section id="features" class="features">
+        <article class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">Script to video</p>
+            <h2>The words set the timing</h2>
+            <p>
+              A showcase is a folder: a short script plus your screenshots and recordings. Each scene lasts as long
+              as it takes to say its lines, so there is no timeline to drag. A shorter sentence makes a shorter
+              scene.
+            </p>
+            <p>
+              Because it is just files, you can commit it, branch it and review it like any other code.
+            </p>
+          </div>
+          <pre class="feature-art code" aria-label="An example scene in showcase.yaml"><code><span class="k">- id:</span> mirror
+  <span class="k">theme:</span> feature
+  <span class="k">title:</span> Mirror your iPhone
+  <span class="k">captions:</span>
+    <span class="k">- text:</span> <span class="s">Your screen, on any TV,
+        in ten seconds.</span>
+  <span class="k">media:</span>
+    <span class="k">kind:</span> image
+    <span class="k">asset:</span> shot-mirror</code></pre>
+        </article>
+
+        <article class="feature flip">
+          <div class="feature-text">
+            <p class="eyebrow">Record your pitch</p>
+            <h2>A teleprompter on your phone</h2>
+            <p>
+              When it is time to talk on camera, open the script on your phone. It scrolls like a teleprompter
+              while you record.
+            </p>
+            <p>
+              Then tell the studio which part of the recording each scene uses. It cuts the clips, joins the
+              voiceover and times every scene, so your lips and your voice stay together.
+            </p>
+          </div>
+          <div class="feature-art">
+            <img
+              class="shot narrow"
+              src="/media/prompter.webp"
+              alt="The script scrolling on a phone, like a teleprompter"
+              width="440"
+              height="956"
+              loading="lazy"
+            />
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">Share</p>
+            <h2>Post to TikTok, Instagram and YouTube Shorts</h2>
+            <p>
+              Export a full-quality 9:16 video. The studio writes the caption and hashtags for each platform, checks
+              their limits, copies the text and opens the upload page. On a Mac, it can AirDrop the video to your
+              phone.
+            </p>
+            <p>You post it yourself. Nothing is linked to your accounts.</p>
+          </div>
+          <ul class="feature-art platforms" aria-label="Where you can post">
+            <li><strong>TikTok</strong><span>9:16 video, caption and hashtags</span></li>
+            <li><strong>Instagram</strong><span>Posts as a Reel</span></li>
+            <li><strong>YouTube Shorts</strong><span>Title, description and hashtags</span></li>
+            <li><strong>App Store</strong><span>A screenshot set at 1320×2868</span></li>
+          </ul>
+        </article>
+
+        <article class="feature flip">
+          <div class="feature-text">
+            <p class="eyebrow">Claude Code</p>
+            <h2>Claude is the editor</h2>
+            <p>
+              Type <code>/showcase</code> and the studio opens beside your chat. Ask for changes in plain words. You
+              can also edit in the studio yourself, and Claude sees what you changed.
+            </p>
+            <p>
+              It runs on the Claude Code subscription you already have, with every tool on your machine. Here, Claude
+              makes a voiceover with the user's own AWS account.
+            </p>
+          </div>
+          <div class="feature-art">
+            <img
+              class="shot"
+              src="/media/claude-desktop.webp"
+              alt="Claude Code Desktop with the chat on the left and the studio playing a showcase on the right"
+              width="1200"
+              height="899"
+              loading="lazy"
+            />
+          </div>
+        </article>
+      </section>
+
+      <section id="download" class="download">
+        <h2>Download</h2>
+        <p class="lede">
+          Showcase Studio is a Claude Code plugin. Install the plugin, and it installs the app the first time you
+          use it. Or download the app yourself.
+        </p>
+
+        <div class="download-grid">
+          <div class="card">
+            <h3>1. Install the plugin</h3>
+            <p>In a terminal:</p>
+            <pre><code>claude plugin marketplace add kgilpin/showcase-studio
+claude plugin install showcase-studio@showcase-studio</code></pre>
+            <p>
+              Then start Claude Code in a folder for your showcases and run
+              <code>/showcase-studio:showcase new</code>.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>2. Or get the app</h3>
+            <p>Version 0.5.0. On a Mac, unzip it and move it to Applications.</p>
+            <!-- The release version: update these two links with each release. -->
+            <div class="downloads">
+              <a
+                class="button primary"
+                href="https://github.com/kgilpin/showcase-studio/releases/download/v0.5.0/Showcase-Studio-0.5.0-mac-arm64.zip"
+                >Mac <small>Apple Silicon</small></a
+              >
+              <a
+                class="button"
+                href="https://github.com/kgilpin/showcase-studio/releases/download/v0.5.0/Showcase-Studio-0.5.0-win-x64.zip"
+                >Windows <small>x64</small></a
+              >
+            </div>
+            <p class="small">
+              Checksums are on the
+              <a href="https://github.com/kgilpin/showcase-studio/releases/tag/v0.5.0">release page</a>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Showcase Studio</span>
+      <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
+      <a href="#" data-soon aria-disabled="true" title="Coming soon">YouTube</a>
+    </footer>
+
+    <script>
+      // Placeholder links (Buy, YouTube) go nowhere until they are set.
+      for (const link of document.querySelectorAll("[data-soon]")) {
+        link.addEventListener("click", (event) => event.preventDefault());
+      }
+      // The hero video starts muted, as browsers require for autoplay.
+      const video = document.getElementById("hero-video");
+      const sound = document.querySelector(".sound");
+      sound.addEventListener("click", () => {
+        video.muted = !video.muted;
+        if (!video.muted) {
+          video.currentTime = 0;
+          video.play();
+        }
+        sound.setAttribute("aria-pressed", String(!video.muted));
+        sound.textContent = video.muted ? "Sound on" : "Sound off";
+      });
+    </script>
+  </body>
+</html>
