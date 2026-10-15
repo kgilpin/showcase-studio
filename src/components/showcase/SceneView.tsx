@@ -255,6 +255,12 @@ export function SceneView({
   const body = spoken === scene.title ? undefined : spoken;
   const captionKey = caption?.text ?? "body";
   const placement = captionPlacement(caption?.position, captionPositionClass);
+  /* Side margins. On the TikTok canvas the caption stays clear of the
+   * like/share buttons down the right 16% and of the 5% a tall phone cuts
+   * off the left (TikTokSafeArea.tsx draws both), so it sits a little left
+   * of center, like TikTok's own text. A statement slide's text column
+   * keeps the same margins. */
+  const captionInset = canvas === "tiktok" ? "left-[6%] right-[16%]" : "inset-x-6";
   /* What goes inside the chip: the plain line, or its worded painting. */
   const captionBody =
     body != null &&
@@ -293,7 +299,8 @@ export function SceneView({
           )}
           <div
             className={cn(
-              "absolute inset-0 flex items-center justify-center px-6 text-center",
+              "absolute inset-0 flex items-center justify-center text-center",
+              canvas === "tiktok" ? "pl-[6%] pr-[16%]" : "px-6",
               /* While editing a backdrop scene the media's click layer sits
                * over the whole slide — the text column lifts above it and
                * takes back its own pointer events, so the title stays
@@ -433,7 +440,11 @@ export function SceneView({
             {body && !hideCaption && (
               <div
                 key={captionKey}
-                className={cn("caption-fade absolute inset-x-6 text-center", placement.className)}
+                className={cn(
+                  "caption-fade absolute text-center",
+                  captionInset,
+                  placement.className,
+                )}
                 style={placement.style}
               >
                 <p className={stageCaptionClass}>
@@ -460,7 +471,11 @@ export function SceneView({
             {body && !hideCaption && (
               <div
                 key={captionKey}
-                className={cn("caption-fade absolute inset-x-6 text-center", placement.className)}
+                className={cn(
+                  "caption-fade absolute text-center",
+                  captionInset,
+                  placement.className,
+                )}
                 style={placement.style}
               >
                 <p className={stageCaptionClass}>
