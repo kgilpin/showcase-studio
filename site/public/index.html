@@ -10,7 +10,10 @@
     />
     <meta name="theme-color" content="#0a0d1c" />
     <meta property="og:title" content="Showcase Studio" />
-    <meta property="og:description" content="Make short videos of your app by talking to Claude Code." />
+    <meta
+      property="og:description"
+      content="Make short videos of your app by talking to Claude Code."
+    />
     <meta property="og:image" content="/media/hero.jpg" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -39,15 +42,18 @@
       <section class="hero">
         <div class="hero-text">
           <p class="eyebrow">A Claude Code plugin for Mac and Windows</p>
-          <h1>Make short videos of your app <em>by talking to Claude&nbsp;Code.</em></h1>
+          <h1>Be the director. <em>Showcase and Claude do the&nbsp;rest.</em></h1>
           <p class="lede">
-            Write the script, drop in your screenshots, and Showcase Studio plays it as a video.
-            Export it for TikTok, Instagram and YouTube Shorts, or as App Store screenshots.
+            Tell Claude the story you want to tell. Claude writes the script, lays out the scenes
+            and times the captions. Showcase Studio turns it into a video for TikTok, Instagram,
+            YouTube Shorts and the App Store.
           </p>
           <div class="actions">
             <a class="button primary" href="#download">Download</a>
             <!-- Buy / license: points nowhere until the license manager exists. -->
-            <a class="button" href="#" data-soon aria-disabled="true">Buy a license <small>Soon</small></a>
+            <a class="button" href="#" data-soon aria-disabled="true"
+              >Buy a license <small>Soon</small></a
+            >
           </div>
         </div>
 
@@ -71,39 +77,72 @@
       <section id="features" class="features">
         <article class="feature">
           <div class="feature-text">
-            <p class="eyebrow">Script to video</p>
-            <h2>A finished video, without a video editor</h2>
+            <p class="eyebrow">1. Tell the story</p>
+            <h2>Say what the video is about</h2>
             <p>
-              Write what you would say about your app and add your screenshots. Showcase Studio turns them into a
-              video with captions, ready to post. You never touch a timeline.
+              Tell Claude what your app does and who the video is for, and bring your screenshots
+              and screen recordings. Claude writes the script, picks a layout for each scene and
+              times the captions to the words.
             </p>
             <p>
-              To change the video, change the words. A scene lasts as long as it takes to say, so a shorter line
-              makes a shorter scene.
+              The studio plays it back as a finished video beside the chat. No timeline, no video
+              editor.
             </p>
           </div>
-          <pre class="feature-art code" aria-label="An example scene in showcase.yaml"><code><span class="k">- id:</span> mirror
-  <span class="k">theme:</span> feature
-  <span class="k">title:</span> Mirror your iPhone
-  <span class="k">captions:</span>
-    <span class="k">- text:</span> <span class="s">Your screen, on any TV,
-        in ten seconds.</span>
-  <span class="k">media:</span>
-    <span class="k">kind:</span> image
-    <span class="k">asset:</span> shot-mirror</code></pre>
+          <div class="feature-art direct">
+            <p class="note">
+              <span>Your note</span>Make a one-minute TikTok about the plugin. Show what one script
+              turns into.
+            </p>
+            <img
+              class="shot frame"
+              src="/media/frame.jpg"
+              alt="A frame of the finished video: one script gives you a TikTok-style video, a widescreen YouTube video and App Store screenshots"
+              width="540"
+              height="960"
+              loading="lazy"
+            />
+          </div>
         </article>
 
         <article class="feature flip">
           <div class="feature-text">
-            <p class="eyebrow">Record your pitch</p>
+            <p class="eyebrow">2. Give notes</p>
+            <h2>Watch it, then say what to change</h2>
+            <p>
+              "Cut the second scene." "Make the hook punchier." "Use a better voice." Claude makes
+              the change, and the video updates as you watch. To fix a word yourself, edit it right
+              in the studio. Claude sees what you changed.
+            </p>
+            <p>
+              Your crew runs on the Claude Code subscription you already have, and can use any tool
+              on your machine. Here, Claude makes a new voiceover with the director's own AWS
+              account.
+            </p>
+          </div>
+          <div class="feature-art">
+            <img
+              class="shot"
+              src="/media/claude-desktop.webp"
+              alt="Claude Code Desktop: a note asking for a better voiceover in the chat, and the studio playing the showcase beside it"
+              width="1200"
+              height="899"
+              loading="lazy"
+            />
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">3. Step in front of the camera</p>
             <h2>A teleprompter on your phone</h2>
             <p>
-              When it is time to talk on camera, open the script on your phone. It scrolls like a teleprompter
+              When the video needs your face, the script scrolls on your phone like a teleprompter
               while you record.
             </p>
             <p>
-              Then tell the studio which part of the recording each scene uses. It cuts the clips, joins the
-              voiceover and times every scene, so your lips and your voice stay together.
+              The studio cuts your take into scenes and keeps your voice in sync with the picture.
+              You don't line anything up by hand.
             </p>
           </div>
           <div class="feature-art">
@@ -118,16 +157,16 @@
           </div>
         </article>
 
-        <article class="feature">
+        <article class="feature flip">
           <div class="feature-text">
-            <p class="eyebrow">Share</p>
+            <p class="eyebrow">4. Release it</p>
             <h2>Post to TikTok, Instagram and YouTube Shorts</h2>
             <p>
-              Export a full-quality 9:16 video. The studio writes the caption and hashtags for each platform, checks
-              their limits, copies the text and opens the upload page. On a Mac, it can AirDrop the video to your
-              phone.
+              The studio exports a full-quality vertical video and writes the post text for each
+              platform, within its limits. It copies the text and opens the upload page. On a Mac,
+              it can AirDrop the video to your phone.
             </p>
-            <p>You post it yourself. Nothing is linked to your accounts.</p>
+            <p>You press Post. Nothing is linked to your accounts.</p>
           </div>
           <ul class="feature-art platforms" aria-label="Where you can post">
             <li><strong>TikTok</strong><span>9:16 video, caption and hashtags</span></li>
@@ -136,38 +175,13 @@
             <li><strong>App Store</strong><span>A screenshot set at 1320×2868</span></li>
           </ul>
         </article>
-
-        <article class="feature flip">
-          <div class="feature-text">
-            <p class="eyebrow">Claude Code</p>
-            <h2>Claude is the editor</h2>
-            <p>
-              Type <code>/showcase</code> and the studio opens beside your chat. Ask for changes in plain words. You
-              can also edit in the studio yourself, and Claude sees what you changed.
-            </p>
-            <p>
-              It runs on the Claude Code subscription you already have, with every tool on your machine. Here, Claude
-              makes a voiceover with the user's own AWS account.
-            </p>
-          </div>
-          <div class="feature-art">
-            <img
-              class="shot"
-              src="/media/claude-desktop.webp"
-              alt="Claude Code Desktop with the chat on the left and the studio playing a showcase on the right"
-              width="1200"
-              height="899"
-              loading="lazy"
-            />
-          </div>
-        </article>
       </section>
 
       <section id="download" class="download">
         <h2>Download</h2>
         <p class="lede">
-          Showcase Studio is a Claude Code plugin. Install the plugin, and it installs the app the first time you
-          use it. Or download the app yourself.
+          Showcase Studio is a Claude Code plugin. Install the plugin, and it installs the app the
+          first time you use it. Or download the app yourself.
         </p>
 
         <div class="download-grid">
@@ -200,7 +214,9 @@ claude plugin install showcase-studio@showcase-studio</code></pre>
             </div>
             <p class="small">
               Checksums are on the
-              <a href="https://github.com/kgilpin/showcase-studio/releases/tag/v0.5.0">release page</a>.
+              <a href="https://github.com/kgilpin/showcase-studio/releases/tag/v0.5.0"
+                >release page</a
+              >.
             </p>
           </div>
         </div>
