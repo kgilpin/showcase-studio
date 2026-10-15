@@ -347,12 +347,6 @@ main {
   font-weight: 600;
 }
 
-.dest .what {
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--ink-soft);
-}
-
 .dest.tiktok .logo {
   background: #000;
 }
