@@ -215,7 +215,7 @@ function ShareScreen() {
         showcaseId={showcaseId}
         title={showcase.title}
         current="share"
-        built={showcase.builtFromRecording}
+        built={showcase.builtMedia}
       />
       <div className="mx-auto box-content max-w-6xl px-4 sm:px-10">
         <header className="mt-8 border-b border-border pb-6">
