@@ -86,7 +86,7 @@ scenes:
     captions:
       - text: The studio commits every change to git.
         durationMs: 2980
-      - text: Review a change, revert it, or branch a new cut, the way you'd review code.
+      - text: So you can review, revert, and branch your videos.
         durationMs: 4972
     media:
       kind: graphic
@@ -98,7 +98,7 @@ scenes:
     eyebrow: Export
     title: One script - three exports
     captions:
-      - text: One script gives you a TikTok-style video, a widescreen YouTube video, and captioned screenshots for the App Store.
+      - text: When you're done, you can export in "shorts" format, widescreen, and captioned screenshots for the App Store.
         durationMs: 7276
     media:
       kind: graphic
@@ -106,7 +106,7 @@ scenes:
       alt: One showcase.yaml fanning out to the App Store, TikTok, and YouTube renditions
 
   - id: outro
-    theme: statement
+    theme: console
     title: Showcase Studio
     captions:
       - text: Videos of your app, made with the Claude Code you already have.
@@ -114,7 +114,10 @@ scenes:
       - text: Add the plugin to Claude Code from GitHub, and make your first video today.
         durationMs: 6256
     media:
-      kind: none
+      kind: graphic
+      graphic: plugin-install
+      alt: "A terminal: the two commands that add the Showcase Studio plugin type in, each confirmed, then a hint to type /showcase in Claude Code"
     eyebrow: Get it
     cta: { kind: github, label: View on GitHub, url: https://github.com/kgilpin/showcase-studio }
     ctaNote: github.com/kgilpin/showcase-studio
+    note: 'The graphic is graphics/plugin-install.tsx, a stylized terminal: the two plugin commands from the README type in on the second caption ("Add the plugin to Claude Code...", about 4.4 s in). Retime its FIRST constant if that caption moves.'
