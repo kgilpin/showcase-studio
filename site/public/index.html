@@ -33,8 +33,6 @@
       <nav>
         <a href="#features">How it works</a>
         <a href="#download">Install</a>
-        <!-- YouTube channel: set the href when the channel exists, and remove data-soon. -->
-        <a href="#" class="youtube" data-soon aria-disabled="true" title="Coming soon">YouTube</a>
       </nav>
     </header>
 
@@ -264,7 +262,6 @@ claude plugin install showcase-studio@showcase-studio</code></pre>
         <span>Showcase Studio</span>
       </a>
       <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
-      <a href="#" data-soon aria-disabled="true" title="Coming soon">YouTube</a>
     </footer>
 
     <script>
@@ -282,10 +279,6 @@ claude plugin install showcase-studio@showcase-studio</code></pre>
           }
           setTimeout(() => (button.textContent = "Copy"), 2000);
         });
-      }
-      // Placeholder links (YouTube) go nowhere until they are set.
-      for (const link of document.querySelectorAll("[data-soon]")) {
-        link.addEventListener("click", (event) => event.preventDefault());
       }
       // The hero video starts muted, as browsers require for autoplay.
       const video = document.getElementById("hero-video");
