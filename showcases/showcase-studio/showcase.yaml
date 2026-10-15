@@ -5,7 +5,7 @@ meta:
   captionStyle: karaoke
   notes: |-
     Script draft for the plugin pitch: Showcase Studio runs as a Claude Code plugin, so it uses the subscription you already have, every tool on your machine, and plain files you can share across projects.
-    Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile) by synth-voiceover.mjs: one clip per caption, each placed in a window of 250 ms lead + spoken length + 450 ms tail (the last caption holds 1.5 s more for the end card). Every caption's durationMs is pinned to its window, and the windows sum to 60732 ms, the audio's length. assets/voiceover-synth.words.json holds the transcribe tool's word timestamps for the karaoke captions. After any caption edit, re-run the synthesis and re-pin, or the voice drifts out of sync.
+    Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile, us-east-1): one clip per caption (24 kHz mp3), each placed in a window of 250 ms lead + spoken length (rounded up to the millisecond) + 450 ms tail; the last caption holds 1.5 s more for the end card. Every caption's durationMs is pinned to its window, and the windows sum to 53296 ms, the audio's length. assets/voiceover-synth.words.json has one segment per caption window, with the caption's own words and the transcribe tool's word times fitted into the span where that caption's clip is voiced (whisper drifts across caption boundaries, so its times aren't used as they come). After any caption edit, synthesize again, re-pin, and rebuild the words file, or the voice drifts out of sync. Last made 2026-10-15.
     The on-camera scene still plays assets/scene-1-setup.mp4, an old clip that says the previous script. The master recording it was cut from, and an earlier recorded voiceover, were dropped from this folder: these showcases ship as examples, so only the files the slides use are kept. To record for real: read the final script on the phone teleprompter, cut a new on-camera clip, then point soundtrack at the new recording, re-pin, and replace the words file.
   soundtrack: { src: voiceover-synth, volume: 1, sync: true }
 
@@ -41,10 +41,11 @@ scenes:
     title: Be the director.
     captions:
       - text: Be the director.
+        durationMs: 1732
       - text: Showcase Studio and Claude do the rest.
+        durationMs: 2980
     media:
       kind: none
-    note: "New scene, not in the synthesized voiceover yet: re-make the voice and re-pin before publishing."
   - id: tools
     theme: console
     eyebrow: Your tools
@@ -52,8 +53,9 @@ scenes:
     note: The screenshot shows Claude choosing AWS Polly voices on the user's own account to make a voiceover, with the studio playing beside the chat.
     captions:
       - text: You can use all the power and context of Claude.
-        durationMs: 5956
+        durationMs: 3412
       - text: Here it makes a voiceover with my own AWS account.
+        durationMs: 3748
     media:
       kind: image
       asset: shot-claude-desktop
@@ -65,8 +67,10 @@ scenes:
     eyebrow: Recording
     title: Switch to your phone for video recording
     captions:
-      - text: To record yourself speaking the script, you can open it on your phone with a built-in teleprompter.
-        durationMs: 5068
+      - text: You can record video using the built-in teleprompter
+        durationMs: 3580
+      - text: on your computer or on your phone.
+        durationMs: 2764
     media:
       kind: image
       asset: shot-prompter
@@ -78,10 +82,10 @@ scenes:
     eyebrow: Your files
     title: Plain files on your machine
     captions:
-      - text: "The whole video is plain files on your machine: the script, the screenshots, and the recordings."
-        durationMs: 6004
-      - text: Pull in a clip from another project, and it's ready to use.
-        durationMs: 3820
+      - text: "The script, screenshots, and other media are all ordinary files on your computer."
+        durationMs: 5404
+      - text: Drag in a new clip or screenshot, and it's ready to use.
+        durationMs: 3796
     media:
       kind: image
       asset: shot-assets-portrait
@@ -94,7 +98,7 @@ scenes:
     title: One script - three exports
     captions:
       - text: When you're done, you can export in "shorts" format, widescreen, and captioned screenshots for the App Store.
-        durationMs: 7276
+        durationMs: 6676
     media:
       kind: graphic
       graphic: player-formats
