@@ -179,32 +179,38 @@
       </section>
 
       <section id="download" class="download">
-        <h2>Download</h2>
-        <p class="lede">
-          Showcase Studio is a Claude Code plugin, so it runs on the Claude Code subscription you
-          already have. Install the plugin, and it installs the app the first time you use it. Or
-          download the app yourself.
-        </p>
+        <h2>Get Showcase Studio</h2>
+        <p class="lede">Two ways to start. Pick one.</p>
 
         <div class="download-grid">
           <div class="card">
-            <h3>1. Install the plugin</h3>
+            <p class="pill">Recommended</p>
+            <h3>Use it in Claude Code</h3>
             <p>In a terminal:</p>
-            <pre><code>claude plugin marketplace add kgilpin/showcase-studio
+            <div class="copyable">
+              <pre><code>claude plugin marketplace add kgilpin/showcase-studio
 claude plugin install showcase-studio@showcase-studio</code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
             <p>
               Then start Claude Code in a folder for your showcases and run
-              <code>/showcase-studio:showcase new</code>.
+              <code>/showcase-studio:showcase new</code>. The app installs itself the first time,
+              and it all runs on the Claude Code subscription you already have.
             </p>
           </div>
 
+          <p class="or" aria-hidden="true">or</p>
+
           <div class="card">
-            <h3>2. Or get the app</h3>
-            <p>Version 0.5.0. On a Mac, unzip it and move it to Applications.</p>
+            <h3>Use the desktop app</h3>
+            <p>
+              Open a folder for your showcases, and work with Claude in the app's terminal. Version
+              0.5.0. On a Mac, unzip it and move it to Applications.
+            </p>
             <!-- The release version: update these two links with each release. -->
             <div class="downloads">
               <a
-                class="button primary"
+                class="button"
                 href="https://github.com/kgilpin/showcase-studio/releases/download/v0.5.0/Showcase-Studio-0.5.0-mac-arm64.zip"
                 >Mac <small>Apple Silicon</small></a
               >
@@ -232,7 +238,22 @@ claude plugin install showcase-studio@showcase-studio</code></pre>
     </footer>
 
     <script>
-      // Placeholder links (Buy, YouTube) go nowhere until they are set.
+      // Copy buttons copy the commands in the block beside them.
+      for (const button of document.querySelectorAll(".copy")) {
+        button.addEventListener("click", async () => {
+          const text = button.parentElement.querySelector("code").textContent;
+          try {
+            await navigator.clipboard.writeText(text);
+            button.textContent = "Copied";
+          } catch {
+            // No clipboard access: select the text so Cmd/Ctrl+C copies it.
+            getSelection().selectAllChildren(button.parentElement.querySelector("code"));
+            button.textContent = "Selected";
+          }
+          setTimeout(() => (button.textContent = "Copy"), 2000);
+        });
+      }
+      // Placeholder links (YouTube) go nowhere until they are set.
       for (const link of document.querySelectorAll("[data-soon]")) {
         link.addEventListener("click", (event) => event.preventDefault());
       }
