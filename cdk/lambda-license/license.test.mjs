@@ -4,6 +4,8 @@ import {
   FREE_EXPORTS_PER_MONTH,
   GRACE_MS,
   check,
+  devices,
+  MAX_DEVICES,
   checkout,
   claim,
   licenseStatus,
@@ -14,6 +16,7 @@ import {
   verifySignature,
   webhook,
 } from "./license-core.mjs";
+import { cancelledPage, thanksPage } from "./license-pages.mjs";
 
 const NOW = Date.parse("2026-10-15T12:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
@@ -41,6 +44,14 @@ function memoryStore() {
       if (license.lastEventAt > eventAt) return;
       Object.assign(license, fields, { lastEventAt: eventAt });
     },
+    async addDevice(key, deviceId, entry, limit) {
+      const { devices } = licenses.get(key);
+      if (devices[deviceId]) return true;
+      if (Object.keys(devices).length >= limit) return false;
+      devices[deviceId] = entry;
+      return true;
+    },
+    removeDevice: async (key, deviceId) => void delete licenses.get(key).devices[deviceId],
     exportsThisMonth: async (device, month) => counts.get(`${device}/${month}`) ?? 0,
     async countExport(device, month, limit) {
       const used = counts.get(`${device}/${month}`) ?? 0;
@@ -49,6 +60,28 @@ function memoryStore() {
       return { allowed: true, used: used + 1 };
     },
   };
+}
+
+/** Stripe, faked: the calls the rules make, and the customers tagged. */
+function fakeStripe(calls = {}) {
+  const tagged = new Map();
+  return {
+    tagged,
+    getSubscription: async () => subscription(),
+    tagCustomer: async (customer, key) => void tagged.set(customer, key),
+    ...calls,
+  };
+}
+
+/** A license made through the thank-you page, with this device on it. */
+async function licensed(store, { addDevice = true } = {}) {
+  const session = { status: "complete", mode: "subscription", subscription: subscription() };
+  const stripe = fakeStripe({ getCheckoutSession: async () => session });
+  const [, { licenseKey }] = await claim("cs_test_abcdefgh", { stripe, store, now: NOW });
+  if (addDevice) {
+    await devices("add", { licenseKey, deviceId: DEVICE, name: "Studio Mac" }, { store, now: NOW });
+  }
+  return licenseKey;
 }
 
 const subscription = (fields = {}) => ({
@@ -103,7 +136,7 @@ describe("licenseStatus", () => {
 });
 
 describe("checkout", () => {
-  it("starts a subscription checkout that returns to the website's own pages", async () => {
+  it("starts a subscription checkout that returns to this service's own pages", async () => {
     let sent;
     const stripe = {
       createCheckoutSession: async (params) => (
@@ -114,15 +147,15 @@ describe("checkout", () => {
     const [status, body] = await checkout({
       stripe,
       priceId: "price_1",
-      websiteUrl: "https://site.test",
+      selfUrl: "https://license.test",
     });
     expect(status).toBe(303);
     expect(body.url).toBe("https://checkout.stripe.test/c");
     expect(sent).toMatchObject({
       mode: "subscription",
       "line_items[0][price]": "price_1",
-      success_url: "https://site.test/thanks?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://site.test/pricing",
+      success_url: "https://license.test/thanks?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://license.test/cancelled",
     });
   });
 });
@@ -144,7 +177,7 @@ describe("verifySignature", () => {
 });
 
 describe("webhook", () => {
-  const stripe = { getSubscription: async () => subscription() };
+  const stripe = fakeStripe();
 
   it("refuses an unsigned event and writes nothing", async () => {
     const store = memoryStore();
@@ -241,7 +274,9 @@ describe("webhook", () => {
 
 describe("claim", () => {
   const session = { status: "complete", mode: "subscription", subscription: subscription() };
-  const stripe = { getCheckoutSession: async (id) => (id === "cs_test_abcdefgh" ? session : null) };
+  const stripe = fakeStripe({
+    getCheckoutSession: async (id) => (id === "cs_test_abcdefgh" ? session : null),
+  });
 
   it("gives the thank-you page the key, even before the webhook lands", async () => {
     const store = memoryStore();
@@ -257,7 +292,7 @@ describe("claim", () => {
     const store = memoryStore();
     expect((await claim("../x", { stripe, store, now: NOW }))[0]).toBe(400);
     expect((await claim("cs_test_unknown1", { stripe, store, now: NOW }))[0]).toBe(404);
-    const open = { getCheckoutSession: async () => ({ ...session, status: "open" }) };
+    const open = fakeStripe({ getCheckoutSession: async () => ({ ...session, status: "open" }) });
     expect((await claim("cs_test_abcdefgh", { stripe: open, store, now: NOW }))[0]).toBe(409);
     expect(store.licenses.size).toBe(0);
   });
@@ -283,19 +318,9 @@ describe("free exports", () => {
     ).toBe(true);
   });
 
-  it("doesn't count an export made with a good license", async () => {
+  it("doesn't count an export made with a good license on this device", async () => {
     const store = memoryStore();
-    const [, { licenseKey }] = await claim("cs_test_abcdefgh", {
-      stripe: {
-        getCheckoutSession: async () => ({
-          status: "complete",
-          mode: "subscription",
-          subscription: subscription(),
-        }),
-      },
-      store,
-      now: NOW,
-    });
+    const licenseKey = await licensed(store);
     for (let i = 0; i < 5; i++) {
       const [, result] = await recordExport(
         { deviceId: DEVICE, licenseKey: licenseKey.toLowerCase() },
@@ -306,13 +331,25 @@ describe("free exports", () => {
     expect(store.counts.size).toBe(0);
   });
 
+  it("counts a licensed export on a device that isn't on the license, and says why", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store, { addDevice: false });
+    const [, result] = await recordExport({ deviceId: DEVICE, licenseKey }, { store, now: NOW });
+    expect(result).toMatchObject({
+      allowed: true,
+      licensed: false,
+      licenseProblem: "device-not-added",
+    });
+    expect(result.freeExports.left).toBe(1);
+  });
+
   it("counts against the free exports when the license isn't good", async () => {
     const store = memoryStore();
     const [, result] = await recordExport(
       { deviceId: DEVICE, licenseKey: "SS-0000-0000-0000-0000" },
       { store, now: NOW },
     );
-    expect(result).toMatchObject({ allowed: true, licensed: false });
+    expect(result).toMatchObject({ allowed: true, licensed: false, licenseProblem: "unknown" });
     expect(result.freeExports.left).toBe(1);
   });
 
@@ -349,5 +386,114 @@ describe("check", () => {
     const store = memoryStore();
     expect((await check({}, { store, now: NOW }))[0]).toBe(400);
     expect((await check({ licenseKey: "hello" }, { store, now: NOW }))[0]).toBe(400);
+  });
+});
+
+describe("devices", () => {
+  const device = (n) => `device-${String(n).padStart(16, "0")}`;
+
+  it("adds up to the limit, then refuses and lists what's there", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store, { addDevice: false });
+    for (let n = 0; n < MAX_DEVICES; n++) {
+      const [status] = await devices(
+        "add",
+        { licenseKey, deviceId: device(n), name: `Mac ${n}` },
+        { store, now: NOW + n },
+      );
+      expect(status).toBe(200);
+    }
+    const [status, body] = await devices(
+      "add",
+      { licenseKey, deviceId: device(9), name: "One too many" },
+      { store, now: NOW },
+    );
+    expect(status).toBe(409);
+    expect(body.devices.map((d) => d.name)).toEqual(["Mac 0", "Mac 1", "Mac 2"]);
+  });
+
+  it("adds a device already on the license again without using a place", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store);
+    const [, body] = await devices(
+      "add",
+      { licenseKey, deviceId: DEVICE, name: "Renamed" },
+      { store, now: NOW },
+    );
+    expect(body.devices).toEqual([
+      { deviceId: DEVICE, name: "Studio Mac", addedAt: new Date(NOW).toISOString() },
+    ]);
+  });
+
+  it("frees a place when one is removed", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store);
+    const [, body] = await devices("remove", { licenseKey, deviceId: DEVICE }, { store, now: NOW });
+    expect(body.devices).toEqual([]);
+    const [, result] = await recordExport({ deviceId: DEVICE, licenseKey }, { store, now: NOW });
+    expect(result.licenseProblem).toBe("device-not-added");
+  });
+
+  it("won't add a device to a license that has ended, or one that doesn't exist", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store, { addDevice: false });
+    const later = NOW + 60 * DAY;
+    const add = { licenseKey, deviceId: DEVICE, name: "Mac" };
+    expect((await devices("add", add, { store, now: later }))[0]).toBe(409);
+    const unknown = { ...add, licenseKey: "SS-0000-0000-0000-0000" };
+    expect((await devices("add", unknown, { store, now: NOW }))[0]).toBe(404);
+    expect((await devices("add", { ...add, licenseKey: "nope" }, { store, now: NOW }))[0]).toBe(
+      400,
+    );
+  });
+
+  it("are reported by check, with whether this device is one of them", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store);
+    const [, body] = await check({ licenseKey, deviceId: DEVICE }, { store, now: NOW });
+    expect(body).toMatchObject({ valid: true, thisDevice: true, maxDevices: MAX_DEVICES });
+    expect(body.devices).toHaveLength(1);
+  });
+});
+
+describe("the license key on Stripe", () => {
+  it("is written onto the customer once, when the license is made", async () => {
+    const store = memoryStore();
+    const stripe = fakeStripe();
+    const [b1, s1] = signed({
+      type: "customer.subscription.created",
+      data: { object: subscription() },
+    });
+    const [, { licenseKey }] = await webhook(b1, s1, { secret: SECRET, store, stripe, now: NOW });
+    expect(stripe.tagged.get("cus_1")).toBe(licenseKey);
+  });
+
+  it("doesn't stop the license being made when Stripe refuses", async () => {
+    const store = memoryStore();
+    const stripe = fakeStripe({
+      tagCustomer: async () => {
+        throw new Error("Stripe is down");
+      },
+    });
+    const [b1, s1] = signed({
+      type: "customer.subscription.created",
+      data: { object: subscription() },
+    });
+    const [status] = await webhook(b1, s1, { secret: SECRET, store, stripe, now: NOW });
+    expect(status).toBe(200);
+    expect(store.licenses.size).toBe(1);
+  });
+});
+
+describe("pages", () => {
+  it("shows the key on the thank-you page, escaped", () => {
+    const html = thanksPage([200, { licenseKey: "SS-ABCD-<b>" }]);
+    expect(html).toContain("SS-ABCD-&lt;b&gt;");
+  });
+  it("explains a claim that failed, and the cancelled checkout", () => {
+    expect(thanksPage([409, { error: "this checkout isn't finished" }])).toContain(
+      "this checkout isn&#39;t finished",
+    );
+    expect(cancelledPage()).toContain("Nothing was charged");
   });
 });

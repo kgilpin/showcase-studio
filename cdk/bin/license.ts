@@ -14,20 +14,10 @@ if (environment !== "dev" && environment !== "prod") {
   throw new Error('Environment must be either "dev" or "prod"');
 }
 
-/* Where Stripe sends a buyer back to: <websiteUrl>/thanks and
- * <websiteUrl>/pricing. Dev defaults to the website's local server
- * (wrangler pages dev); prod must say. */
-const websiteUrl: string =
-  app.node.tryGetContext("websiteUrl") ?? (environment === "dev" ? "http://localhost:8788" : "");
-if (!/^https?:\/\/[^/]+$/.test(websiteUrl)) {
-  throw new Error("Pass the website's origin: -c websiteUrl=https://<site> (no trailing slash)");
-}
-
 console.log(`Deploying license stack for environment: ${environment}`);
 
 new LicenseStack(app, `ShowcaseLicenseStack-${environment === "prod" ? "Prod" : "Dev"}`, {
   environment: environment as "dev" | "prod",
-  websiteUrl,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION || "us-east-1",

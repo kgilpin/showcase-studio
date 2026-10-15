@@ -8,13 +8,13 @@
  *   <CONFIG_PREFIX>/stripe-webhook-secret
  *   <CONFIG_PREFIX>/stripe-price-id */
 import { GetParametersCommand, SSMClient } from "@aws-sdk/client-ssm";
-import { check, checkout, claim, recordExport, webhook } from "./license-core.mjs";
+import { check, checkout, claim, devices, recordExport, webhook } from "./license-core.mjs";
+import { cancelledPage, thanksPage } from "./license-pages.mjs";
 import { createStore } from "./license-store.mjs";
 import { createStripe } from "./license-stripe.mjs";
 
 const store = createStore(process.env.TABLE);
 const prefix = process.env.CONFIG_PREFIX;
-const websiteUrl = process.env.WEBSITE_URL;
 
 let config;
 async function loadConfig() {
@@ -42,6 +42,12 @@ const respond = (statusCode, body, headers = {}) => ({
   body: JSON.stringify(body),
 });
 
+const html = (statusCode, body) => ({
+  statusCode,
+  headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+  body,
+});
+
 const rawBody = (event) =>
   event.isBase64Encoded
     ? Buffer.from(event.body ?? "", "base64").toString("utf8")
@@ -54,7 +60,9 @@ export const handler = async (event) => {
   try {
     if (route === "POST /checkout") {
       const { stripe, priceId } = await loadConfig();
-      const [status, body] = await checkout({ stripe, priceId, websiteUrl });
+      // Stripe returns the buyer to this same Function URL's pages.
+      const selfUrl = `https://${event.requestContext.domainName}`;
+      const [status, body] = await checkout({ stripe, priceId, selfUrl });
       return respond(status, body, { location: body.url });
     }
     if (route === "POST /webhook") {
@@ -68,20 +76,28 @@ export const handler = async (event) => {
       });
       return respond(status, body);
     }
-    if (route === "GET /claim") {
+    if (route === "GET /thanks") {
       const { stripe } = await loadConfig();
       const sessionId = event.queryStringParameters?.session_id;
-      return respond(...(await claim(sessionId, { stripe, store, now })));
+      const result = await claim(sessionId, { stripe, store, now });
+      return html(result[0], thanksPage(result));
     }
-    if (route === "POST /check" || route === "POST /export") {
+    if (route === "GET /cancelled") return html(200, cancelledPage());
+    if (
+      method === "POST" &&
+      ["/check", "/export", "/devices/add", "/devices/remove"].includes(event.rawPath)
+    ) {
       let payload;
       try {
         payload = JSON.parse(rawBody(event));
       } catch {
         return respond(400, { error: "body must be JSON" });
       }
-      const rule = route === "POST /check" ? check : recordExport;
-      return respond(...(await rule(payload, { store, now })));
+      const ctx = { store, now };
+      if (event.rawPath === "/check") return respond(...(await check(payload, ctx)));
+      if (event.rawPath === "/export") return respond(...(await recordExport(payload, ctx)));
+      const action = event.rawPath === "/devices/add" ? "add" : "remove";
+      return respond(...(await devices(action, payload, ctx)));
     }
     return respond(404, { error: `no route for ${route}` });
   } catch (error) {

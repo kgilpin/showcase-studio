@@ -3,8 +3,9 @@
  *   DynamoDB   one table: licenses, subscription → license, and each
  *              device's free exports per month (dropped by TTL)
  *   Lambda     one function behind one Function URL, routed by path
- *              (lambda-license/license.mjs): /checkout, /webhook, /claim,
- *              /check, /export
+ *              (lambda-license/license.mjs): /checkout, /webhook,
+ *              /thanks and /cancelled (the pages Stripe returns a buyer
+ *              to), /check, /devices/add, /devices/remove, /export
  *   SSM        the Stripe keys and price id, put there by hand once per
  *              environment — never in this template
  */
@@ -20,9 +21,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export interface LicenseStackProps extends cdk.StackProps {
   environment: "dev" | "prod";
-  /** The website's origin, e.g. https://showcase.studio — Stripe returns
-   *  buyers there, and its thank-you page may call /claim. */
-  websiteUrl: string;
 }
 
 export class LicenseStack extends cdk.Stack {
@@ -52,7 +50,6 @@ export class LicenseStack extends cdk.Stack {
       environment: {
         TABLE: table.tableName,
         CONFIG_PREFIX: configPrefix,
-        WEBSITE_URL: props.websiteUrl,
       },
     });
     table.grantReadWriteData(fn);
@@ -67,14 +64,13 @@ export class LicenseStack extends cdk.Stack {
       // Open: Stripe signs its webhooks, license keys and device ids are
       // checked in code, and /checkout only ever sends a buyer to Stripe.
       authType: lambda.FunctionUrlAuthType.NONE,
-      cors: {
-        // The thank-you page fetches /claim from the browser.
-        allowedOrigins: [props.websiteUrl],
-        allowedMethods: [lambda.HttpMethod.GET],
-      },
     });
 
     new cdk.CfnOutput(this, "LicenseApiUrl", { value: url.url });
+    new cdk.CfnOutput(this, "CheckoutUrl", {
+      value: cdk.Fn.join("", [url.url, "checkout"]),
+      description: "A Buy button posts here (<form method=post>)",
+    });
     new cdk.CfnOutput(this, "WebhookUrl", {
       value: cdk.Fn.join("", [url.url, "webhook"]),
       description: "Give this to Stripe as the webhook endpoint",

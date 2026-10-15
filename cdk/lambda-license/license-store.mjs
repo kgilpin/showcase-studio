@@ -2,7 +2,8 @@
  * One table, one string key "pk", three kinds of item:
  *
  *   LICENSE#<key>               the license: status, validUntil, the
- *                               subscription and customer, lastEventAt
+ *                               subscription and customer, lastEventAt,
+ *                               devices { <device id>: { name, addedAt } }
  *   SUB#<subscription id>       → licenseKey (finds a license from a
  *                               Stripe event)
  *   EXPORTS#<device>#<YYYY-MM>  count; expiresAt drops it after ~3 months
@@ -87,6 +88,40 @@ export function createStore(TableName, client = new DynamoDBClient({})) {
         // A newer event already applied: this one is stale.
         if (!isConditionFailure(error)) throw error;
       }
+    },
+
+    /* Adds the device unless the license already has `limit` of them; a
+     * device already on it stays as it was. */
+    async addDevice(key, deviceId, entry, limit) {
+      try {
+        await db.send(
+          new UpdateCommand({
+            TableName,
+            Key: { pk: `LICENSE#${key}` },
+            UpdateExpression: "SET devices.#d = if_not_exists(devices.#d, :entry)",
+            ConditionExpression:
+              "attribute_exists(pk) AND (attribute_exists(devices.#d) OR size(devices) < :limit)",
+            ExpressionAttributeNames: { "#d": deviceId },
+            ExpressionAttributeValues: { ":entry": entry, ":limit": limit },
+          }),
+        );
+        return true;
+      } catch (error) {
+        if (!isConditionFailure(error)) throw error;
+        return false;
+      }
+    },
+
+    async removeDevice(key, deviceId) {
+      await db.send(
+        new UpdateCommand({
+          TableName,
+          Key: { pk: `LICENSE#${key}` },
+          UpdateExpression: "REMOVE devices.#d",
+          ConditionExpression: "attribute_exists(pk)",
+          ExpressionAttributeNames: { "#d": deviceId },
+        }),
+      );
     },
 
     async exportsThisMonth(deviceId, month) {

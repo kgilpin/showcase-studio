@@ -81,8 +81,9 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # The license service (cdk/, its own CDK app: bin/license.ts), not yet
 # deployed or called by the studio — docs/licensing.md has the design and
 # the one-time Stripe and SSM setup. Same -c environment=dev|prod
-# convention (→ ShowcaseLicenseStack-Dev / -Prod); prod also needs
-# -c websiteUrl=https://<site>. Stripe keys live in SSM, never in the repo.
+# convention (→ ShowcaseLicenseStack-Dev / -Prod). It runs on its
+# generated Function URL, thank-you page included, so it needs no
+# website. Stripe keys live in SSM, never in the repo.
 #   cd cdk && npm run synth:license
 #   AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
 # Its rules are tested with the rest: npm test (cdk/lambda-license/).
@@ -535,10 +536,13 @@ npm run dev -- --new [<library folder>]
   `PROMPTER_PUBLISH_URL` env points elsewhere.
   Beside it, the license service (`lib/license-stack.ts`, its own app in
   `bin/license.ts`): one DynamoDB table and one Lambda behind a Function
-  URL, routed by path — `/checkout` (303 to Stripe Checkout, the
-  website's Buy button), `/webhook` (Stripe, signature checked),
-  `/claim` (the thank-you page gets the key), `/check` and `/export`
-  (the studio: license status, and 2 free exports per device per month).
+  URL, routed by path — `/checkout` (303 to Stripe Checkout, a Buy
+  button posts here), `/webhook` (Stripe, signature checked), `/thanks`
+  and `/cancelled` (the pages Stripe returns a buyer to; `/thanks` shows
+  the key, which is also written onto the Stripe customer's invoices —
+  no email of our own), `/check`, `/devices/add`, `/devices/remove` and
+  `/export` (the studio: license status, up to 3 computers per key, and
+  2 free non-draft exports per computer per month).
   Rules in `lambda-license/license-core.mjs`, wired to DynamoDB, Stripe
   (plain fetch) and SSM by the other files there. Design, open questions
   and where the studio's check would go: `docs/licensing.md`.

@@ -1,23 +1,29 @@
 /* The rules of the license service, apart from DynamoDB and Stripe so
  * they can be tested (license.mjs wires them up). docs/licensing.md has
- * the whole design. Five requests:
+ * the whole design. The requests:
  *
  *   POST /checkout   → 303 to a Stripe Checkout page for the $10/month
- *                      subscription (the website's Buy button posts here)
+ *                      subscription (a Buy button posts here)
  *   POST /webhook    ← Stripe: creates, renews and cancels licenses;
  *                      the signature is checked before anything else
- *   GET  /claim?session_id=…
- *                    → the license key for a finished checkout (the
- *                      website's thank-you page shows it)
- *   POST /check      { licenseKey, deviceId? }
- *                    → whether the key is good, and until when; with a
- *                      deviceId, also the free exports left this month
+ *   GET  /thanks?session_id=…
+ *                    → the thank-you page Stripe returns a buyer to,
+ *                      showing the license key (license-pages.mjs)
+ *   POST /check      { licenseKey?, deviceId? }
+ *                    → whether the key is good, until when, and its
+ *                      devices; with a deviceId, also that device's free
+ *                      exports left this month
+ *   POST /devices/add     { licenseKey, deviceId, name }
+ *   POST /devices/remove  { licenseKey, deviceId }
+ *                    → puts a device on the license (up to MAX_DEVICES)
+ *                      or takes one off; answers with the device list
  *   POST /export     { deviceId, licenseKey? }
  *                    → records one export and says whether it may run
  *
  * A license belongs to one Stripe subscription. Whichever comes first —
- * the webhook or the thank-you page's claim — makes the key; the other
- * finds it. */
+ * the webhook or the thank-you page — makes the key; the other finds it.
+ * The key is the account: whoever has it can add and remove devices, so
+ * no login (and no email of our own) is needed. */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /** Free exports per device per calendar month (UTC), without a license. */
@@ -29,6 +35,9 @@ export const GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** How old a webhook's timestamp may be (Stripe's own default). */
 export const WEBHOOK_TOLERANCE_S = 300;
+
+/** Devices one license covers. */
+export const MAX_DEVICES = 3;
 
 const GOOD_STATUSES = new Set(["active", "trialing", "past_due"]);
 const LICENSE_KEY = /^SS(-[0-9A-HJKMNP-TV-Z]{4}){4}$/;
@@ -86,6 +95,16 @@ export function licenseStatus(license, now) {
   };
 }
 
+/** A license's devices, oldest first, for the studio to list. */
+const deviceList = (license) =>
+  Object.entries(license?.devices ?? {})
+    .map(([deviceId, d]) => ({
+      deviceId,
+      name: d.name,
+      addedAt: new Date(d.addedAt).toISOString(),
+    }))
+    .sort((a, b) => a.addedAt.localeCompare(b.addedAt));
+
 /* ---------- the store ----------
  *
  * store: {
@@ -96,40 +115,60 @@ export function licenseStatus(license, now) {
  *                                         one made first by a racing call)
  *   updateLicense(key, fields, eventAt) → applies fields unless a newer
  *                                         event already did
+ *   addDevice(key, deviceId, entry, limit)
+ *                                       → true when the device is on the
+ *                                         license (added now or before),
+ *                                         false when it's full
+ *   removeDevice(key, deviceId)
  *   exportsThisMonth(deviceId, month)   → the count
  *   countExport(deviceId, month, limit) → { allowed, used }: adds one
  *                                         only while used < limit
  * }
  */
 
-/** The license for a subscription, made if this is the first sight of it. */
-async function ensureLicense(subscription, { store, now, eventAt = now }) {
+/** The license for a subscription, made if this is the first sight of
+ *  it. A new key is also written onto the Stripe customer
+ *  (stripe.tagCustomer), so it appears on every invoice Stripe emails
+ *  and can be found in the Stripe dashboard. */
+async function ensureLicense(subscription, { store, stripe, now, eventAt = now }) {
   const existing = await store.keyForSubscription(subscription.id);
   if (existing) {
     await store.updateLicense(existing, licenseFields(subscription), eventAt);
     return existing;
   }
-  return store.createLicense({
-    licenseKey: newLicenseKey(),
+  const fields = licenseFields(subscription);
+  const made = newLicenseKey();
+  const licenseKey = await store.createLicense({
+    licenseKey: made,
     subscriptionId: subscription.id,
     createdAt: now,
     lastEventAt: eventAt,
-    ...licenseFields(subscription),
+    devices: {},
+    ...fields,
   });
+  if (licenseKey === made && fields.stripeCustomerId) {
+    try {
+      await stripe.tagCustomer(fields.stripeCustomerId, licenseKey);
+    } catch (error) {
+      // The thank-you page still shows the key; this only adds a copy.
+      console.warn(`couldn't write the license key onto ${fields.stripeCustomerId}`, error);
+    }
+  }
+  return licenseKey;
 }
 
 /* ---------- POST /checkout ---------- */
 
-/** stripe.createCheckoutSession(params) → { url }. The thank-you and
- *  cancel pages are fixed on the website: a caller can't send a buyer
- *  anywhere else. */
-export async function checkout({ stripe, priceId, websiteUrl }) {
+/** stripe.createCheckoutSession(params) → { url }. Stripe returns the
+ *  buyer to this service's own pages (selfUrl is the Function URL's
+ *  origin): a caller can't send a buyer anywhere else. */
+export async function checkout({ stripe, priceId, selfUrl }) {
   const session = await stripe.createCheckoutSession({
     mode: "subscription",
     "line_items[0][price]": priceId,
     "line_items[0][quantity]": "1",
-    success_url: `${websiteUrl}/thanks?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${websiteUrl}/pricing`,
+    success_url: `${selfUrl}/thanks?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${selfUrl}/cancelled`,
     allow_promotion_codes: "true",
   });
   return [303, { url: session.url }];
@@ -153,7 +192,7 @@ export function verifySignature(rawBody, header, secret, nowMs) {
   );
 }
 
-/** stripe.getSubscription(id) → the subscription. */
+/** stripe.getSubscription(id) → the subscription; stripe.tagCustomer. */
 export async function webhook(rawBody, signature, { secret, store, stripe, now }) {
   if (!verifySignature(rawBody, signature, secret, now)) {
     return [400, { error: "bad signature" }];
@@ -166,7 +205,7 @@ export async function webhook(rawBody, signature, { secret, store, stripe, now }
     case "checkout.session.completed": {
       if (object.mode !== "subscription" || !object.subscription) break;
       const subscription = await stripe.getSubscription(object.subscription);
-      const licenseKey = await ensureLicense(subscription, { store, now, eventAt });
+      const licenseKey = await ensureLicense(subscription, { store, stripe, now, eventAt });
       return [200, { received: true, licenseKey }];
     }
     case "customer.subscription.created":
@@ -174,14 +213,14 @@ export async function webhook(rawBody, signature, { secret, store, stripe, now }
     case "customer.subscription.deleted": {
       // A renewal arrives as "updated" with a later period end; a
       // cancellation as "deleted" with status "canceled".
-      const licenseKey = await ensureLicense(object, { store, now, eventAt });
+      const licenseKey = await ensureLicense(object, { store, stripe, now, eventAt });
       return [200, { received: true, licenseKey }];
     }
   }
   return [200, { received: true, ignored: event.type }];
 }
 
-/* ---------- GET /claim ---------- */
+/* ---------- GET /thanks (the claim) ---------- */
 
 /** stripe.getCheckoutSession(id) → the session, its subscription
  *  expanded. The thank-you page can load before the webhook lands, so
@@ -197,7 +236,7 @@ export async function claim(sessionId, { stripe, store, now }) {
   }
   const subscription = session.subscription;
   if (!subscription?.id) return [409, { error: "this checkout has no subscription" }];
-  const licenseKey = await ensureLicense(subscription, { store, now });
+  const licenseKey = await ensureLicense(subscription, { store, stripe, now });
   const license = await store.getLicense(licenseKey);
   return [200, { licenseKey, ...licenseStatus(license, now) }];
 }
@@ -212,17 +251,25 @@ export function nextMonth(now) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString();
 }
 
+const BAD_KEY = [400, { error: "that isn't a license key" }];
+const BAD_DEVICE = [400, { error: "deviceId must be 16-128 url-safe characters" }];
+
 export async function check(payload, { store, now }) {
   const result = {};
+  const deviceId = payload?.deviceId == null ? null : String(payload.deviceId);
+  if (deviceId != null && !DEVICE_ID.test(deviceId)) return BAD_DEVICE;
   if (payload?.licenseKey != null) {
     const key = normalizeKey(payload.licenseKey);
-    if (!LICENSE_KEY.test(key)) return [400, { error: "that isn't a license key" }];
-    Object.assign(result, licenseStatus(await store.getLicense(key), now));
+    if (!LICENSE_KEY.test(key)) return BAD_KEY;
+    const license = await store.getLicense(key);
+    Object.assign(result, licenseStatus(license, now));
+    if (license) {
+      result.devices = deviceList(license);
+      result.maxDevices = MAX_DEVICES;
+      if (deviceId) result.thisDevice = Boolean(license.devices?.[deviceId]);
+    }
   }
-  if (payload?.deviceId != null) {
-    const deviceId = String(payload.deviceId);
-    if (!DEVICE_ID.test(deviceId))
-      return [400, { error: "deviceId must be 16-128 url-safe characters" }];
+  if (deviceId != null) {
     const used = await store.exportsThisMonth(deviceId, monthOf(now));
     result.freeExports = {
       used,
@@ -237,19 +284,59 @@ export async function check(payload, { store, now }) {
   return [200, { ...result, checkedAt: new Date(now).toISOString() }];
 }
 
+/* ---------- POST /devices/add, /devices/remove ---------- */
+
+/** The key is the account: it's all a device needs to join or leave. A
+ *  canceled license can still have devices taken off, but not added. */
+export async function devices(action, payload, { store, now }) {
+  const key = normalizeKey(payload?.licenseKey);
+  if (!LICENSE_KEY.test(key)) return BAD_KEY;
+  const deviceId = String(payload?.deviceId ?? "");
+  if (!DEVICE_ID.test(deviceId)) return BAD_DEVICE;
+  const license = await store.getLicense(key);
+  if (!license) return [404, { error: "no such license" }];
+
+  if (action === "remove") {
+    await store.removeDevice(key, deviceId);
+  } else {
+    if (!licenseStatus(license, now).valid) {
+      return [409, { error: "this license has ended", status: license.status }];
+    }
+    const name =
+      String(payload.name ?? "")
+        .trim()
+        .slice(0, 64) || "Unnamed device";
+    const added = await store.addDevice(key, deviceId, { name, addedAt: now }, MAX_DEVICES);
+    if (!added) {
+      return [
+        409,
+        {
+          error: `This license already covers ${MAX_DEVICES} devices. Remove one to add this one.`,
+          devices: deviceList(await store.getLicense(key)),
+          maxDevices: MAX_DEVICES,
+        },
+      ];
+    }
+  }
+  return [200, { devices: deviceList(await store.getLicense(key)), maxDevices: MAX_DEVICES }];
+}
+
 /* ---------- POST /export ---------- */
 
-/** Called as an export starts. A good license always may; otherwise the
- *  device's free count goes up by one, unless it's used up. */
+/** Called as an export starts. A good license with this device on it
+ *  always may; otherwise the device's free count goes up by one, unless
+ *  it's used up. `license` says why a key that was sent didn't count. */
 export async function recordExport(payload, { store, now }) {
   const deviceId = String(payload?.deviceId ?? "");
-  if (!DEVICE_ID.test(deviceId))
-    return [400, { error: "deviceId must be 16-128 url-safe characters" }];
+  if (!DEVICE_ID.test(deviceId)) return BAD_DEVICE;
+  let licenseProblem;
   if (payload.licenseKey != null) {
     const key = normalizeKey(payload.licenseKey);
-    const license = licenseStatus(LICENSE_KEY.test(key) ? await store.getLicense(key) : null, now);
-    if (license.valid)
-      return [200, { allowed: true, licensed: true, validUntil: license.validUntil }];
+    const license = LICENSE_KEY.test(key) ? await store.getLicense(key) : null;
+    const status = licenseStatus(license, now);
+    if (!status.valid) licenseProblem = license ? "ended" : "unknown";
+    else if (!license.devices?.[deviceId]) licenseProblem = "device-not-added";
+    else return [200, { allowed: true, licensed: true, validUntil: status.validUntil }];
   }
   const { allowed, used } = await store.countExport(deviceId, monthOf(now), FREE_EXPORTS_PER_MONTH);
   return [
@@ -257,6 +344,7 @@ export async function recordExport(payload, { store, now }) {
     {
       allowed,
       licensed: false,
+      ...(licenseProblem && { licenseProblem }),
       freeExports: {
         used,
         limit: FREE_EXPORTS_PER_MONTH,
