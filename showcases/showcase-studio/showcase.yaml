@@ -30,21 +30,30 @@ scenes:
     captions:
       - text: Type /showcase, and the studio opens right beside your chat.
         durationMs: 4252
-      - text: It runs on your Claude Code subscription, so there's no new account and nothing extra to pay.
-        durationMs: 5452
     media:
       kind: graphic
       graphic: showcase-command
       alt: "Claude Code Desktop: /showcase is typed into the chat, and the studio opens in the Browser pane beside it"
     note: "The graphic is graphics/showcase-command.tsx, a stylized Claude Code Desktop window: /showcase types into the chat, Claude answers, and the studio slides open in the Browser pane."
+  - id: director
+    theme: statement
+    eyebrow: Directing
+    title: Be the director.
+    captions:
+      - text: Be the director.
+      - text: Showcase Studio and Claude do the rest.
+    media:
+      kind: none
+    note: "New scene, not in the synthesized voiceover yet: re-make the voice and re-pin before publishing."
   - id: tools
     theme: console
     eyebrow: Your tools
     title: Every tool on your machine
     note: The screenshot shows Claude choosing AWS Polly voices on the user's own account to make a voiceover, with the studio playing beside the chat.
     captions:
-      - text: Claude can use every tool on your machine. Here it makes a voiceover with my own AWS account.
+      - text: You can use all the power and context of Claude.
         durationMs: 5956
+      - text: Here it makes a voiceover with my own AWS account.
     media:
       kind: image
       asset: shot-claude-desktop
@@ -56,7 +65,7 @@ scenes:
     eyebrow: Recording
     title: Switch to your phone for video recording
     captions:
-      - text: When it's time to record yourself, the script scrolls on your phone like a teleprompter.
+      - text: To record yourself speaking the script, you can open it on your phone with a built-in teleprompter.
         durationMs: 5068
     media:
       kind: image
@@ -78,20 +87,6 @@ scenes:
       asset: shot-assets-portrait
       alt: The assets page listing the project's screenshots, recordings, and where each is used
       motion: still
-  - id: git
-    theme: console
-    eyebrow: Versioning
-    title: Every change, committed
-    note: "PLANNED FEATURE: this scene describes the studio making its own git commits for every change. The studio does not do this yet (today its generated README tells users to run git init and commit themselves). Ship automatic commits before publishing this video, or rewrite this scene."
-    captions:
-      - text: The studio commits every change to git.
-        durationMs: 2980
-      - text: So you can review, revert, and branch your videos.
-        durationMs: 4972
-    media:
-      kind: graphic
-      graphic: git-lanes
-      alt: A git commit graph of a showcase folder, with a new-cut branch merging back
 
   - id: export
     theme: console
