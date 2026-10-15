@@ -6,14 +6,14 @@ meta:
   notes: |-
     Script draft for the plugin pitch: Showcase Studio runs as a Claude Code plugin, so it uses the subscription you already have, every tool on your machine, and plain files you can share across projects.
     Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile, us-east-1): one clip per caption (24 kHz mp3), each placed in a window of 250 ms lead + spoken length (rounded up to the millisecond) + 450 ms tail; the last caption holds 1.5 s more for the end card. Every caption's durationMs is pinned to its window, and the windows sum to 48968 ms, the audio's length. assets/voiceover-synth.words.json has one segment per caption window, with the caption's own words and the transcribe tool's word times fitted into the span where that caption's clip is voiced (whisper drifts across caption boundaries, so its times aren't used as they come). After any caption edit, synthesize again, re-pin, and rebuild the words file, or the voice drifts out of sync. Last made 2026-10-15.
-    The opening scene shows a screenshot of Claude Code with the studio open, in place of the old on-camera clip (assets/scene-1-setup.mp4, which said the previous script and is no longer used). These showcases ship as examples, so only the files the slides use belong in the folder.
+    These showcases ship as examples, so only the files the slides use belong in the folder. The old on-camera clip and the git scene's graphic were removed; both are in git history.
   soundtrack: { src: voiceover-synth, volume: 1, sync: true }
 
 scenes:
   - id: setup
     theme: footage
     eyebrow: Made with
-    note: "The opening shot: a screenshot of Claude Code Desktop with the studio open beside the chat, working on this very showcase (assets/showcase studio in claude.png). It replaced the old on-camera clip, assets/scene-1-setup.mp4, which said the previous script. fit: contain keeps the landscape screenshot whole on the portrait stage."
+    note: "The opening shot: a screenshot of Claude Code Desktop with the studio open beside the chat, working on this very showcase (assets/showcase studio in claude.png). fit: contain keeps the landscape screenshot whole on the portrait stage."
     captions:
       - text: I made this video with Showcase Studio, a Claude Code plugin.
         durationMs: 4516
@@ -55,7 +55,7 @@ scenes:
   - id: prompter
     theme: feature
     eyebrow: Recording
-    title: Switch to your phone for video recording
+    title: Record with the teleprompter
     captions:
       - text: You can record video using the built-in teleprompter
         durationMs: 3580
