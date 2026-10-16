@@ -218,7 +218,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
         showcaseId={showcase.id}
         title={showcase.title}
         current="player"
-        built={showcase.builtFromRecording}
+        built={showcase.builtMedia}
       />
       <div
         ref={stageRef}

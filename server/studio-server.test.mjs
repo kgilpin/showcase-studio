@@ -675,6 +675,17 @@ scenes:
       jobId: mcpJob.jobId,
     });
     await expect(call("build_status", { jobId: "nope" })).rejects.toThrow("No build job named");
+
+    /* A synthesized voiceover runs in the same lane, asked for by name —
+     * and "nova" has no meta.voiceover, so it fails, as a job. */
+    const voiced = await post("voiceover", { showcaseId: "nova" });
+    expect(voiced.job).toMatchObject({ kind: "voiceover", showcaseId: "nova" });
+    const voicedJob = await settled();
+    expect(voicedJob.status).toBe("failed");
+    expect(voicedJob.error).toContain("has no meta.voiceover");
+    const mcpVoiced = await call("build_voiceover", { showcaseId: "nova" });
+    expect(mcpVoiced).toMatchObject({ kind: "voiceover", showcaseId: "nova" });
+    await settled();
   }, 30_000);
 });
 
