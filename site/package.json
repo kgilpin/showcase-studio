@@ -1,6 +1,7 @@
 {
   "name": "showcase-studio-site",
   "private": true,
+  "license": "Elastic-2.0",
   "description": "The Showcase Studio marketing site: static files in public/, served by a Cloudflare Worker.",
   "type": "module",
   "scripts": {

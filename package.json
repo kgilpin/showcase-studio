@@ -5,6 +5,7 @@
     "node": ">=22"
   },
   "private": true,
+  "license": "Elastic-2.0",
   "sideEffects": false,
   "type": "module",
   "scripts": {

@@ -218,3 +218,10 @@ installed before you cut one.
 Every mode runs the same studio server — the dev server mounts it, and so
 does the packaged app — so the page never knows which one it's talking
 to.
+
+## License
+
+Showcase Studio is source-available, not open source. The code and the app
+builds are licensed under the [Elastic License 2.0](LICENSE), copyright
+SiteForward, LLC. You may use, change and share them, but you may not get
+around the app's license checks or offer it as a hosted service.
