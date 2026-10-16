@@ -134,7 +134,7 @@ function withGitIdentity() {
   });
 }
 
-async function waitFor(check, { timeout = 5000 } = {}) {
+async function waitFor(check, { timeout = 10_000 } = {}) {
   const start = Date.now();
   while (!check()) {
     if (Date.now() - start > timeout) throw new Error("timed out waiting");
@@ -147,7 +147,17 @@ const editTitle = (value) => ({
   edits: [{ field: "scene.set", sceneId: "intro", name: "title", value }],
 });
 
-describe("showcase history", () => {
+/* Every test that starts a studio drives real git: making the repository,
+ * the studio's own checks and commit, and each look at the log — some 30
+ * git processes a test. With a native git each takes about 10 ms, and
+ * these tests finish in 0.1–2 s. An Intel git on an Apple silicon Mac
+ * (an old Homebrew in /usr/local) runs under Rosetta at 35–130 ms a
+ * process, and there these tests took 2–4.5 s idle and 5.7 s under load,
+ * past vitest's default 5 s. The quiet period itself is only 150 ms. A
+ * commit that never comes still fails: waitFor gives up at 10 s. */
+const GIT_TESTS = { timeout: 20_000 };
+
+describe("showcase history", GIT_TESTS, () => {
   it("groups a studio UI edit and an MCP edit into one commit after the quiet period", async () => {
     const { dir, library } = await project();
     const { call, post } = await startStudio(library);
@@ -401,7 +411,7 @@ describe("showcase history", () => {
   });
 });
 
-describe("the Commit changes to git switch", () => {
+describe("the Commit changes to git switch", GIT_TESTS, () => {
   const settingLines = (library) =>
     readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8")
       .trim()
