@@ -278,9 +278,37 @@ export const TOOLS = [
     },
   },
   {
+    name: "build_voiceover",
+    description:
+      "Make a synthesized voiceover from a showcase's captions with AWS Polly, on the user's " +
+      "own AWS account (through the aws command) — the track, the karaoke words file, and " +
+      "every caption's durationMs. Returns a jobId immediately; poll build_status.\n" +
+      "The settings live in showcase.yaml's meta.voiceover: {voice (default Matthew), engine " +
+      "(generative | neural | standard | long-form; default generative), profile and region " +
+      "(optional: else the user's AWS defaults), track (the asset key, default voiceover)}. " +
+      "Each caption gets one window: 250 ms lead + its spoken length + 450 ms tail, the last " +
+      "one 1.5 s more for the end card (leadMs, tailMs, holdMs change those). The pins add up " +
+      "to the track, so after any caption edit run this again — never pin durationMs by hand " +
+      "on a voiced showcase, and never make the voice with your own Polly or ffmpeg calls.\n" +
+      "Idempotent: clips are cached by voice, engine and text, so only changed captions call " +
+      "Polly again. `force` makes every clip again. Needs the aws command signed in; without " +
+      "whisper the words file falls back to estimated word times (the notes say so).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        force: {
+          type: "boolean",
+          description: "Call Polly again for every caption, even the unchanged ones",
+        },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
     name: "build_status",
     description:
-      "Check on a build_media job: status (running | done | failed | canceled), what it is " +
+      "Check on a build_media or build_voiceover job: status (running | done | failed | canceled), what it is " +
       "doing now, and when it is done, what it built, what it left alone, the pins it wrote, " +
       "and any notes worth telling the user.",
     inputSchema: {
@@ -291,7 +319,7 @@ export const TOOLS = [
   },
   {
     name: "build_cancel",
-    description: "Cancel a running build_media job.",
+    description: "Cancel a running build_media or build_voiceover job.",
     inputSchema: {
       type: "object",
       properties: { jobId: { type: "string" } },
@@ -629,6 +657,13 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       context.buildJobs.start("build", String(args.showcaseId ?? ""), {
         force: args.force === true,
         only: Array.isArray(args.only) ? args.only.map(String) : undefined,
+      }),
+    );
+  }
+  if (name === "build_voiceover") {
+    return json(
+      context.buildJobs.start("voiceover", String(args.showcaseId ?? ""), {
+        force: args.force === true,
       }),
     );
   }

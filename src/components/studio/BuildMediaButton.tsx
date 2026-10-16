@@ -1,8 +1,10 @@
-/* "Build media" in the showcase's tab bar, for a showcase cut from a
- * recording (meta.source). One click derives everything the cut list
- * implies — the voiceover, one clip per footage scene, the karaoke words
- * file, and every scene's durationMs — so none of it is ever copied
- * across by hand.
+/* "Build media" in the showcase's tab bar, for a showcase whose voice the
+ * studio builds. Cut from a recording (meta.source), one click derives
+ * everything the cut list implies — the voiceover, one clip per footage
+ * scene, the karaoke words file, and every scene's durationMs. Voiced by
+ * Polly (meta.voiceover), it reads the changed captions aloud and re-pins
+ * every caption to the new track. Either way none of it is ever copied
+ * across by hand; the studio picks the build.
  *
  *   ⚒ Build media            nothing running
  *   ⟳ clip-tinder (3/8)  ✕   running, with the builder's own step
@@ -86,7 +88,7 @@ export function BuildMediaControl({
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" align="end">
-          <p>Cut the voiceover, clips and word timings from the recording</p>
+          <p>Build the voiceover, clips and word timings</p>
           <p className="mt-0.5 opacity-70">
             Only what changed is rebuilt — hold Alt to rebuild everything
           </p>
