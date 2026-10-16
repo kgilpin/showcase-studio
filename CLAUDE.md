@@ -81,12 +81,11 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # The license service (cdk/, its own CDK app: bin/license.ts), not yet
 # deployed or called by the studio — docs/licensing.md has the design and
 # the one-time Stripe and SSM setup. Same -c environment=dev|prod
-# convention (→ ShowcaseLicenseStack-Dev / -Prod), but in the kgilpin
-# AWS account, not siteforward's. It runs on its
+# convention (→ ShowcaseLicenseStack-Dev / -Prod). It runs on its
 # generated Function URL, thank-you page included, so it needs no
 # website. Stripe keys live in SSM, never in the repo.
 #   cd cdk && npm run synth:license
-#   AWS_PROFILE=kgilpin npm run deploy:license -- -c environment=dev
+#   AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
 # Its rules are tested with the rest: npm test (cdk/lambda-license/).
 
 npm run export:script              # print every showcase's narration script

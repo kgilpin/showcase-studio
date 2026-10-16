@@ -297,9 +297,16 @@ month", from `/check`'s `freeExports`.
 
 ## Setting it up
 
-Dev is set up: the stack runs in the `kgilpin` AWS account
-(852995906843, us-east-1), against the Stripe sandbox
-`acct_1URBSc3JrwfKPeLF`. Prod is not set up yet.
+Dev is set up:
+
+|         | Dev                                                    |
+| ------- | ------------------------------------------------------ |
+| AWS     | `siteforward` profile, account 765035994448, us-east-1 |
+| Stripe  | SiteForward LLC (`acct_1SZYeoFIehZOhU97`), test mode   |
+| Price   | `price_1URDCoFIehZOhU97xvFghjDp` ($10/month)           |
+| Webhook | `we_1URDCtFIehZOhU97GkN8wFLV`                          |
+
+Prod is not set up yet. It uses the same Stripe account in live mode.
 
 Stripe, in test mode first:
 
@@ -318,15 +325,15 @@ Stripe, in test mode first:
    never in the repo or the CloudFormation template:
 
 ```bash
-aws ssm put-parameter --profile kgilpin --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-secret-key --value "$STRIPE_SECRET_KEY"
+aws ssm put-parameter --profile siteforward --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-secret-key --value "$STRIPE_SECRET_KEY"
 ```
 
 ```bash
-aws ssm put-parameter --profile kgilpin --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-webhook-secret --value "$STRIPE_WEBHOOK_SECRET"
+aws ssm put-parameter --profile siteforward --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-webhook-secret --value "$STRIPE_WEBHOOK_SECRET"
 ```
 
 ```bash
-aws ssm put-parameter --profile kgilpin --overwrite --type String --name /showcase-studio/license/dev/stripe-price-id --value "$STRIPE_PRICE_ID"
+aws ssm put-parameter --profile siteforward --overwrite --type String --name /showcase-studio/license/dev/stripe-price-id --value "$STRIPE_PRICE_ID"
 ```
 
 The Lambda reads them once per cold start; after changing one, the
@@ -335,7 +342,7 @@ next cold start picks it up.
 Deploy (from `cdk/`):
 
 ```bash
-AWS_PROFILE=kgilpin npm run deploy:license -- -c environment=dev
+AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
 ```
 
 Prod is the same with `-c environment=prod`. The prod table is kept if
