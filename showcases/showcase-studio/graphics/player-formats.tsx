@@ -220,7 +220,10 @@ export default function PlayerFormats() {
       {/* Where the video goes. */}
       <div style={{ display: "flex", gap: "4cqw", marginTop: "2cqw" }}>
         {DESTINATIONS.map((dest) => (
-          <div key={dest.name} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div
+            key={dest.name}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+          >
             <div
               style={{
                 display: "grid",
