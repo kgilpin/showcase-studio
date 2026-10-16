@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearPageError, pageErrorField, recordPageError } from "../src/lib/page-error.mjs";
 import { createStudioMcp, serveStudioMcp } from "./mcp-stdio.mjs";
 import { createStudio } from "./studio-server.mjs";
+import { gitProgram } from "./git-program.mjs";
 
 const dirs = [];
 /** A library folder holding the named showcases (each with a showcase.yaml). */
@@ -324,7 +325,11 @@ async function serveStudio(dir) {
 }
 
 const git = (cwd, ...args) =>
-  execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  execFileSync(gitProgram(), args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 
 /** A git repository holding a library at showcases/ with one showcase,
  *  committed. Its own identity, and no global hooks or signing. */
