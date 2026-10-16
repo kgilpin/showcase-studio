@@ -3,7 +3,7 @@
  * Makes the site's media from the repo's own files, small enough for the web:
  *
  *   the showcase-studio video export    →  public/media/hero.mp4  (720×1280, H.264)
- *                                       →  public/media/hero.jpg  (its first second, the poster)
+ *                                       →  public/media/hero.jpg  (4 s in, the poster)
  *   the nova video export               →  public/media/nova-gate.jpg, nova-capture.jpg
  *                                          (two frames of its jump gate scene, the examples
  *                                          in the first two sections)
@@ -76,9 +76,11 @@ run([
   "+faststart",
   path.join(out, "hero.mp4"),
 ]);
+// The poster is 4 s in, where the first caption is fully lit in the current
+// showcase-studio showcase; check it after the showcase changes.
 run([
   "-ss",
-  "1",
+  "4",
   "-i",
   video,
   "-frames:v",
