@@ -59,6 +59,17 @@ function project({ repo = true } = {}) {
 async function startStudio(library, { delay = DELAY, autoCommit, features = {} } = {}) {
   let saved = autoCommit === undefined ? {} : { autoCommit };
   const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
+  /* The history logs each commit it makes. Waiting for that line, rather
+   * than asking git every few milliseconds, keeps the gold trace the same
+   * from run to run: a polling loop runs a different number of times
+   * depending on how busy the machine is. */
+  let commitsLogged = 0;
+  const commitWaiters = [];
+  const log = (message) => {
+    if (!message.startsWith("studio: committed ")) return;
+    commitsLogged += 1;
+    for (const waiter of commitWaiters.splice(0)) waiter();
+  };
   const studio = createStudio({
     showcasesDir: library,
     version: "test",
@@ -69,7 +80,7 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
      * test's end, so the gold traces would record it only sometimes. */
     features: { terminal: false, watch: false, ...features },
     commitDelayMs: delay,
-    log: () => {},
+    log,
   });
   cleanups.push(() => studio.close());
   const call = async (name, args) => {
@@ -110,7 +121,11 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
       req.socket = { remoteAddress: "127.0.0.1" };
       void studio.handle(req, res, () => resolve(null));
     });
-  return { studio, call, post, get, saved: () => saved };
+  /* Resolves once the studio has logged its nth commit. */
+  const committed = async (n) => {
+    while (commitsLogged < n) await new Promise((resolve) => commitWaiters.push(resolve));
+  };
+  return { studio, call, post, get, committed, saved: () => saved };
 }
 
 const commits = (dir) => git(dir, "log", "--format=%s").split("\n");
@@ -198,10 +213,11 @@ describe("showcase history", () => {
     writeFileSync(path.join(dir, "notes.txt"), "staged by the user\n");
     git(dir, "add", "notes.txt");
     writeFileSync(path.join(dir, "scratch.txt"), "not staged\n");
-    const { call } = await startStudio(library);
+    const { call, committed } = await startStudio(library);
     await call("edit_showcase", editTitle("Changed"));
 
-    await waitFor(() => commits(dir).length === 2);
+    await committed(1);
+    expect(commits(dir)).toHaveLength(2);
     expect(git(dir, "show", "--name-only", "--format=", "HEAD")).toBe(
       "showcases/nova/showcase.yaml",
     );
