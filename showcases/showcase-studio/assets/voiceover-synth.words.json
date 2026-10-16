@@ -1,206 +1,635 @@
 {
- "source": "whisper.cpp over voiceover-synth.m4a (AWS Polly generative Matthew; time zero = voiceover start); one segment per caption window; word times from whisper, spelling from the captions, punctuation dropped (fixes whisper's cloud→Claude, type/showcase→Type /showcase, short→shorts, caption→captioned)",
+ "source": "AWS Polly generative Matthew, built by build_voiceover: one segment per caption window; word times from whisper.cpp hearing each caption's clip, fitted to where the clip is voiced; spelling from the captions",
  "segments": [
- {
-  "text": "I made this video with Showcase Studio, a Claude Code plugin.",
-  "startMs": 0,
-  "endMs": 4516,
-  "words": [
-    { "text": "I", "startMs": 306, "endMs": 365 },
-    { "text": "made", "startMs": 569, "endMs": 620 },
-    { "text": "this", "startMs": 620, "endMs": 874 },
-    { "text": "video", "startMs": 874, "endMs": 1196 },
-    { "text": "with", "startMs": 1196, "endMs": 1451 },
-    { "text": "Showcase", "startMs": 1451, "endMs": 1951 },
-    { "text": "Studio", "startMs": 1951, "endMs": 2460 },
-    { "text": "a", "startMs": 2536, "endMs": 2536 },
-    { "text": "Claude", "startMs": 2579, "endMs": 2892 },
-    { "text": "Code", "startMs": 2926, "endMs": 3223 },
-    { "text": "plugin", "startMs": 3223, "endMs": 3698 }
-  ]
- },
- {
-  "text": "Type /showcase, and the studio opens right beside your chat.",
-  "startMs": 4516,
-  "endMs": 8768,
-  "words": [
-    { "text": "Type", "startMs": 4819, "endMs": 5179 },
-    { "text": "/showcase", "startMs": 5179, "endMs": 6079 },
-    { "text": "and", "startMs": 6139, "endMs": 6178 },
-    { "text": "the", "startMs": 6178, "endMs": 6337 },
-    { "text": "studio", "startMs": 6337, "endMs": 6655 },
-    { "text": "opens", "startMs": 6655, "endMs": 7051 },
-    { "text": "right", "startMs": 7051, "endMs": 7210 },
-    { "text": "beside", "startMs": 7210, "endMs": 7548 },
-    { "text": "your", "startMs": 7548, "endMs": 7766 },
-    { "text": "chat", "startMs": 7766, "endMs": 8004 }
-  ]
- },
- {
-  "text": "You can use all the power and context of Claude.",
-  "startMs": 8768,
-  "endMs": 12180,
-  "words": [
-    { "text": "You", "startMs": 9085, "endMs": 9085 },
-    { "text": "can", "startMs": 9157, "endMs": 9262 },
-    { "text": "use", "startMs": 9262, "endMs": 9438 },
-    { "text": "all", "startMs": 9438, "endMs": 9615 },
-    { "text": "the", "startMs": 9615, "endMs": 9791 },
-    { "text": "power", "startMs": 9791, "endMs": 10088 },
-    { "text": "and", "startMs": 10088, "endMs": 10265 },
-    { "text": "context", "startMs": 10265, "endMs": 10682 },
-    { "text": "of", "startMs": 10682, "endMs": 10770 },
-    { "text": "Claude", "startMs": 11059, "endMs": 11316 }
-  ]
- },
- {
-  "text": "Here it makes a voiceover with my own AWS account.",
-  "startMs": 12180,
-  "endMs": 15928,
-  "words": [
-    { "text": "Here", "startMs": 12504, "endMs": 12550 },
-    { "text": "it", "startMs": 12550, "endMs": 12688 },
-    { "text": "makes", "startMs": 12688, "endMs": 13040 },
-    { "text": "a", "startMs": 13040, "endMs": 13109 },
-    { "text": "voiceover", "startMs": 13109, "endMs": 13715 },
-    { "text": "with", "startMs": 13745, "endMs": 14021 },
-    { "text": "my", "startMs": 14021, "endMs": 14067 },
-    { "text": "own", "startMs": 14320, "endMs": 14374 },
-    { "text": "AWS", "startMs": 14412, "endMs": 14581 },
-    { "text": "account", "startMs": 14581, "endMs": 15117 }
-  ]
- },
- {
-  "text": "You can record video using the built-in teleprompter",
-  "startMs": 15928,
-  "endMs": 19508,
-  "words": [
-    { "text": "You", "startMs": 16247, "endMs": 16247 },
-    { "text": "can", "startMs": 16280, "endMs": 16418 },
-    { "text": "record", "startMs": 16418, "endMs": 16768 },
-    { "text": "video", "startMs": 16768, "endMs": 17058 },
-    { "text": "using", "startMs": 17058, "endMs": 17322 },
-    { "text": "the", "startMs": 17348, "endMs": 17520 },
-    { "text": "built-in", "startMs": 17520, "endMs": 17975 },
-    { "text": "teleprompter", "startMs": 17975, "endMs": 18713 }
-  ]
- },
- {
-  "text": "on your computer or on your phone.",
-  "startMs": 19508,
-  "endMs": 22272,
-  "words": [
-    { "text": "on", "startMs": 19814, "endMs": 19918 },
-    { "text": "your", "startMs": 20062, "endMs": 20126 },
-    { "text": "computer", "startMs": 20126, "endMs": 20550 },
-    { "text": "or", "startMs": 20550, "endMs": 20653 },
-    { "text": "on", "startMs": 20653, "endMs": 20749 },
-    { "text": "your", "startMs": 20749, "endMs": 20965 },
-    { "text": "phone", "startMs": 20965, "endMs": 21413 }
-  ]
- },
- {
-  "text": "The script, screenshots, and other media are all ordinary files on your computer.",
-  "startMs": 22272,
-  "endMs": 27676,
-  "words": [
-    { "text": "The", "startMs": 22577, "endMs": 22577 },
-    { "text": "script", "startMs": 22630, "endMs": 23072 },
-    { "text": "screenshots", "startMs": 23072, "endMs": 23871 },
-    { "text": "and", "startMs": 23878, "endMs": 24061 },
-    { "text": "other", "startMs": 24061, "endMs": 24167 },
-    { "text": "media", "startMs": 24434, "endMs": 24685 },
-    { "text": "are", "startMs": 24685, "endMs": 24868 },
-    { "text": "all", "startMs": 24868, "endMs": 25050 },
-    { "text": "ordinary", "startMs": 25050, "endMs": 25202 },
-    { "text": "files", "startMs": 25545, "endMs": 25857 },
-    { "text": "on", "startMs": 25979, "endMs": 25979 },
-    { "text": "your", "startMs": 26062, "endMs": 26192 },
-    { "text": "computer", "startMs": 26230, "endMs": 26869 }
-  ]
- },
- {
-  "text": "Drag in a new clip or screenshot, and it's ready to use.",
-  "startMs": 27676,
-  "endMs": 31472,
-  "words": [
-    { "text": "Drag", "startMs": 27995, "endMs": 28019 },
-    { "text": "in", "startMs": 28019, "endMs": 28145 },
-    { "text": "a", "startMs": 28145, "endMs": 28208 },
-    { "text": "new", "startMs": 28208, "endMs": 28373 },
-    { "text": "clip", "startMs": 28436, "endMs": 28665 },
-    { "text": "or", "startMs": 28665, "endMs": 28783 },
-    { "text": "screenshot", "startMs": 28783, "endMs": 29563 },
-    { "text": "and", "startMs": 29563, "endMs": 29610 },
-    { "text": "it's", "startMs": 29870, "endMs": 30020 },
-    { "text": "ready", "startMs": 30020, "endMs": 30343 },
-    { "text": "to", "startMs": 30343, "endMs": 30469 },
-    { "text": "use", "startMs": 30469, "endMs": 30690 }
-  ]
- },
- {
-  "text": "When you're done, you can export in \"shorts\" format, widescreen, and captioned screenshots for the App Store.",
-  "startMs": 31472,
-  "endMs": 38148,
-  "words": [
-    { "text": "When", "startMs": 31784, "endMs": 31784 },
-    { "text": "you're", "startMs": 31817, "endMs": 32113 },
-    { "text": "done", "startMs": 32113, "endMs": 32441 },
-    { "text": "you", "startMs": 32441, "endMs": 32605 },
-    { "text": "can", "startMs": 32605, "endMs": 32770 },
-    { "text": "export", "startMs": 32770, "endMs": 33106 },
-    { "text": "in", "startMs": 33106, "endMs": 33213 },
-    { "text": "shorts", "startMs": 33213, "endMs": 33451 },
-    { "text": "format", "startMs": 33764, "endMs": 34026 },
-    { "text": "widescreen", "startMs": 34026, "endMs": 34848 },
-    { "text": "and", "startMs": 34848, "endMs": 34848 },
-    { "text": "captioned", "startMs": 35488, "endMs": 35488 },
-    { "text": "screenshots", "startMs": 35521, "endMs": 36195 },
-    { "text": "for", "startMs": 36195, "endMs": 36384 },
-    { "text": "the", "startMs": 36384, "endMs": 36384 },
-    { "text": "App", "startMs": 36589, "endMs": 36762 },
-    { "text": "Store", "startMs": 36762, "endMs": 37312 }
-  ]
- },
- {
-  "text": "Videos of your app, made with the Claude Code you already have.",
-  "startMs": 38148,
-  "endMs": 42328,
-  "words": [
-    { "text": "Videos", "startMs": 38465, "endMs": 38582 },
-    { "text": "of", "startMs": 38582, "endMs": 38709 },
-    { "text": "your", "startMs": 38709, "endMs": 38962 },
-    { "text": "app", "startMs": 38962, "endMs": 39296 },
-    { "text": "made", "startMs": 39296, "endMs": 39558 },
-    { "text": "with", "startMs": 39558, "endMs": 39820 },
-    { "text": "the", "startMs": 39820, "endMs": 40019 },
-    { "text": "Claude", "startMs": 40019, "endMs": 40263 },
-    { "text": "Code", "startMs": 40606, "endMs": 40615 },
-    { "text": "you", "startMs": 40615, "endMs": 40814 },
-    { "text": "already", "startMs": 40814, "endMs": 41275 },
-    { "text": "have", "startMs": 41275, "endMs": 41546 }
-  ]
- },
- {
-  "text": "Add the Showcase Studio plugin to Claude Code, and make your first video today.",
-  "startMs": 42328,
-  "endMs": 48968,
-  "words": [
-    { "text": "Add", "startMs": 42635, "endMs": 42635 },
-    { "text": "the", "startMs": 42711, "endMs": 42820 },
-    { "text": "Showcase", "startMs": 42820, "endMs": 43309 },
-    { "text": "Studio", "startMs": 43309, "endMs": 43663 },
-    { "text": "plugin", "startMs": 43680, "endMs": 44043 },
-    { "text": "to", "startMs": 44085, "endMs": 44169 },
-    { "text": "Claude", "startMs": 44169, "endMs": 44388 },
-    { "text": "Code", "startMs": 44709, "endMs": 44827 },
-    { "text": "and", "startMs": 44860, "endMs": 45021 },
-    { "text": "make", "startMs": 45021, "endMs": 45215 },
-    { "text": "your", "startMs": 45307, "endMs": 45510 },
-    { "text": "first", "startMs": 45510, "endMs": 45577 },
-    { "text": "video", "startMs": 45577, "endMs": 45821 },
-    { "text": "today", "startMs": 46420, "endMs": 46656 }
-  ]
- }
+  {
+   "text": "I made this video with Showcase Studio, a Claude Code plugin.",
+   "startMs": 0,
+   "endMs": 4516,
+   "words": [
+    {
+     "text": "I",
+     "startMs": 306,
+     "endMs": 316
+    },
+    {
+     "text": "made",
+     "startMs": 316,
+     "endMs": 585
+    },
+    {
+     "text": "this",
+     "startMs": 585,
+     "endMs": 875
+    },
+    {
+     "text": "video",
+     "startMs": 875,
+     "endMs": 1224
+    },
+    {
+     "text": "with",
+     "startMs": 1224,
+     "endMs": 1503
+    },
+    {
+     "text": "Showcase",
+     "startMs": 1503,
+     "endMs": 2062
+    },
+    {
+     "text": "Studio",
+     "startMs": 2062,
+     "endMs": 2621
+    },
+    {
+     "text": "a",
+     "startMs": 2670,
+     "endMs": 2680
+    },
+    {
+     "text": "Claude",
+     "startMs": 2680,
+     "endMs": 3010
+    },
+    {
+     "text": "Code",
+     "startMs": 3010,
+     "endMs": 3269
+    },
+    {
+     "text": "plugin",
+     "startMs": 3269,
+     "endMs": 3698
+    }
+   ]
+  },
+  {
+   "text": "Type /showcase, and the studio opens right beside your chat.",
+   "startMs": 4516,
+   "endMs": 8768,
+   "words": [
+    {
+     "text": "Type",
+     "startMs": 4819,
+     "endMs": 5083
+    },
+    {
+     "text": "/showcase",
+     "startMs": 5083,
+     "endMs": 5808
+    },
+    {
+     "text": "and",
+     "startMs": 6035,
+     "endMs": 6119
+    },
+    {
+     "text": "the",
+     "startMs": 6119,
+     "endMs": 6270
+    },
+    {
+     "text": "studio",
+     "startMs": 6270,
+     "endMs": 6581
+    },
+    {
+     "text": "opens",
+     "startMs": 6581,
+     "endMs": 6836
+    },
+    {
+     "text": "right",
+     "startMs": 6836,
+     "endMs": 7081
+    },
+    {
+     "text": "beside",
+     "startMs": 7090,
+     "endMs": 7401
+    },
+    {
+     "text": "your",
+     "startMs": 7401,
+     "endMs": 7608
+    },
+    {
+     "text": "chat",
+     "startMs": 7608,
+     "endMs": 8004
+    }
+   ]
+  },
+  {
+   "text": "You can use all the power and context of Claude.",
+   "startMs": 8768,
+   "endMs": 12180,
+   "words": [
+    {
+     "text": "You",
+     "startMs": 9085,
+     "endMs": 9184
+    },
+    {
+     "text": "can",
+     "startMs": 9233,
+     "endMs": 9371
+    },
+    {
+     "text": "use",
+     "startMs": 9371,
+     "endMs": 9529
+    },
+    {
+     "text": "all",
+     "startMs": 9549,
+     "endMs": 9727
+    },
+    {
+     "text": "the",
+     "startMs": 9727,
+     "endMs": 9894
+    },
+    {
+     "text": "power",
+     "startMs": 9904,
+     "endMs": 10201
+    },
+    {
+     "text": "and",
+     "startMs": 10201,
+     "endMs": 10368
+    },
+    {
+     "text": "context",
+     "startMs": 10368,
+     "endMs": 10783
+    },
+    {
+     "text": "of",
+     "startMs": 10783,
+     "endMs": 10901
+    },
+    {
+     "text": "Claude",
+     "startMs": 10921,
+     "endMs": 11316
+    }
+   ]
+  },
+  {
+   "text": "Here it makes a voiceover with my own AWS account.",
+   "startMs": 12180,
+   "endMs": 15928,
+   "words": [
+    {
+     "text": "Here",
+     "startMs": 12504,
+     "endMs": 12638
+    },
+    {
+     "text": "it",
+     "startMs": 12638,
+     "endMs": 12755
+    },
+    {
+     "text": "makes",
+     "startMs": 12755,
+     "endMs": 13050
+    },
+    {
+     "text": "a",
+     "startMs": 13050,
+     "endMs": 13104
+    },
+    {
+     "text": "voiceover",
+     "startMs": 13104,
+     "endMs": 13640
+    },
+    {
+     "text": "with",
+     "startMs": 13640,
+     "endMs": 13882
+    },
+    {
+     "text": "my",
+     "startMs": 13882,
+     "endMs": 13998
+    },
+    {
+     "text": "own",
+     "startMs": 13998,
+     "endMs": 14168
+    },
+    {
+     "text": "AWS",
+     "startMs": 14186,
+     "endMs": 14356
+    },
+    {
+     "text": "account",
+     "startMs": 14356,
+     "endMs": 15117
+    }
+   ]
+  },
+  {
+   "text": "You can record video using the built-in teleprompter",
+   "startMs": 15928,
+   "endMs": 19508,
+   "words": [
+    {
+     "text": "You",
+     "startMs": 16247,
+     "endMs": 16336
+    },
+    {
+     "text": "can",
+     "startMs": 16346,
+     "endMs": 16514
+    },
+    {
+     "text": "record",
+     "startMs": 16514,
+     "endMs": 16841
+    },
+    {
+     "text": "video",
+     "startMs": 16901,
+     "endMs": 17128
+    },
+    {
+     "text": "using",
+     "startMs": 17128,
+     "endMs": 17406
+    },
+    {
+     "text": "the",
+     "startMs": 17406,
+     "endMs": 17574
+    },
+    {
+     "text": "built-in",
+     "startMs": 17574,
+     "endMs": 18010
+    },
+    {
+     "text": "teleprompter",
+     "startMs": 18010,
+     "endMs": 18713
+    }
+   ]
+  },
+  {
+   "text": "on your computer or on your phone.",
+   "startMs": 19508,
+   "endMs": 22272,
+   "words": [
+    {
+     "text": "on",
+     "startMs": 19814,
+     "endMs": 19880
+    },
+    {
+     "text": "your",
+     "startMs": 19880,
+     "endMs": 20119
+    },
+    {
+     "text": "computer",
+     "startMs": 20119,
+     "endMs": 20605
+    },
+    {
+     "text": "or",
+     "startMs": 20605,
+     "endMs": 20721
+    },
+    {
+     "text": "on",
+     "startMs": 20721,
+     "endMs": 20828
+    },
+    {
+     "text": "your",
+     "startMs": 20828,
+     "endMs": 21067
+    },
+    {
+     "text": "phone",
+     "startMs": 21067,
+     "endMs": 21413
+    }
+   ]
+  },
+  {
+   "text": "The script, screenshots, and other media are all ordinary files on your computer.",
+   "startMs": 22272,
+   "endMs": 27676,
+   "words": [
+    {
+     "text": "The",
+     "startMs": 22577,
+     "endMs": 22716
+    },
+    {
+     "text": "script",
+     "startMs": 22716,
+     "endMs": 23261
+    },
+    {
+     "text": "screenshots",
+     "startMs": 23311,
+     "endMs": 24034
+    },
+    {
+     "text": "and",
+     "startMs": 24232,
+     "endMs": 24331
+    },
+    {
+     "text": "other",
+     "startMs": 24331,
+     "endMs": 24599
+    },
+    {
+     "text": "media",
+     "startMs": 24599,
+     "endMs": 24887
+    },
+    {
+     "text": "are",
+     "startMs": 24887,
+     "endMs": 25075
+    },
+    {
+     "text": "all",
+     "startMs": 25075,
+     "endMs": 25243
+    },
+    {
+     "text": "ordinary",
+     "startMs": 25303,
+     "endMs": 25719
+    },
+    {
+     "text": "files",
+     "startMs": 25719,
+     "endMs": 26026
+    },
+    {
+     "text": "on",
+     "startMs": 26026,
+     "endMs": 26145
+    },
+    {
+     "text": "your",
+     "startMs": 26145,
+     "endMs": 26344
+    },
+    {
+     "text": "computer",
+     "startMs": 26393,
+     "endMs": 26869
+    }
+   ]
+  },
+  {
+   "text": "Drag in a new clip or screenshot, and it's ready to use.",
+   "startMs": 27676,
+   "endMs": 31472,
+   "words": [
+    {
+     "text": "Drag",
+     "startMs": 27995,
+     "endMs": 28186
+    },
+    {
+     "text": "in",
+     "startMs": 28196,
+     "endMs": 28327
+    },
+    {
+     "text": "a",
+     "startMs": 28327,
+     "endMs": 28387
+    },
+    {
+     "text": "new",
+     "startMs": 28387,
+     "endMs": 28548
+    },
+    {
+     "text": "clip",
+     "startMs": 28669,
+     "endMs": 28860
+    },
+    {
+     "text": "or",
+     "startMs": 28860,
+     "endMs": 28991
+    },
+    {
+     "text": "screenshot",
+     "startMs": 28991,
+     "endMs": 29735
+    },
+    {
+     "text": "and",
+     "startMs": 29815,
+     "endMs": 29886
+    },
+    {
+     "text": "it's",
+     "startMs": 29886,
+     "endMs": 30077
+    },
+    {
+     "text": "ready",
+     "startMs": 30077,
+     "endMs": 30318
+    },
+    {
+     "text": "to",
+     "startMs": 30318,
+     "endMs": 30418
+    },
+    {
+     "text": "use",
+     "startMs": 30418,
+     "endMs": 30690
+    }
+   ]
+  },
+  {
+   "text": "When you're done, you can export in \"shorts\" format, widescreen, and captioned screenshots for the App Store.",
+   "startMs": 31472,
+   "endMs": 38148,
+   "words": [
+    {
+     "text": "When",
+     "startMs": 31784,
+     "endMs": 31934
+    },
+    {
+     "text": "you're",
+     "startMs": 31934,
+     "endMs": 32234
+    },
+    {
+     "text": "done",
+     "startMs": 32234,
+     "endMs": 32564
+    },
+    {
+     "text": "you",
+     "startMs": 32634,
+     "endMs": 32734
+    },
+    {
+     "text": "can",
+     "startMs": 32784,
+     "endMs": 32944
+    },
+    {
+     "text": "export",
+     "startMs": 32944,
+     "endMs": 33333
+    },
+    {
+     "text": "in",
+     "startMs": 33333,
+     "endMs": 33463
+    },
+    {
+     "text": "shorts",
+     "startMs": 33463,
+     "endMs": 33853
+    },
+    {
+     "text": "format",
+     "startMs": 33853,
+     "endMs": 34403
+    },
+    {
+     "text": "widescreen",
+     "startMs": 34453,
+     "endMs": 35433
+    },
+    {
+     "text": "and",
+     "startMs": 35433,
+     "endMs": 35483
+    },
+    {
+     "text": "captioned",
+     "startMs": 35483,
+     "endMs": 35913
+    },
+    {
+     "text": "screenshots",
+     "startMs": 35913,
+     "endMs": 36602
+    },
+    {
+     "text": "for",
+     "startMs": 36602,
+     "endMs": 36742
+    },
+    {
+     "text": "the",
+     "startMs": 36742,
+     "endMs": 36882
+    },
+    {
+     "text": "App",
+     "startMs": 36882,
+     "endMs": 37022
+    },
+    {
+     "text": "Store",
+     "startMs": 37022,
+     "endMs": 37312
+    }
+   ]
+  },
+  {
+   "text": "Add the Showcase Studio plugin to Claude Code, and make your first video today.",
+   "startMs": 38148,
+   "endMs": 44788,
+   "words": [
+    {
+     "text": "Add",
+     "startMs": 38455,
+     "endMs": 38593
+    },
+    {
+     "text": "the",
+     "startMs": 38593,
+     "endMs": 38790
+    },
+    {
+     "text": "Showcase",
+     "startMs": 38790,
+     "endMs": 39322
+    },
+    {
+     "text": "Studio",
+     "startMs": 39322,
+     "endMs": 39726
+    },
+    {
+     "text": "plugin",
+     "startMs": 39726,
+     "endMs": 40091
+    },
+    {
+     "text": "to",
+     "startMs": 40140,
+     "endMs": 40259
+    },
+    {
+     "text": "Claude",
+     "startMs": 40259,
+     "endMs": 40584
+    },
+    {
+     "text": "Code",
+     "startMs": 40584,
+     "endMs": 41027
+    },
+    {
+     "text": "and",
+     "startMs": 41027,
+     "endMs": 41185
+    },
+    {
+     "text": "make",
+     "startMs": 41185,
+     "endMs": 41362
+    },
+    {
+     "text": "your",
+     "startMs": 41471,
+     "endMs": 41609
+    },
+    {
+     "text": "first",
+     "startMs": 41648,
+     "endMs": 41885
+    },
+    {
+     "text": "video",
+     "startMs": 41885,
+     "endMs": 42141
+    },
+    {
+     "text": "today",
+     "startMs": 42141,
+     "endMs": 42476
+    }
+   ]
+  }
  ]
 }
