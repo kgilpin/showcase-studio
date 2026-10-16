@@ -295,12 +295,20 @@ What the user sees at the limit:
 Before the limit, the export panel can say "1 free export left this
 month", from `/check`'s `freeExports`.
 
-## Setting it up (not done — needs your go-ahead)
+## Setting it up
+
+Dev is set up: the stack runs in the `kgilpin` AWS account
+(852995906843, us-east-1), against the Stripe sandbox
+`acct_1URBSc3JrwfKPeLF`. Prod is not set up yet.
 
 Stripe, in test mode first:
 
 1. Make a product "Showcase Studio" with a $10/month recurring price.
-   Note its `price_…` id.
+   Note its `price_…` id. Give the product a tax code (the sandbox
+   uses `txcd_10103101`, "SaaS — electronic download — business use"):
+   Stripe's Managed Payments, on by default, refuses a checkout for a
+   product without one. With Managed Payments, Stripe is the seller of
+   record and handles sales tax and VAT.
 2. Deploy the stack (below) and give Stripe the `WebhookUrl` output as
    a webhook endpoint, for these events: `checkout.session.completed`,
    `customer.subscription.created`, `customer.subscription.updated`,
@@ -310,15 +318,15 @@ Stripe, in test mode first:
    never in the repo or the CloudFormation template:
 
 ```bash
-aws ssm put-parameter --profile siteforward --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-secret-key --value "$STRIPE_SECRET_KEY"
+aws ssm put-parameter --profile kgilpin --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-secret-key --value "$STRIPE_SECRET_KEY"
 ```
 
 ```bash
-aws ssm put-parameter --profile siteforward --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-webhook-secret --value "$STRIPE_WEBHOOK_SECRET"
+aws ssm put-parameter --profile kgilpin --overwrite --type SecureString --name /showcase-studio/license/dev/stripe-webhook-secret --value "$STRIPE_WEBHOOK_SECRET"
 ```
 
 ```bash
-aws ssm put-parameter --profile siteforward --overwrite --type String --name /showcase-studio/license/dev/stripe-price-id --value "$STRIPE_PRICE_ID"
+aws ssm put-parameter --profile kgilpin --overwrite --type String --name /showcase-studio/license/dev/stripe-price-id --value "$STRIPE_PRICE_ID"
 ```
 
 The Lambda reads them once per cold start; after changing one, the
@@ -327,7 +335,7 @@ next cold start picks it up.
 Deploy (from `cdk/`):
 
 ```bash
-AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
+AWS_PROFILE=kgilpin npm run deploy:license -- -c environment=dev
 ```
 
 Prod is the same with `-c environment=prod`. The prod table is kept if
