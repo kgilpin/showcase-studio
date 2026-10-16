@@ -382,6 +382,9 @@ npm run dev -- --new [<library folder>]
     a cut's timeline.
   - `ffmpeg.mjs`: the bundled binary, plus reading a file's duration and
     loudness back out of its stderr — ffmpeg-static ships no ffprobe.
+  - `git-program.mjs`: git's full path, found once and reused by the
+    history and `library-git.mjs`: started by its bare name, every git
+    command paid a search along PATH (40–50 ms on a Mac, against 6 ms).
   - `exporter.mjs`: screens, video and script exports, slide screenshots and
     validate, drawn by a page renderer — `renderer-playwright.mjs` from
     source, Google Chrome when installed; Electron's in the packaged app —

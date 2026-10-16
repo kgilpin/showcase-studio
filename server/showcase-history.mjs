@@ -49,6 +49,7 @@ import { execFile } from "node:child_process";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { createChangeLog } from "./change-log.mjs";
+import { gitProgram } from "./git-program.mjs";
 
 export const TRAILER = "Showcase-Studio";
 const SUBJECT_LIMIT = 72;
@@ -327,7 +328,8 @@ export function commitMessage({ showcaseId, entries = [], files = [], message })
  *   delayMs             the quiet period before a commit
  *   failureCooldownMs   after a failed commit (a hook said no), how long
  *                       automatic commits for that showcase wait
- *   gitPath             the git program
+ *   gitPath             the git program (default: its full path, found
+ *                       once by git-program.mjs)
  */
 export function createShowcaseHistory({
   getLibrary,
@@ -335,7 +337,7 @@ export function createShowcaseHistory({
   autoCommitDefault = true,
   delayMs = 5000,
   failureCooldownMs = 60_000,
-  gitPath = "git",
+  gitPath,
   log = (message) => console.log(message),
 }) {
   const pending = new Map(); // showcase folder → timer
@@ -352,7 +354,7 @@ export function createShowcaseHistory({
   };
 
   async function git(args, cwd) {
-    const result = await runGit(gitPath, args, cwd);
+    const result = await runGit(gitPath ?? gitProgram(), args, cwd);
     if (result.code === "ENOENT" && !gitMissing) {
       gitMissing = true;
       log("studio: git isn't installed, so showcase changes won't be committed");

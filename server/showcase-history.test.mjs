@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { commitMessage, noIdentityReason, tooBigToInit } from "./showcase-history.mjs";
 import { createStudio } from "./studio-server.mjs";
+import { gitProgram } from "./git-program.mjs";
 
 const cleanups = [];
 afterEach(async () => {
@@ -28,7 +29,11 @@ scenes:
 `;
 
 const git = (cwd, ...args) =>
-  execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  execFileSync(gitProgram(), args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 
 /** A temp folder holding a showcases library at `showcases/` with one
  *  showcase, "nova". With `repo`, the folder is a git repository with a
@@ -149,12 +154,13 @@ const editTitle = (value) => ({
 
 /* Every test that starts a studio drives real git: making the repository,
  * the studio's own checks and commit, and each look at the log — some 30
- * git processes a test. With a native git each takes about 10 ms, and
- * these tests finish in 0.1–2 s. An Intel git on an Apple silicon Mac
- * (an old Homebrew in /usr/local) runs under Rosetta at 35–130 ms a
- * process, and there these tests took 2–4.5 s idle and 5.7 s under load,
- * past vitest's default 5 s. The quiet period itself is only 150 ms. A
- * commit that never comes still fails: waitFor gives up at 10 s. */
+ * git processes a test. Run by its full path (git-program.mjs) a native
+ * git takes about 6 ms, and these tests finish in 0.1–2 s. A slow git
+ * makes them much slower: an Intel git on an Apple silicon Mac (an old
+ * Homebrew in /usr/local) runs under Rosetta at 35–130 ms a process, and
+ * there they took 2–4.5 s idle and 5.7 s under load, past vitest's
+ * default 5 s. The quiet period itself is only 150 ms. A commit that
+ * never comes still fails: waitFor gives up at 10 s. */
 const GIT_TESTS = { timeout: 20_000 };
 
 describe("showcase history", GIT_TESTS, () => {
