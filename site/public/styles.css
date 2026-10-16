@@ -301,7 +301,7 @@ main {
   border-radius: 28px;
 }
 
-/* "Release it": where the video can go, with each one's logo */
+/* "Publish it": where the video can go, with each one's logo */
 .destinations {
   display: grid;
   grid-template-columns: 1fr 1fr;
