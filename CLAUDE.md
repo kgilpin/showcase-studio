@@ -102,6 +102,9 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #                          once, the first time
 #   npm run deploy         upload site/public as the live site
 #   npm run deploy:preview upload it to a preview URL instead
+# The site's address is https://showcasestudio.app: add the domain once,
+# in the Cloudflare dashboard (Workers & Pages > showcase-studio > Custom
+# domains). The page's canonical and og: tags name it too.
 # wrangler refuses to run below a folder holding a stale
 # .wrangler/deploy/config.json (an old studio build can leave one at the
 # repo root, pointing at .output/server/wrangler.json): delete that folder.
@@ -552,8 +555,8 @@ npm run dev -- --new [<library folder>]
   and an expired link is replaced by a new one (the share dialog says so).
   The endpoint defaults to Prod's; settings `prompterPublishUrl` or
   `PROMPTER_PUBLISH_URL` env points elsewhere.
-- `site/`: The marketing site, deployed to Cloudflare Pages (own npm
-  package; only `wrangler` as a dependency). `public/` is uploaded as is:
+- `site/`: The marketing site at https://showcasestudio.app, deployed to
+  Cloudflare Pages (own npm package; only `wrangler` as a dependency). `public/` is uploaded as is:
   `index.html` (the one landing page), `styles.css`, `_headers`, and
   `media/` (made by `scripts/prepare-media.mjs`). The page names the
   release in its download links (`Showcase-Studio-X.Y.Z-mac-arm64.zip`,

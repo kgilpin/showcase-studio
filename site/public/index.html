@@ -6,15 +6,14 @@
     <title>Showcase Studio</title>
     <meta
       name="description"
-      content="Make short videos of your app by talking to Claude Code. Showcase Studio is a Claude Code plugin for Mac and Windows."
+      content="App videos, written from your repo by Claude. Showcase Studio is a Claude Code plugin for Mac and Windows."
     />
     <meta name="theme-color" content="#0a0d1c" />
+    <link rel="canonical" href="https://showcasestudio.app/" />
     <meta property="og:title" content="Showcase Studio" />
-    <meta
-      property="og:description"
-      content="Make short videos of your app by talking to Claude Code."
-    />
-    <meta property="og:image" content="/media/hero.jpg" />
+    <meta property="og:url" content="https://showcasestudio.app/" />
+    <meta property="og:description" content="App videos, written from your repo by Claude." />
+    <meta property="og:image" content="https://showcasestudio.app/media/hero.jpg" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -39,7 +38,7 @@
     <main>
       <section class="hero">
         <div class="hero-text">
-          <p class="eyebrow">A Claude Code plugin for Mac and Windows</p>
+          <p class="eyebrow">App videos, written from your repo by Claude</p>
           <h1>Be the director. <em>Showcase and Claude do the&nbsp;rest.</em></h1>
           <p class="lede">
             Make pixel-perfect videos of your app in minutes. No CapCut, no clipping by hand, no
@@ -70,6 +69,36 @@
       <section id="features" class="features">
         <article class="feature">
           <div class="feature-text">
+            <h2>Your repo already knows your app</h2>
+            <p>
+              Showcase Studio works inside your app's own repository. Claude reads the code and the
+              docs to learn what the app does, so there's no brief to write.
+            </p>
+            <p>
+              Claude can run your app and capture real screens. The video lives right next to the
+              code, in a <code>showcases</code> folder.
+            </p>
+          </div>
+          <div class="feature-art">
+            <div
+              class="chat tree"
+              role="img"
+              aria-label="An app's repository: src and README.md, which Claude reads, and a showcases folder that holds the video"
+            >
+              <div class="chat-bar" aria-hidden="true"><i></i><i></i><i></i>your-app</div>
+              <pre><code><span class="dir">your-app/</span>
+├── <span class="dir">src/</span>          <span class="note">← Claude reads the code</span>
+├── README.md     <span class="note">← and the docs</span>
+└── <span class="dir">showcases/</span>    <span class="note">← the video lives here</span>
+    └── <span class="dir">launch/</span>
+        ├── showcase.yaml   <span class="note">the script</span>
+        └── <span class="dir">assets/</span>         <span class="note">real screens</span></code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature flip">
+          <div class="feature-text">
             <h2>Describe what you want</h2>
             <p>Start a Claude session in your app project and describe what you want to make.</p>
             <p>
@@ -99,7 +128,7 @@
           </div>
         </article>
 
-        <article class="feature flip">
+        <article class="feature">
           <div class="feature-text">
             <h2>Revise by watching and chatting</h2>
             <p>
@@ -129,7 +158,7 @@
           </div>
         </article>
 
-        <article class="feature">
+        <article class="feature flip">
           <div class="feature-text">
             <h2>Step in front of the camera</h2>
             <p>
@@ -153,7 +182,7 @@
           </div>
         </article>
 
-        <article class="feature flip">
+        <article class="feature">
           <div class="feature-text">
             <h2>Release it</h2>
             <p>
@@ -191,7 +220,12 @@
             </li>
             <li class="dest airdrop">
               <span class="logo"
-                ><svg viewBox="4 4 16 16.5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9"
+                ><svg
+                  viewBox="4 4 16 16.5"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
                   stroke-linecap="round"
                 >
                   <path d="M7.05 16.95a7 7 0 1 1 9.9 0" />
@@ -201,6 +235,31 @@
               <strong>AirDrop</strong>
             </li>
           </ul>
+        </article>
+
+        <article class="feature flip">
+          <div class="feature-text">
+            <h2>Update it when the app changes</h2>
+            <p>
+              A showcase is a set of files in git, so it gets reviewed like code. When a screen
+              changes, ask Claude to update the video, then export it again.
+            </p>
+            <p>No re-shoot, no re-edit. The video keeps up with the app.</p>
+          </div>
+          <div class="feature-art">
+            <div
+              class="chat tree"
+              role="img"
+              aria-label="The git history of a showcase: each change to the video is a commit"
+            >
+              <div class="chat-bar" aria-hidden="true"><i></i><i></i><i></i>your-app</div>
+              <pre><code><span class="note">$</span> git log --oneline -- showcases/launch
+<span class="sha">a41c9e2</span> launch: retake the settings screen
+<span class="sha">7d03b1f</span> launch: add a line about jump gates
+<span class="sha">3e9f6a0</span> launch: tighten the hook to 3 seconds
+<span class="sha">c18b7d4</span> launch: first cut</code></pre>
+            </div>
+          </div>
         </article>
       </section>
 
@@ -236,18 +295,18 @@ claude plugin install showcase-studio@showcase-studio</code></pre>
             <div class="downloads">
               <a
                 class="button"
-                href="https://github.com/kgilpin/showcase-studio/releases/download/v0.5.0/Showcase-Studio-0.5.0-mac-arm64.zip"
+                href="https://github.com/kgilpin/showcase-studio/releases/download/v0.6.0/Showcase-Studio-0.6.0-mac-arm64.zip"
                 >Mac <small>Apple Silicon</small></a
               >
               <a
                 class="button"
-                href="https://github.com/kgilpin/showcase-studio/releases/download/v0.5.0/Showcase-Studio-0.5.0-win-x64.zip"
+                href="https://github.com/kgilpin/showcase-studio/releases/download/v0.6.0/Showcase-Studio-0.6.0-win-x64.zip"
                 >Windows <small>x64</small></a
               >
             </div>
             <p class="small">
               Checksums are on the
-              <a href="https://github.com/kgilpin/showcase-studio/releases/tag/v0.5.0"
+              <a href="https://github.com/kgilpin/showcase-studio/releases/tag/v0.6.0"
                 >release page</a
               >.
             </p>
