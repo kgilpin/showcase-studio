@@ -78,12 +78,13 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # server/studio-server.mjs); prompterPublishUrl in the studio settings
 # points one machine at Dev.
 
-# The marketing site (site/): plain static files on Cloudflare Pages, its
-# own npm package, nothing shared with the studio's build or the AWS stack.
+# The marketing site (site/), live at https://showcasestudio.dev: static
+# files served by a Cloudflare Worker, its own npm package, nothing shared
+# with the studio's build or the AWS stack.
 #   cd site && npm i
 #   npm run dev            serve site/public on http://localhost:8098
 #                          (a small Node server, no dependencies)
-#   npm run dev:wrangler   the same, the way Cloudflare Pages serves it
+#   npm run dev:wrangler   the same, the way Cloudflare serves it
 #   npm run media          make site/public/media from the repo: the hero
 #                          video from the showcase-studio export, the two
 #                          NOVA example frames from the nova export, and
@@ -96,15 +97,17 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #                          site/media-src/ from a studio on :8123 (start
 #                          one at the root: PORT=8123 npm run dev --
 #                          --no-terminal --no-auto-commit --alongside)
-# Deploy (Cloudflare Pages project "showcase-studio", from site/wrangler.toml):
-#   npx wrangler login     once, in a browser
-#   npx wrangler pages project create showcase-studio --production-branch main
-#                          once, the first time
-#   npm run deploy         upload site/public as the live site
-#   npm run deploy:preview upload it to a preview URL instead
-# The site's address is https://showcasestudio.dev: add the domain once,
-# in the Cloudflare dashboard (Workers & Pages > showcase-studio > Custom
-# domains). The page's canonical and og: tags name it too.
+# Deploy (the Worker "showcase-studio", from site/wrangler.toml):
+#   npx wrangler login     once, in a browser, as the account that holds
+#                          the showcasestudio.dev zone (npx wrangler whoami
+#                          says which account you are in)
+#   npm run deploy         upload site/public, serve it at showcasestudio.dev
+#   npm run deploy:preview upload a version without serving it
+# wrangler.toml names no account, so a deploy goes to whichever account
+# wrangler is logged in to. The domain is in the goo.global account and
+# moves to the SiteForward account around 2026-10-26: after the move, log
+# in as SiteForward, npm run deploy (that creates the Worker there and
+# attaches the domain), then delete the Worker in the goo.global account.
 # wrangler refuses to run below a folder holding a stale
 # .wrangler/deploy/config.json (an old studio build can leave one at the
 # repo root, pointing at .output/server/wrangler.json): delete that folder.
@@ -570,9 +573,11 @@ npm run dev -- --new [<library folder>]
   and an expired link is replaced by a new one (the share dialog says so).
   The endpoint defaults to Prod's; settings `prompterPublishUrl` or
   `PROMPTER_PUBLISH_URL` env points elsewhere.
-- `site/`: The marketing site at https://showcasestudio.dev, deployed to
-  Cloudflare Pages (own npm package; only `wrangler` as a dependency). `public/` is uploaded as is:
-  `index.html` (the one landing page), `styles.css`, `_headers`, and
+- `site/`: The marketing site at https://showcasestudio.dev, a Cloudflare
+  Worker that serves static files (own npm package; only `wrangler` as a
+  dependency). `worker.js` runs only for `/media/*`, to answer byte-range
+  requests, which Safari needs to play the hero video. `public/` is
+  uploaded as is: `index.html` (the one landing page), `styles.css`, `_headers`, and
   `media/` (made by `scripts/prepare-media.mjs`). The page names the
   release in its download links (`Showcase-Studio-X.Y.Z-mac-arm64.zip`,
   `-win-x64.zip`): update them with each release. There is no YouTube
