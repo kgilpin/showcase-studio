@@ -9,7 +9,7 @@ export default function PluginInstall() {
   const mono = "ui-monospace, Menlo, monospace";
   /* Timed to the voiceover: the first command starts typing on "Add the
    * plugin to Claude Code" (the second caption starts 4.18 s in). */
-  const FIRST = 4.4; // seconds: the first command starts typing
+  const FIRST = 0.4; // seconds: the first command starts typing, with the voice
   const TYPE = 1.6; // seconds to type one command
   const SECOND = FIRST + TYPE + 0.5;
   const HINT = SECOND + TYPE + 0.6;
