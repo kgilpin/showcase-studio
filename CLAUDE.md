@@ -236,12 +236,14 @@ npm run dev -- --new [<library folder>]
 # The preview shows the studio the MCP tools started: Claude opens
 # studio_start's URL. To show the user one showcase, call studio_start
 # with showcase: <id>, which locks the studio to it (no Home link); leave
-# it out only for the whole library. There is no .claude/launch.json, in
-# libraries or in this repo. A preview-button studio would be a second
-# studio on the same library: the tools wouldn't use it, and its commits
-# would sweep up the session's work in progress. (The studio removes the ones earlier
-# versions wrote into libraries.) For UI work, studio_start's studio is
-# already the npm run dev studio from source, with hot reload.
+# it out only for the whole library. Libraries have no
+# .claude/launch.json, and this repo's lists only the marketing site
+# ("site", on :8098) — never a studio (dev or dev:electron). A
+# preview-button studio would be a second studio on the same library: the
+# tools wouldn't use it, and its commits would sweep up the session's work
+# in progress. (The studio removes the ones earlier versions wrote into
+# libraries.) For UI work, studio_start's studio is already the npm run
+# dev studio from source, with hot reload.
 # From source, the studio runs as a child process of the MCP server
 # (server/child-studio.mjs runs scripts/dev.mjs), so each studio_start
 # runs the code as it is then: after changing server code, studio_stop
