@@ -1,6 +1,7 @@
 {
   "name": "showcase-studio-desktop-shell",
   "private": true,
+  "license": "Elastic-2.0",
   "description": "The Electron shell's own dependencies. From the repo root, `npm run setup:desktop` installs them into electron/node_modules, so a plain `npm i` (the browser studio, exports, tests) doesn't download Electron. Used by dev:electron, package:desktop and release:desktop through scripts/desktop-deps.mjs.",
   "devDependencies": {
     "electron": "^43.4.0",

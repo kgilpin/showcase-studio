@@ -2,6 +2,7 @@
 # runnable binary. Run the whole chain with:  npm run package:desktop
 appId: ai.siteforward.showcase-studio
 productName: Showcase Studio
+copyright: Copyright © 2026 SiteForward, LLC
 directories:
   app: dist-electron/app
   output: dist-electron/dist
