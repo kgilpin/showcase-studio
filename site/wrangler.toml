@@ -1,7 +1,21 @@
-# Cloudflare Pages project for the Showcase Studio marketing site.
-# The site is plain static files: everything in public/ is uploaded as is.
-#   npm run dev:wrangler   serve public/ locally the way Pages does (:8098)
-#   npm run deploy         upload public/ as the production deployment
+# The Showcase Studio marketing site: a Cloudflare Worker that serves the
+# static files in public/, uploaded as is; public/_headers sets the response
+# headers. worker.js runs only for /media/*, to answer byte-range requests,
+# which Safari needs to play the hero video.
+#   npm run dev:wrangler   serve public/ locally the way Cloudflare does (:8098)
+#   npm run deploy         upload public/ and serve it at showcasestudio.dev
+#   npm run deploy:preview upload a version without serving it, for a preview URL
+# No account_id: wrangler deploys to the account it is logged in to, so the
+# same config works after the domain moves accounts.
 name = "showcase-studio"
-pages_build_output_dir = "public"
-compatibility_date = "2026-10-01"
+compatibility_date = "2026-10-16"
+main = "worker.js"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/media/*"]
+
+[[routes]]
+pattern = "showcasestudio.dev"
+custom_domain = true
