@@ -35,6 +35,9 @@
 
 body {
   margin: 0;
+  /* The full-width sections reach to the window edge with 100vw, which
+     counts the scrollbar where there is one: clip, never scroll sideways. */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--text);
   font: 400 17px/1.6 var(--font);
@@ -285,23 +288,26 @@ main {
   color: var(--soft);
 }
 
-/* How it works: a paper section running the full width of the window. The
-   shadow paints the paper past main's edges, and the clip keeps it from
-   making the page scroll sideways. */
+/* How it works: a paper section running the full width of the window
+   (the negative margin reaches the window edges, and the padding brings
+   the content back in line with main). The ink fades into it over
+   --fade, so dark turns to light gradually rather than in one cut. */
 .features {
-  --bg: var(--paper);
+  --fade: 120px;
+  --bg: #ecebe6;
   --text: var(--ink);
   --soft: var(--paper-soft);
   --line: var(--paper-line);
   --raised: var(--paper-raised);
   color-scheme: light;
-  display: grid;
-  gap: 128px;
-  padding: 128px 0;
-  background: var(--bg);
+  margin-inline: calc(50% - 50vw);
+  padding: calc(var(--fade) + 88px) calc(50vw - 50%) 128px;
+  background: linear-gradient(var(--ink), var(--bg) var(--fade));
   color: var(--text);
-  box-shadow: 0 0 0 100vmax var(--bg);
-  clip-path: inset(0 -100vmax);
+}
+
+.feature + .feature {
+  margin-top: 128px;
 }
 
 .feature {
@@ -342,14 +348,17 @@ main {
   border-radius: 28px;
 }
 
-/* "Publish it": where the video can go, with each one's logo */
+/* "Publish it": where the video can go, with each one's logo, in a dark
+   window like the other examples. */
+.chat.share {
+  max-width: 440px;
+}
+
 .destinations {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  width: 100%;
-  max-width: 440px;
-  margin: 0 auto;
+  gap: 10px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -359,9 +368,10 @@ main {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  padding: 20px;
-  border-radius: 12px;
-  background: var(--raised);
+  padding: 18px;
+  border-radius: 10px;
+  background: var(--ink-raised);
+  color: var(--paper);
 }
 
 .dest .logo {
@@ -673,8 +683,13 @@ footer .brand {
   }
 
   .features {
-    gap: 88px;
-    padding: 80px 0;
+    --fade: 88px;
+    padding-top: calc(var(--fade) + 48px);
+    padding-bottom: 80px;
+  }
+
+  .feature + .feature {
+    margin-top: 88px;
   }
 
   .feature {
