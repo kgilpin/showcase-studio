@@ -84,7 +84,14 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #   cd site && npm i
 #   npm run dev            serve site/public on http://localhost:8098
 #                          (a small Node server, no dependencies)
-#   npm run dev:wrangler   the same, the way Cloudflare serves it
+#   npm run dev:wrangler   the same, the way Cloudflare serves it, with
+#                          /download/* from wrangler's local R2 bucket
+#   npm run publish-release -- <mac|win> <version> <folder> [--local]
+#                          put a release's zip and checksum file in the R2
+#                          bucket showcase-studio-releases and point
+#                          /download/latest/<mac|win> at it (--local: the
+#                          bucket dev:wrangler serves). The studio-release
+#                          skill runs it.
 #   npm run media          make site/public/media from the repo: the hero
 #                          video from the showcase-studio export, the two
 #                          NOVA example frames from the nova export, and
@@ -106,8 +113,11 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # wrangler.toml names no account, so a deploy goes to whichever account
 # wrangler is logged in to. The domain is in the goo.global account and
 # moves to the SiteForward account around 2026-10-26: after the move, log
-# in as SiteForward, npm run deploy (that creates the Worker there and
-# attaches the domain), then delete the Worker in the goo.global account.
+# in as SiteForward, create the R2 bucket there (npx wrangler r2 bucket
+# create showcase-studio-releases) and publish the current release into it
+# (publish-release, mac and win), npm run deploy (that creates the Worker
+# there and attaches the domain), then delete the Worker in the goo.global
+# account. The Worker and its bucket must be in the same account.
 # wrangler refuses to run below a folder holding a stale
 # .wrangler/deploy/config.json (an old studio build can leave one at the
 # repo root, pointing at .output/server/wrangler.json): delete that folder.
@@ -143,7 +153,9 @@ npm run release:desktop            # the same, as the release: a signed,
                                    # "accepted" / "Notarized Developer ID".
                                    # The whole release — version bump, this
                                    # build, tag, the Windows CI build, the
-                                   # GitHub release, the install check — is
+                                   # upload to showcasestudio.dev/download,
+                                   # the GitHub release (kept as the
+                                   # record), the install check — is
                                    # the /studio-release skill
                                    # (.claude/skills/studio-release).
 npm run build:icon                 # render the app icon: build/icon.svg (the
@@ -541,8 +553,10 @@ npm run dev -- --new [<library folder>]
   `SHOWCASE_STUDIO_INSTALL_DIR`, `~/Applications`, `/Applications`), prefers
   the version in `app-version` — pinned separately from the plugin's own
   version, so the plugin can change without a new app release — and runs it
-  with `--mcp`; `bin/install-app` installs that version from the GitHub
-  release (`gh release download`, SHA-256 check, into `~/Applications`), and
+  with `--mcp`; `bin/install-app` installs that version from
+  `https://showcasestudio.dev/download/v<version>/` (`curl`, SHA-256 check,
+  into `~/Applications`; `SHOWCASE_STUDIO_DOWNLOAD_URL` points it at
+  another site, such as a local `npm run dev:wrangler`), and
   the skill runs it when the studio tools are missing;
   `skills/showcase/SKILL.md` is the working session
   (`/showcase-studio:showcase <name>`): start the studio — in Claude Code's
@@ -581,11 +595,19 @@ npm run dev -- --new [<library folder>]
 - `site/`: The marketing site at https://showcasestudio.dev, a Cloudflare
   Worker that serves static files (own npm package; only `wrangler` as a
   dependency). `worker.js` runs only for `/media/*`, to answer byte-range
-  requests, which Safari needs to play the hero video. `public/` is
+  requests, which Safari needs to play the hero video, and for
+  `/download/*`: the app's releases, from the R2 bucket
+  `showcase-studio-releases` (zips are too big for static files, which
+  Cloudflare caps at 25 MiB). The bucket holds `v<version>/<file>` for
+  each release and `latest.json` (`{"mac": …, "win": …}`), which
+  `/download/latest/mac` and `/download/latest/win` redirect by.
+  `scripts/publish-release.mjs` uploads a release and writes
+  `latest.json` last. The GitHub release stays as the private record of
+  each build; users download from the site. `public/` is
   uploaded as is: `index.html` (the one landing page), `styles.css`, `_headers`, and
-  `media/` (made by `scripts/prepare-media.mjs`). The page names the
-  release in its download links (`Showcase-Studio-X.Y.Z-mac-arm64.zip`,
-  `-win-x64.zip`): update them with each release. There is no YouTube
+  `media/` (made by `scripts/prepare-media.mjs`). Its download buttons
+  link to `/download/latest/*`, so a release doesn't touch the page.
+  There is no YouTube
   link yet: add one to the top bar and the footer when the channel exists.
 - `gold_traces/`: The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
