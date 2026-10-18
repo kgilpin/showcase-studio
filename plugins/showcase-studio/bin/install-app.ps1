@@ -1,11 +1,11 @@
 # Installs the Showcase Studio app this plugin runs on Windows: the version
-# in ..\app-version, from the repo's GitHub release, checked against the
-# release's SHA-256 hash, into %LOCALAPPDATA%\Programs\Showcase Studio (or
+# in ..\app-version, downloaded from showcasestudio.dev (or
+# $env:SHOWCASE_STUDIO_DOWNLOAD_URL), checked against the release's SHA-256
+# hash, into %LOCALAPPDATA%\Programs\Showcase Studio (or
 # $env:SHOWCASE_STUDIO_INSTALL_DIR\Showcase Studio). Replaces an older
 # version there. No admin rights needed.
 #
-# bin/install-app runs this on Windows. Needs the GitHub CLI (gh), logged
-# in with access to the repository. PowerShell on purpose: Claude Code
+# bin/install-app runs this on Windows. PowerShell on purpose: Claude Code
 # doesn't need Node, so this can't either.
 #
 # $env:SHOWCASE_STUDIO_RELEASE_DIR names a folder that already holds the zip
@@ -13,7 +13,7 @@
 # Windows CI job installs its own build this way.
 $ErrorActionPreference = "Stop"
 
-$repo = "kgilpin/showcase-studio"
+$base = if ($env:SHOWCASE_STUDIO_DOWNLOAD_URL) { $env:SHOWCASE_STUDIO_DOWNLOAD_URL } else { "https://showcasestudio.dev/download" }
 $root = Split-Path -Parent $PSScriptRoot
 $version = (Get-Content (Join-Path $root "app-version") -Raw).Trim()
 $installRoot = if ($env:SHOWCASE_STUDIO_INSTALL_DIR) { $env:SHOWCASE_STUDIO_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "Programs" }
@@ -31,13 +31,6 @@ if ([Environment]::Is64BitOperatingSystem -ne $true -or $env:PROCESSOR_ARCHITECT
   Fail "Showcase Studio $version for Windows is built for 64-bit Intel and AMD processors only."
 }
 $local = $env:SHOWCASE_STUDIO_RELEASE_DIR
-if (-not $local) {
-  if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Fail "The GitHub CLI (gh) is needed to download the app. Install it from https://cli.github.com, then run: gh auth login"
-  }
-  gh auth status *> $null
-  if ($LASTEXITCODE -ne 0) { Fail "The GitHub CLI isn't logged in. Run: gh auth login" }
-}
 
 if (Test-Path $exe) {
   # Windows keeps four parts (0.2.0.0); the release has three.
@@ -58,10 +51,14 @@ try {
       Copy-Item (Join-Path $local $file) $work
     }
   } else {
-    Write-Output "Downloading Showcase Studio $version from $repo..."
-    gh release download "v$version" -R $repo -p $zip -p $sums -D $work
-    if ($LASTEXITCODE -ne 0) {
-      Fail "Couldn't download the Windows build of release v$version from $repo. Check that your GitHub account can see that repository, and that the release has a Windows build."
+    Write-Output "Downloading Showcase Studio $version from $base..."
+    # Windows PowerShell 5.1 may not offer TLS 1.2 by default, and its
+    # progress bar slows a large download many times over.
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $ProgressPreference = "SilentlyContinue"
+    foreach ($file in @($zip, $sums)) {
+      try { Invoke-WebRequest -UseBasicParsing -Uri "$base/v$version/$file" -OutFile (Join-Path $work $file) }
+      catch { Fail "Couldn't download $base/v$version/$file. Check your internet connection, and that release $version has a Windows build." }
     }
   }
 
