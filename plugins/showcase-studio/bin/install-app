@@ -1,14 +1,15 @@
 #!/bin/sh
 # Installs the Showcase Studio app this plugin runs: the version in
-# ../app-version, from the repo's GitHub release, checked against the
-# release's SHA-256 hash, into ~/Applications (or
+# ../app-version, downloaded from showcasestudio.dev (or
+# $SHOWCASE_STUDIO_DOWNLOAD_URL, e.g. a local wrangler dev), checked against
+# the release's SHA-256 hash, into ~/Applications (or
 # $SHOWCASE_STUDIO_INSTALL_DIR). Replaces an older version there.
 #
-# Needs the GitHub CLI (gh), logged in with access to the repository.
 # Plain sh on purpose: Claude Code doesn't need Node, so this can't either.
+# curl, shasum and ditto come with macOS.
 set -eu
 
-repo="kgilpin/showcase-studio"
+base="${SHOWCASE_STUDIO_DOWNLOAD_URL:-https://showcasestudio.dev/download}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 version="$(tr -d '[:space:]' < "$root/app-version")"
 dest="${SHOWCASE_STUDIO_INSTALL_DIR:-$HOME/Applications}"
@@ -36,9 +37,6 @@ esac
 if [ "$(uname -s)" != Darwin ] || [ "$(sysctl -n hw.optional.arm64 2> /dev/null)" != 1 ]; then
   fail "Showcase Studio $version is built for macOS on Apple Silicon only."
 fi
-command -v gh > /dev/null 2>&1 ||
-  fail "The GitHub CLI (gh) is needed to download the app. Install it from https://cli.github.com, then run: gh auth login"
-gh auth status > /dev/null 2>&1 || fail "The GitHub CLI isn't logged in. Run: gh auth login"
 
 installed="$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$app/Contents/Info.plist" 2> /dev/null || true)"
 if [ "$installed" = "$version" ]; then
@@ -49,9 +47,11 @@ fi
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-echo "Downloading Showcase Studio $version from $repo..."
-gh release download "v$version" -R "$repo" -p "$zip" -p SHA256SUMS -D "$work" ||
-  fail "Couldn't download release v$version from $repo. Check that your GitHub account can see that repository."
+echo "Downloading Showcase Studio $version from $base..."
+for file in "$zip" SHA256SUMS; do
+  curl -fsSL --retry 3 -o "$work/$file" "$base/v$version/$file" ||
+    fail "Couldn't download $base/v$version/$file. Check your internet connection and try again."
+done
 (cd "$work" && shasum -a 256 -c SHA256SUMS > /dev/null) ||
   fail "The download doesn't match its SHA-256 hash, so nothing was installed."
 
