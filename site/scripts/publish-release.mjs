@@ -6,7 +6,9 @@
  * From the repo root:
  *   npm --prefix site run publish-release -- mac 0.6.0 dist-electron/dist
  *   npm --prefix site run publish-release -- win 0.6.0 <the CI artifact's folder>
- * Add --local to use the bucket wrangler dev serves, for trying it out.
+ * Add --local to use the bucket wrangler dev serves, for trying it out, and
+ * --profile <name> to upload with a wrangler auth profile instead of the
+ * default sign-in.
  *
  * The folder holds the zip and its checksum file, as the build leaves them:
  *   mac  Showcase-Studio-<version>-mac-arm64.zip + SHA256SUMS
@@ -34,7 +36,13 @@ const FILES = {
 
 const site = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
-const where = args.includes("--local") ? "--local" : "--remote";
+// --profile <name>: a wrangler auth profile (wrangler auth create <name>),
+// for an account other than the one wrangler login signed in to.
+const profileAt = args.indexOf("--profile");
+const profile = profileAt >= 0 ? args.splice(profileAt, 2)[1] : null;
+// Flags every wrangler call here gets.
+const where = [args.includes("--local") ? "--local" : "--remote"];
+if (profile) where.push("--profile", profile);
 const [platform, version, folder] = args.filter((a) => a !== "--local");
 
 function fail(message) {
@@ -43,7 +51,9 @@ function fail(message) {
 }
 
 if (!FILES[platform] || !/^\d+\.\d+\.\d+$/.test(version ?? "") || !folder) {
-  fail("usage: publish-release <mac|win> <version, e.g. 0.6.0> <folder> [--local]");
+  fail(
+    "usage: publish-release <mac|win> <version, e.g. 0.6.0> <folder> [--local] [--profile <name>]",
+  );
 }
 const [zip, sums] = FILES[platform](version);
 // npm run starts scripts in site/; the folder is relative to where it was typed.
@@ -65,7 +75,7 @@ for await (const chunk of createReadStream(zipPath)) hash.update(chunk);
 if (hash.digest("hex") !== expected.toLowerCase()) fail(`${zip} doesn't match ${sums}.`);
 
 function wrangler(...rest) {
-  return execFileSync(path.join(site, "node_modules", ".bin", "wrangler"), [...rest, where], {
+  return execFileSync(path.join(site, "node_modules", ".bin", "wrangler"), [...rest, ...where], {
     cwd: site,
     encoding: "utf8",
     stdio: ["pipe", "pipe", "inherit"],
@@ -102,7 +112,7 @@ try {
   latest = JSON.parse(
     execFileSync(
       path.join(site, "node_modules", ".bin", "wrangler"),
-      ["r2", "object", "get", `${BUCKET}/latest.json`, "--pipe", where],
+      ["r2", "object", "get", `${BUCKET}/latest.json`, "--pipe", ...where],
       { cwd: site, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
     ),
   );
@@ -123,7 +133,7 @@ execFileSync(
     "--pipe",
     "--content-type",
     "application/json",
-    where,
+    ...where,
   ],
   {
     cwd: site,
