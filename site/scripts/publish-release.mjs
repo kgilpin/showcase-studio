@@ -95,11 +95,21 @@ wrangler(
   "text/plain; charset=utf-8",
 );
 
-// No latest.json yet (the first release) reads as an empty one.
+// No latest.json yet (the first release) reads as an empty one. Any other
+// failure stops here: starting over would drop the other platform's entry.
 let latest = {};
 try {
-  latest = JSON.parse(wrangler("r2", "object", "get", `${BUCKET}/latest.json`, "--pipe"));
-} catch {
+  latest = JSON.parse(
+    execFileSync(
+      path.join(site, "node_modules", ".bin", "wrangler"),
+      ["r2", "object", "get", `${BUCKET}/latest.json`, "--pipe", where],
+      { cwd: site, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
+    ),
+  );
+} catch (error) {
+  if (!/does not exist/.test(error.stderr ?? "")) {
+    fail(`couldn't read latest.json:\n${error.stderr ?? error.message}`);
+  }
   console.log("No latest.json yet; starting one.");
 }
 latest[platform] = version;
