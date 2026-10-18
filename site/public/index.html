@@ -6,29 +6,26 @@
     <title>Showcase Studio</title>
     <meta
       name="description"
-      content="App videos, written from your repo by Claude. Showcase Studio is a Claude Code plugin for Mac and Windows."
+      content="Ship a feature. Show it off the same day. Showcase Studio is a Claude Code plugin for Mac and Windows that makes app videos from your repo in minutes."
     />
-    <meta name="theme-color" content="#0a0d1c" />
+    <meta name="theme-color" content="#121316" />
     <link rel="canonical" href="https://showcasestudio.dev/" />
     <meta property="og:title" content="Showcase Studio" />
     <meta property="og:url" content="https://showcasestudio.dev/" />
-    <meta property="og:description" content="App videos, written from your repo by Claude." />
+    <meta property="og:description" content="Ship a feature. Show it off the same day. Claude makes the video from your repo in minutes." />
     <meta property="og:image" content="https://showcasestudio.dev/media/hero.jpg" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <header class="top">
-      <a class="brand" href="/">
-        <img src="/icon.svg" alt="" width="36" height="36" />
-        <span>Showcase Studio</span>
-      </a>
+      <a class="brand" href="/">Showcase <mark>Studio</mark></a>
       <nav>
         <a href="#features">How it works</a>
         <a href="#download">Install</a>
@@ -38,14 +35,21 @@
     <main>
       <section class="hero">
         <div class="hero-text">
-          <p class="eyebrow">App videos, written from your repo by Claude</p>
-          <h1>Be the director. <em>Showcase and Claude do the&nbsp;rest.</em></h1>
+          <p class="eyebrow">App videos for developers and product teams</p>
+          <!-- The highlight steps through the words the way captions play in
+               a Showcase video, then rests on the last one. -->
+          <h1 class="caption">
+            <span>Ship</span> <span>a</span> <span>feature.</span><br />
+            <span>Show</span> <span>it</span> <span>off</span> <span>the</span>
+            <span class="on">same&nbsp;day.</span>
+          </h1>
           <p class="lede">
-            Make pixel-perfect videos of your app in minutes. No CapCut, no clipping by hand, no
-            frustration.
+            Most new features never get a video, because making one takes hours. With Showcase
+            Studio, Claude writes it from your repo and you get a polished video in minutes. No
+            CapCut, no clipping by hand.
           </p>
           <div class="actions">
-            <a class="button primary" href="#download">Install Now</a>
+            <a class="button primary" href="#download">Install now</a>
           </div>
         </div>
 
@@ -96,7 +100,7 @@
 
         <article class="feature flip">
           <div class="feature-text">
-            <h2>Describe what you want</h2>
+            <h2>Be the director</h2>
             <p>Start a Claude session in your app project and describe what you want to make.</p>
             <p>
               Claude and Showcase Studio take it from there. You get a script, scenes with
@@ -312,10 +316,7 @@ claude plugin install showcase-studio@showcase-studio</code></pre>
     </main>
 
     <footer>
-      <a class="brand" href="/">
-        <img src="/icon.svg" alt="" width="28" height="28" />
-        <span>Showcase Studio</span>
-      </a>
+      <a class="brand" href="/">Showcase <mark>Studio</mark></a>
       <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
     </footer>
 
@@ -333,6 +334,18 @@ claude plugin install showcase-studio@showcase-studio</code></pre>
             button.textContent = "Selected";
           }
           setTimeout(() => (button.textContent = "Copy"), 2000);
+        });
+      }
+      // The headline's caption highlight: one pass at speaking pace, unless
+      // the reader has asked for less motion. Without the script it simply
+      // rests on the last words.
+      const words = [...document.querySelectorAll(".caption span")];
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        words.at(-1).classList.remove("on");
+        words.forEach((word, i) => {
+          setTimeout(() => {
+            words.forEach((w) => w.classList.toggle("on", w === word));
+          }, 500 + i * 320);
         });
       }
       // The hero video starts muted, as browsers require for autoplay.
