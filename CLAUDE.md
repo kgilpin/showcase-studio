@@ -112,12 +112,26 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #   npm run deploy:preview upload a version without serving it
 # wrangler.toml names no account, so a deploy goes to whichever account
 # wrangler is logged in to. The domain is in the goo.global account and
-# moves to the SiteForward account around 2026-10-26. The R2 bucket
-# showcase-studio-releases is already in SiteForward, with 0.6.0 in it.
-# After the move: npm run deploy as SiteForward (that creates the Worker
-# there and attaches the domain), then delete the Worker in the goo.global
-# account. The Worker and its bucket must be in the same account, so a
-# deploy before the move fails ("Could not find zone").
+# moves to the SiteForward account around 2026-10-26. Until then:
+#
+#   showcasestudio.dev ── /download/* ──► showcase-studio-downloads ──► R2 bucket
+#   (goo.global Worker,                   (SiteForward Worker on       showcase-studio-
+#    no bucket)                            workers.dev)                releases
+#
+# A Worker can only read a bucket in its own account, so the site's Worker
+# relays downloads to the same worker.js deployed beside the bucket.
+# wrangler login is SiteForward; goo.global is the wrangler auth profile
+# "goo" (npx wrangler auth create goo). Deploy with:
+#   npx wrangler deploy --env goo --profile goo      the site (not npm run
+#                                                    deploy, until the move)
+#   npx wrangler deploy --env downloads              the downloads Worker,
+#                                                    after a worker.js change
+# Releases upload to the SiteForward bucket only (publish-release, as is).
+# After the move: npm run deploy as SiteForward (that creates the site's
+# Worker there with the bucket attached, and moves the domain to it), then
+# delete the showcase-studio Worker in goo.global and the
+# showcase-studio-downloads Worker, and remove env.goo, env.downloads and
+# the DOWNLOADS_ORIGIN relay in worker.js.
 # wrangler remembers the account in
 # site/node_modules/.cache/wrangler/wrangler-account.json: after logging
 # in as another account, delete that file, or wrangler keeps sending

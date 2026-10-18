@@ -21,11 +21,24 @@
  * {"mac": "0.6.0", "win": "0.6.0"}, which site/scripts/publish-release.mjs
  * writes last. Mac and Windows have their own entry because the Windows
  * build reaches the bucket later than the Mac one.
+ *
+ * A Worker can only read a bucket in its own account. Until the domain
+ * moves to the SiteForward account, the site's Worker (in goo.global) has
+ * no bucket: DOWNLOADS_ORIGIN names this same Worker deployed in
+ * SiteForward beside the bucket, and /download/* is relayed there
+ * (wrangler.toml's env.goo and env.downloads).
  */
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
-    if (pathname.startsWith("/download/")) return download(request, env, pathname);
+    if (pathname.startsWith("/download/")) {
+      if (!env.RELEASES && env.DOWNLOADS_ORIGIN) {
+        // redirect: "manual" passes the latest links' redirects on to the
+        // browser; their Location is a path, so it stays on this domain.
+        return fetch(new Request(env.DOWNLOADS_ORIGIN + pathname, request), { redirect: "manual" });
+      }
+      return download(request, env, pathname);
+    }
     return media(request, env);
   },
 };
