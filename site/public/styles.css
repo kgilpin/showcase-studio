@@ -209,15 +209,16 @@ p {
   background: var(--line);
 }
 
+/* The main action is the highlight, as in the studio. */
 .button.primary {
-  background: var(--text);
-  color: var(--bg);
+  background: var(--mark);
+  border-color: var(--mark);
+  color: var(--ink);
 }
 
 .button.primary:hover {
   background: var(--mark);
-  border-color: var(--mark);
-  color: var(--ink);
+  filter: brightness(1.08);
 }
 
 .button small {
@@ -440,7 +441,8 @@ main {
   color: var(--soft);
 }
 
-.pill {
+.pill,
+.card .pill {
   display: inline-block;
   margin: 0 0 14px;
   padding: 2px 8px;
