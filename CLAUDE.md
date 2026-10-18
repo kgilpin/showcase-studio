@@ -112,12 +112,16 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #   npm run deploy:preview upload a version without serving it
 # wrangler.toml names no account, so a deploy goes to whichever account
 # wrangler is logged in to. The domain is in the goo.global account and
-# moves to the SiteForward account around 2026-10-26: after the move, log
-# in as SiteForward, create the R2 bucket there (npx wrangler r2 bucket
-# create showcase-studio-releases) and publish the current release into it
-# (publish-release, mac and win), npm run deploy (that creates the Worker
+# moves to the SiteForward account around 2026-10-26. The R2 bucket
+# showcase-studio-releases is already in SiteForward, with 0.6.0 in it.
+# After the move: npm run deploy as SiteForward (that creates the Worker
 # there and attaches the domain), then delete the Worker in the goo.global
-# account. The Worker and its bucket must be in the same account.
+# account. The Worker and its bucket must be in the same account, so a
+# deploy before the move fails ("Could not find zone").
+# wrangler remembers the account in
+# site/node_modules/.cache/wrangler/wrangler-account.json: after logging
+# in as another account, delete that file, or wrangler keeps sending
+# requests to the old account ("Authentication error [code: 10000]").
 # wrangler refuses to run below a folder holding a stale
 # .wrangler/deploy/config.json (an old studio build can leave one at the
 # repo root, pointing at .output/server/wrangler.json): delete that folder.
