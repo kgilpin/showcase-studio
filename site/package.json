@@ -10,8 +10,8 @@
     "media": "node scripts/prepare-media.mjs",
     "capture:prompter": "node scripts/capture-prompter.mjs",
     "publish-release": "node scripts/publish-release.mjs",
-    "deploy": "wrangler deploy",
-    "deploy:preview": "wrangler versions upload"
+    "deploy": "wrangler deploy --env goo --profile goo && wrangler deploy --env downloads",
+    "deploy:preview": "wrangler versions upload --env goo --profile goo"
   },
   "devDependencies": {
     "wrangler": "^4.151.1"

@@ -32,11 +32,19 @@ bucket_name = "showcase-studio-releases"
 # Until the domain moves to SiteForward (around 2026-10-26): the bucket is in
 # SiteForward and the domain in goo.global, and a Worker can only read a
 # bucket in its own account. So the bucket's Worker runs in SiteForward on
-# workers.dev, and the site's Worker relays /download/* to it:
-#   npx wrangler deploy --env downloads                 (signed in as SiteForward)
-#   npx wrangler deploy --env goo --profile goo         (the live site)
-# After the move, delete both sections, the showcase-studio-downloads Worker
-# and the relay in worker.js, and deploy as above with no --env.
+# workers.dev, and the site's Worker relays /download/* to it. npm run
+# deploy runs both deploys:
+#   wrangler deploy --env goo --profile goo   the live site, in goo.global
+#   wrangler deploy --env downloads           the downloads Worker, in
+#                                             SiteForward (the default sign-in)
+# After the move, switch back:
+#   1. package.json: "deploy": "wrangler deploy" and
+#      "deploy:preview": "wrangler versions upload"
+#   2. delete both sections below, and the DOWNLOADS_ORIGIN relay in worker.js
+#   3. npm run deploy, signed in as SiteForward: the site's Worker (already
+#      in SiteForward, unused until then) gets the bucket and the domain
+#   4. delete the showcase-studio Worker in goo.global and the
+#      showcase-studio-downloads Worker in SiteForward
 [env.downloads]
 name = "showcase-studio-downloads"
 workers_dev = true

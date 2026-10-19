@@ -109,6 +109,7 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #                          the showcasestudio.dev zone (npx wrangler whoami
 #                          says which account you are in)
 #   npm run deploy         upload site/public, serve it at showcasestudio.dev
+#                          (until the move: both deploys below)
 #   npm run deploy:preview upload a version without serving it
 # wrangler.toml names no account, so a deploy goes to whichever account
 # wrangler is logged in to. The domain is in the goo.global account and
@@ -121,17 +122,15 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # A Worker can only read a bucket in its own account, so the site's Worker
 # relays downloads to the same worker.js deployed beside the bucket.
 # wrangler login is SiteForward; goo.global is the wrangler auth profile
-# "goo" (npx wrangler auth create goo). Deploy with:
-#   npx wrangler deploy --env goo --profile goo      the site (not npm run
-#                                                    deploy, until the move)
-#   npx wrangler deploy --env downloads              the downloads Worker,
-#                                                    after a worker.js change
+# "goo" (npx wrangler auth create goo). npm run deploy runs both deploys:
+#   wrangler deploy --env goo --profile goo      the site, in goo.global
+#   wrangler deploy --env downloads              the downloads Worker, in
+#                                                SiteForward
 # Releases upload to the SiteForward bucket only (publish-release, as is).
-# After the move: npm run deploy as SiteForward (that creates the site's
-# Worker there with the bucket attached, and moves the domain to it), then
-# delete the showcase-studio Worker in goo.global and the
-# showcase-studio-downloads Worker, and remove env.goo, env.downloads and
-# the DOWNLOADS_ORIGIN relay in worker.js.
+# After the move, switch back with the four steps at the end of
+# site/wrangler.toml: the plain deploy scripts in site/package.json, no
+# env sections or relay, npm run deploy as SiteForward, then delete the
+# two Workers that are no longer used.
 # wrangler remembers the account in
 # site/node_modules/.cache/wrangler/wrangler-account.json: after logging
 # in as another account, delete that file, or wrangler keeps sending
