@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-/* The hero video, with a small control bar: play/pause, a scrubber, sound
- * and full screen. The bar fades in on hover or tap and stays while the
- * video is paused.
+/* The hero video, with a small control bar: play/pause, a scrubber and
+ * sound. The bar fades in on hover or tap and stays while the video is
+ * paused. There is no full screen: browsers show it landscape, which
+ * shrinks a 9:16 video to a strip in the middle.
  *
  *   muted      plays on its own and loops, as browsers allow only muted
  *              video to autoplay
@@ -100,14 +101,6 @@ export function HeroVideo() {
     setEnded(false);
   }
 
-  function fullScreen() {
-    const v = video.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
-    if (!v) return;
-    // iPhone Safari only puts a video in full screen with its own player.
-    if (v.requestFullscreen) void v.requestFullscreen();
-    else v.webkitEnterFullscreen?.();
-  }
-
   function showForAWhile() {
     setShown(true);
     clearTimeout(hideTimer.current);
@@ -187,9 +180,6 @@ export function HeroVideo() {
           >
             {muted ? <MutedIcon /> : <SoundIcon />}
           </IconButton>
-          <IconButton label="Full screen" onClick={fullScreen}>
-            <FullScreenIcon />
-          </IconButton>
         </div>
       </div>
       <figcaption>This video was made with Showcase Studio.</figcaption>
@@ -244,10 +234,5 @@ const SoundIcon = () => (
 const MutedIcon = () => (
   <svg {...icon}>
     <path d="M4 9v6h4l5 4V5L8 9zM16.3 9.7l1.4-1.4 1.8 1.8 1.8-1.8 1.4 1.4-1.8 1.8 1.8 1.8-1.4 1.4-1.8-1.8-1.8 1.8-1.4-1.4 1.8-1.8z" />
-  </svg>
-);
-const FullScreenIcon = () => (
-  <svg {...icon}>
-    <path d="M4 4h6v2H6v4H4zM14 4h6v6h-2V6h-4zM4 14h2v4h4v2H4zM18 14h2v6h-6v-2h4z" />
   </svg>
 );
