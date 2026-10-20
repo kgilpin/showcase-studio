@@ -263,6 +263,13 @@ main {
   box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
 }
 
+/* The player (HeroVideo.tsx): the video, a "Sound on" invitation until
+   the first unmute, a big Play or Replay button while paused, and the
+   control bar along the bottom, inside the phone's 8px black edge. */
+.player {
+  position: relative;
+}
+
 .sound {
   position: absolute;
   top: 20px;
@@ -276,9 +283,137 @@ main {
   cursor: pointer;
 }
 
-.sound[aria-pressed="true"] {
+.big-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 64px;
+  height: 64px;
+  justify-content: center;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 32px;
   background: var(--mark);
   color: var(--ink);
+  font: 700 16px var(--font);
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.big-play svg {
+  width: 28px;
+  height: 28px;
+}
+
+.controls {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 28px 10px 10px;
+  border-radius: 0 0 28px 28px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* Shown on hover, while a control has focus by keyboard, while paused,
+   and for a few seconds after a tap (data-controls). Touch screens keep
+   :hover on whatever was tapped last, so hover counts only with a mouse. */
+.player:has(:focus-visible) .controls,
+.player[data-controls] .controls {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .player:hover .controls {
+    opacity: 1;
+  }
+}
+
+.controls button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  background: none;
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background: rgba(244, 244, 241, 0.14);
+}
+
+.controls svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* The scrubber: a thin track that fills with the brand yellow up to the
+   playing position (--progress, set by the component). */
+.scrubber {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  margin: 0 4px;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.scrubber::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--mark) var(--progress),
+    rgba(244, 244, 241, 0.3) var(--progress)
+  );
+}
+
+.scrubber::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--mark) var(--progress),
+    rgba(244, 244, 241, 0.3) var(--progress)
+  );
+}
+
+.scrubber::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--mark);
+}
+
+.scrubber::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--mark);
+}
+
+.scrubber:focus-visible {
+  outline: 3px solid var(--mark);
+  outline-offset: -8px;
+  border-radius: 8px;
 }
 
 .phone figcaption {

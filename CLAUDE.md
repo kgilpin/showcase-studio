@@ -622,7 +622,7 @@ npm run dev -- --new [<library folder>]
   `src/routes/__root.tsx` holds the `<head>` (title, description, Open
   Graph tags), `src/routes/index.tsx` the page and all its copy, and
   `src/components/` the parts that run in the browser (the caption
-  highlight, the hero video's Sound button, the Copy button) and the
+  highlight, the hero video's player, the Copy button) and the
   destination logos. `src/styles.css` is the stylesheet. `worker.js` runs only for `/media/*`, to answer byte-range
   requests, which Safari needs to play the hero video, and for
   `/download/*`: the app's releases, from the R2 bucket
