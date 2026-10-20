@@ -21,6 +21,8 @@ const types = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".mp4": "video/mp4",
+  ".xml": "application/xml; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
 };
 
 createServer((req, res) => {
@@ -28,10 +30,19 @@ createServer((req, res) => {
   if (!file.startsWith(root)) return res.writeHead(403).end();
   let stat;
   try {
+    // As Cloudflare serves them: /pricing is pricing.html, / is index.html.
+    if (!path.extname(file) && !file.endsWith(path.sep)) {
+      try {
+        statSync(`${file}.html`);
+        file = `${file}.html`;
+      } catch {}
+    }
     stat = statSync(file);
     if (stat.isDirectory()) stat = statSync((file = path.join(file, "index.html")));
   } catch {
-    return res.writeHead(404).end("Not found");
+    // And a missing page is 404.html, with a 404.
+    res.writeHead(404, { "Content-Type": types[".html"] });
+    return createReadStream(path.join(root, "404.html")).pipe(res);
   }
   const headers = {
     "Content-Type": types[path.extname(file)] ?? "application/octet-stream",

@@ -182,7 +182,8 @@ p {
   padding-bottom: 2px;
 }
 
-.top nav a:hover {
+.top nav a:hover,
+.top nav a[aria-current="page"] {
   border-color: var(--mark);
 }
 
@@ -474,6 +475,12 @@ main {
   color: var(--soft);
 }
 
+/* A card's title is the page's second level, but sized like h3. */
+.card h2 {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
 .card pre {
   margin: 0 0 1em;
 }
@@ -509,6 +516,149 @@ main {
 
 .card .downloads {
   margin: 0 0 18px;
+}
+
+/* A page's own heading (Download, Pricing) */
+.page-head {
+  padding: 56px 0 8px;
+  max-width: 760px;
+}
+
+.page-head h1 {
+  font-size: clamp(36px, 5vw, 56px);
+}
+
+.page-head .lede {
+  margin-top: 16px;
+}
+
+.page .download {
+  padding-top: 24px;
+}
+
+/* A line that sends the reader to the next page */
+.next {
+  margin: 40px 0 0;
+  color: var(--soft);
+}
+
+/* Pricing: two plans side by side */
+.plans {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 40px 0 0;
+}
+
+.plan {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan.featured {
+  outline: 2px solid var(--mark);
+}
+
+.plan .pill {
+  align-self: flex-start;
+}
+
+.card .price {
+  margin: 10px 0 4px;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.card .price small {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--soft);
+}
+
+.checks {
+  margin: 20px 0 28px;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  position: relative;
+  padding: 6px 0 6px 28px;
+  color: var(--soft);
+}
+
+.checks li strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* The tick: a small square in the highlight */
+.checks li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.85em;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--mark);
+}
+
+.plan form,
+.plan .plan-action {
+  margin-top: auto;
+}
+
+.plan .button {
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.plan .small {
+  margin: 12px 0 0;
+}
+
+/* Questions and answers */
+.faq {
+  max-width: 760px;
+  padding: 88px 0 112px;
+}
+
+.faq dl {
+  margin: 28px 0 0;
+}
+
+.faq dt {
+  margin: 28px 0 6px;
+  font-weight: 700;
+}
+
+.faq dd {
+  margin: 0;
+  color: var(--soft);
+}
+
+/* The closing band on the home page */
+.get-started {
+  padding: 104px 0 120px;
+  text-align: center;
+}
+
+.get-started .lede {
+  margin: 16px auto 0;
+}
+
+.get-started .actions {
+  justify-content: center;
+}
+
+/* Not found */
+.lost {
+  padding: 120px 0 160px;
 }
 
 /* Footer */
@@ -705,9 +855,18 @@ footer .brand {
     padding: 80px 0 96px;
   }
 
-  .download-grid {
+  .download-grid,
+  .plans {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .page-head {
+    padding-top: 24px;
+  }
+
+  .faq {
+    padding: 64px 0 80px;
   }
 
   .or {

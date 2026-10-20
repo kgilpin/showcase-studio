@@ -17,6 +17,10 @@ main = "worker.js"
 directory = "./public"
 binding = "ASSETS"
 run_worker_first = ["/media/*", "/download/*"]
+# Pages are served without .html (/pricing is pricing.html; the default),
+# and a missing page gets 404.html with a 404.
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
 
 [[routes]]
 pattern = "showcasestudio.dev"

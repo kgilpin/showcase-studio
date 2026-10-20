@@ -650,11 +650,24 @@ npm run dev -- --new [<library folder>]
   `scripts/publish-release.mjs` uploads a release and writes
   `latest.json` last. The GitHub release stays as the private record of
   each build; users download from the site. `public/` is
-  uploaded as is: `index.html` (the one landing page), `styles.css`, `_headers`, and
-  `media/` (made by `scripts/prepare-media.mjs`). Its download buttons
-  link to `/download/latest/*`, so a release doesn't touch the page.
-  There is no YouTube
-  link yet: add one to the top bar and the footer when the channel exists.
+  uploaded as is: three pages, `index.html` (home: what it does),
+  `download.html` (`/download`: the plugin and the desktop app) and
+  `pricing.html` (`/pricing`: the trial, the $10/month subscription, and
+  questions), each with its own title, description, canonical URL and
+  social tags, sharing one header and footer (copied into each page:
+  there's no build step) and `styles.css`; plus `404.html`,
+  `sitemap.xml` (add a line for every new page), `robots.txt`,
+  `_headers`, and `media/` (made by `scripts/prepare-media.mjs`).
+  Cloudflare serves `/pricing` from `pricing.html` (wrangler.toml's
+  `html_handling`), and `scripts/serve.mjs` does the same locally. The
+  download buttons link to `/download/latest/*`, so a release doesn't
+  touch the pages. The pricing page's Subscribe button posts to the
+  license service's `/checkout`, and its "Manage subscription" links go
+  to Stripe's Customer Portal sign-in. Both point at **dev and Stripe
+  test mode** until prod is set up: switch them in `pricing.html` (the
+  CHECKOUT form action and the portal link) before deploying the page.
+  There is no YouTube link yet: add one to the top bar and the footer
+  when the channel exists.
 - `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
   its own `cdk/appmap.yml`): The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Download Showcase Studio</title>
+    <meta
+      name="description"
+      content="Install Showcase Studio as a Claude Code plugin, or download the desktop app for Mac (Apple Silicon) or Windows (x64)."
+    />
+    <meta name="theme-color" content="#121316" />
+    <link rel="canonical" href="https://showcasestudio.dev/download" />
+    <meta property="og:title" content="Download Showcase Studio" />
+    <meta property="og:url" content="https://showcasestudio.dev/download" />
+    <meta
+      property="og:description"
+      content="Install Showcase Studio as a Claude Code plugin, or download the desktop app for Mac (Apple Silicon) or Windows (x64)."
+    />
+    <meta property="og:image" content="https://showcasestudio.dev/media/hero.jpg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Showcase Studio" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="page">
+    <header class="top">
+      <a class="brand" href="/">Showcase <mark>Studio</mark></a>
+      <nav>
+        <a href="/#features">How it works</a>
+        <a href="/download" aria-current="page">Download</a>
+        <a href="/pricing">Pricing</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="page-head">
+        <h1>Download Showcase Studio</h1>
+        <p class="lede">
+          Two ways in, same studio. Your first two full-quality videos are free on each computer;
+          drafts are always free.
+        </p>
+      </section>
+
+      <section class="download">
+        <div class="download-grid">
+          <div class="card">
+            <p class="pill">Recommended</p>
+            <h2>Use it in Claude Code</h2>
+            <p>In a terminal:</p>
+            <div class="copyable">
+              <pre><code>claude plugin marketplace add kgilpin/showcase-studio
+claude plugin install showcase-studio@showcase-studio</code></pre>
+              <button class="copy" type="button">Copy</button>
+            </div>
+            <p>
+              Then start Claude Code in a folder for your showcases and run
+              <code>/showcase-studio:showcase new</code>. The app installs itself the first time,
+              and it all runs on the Claude Code subscription you already have.
+            </p>
+          </div>
+
+          <p class="or" aria-hidden="true">or</p>
+
+          <div class="card">
+            <h2>Use the desktop app</h2>
+            <p>
+              Open a folder for your showcases, and work with Claude in the app's terminal. On a
+              Mac, unzip it and move it to Applications.
+            </p>
+            <!-- /download/latest/* redirects to the newest release (worker.js). -->
+            <div class="downloads">
+              <a class="button" href="/download/latest/mac">Mac <small>Apple Silicon</small></a>
+              <a class="button" href="/download/latest/win">Windows <small>x64</small></a>
+            </div>
+            <p class="small">
+              SHA-256 checksums: <a href="/download/latest/mac.sha256">Mac</a>,
+              <a href="/download/latest/win.sha256">Windows</a>.
+            </p>
+          </div>
+        </div>
+
+        <p class="next">
+          Making more than two full-quality videos? <a href="/pricing">See pricing</a>.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand" href="/">Showcase <mark>Studio</mark></a>
+      <a href="/download">Download</a>
+      <a href="/pricing">Pricing</a>
+      <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
+    </footer>
+    <script>
+      // Copy buttons copy the commands in the block beside them.
+      for (const button of document.querySelectorAll(".copy")) {
+        button.addEventListener("click", async () => {
+          const text = button.parentElement.querySelector("code").textContent;
+          try {
+            await navigator.clipboard.writeText(text);
+            button.textContent = "Copied";
+          } catch {
+            // No clipboard access: select the text so Cmd/Ctrl+C copies it.
+            getSelection().selectAllChildren(button.parentElement.querySelector("code"));
+            button.textContent = "Selected";
+          }
+          setTimeout(() => (button.textContent = "Copy"), 2000);
+        });
+      }
+    </script>
+  </body>
+</html>

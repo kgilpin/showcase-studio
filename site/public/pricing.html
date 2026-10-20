@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pricing — Showcase Studio</title>
+    <meta
+      name="description"
+      content="Free to try: two full-quality videos on each computer, and drafts are always free. Then $10/month for unlimited full-quality videos."
+    />
+    <meta name="theme-color" content="#121316" />
+    <link rel="canonical" href="https://showcasestudio.dev/pricing" />
+    <meta property="og:title" content="Pricing — Showcase Studio" />
+    <meta property="og:url" content="https://showcasestudio.dev/pricing" />
+    <meta
+      property="og:description"
+      content="Free to try: two full-quality videos on each computer, and drafts are always free. Then $10/month for unlimited full-quality videos."
+    />
+    <meta property="og:image" content="https://showcasestudio.dev/media/hero.jpg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Showcase Studio" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="page">
+    <header class="top">
+      <a class="brand" href="/">Showcase <mark>Studio</mark></a>
+      <nav>
+        <a href="/#features">How it works</a>
+        <a href="/download">Download</a>
+        <a href="/pricing" aria-current="page">Pricing</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="page-head">
+        <h1>Pricing</h1>
+        <p class="lede">Try everything for free. Subscribe when you're making videos for real.</p>
+      </section>
+
+      <section class="plans" aria-label="Plans">
+        <div class="card plan">
+          <h2>Trial</h2>
+          <p class="price">Free</p>
+          <ul class="checks">
+            <li><strong>2 full-quality videos</strong> on each computer</li>
+            <li><strong>Unlimited drafts</strong> to check your work</li>
+            <li>App Store screenshots and the script, always free</li>
+            <li>Every feature: the teleprompter, recordings, sharing</li>
+          </ul>
+          <div class="plan-action">
+            <a class="button" href="/download">Download</a>
+          </div>
+        </div>
+
+        <div class="card plan featured">
+          <p class="pill">For real launches</p>
+          <h2>Subscription</h2>
+          <p class="price">$10 <small>/ month</small></p>
+          <ul class="checks">
+            <li><strong>Unlimited full-quality videos</strong></li>
+            <li>On every computer you use</li>
+            <li>Cancel any time; it runs to the end of the month you paid for</li>
+          </ul>
+          <!-- A plain form post: the license service makes the license key and
+               sends the buyer on to Stripe Checkout. CHECKOUT is the dev
+               service (Stripe test mode) until prod is set up — switch it
+               to the prod stack's CheckoutUrl before deploying this page. -->
+          <form
+            method="post"
+            action="https://v3vlbq2dgu6wjqv6aiqediguie0ertrl.lambda-url.us-east-1.on.aws/checkout"
+          >
+            <button class="button primary" type="submit">Subscribe</button>
+          </form>
+          <p class="small">
+            Or subscribe from inside the app: it unlocks as soon as you've paid, with no key to
+            copy.
+          </p>
+        </div>
+      </section>
+
+      <section class="faq" aria-labelledby="faq">
+        <h2 id="faq">Questions</h2>
+        <dl>
+          <dt>What counts as a full-quality video?</dt>
+          <dd>
+            The finished 1080×1920 video, or the 4:3 one for YouTube and the web. Drafts, App Store
+            screenshots and the script never count.
+          </dd>
+
+          <dt>Where's my license key?</dt>
+          <dd>
+            If you subscribed in the app, it's already there. Otherwise the page after checkout
+            shows it, and every receipt Stripe emails you carries it. In the app, click
+            <strong>Trial</strong> at the top right and choose <strong>I have a key</strong>.
+          </dd>
+
+          <dt>How do I cancel, or change my card?</dt>
+          <dd>
+            In the app, open the gear button and choose <strong>Manage subscription</strong>. Or
+            <a href="https://billing.stripe.com/p/login/test_9B65kD2E66fqg0w25q57W00"
+              >manage your subscription here</a
+            >: enter the email you paid with, and Stripe sends you a link. You don't need your key.
+          </dd>
+
+          <dt>Do I need anything else?</dt>
+          <dd>
+            Claude Code. Claude writes your videos, so Showcase Studio runs on the Claude
+            subscription you already have.
+          </dd>
+
+          <dt>What about tax?</dt>
+          <dd>Payments go through Stripe, which adds any sales tax or VAT where you live.</dd>
+        </dl>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand" href="/">Showcase <mark>Studio</mark></a>
+      <a href="/download">Download</a>
+      <a href="/pricing">Pricing</a>
+      <a href="https://billing.stripe.com/p/login/test_9B65kD2E66fqg0w25q57W00"
+        >Manage subscription</a
+      >
+      <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
+    </footer>
+  </body>
+</html>

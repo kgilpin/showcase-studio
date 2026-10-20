@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Every page of the site. Add a line here when a page is added. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://showcasestudio.dev/</loc></url>
+  <url><loc>https://showcasestudio.dev/download</loc></url>
+  <url><loc>https://showcasestudio.dev/pricing</loc></url>
+</urlset>
