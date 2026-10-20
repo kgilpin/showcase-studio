@@ -43,4 +43,5 @@ electron/vendor/
 # AppMap recordings and derived gold-trace work (blessed baselines are
 # committed under gold_traces/)
 tmp/appmap/
+cdk/tmp/appmap/
 .appmap/
