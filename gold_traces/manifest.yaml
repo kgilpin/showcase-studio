@@ -1,4 +1,8 @@
-# Gold-traces manifest (managed by the appmap-gold-traces skill, which
+# Gold-traces manifest for the studio module (server/, src/, scripts/,
+# electron/), recorded with the root appmap.yml. Other modules keep their
+# own: cdk/gold_traces/ for the AWS Lambdas.
+#
+# Managed by the appmap-gold-traces skill, which
 # is installed for the user from github.com/getappmap/skills — see the
 # README, "The AppMap skills").
 #

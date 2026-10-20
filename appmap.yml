@@ -1,5 +1,8 @@
-# AppMap recording config (appmap-node). Recordings land in tmp/appmap
-# (gitignored); the blessed gold-trace baselines live in gold_traces/.
+# AppMap recording config for the studio module — the app whose
+# package.json is at the repo root: server/, src/, scripts/ and electron/.
+# Not the whole repo: each other module has its own (cdk/appmap.yml for
+# the AWS Lambdas). Recordings land in tmp/appmap (gitignored); the
+# blessed gold-trace baselines live in gold_traces/.
 name: showcase_demo
 language: javascript
 appmap_dir: tmp/appmap
