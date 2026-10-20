@@ -42,7 +42,9 @@
     <main>
       <section class="page-head">
         <h1>Pricing</h1>
-        <p class="lede">Try everything for free. Subscribe when you're making videos for real.</p>
+        <p class="lede">
+          Try everything for free. Subscribe to export and publish unlimited full-quality videos.
+        </p>
       </section>
 
       <section class="plans" aria-label="Plans">
@@ -63,8 +65,7 @@
         </div>
 
         <div class="card plan featured">
-          <p class="pill">For real launches</p>
-          <h2>Subscription</h2>
+          <h2><mark>Subscription</mark></h2>
           <p class="price">$10 <small>/ month</small></p>
           <ul class="checks">
             <li><strong>Unlimited video exports</strong></li>
@@ -78,13 +79,15 @@
                sends the buyer on to Stripe Checkout. CHECKOUT is the dev
                service (Stripe test mode) until prod is set up — switch it
                to the prod stack's CheckoutUrl before deploying this page. -->
-          <form
-            method="post"
-            action="https://v3vlbq2dgu6wjqv6aiqediguie0ertrl.lambda-url.us-east-1.on.aws/checkout"
-          >
-            <button class="button primary" type="submit">Subscribe</button>
-          </form>
-          <p class="small">Or, subscribe from within the app</p>
+          <div class="plan-action">
+            <form
+              method="post"
+              action="https://v3vlbq2dgu6wjqv6aiqediguie0ertrl.lambda-url.us-east-1.on.aws/checkout"
+            >
+              <button class="button primary" type="submit">Subscribe</button>
+            </form>
+            <p class="small">Or, subscribe from within the app</p>
+          </div>
         </div>
       </section>
 

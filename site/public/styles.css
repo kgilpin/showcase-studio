@@ -542,25 +542,26 @@ main {
   color: var(--soft);
 }
 
-/* Pricing: two plans side by side */
+/* Pricing: two plans side by side, laid out alike — each card's name,
+   price, list and button share rows with the other card's (subgrid), so
+   the two line up whatever their text. */
 .plans {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: 24px;
   margin: 40px 0 0;
 }
 
 .plan {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+  row-gap: 0;
 }
 
 .plan.featured {
   outline: 2px solid var(--mark);
-}
-
-.plan .pill {
-  align-self: flex-start;
 }
 
 .card .price {
@@ -605,11 +606,6 @@ main {
   height: 12px;
   border-radius: 3px;
   background: var(--mark);
-}
-
-.plan form,
-.plan .plan-action {
-  margin-top: auto;
 }
 
 .plan .button {
@@ -859,6 +855,15 @@ footer .brand {
   .plans {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .plans {
+    grid-template-rows: none;
+  }
+
+  .plan {
+    grid-row: auto;
+    grid-template-rows: none;
   }
 
   .page-head {
