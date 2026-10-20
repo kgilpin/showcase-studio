@@ -132,10 +132,12 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #   wrangler deploy --env downloads              the downloads Worker, in
 #                                                SiteForward
 # Releases upload to the SiteForward bucket only (publish-release, as is).
-# After the move, switch back with the four steps at the end of
+# After the move, switch back with the five steps at the end of
 # site/wrangler.toml: the plain deploy scripts in site/package.json, no
-# env sections or relay, npm run deploy as SiteForward, then delete the
-# two Workers that are no longer used.
+# env sections or relay, npm run deploy as SiteForward, delete the two
+# Workers that are no longer used, then deploy on every push to main
+# with a GitHub Actions workflow. Until then the site deploys by hand
+# (npm run deploy): nothing deploys it on push.
 # wrangler remembers the account in
 # site/node_modules/.cache/wrangler/wrangler-account.json: after logging
 # in as another account, delete that file, or wrangler keeps sending

@@ -48,6 +48,9 @@ bucket_name = "showcase-studio-releases"
 #      in SiteForward, unused until then) gets the bucket and the domain
 #   4. delete the showcase-studio Worker in goo.global and the
 #      showcase-studio-downloads Worker in SiteForward
+#   5. deploy on push: a GitHub Actions workflow that runs npm run deploy
+#      in site/ on every push to main that touches site/, with a
+#      SiteForward API token in the repository's secrets
 [env.downloads]
 name = "showcase-studio-downloads"
 workers_dev = true
