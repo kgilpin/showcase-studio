@@ -87,7 +87,11 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # website. Stripe keys live in SSM, never in the repo.
 #   cd cdk && npm run synth:license
 #   AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
-# Its rules are tested with the rest: npm test (cdk/lambda-license/).
+# Its rules are tested with the rest (npm test at the root), and on
+# their own in the cdk package: cd cdk && npm test. cdk has its own
+# appmap.yml and gold traces (cdk/gold_traces/: the purchase, the
+# webhook's signature gate, the free-video limit, a licensed export);
+# run the gold-traces engine with --dir cdk/gold_traces.
 
 # The marketing site (site/), live at https://showcasestudio.dev: static
 # files served by a Cloudflare Worker, its own npm package, nothing shared
@@ -651,7 +655,8 @@ npm run dev -- --new [<library folder>]
   link to `/download/latest/*`, so a release doesn't touch the page.
   There is no YouTube
   link yet: add one to the top bar and the footer when the channel exists.
-- `gold_traces/`: The AppMap gold-trace baseline: `manifest.yaml` curates
+- `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
+  its own `cdk/appmap.yml`): The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
   appmap-node) and `baseline/appmaps/` holds the blessed, sanitized
   recordings. Maintained with the `appmap-gold-traces` skill, installed for

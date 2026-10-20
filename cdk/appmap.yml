@@ -1,0 +1,12 @@
+# AppMap recording config for the cdk package (appmap-node): the
+# Lambdas' code, recorded from their tests. Its own config, beside the
+# studio's at the repo root, because cdk is its own package, deployed on
+# its own; its gold traces are in cdk/gold_traces/. Recordings land in
+# tmp/appmap (gitignored). The CDK apps themselves (bin/, lib/) are not
+# instrumented.
+name: showcase_cdk
+language: javascript
+appmap_dir: tmp/appmap
+packages:
+  - path: lambda
+  - path: lambda-license
