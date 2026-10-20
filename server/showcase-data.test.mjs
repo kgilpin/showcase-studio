@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -62,7 +62,13 @@ describe("showcaseIndex", () => {
 
   it("gives a bare showcase empty collections", () => {
     const beta = showcaseIndex(dir).showcases[1];
-    expect(beta).toEqual({ id: "beta", hasTheme: false, assets: [], graphics: [] });
+    expect(beta).toEqual({
+      id: "beta",
+      hasTheme: false,
+      assets: [],
+      graphics: [],
+      modifiedMs: statSync(path.join(dir, "beta", "showcase.yaml")).mtimeMs,
+    });
   });
 });
 
