@@ -8,7 +8,9 @@ import { ShareVideo, type Quality } from "@/components/share/ShareVideo";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { getShowcase } from "@/content/showcases";
 import { DESTINATION_IDS, type DestinationId } from "@/content/publish-rules.mjs";
-import { studio, useExportJob, type ShareStatus } from "@/lib/studio";
+import { SubscribeDialog } from "@/components/studio/SubscribeDialog";
+import { needsSubscription } from "@/components/studio/license-actions";
+import { studio, useExportJob, useLicense, type ShareStatus } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
 /* The Share page: getting a showcase's video onto TikTok, Instagram and
@@ -63,6 +65,8 @@ function ShareScreen() {
   /* Which destinations' captions were copied while the page was open. */
   const [copied, setCopied] = useState<Set<DestinationId>>(new Set());
   const job = useExportJob();
+  const license = useLicense();
+  const [subscribingFor, setSubscribingFor] = useState<string | null>(null);
   /* The showcase.yaml version the next text edit is made against, and
    * the edits waiting their turn: one edit at a time, each against the
    * version the one before it wrote, so two quick saves (the hashtags,
@@ -137,6 +141,12 @@ function ShareScreen() {
     remember(`share-method:${destinationId}`, value);
   };
   const exportVideo = async (exportKind: string) => {
+    /* No free videos left: the subscribe dialog first; it starts this
+     * export once the payment lands. */
+    if (needsSubscription(license, exportKind)) {
+      setSubscribingFor(exportKind);
+      return;
+    }
     if (otherJob) {
       toast.error("Another export is running", {
         description: "One export runs at a time — wait for it, or cancel it.",
@@ -268,6 +278,11 @@ function ShareScreen() {
                 onCancel={(jobId) => void studio()!.exports.cancel(jobId)}
               />
               <ShareHistory handoffs={status.handoffs} onOpen={(id) => void openPost(id)} />
+              <SubscribeDialog
+                open={subscribingFor != null}
+                onOpenChange={(open) => !open && setSubscribingFor(null)}
+                onUnlocked={() => subscribingFor && void exportVideo(subscribingFor)}
+              />
             </div>
             <ShareHandoff
               destination={destination}

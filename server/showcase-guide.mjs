@@ -328,6 +328,15 @@ ${whisperAdvice(platform)}
   export runs at a time — the user's Export button in the studio shares
   the same queue, so an export may already be running when you start one. (The repo's npm export scripts only cover the showcases bundled
   in the app repo — for this folder, use the MCP tools.)
+- Full-quality videos ("video", "video-43") need a subscription once
+  this computer's 2 free ones are used; drafts, "screens" and "script"
+  are always free. studio_info's license says where the user stands:
+  state "trial" with freeLeft, "subscribed", "payment" (a failed card),
+  or "waiting" (a checkout is open). Say so before starting a full
+  export that would use up a free one. When none are left, export fails
+  with a message: pass it on — the user subscribes from the studio's
+  Trial button (top right), and manages the subscription under the gear.
+  Never use a draft in place of the full video the user asked for.
 
 ## When another studio already has this library open
 Only one studio opens a library at a time. If studio_start finds another

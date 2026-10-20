@@ -6,8 +6,12 @@
  *   ------------------------  ------------------------------------------
  *   Trial · 2 videos left     Subscribe ↗ · I have a key
  *   Waiting for payment…      (checkout is open in the browser) · Cancel
- *   Subscribed                Renews Nov 20 · Manage subscription ↗
  *   Payment issue  (amber)    Update card ↗
+ *
+ * A subscription in good standing needs no space in the tab bar: then
+ * the pill is gone, and the same panel (LicensePanel) is the
+ * Subscription section of the gear button's settings (StudioSettings):
+ * "Active · Renews Nov 20 · Manage subscription ↗".
  *
  * ↗ marks what opens Stripe in the browser. Only full-quality videos
  * count; drafts, screenshots and the script are always free. The state
@@ -77,7 +81,7 @@ async function manage() {
 const opensStripe = <ExternalLink className="size-3.5" aria-hidden />;
 
 /** What the panel holds for each state. */
-function LicensePanel({ license, close }: { license: StudioLicense; close: () => void }) {
+export function LicensePanel({ license, close }: { license: StudioLicense; close: () => void }) {
   const [typingKey, setTypingKey] = useState(false);
 
   if (license.state === "waiting") {
@@ -100,7 +104,14 @@ function LicensePanel({ license, close }: { license: StudioLicense; close: () =>
     const payment = license.state === "payment";
     return (
       <div className="space-y-3">
-        <p className="text-sm font-medium">{payment ? "Payment issue" : "Subscribed"}</p>
+        <p className="flex items-center gap-2 text-sm font-medium">
+          {payment ? "Payment issue" : "Subscribed"}
+          {!payment && (
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-normal text-emerald-700 dark:text-emerald-300">
+              Active
+            </span>
+          )}
+        </p>
         <p className="text-sm text-muted-foreground">
           {payment
             ? "Your last payment didn't go through. Update your card to keep exporting full-quality videos."
@@ -158,14 +169,13 @@ export function LicensePill() {
   const license = useLicense();
   const [open, setOpen] = useState(false);
 
-  if (!inStudio || !license) return null;
+  // In good standing it lives under the gear (StudioSettings) instead.
+  if (!inStudio || !license || license.state === "subscribed") return null;
 
   const tone =
     license.state === "payment"
       ? "border-amber-500/60 bg-amber-500/15 text-amber-800 dark:text-amber-200"
-      : license.state === "subscribed"
-        ? "border-primary/40 text-foreground"
-        : "border-border text-foreground/70";
+      : "border-border text-foreground/70";
 
   return (
     <Popover

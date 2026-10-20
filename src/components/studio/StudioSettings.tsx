@@ -1,9 +1,14 @@
 /* Studio settings: the gear button at the right end of a showcase's tab
- * bar (ShowcaseNav), which opens a small panel of studio-wide options.
- * Today it holds one: "Commit changes to git".
+ * bar (ShowcaseNav), which opens a small panel of studio-wide options:
  *
- *   gear button ──► panel ──► [Commit changes to git  (switch)]
+ *   gear button ──► panel ──► Subscription: Active · Renews Nov 20 ·
+ *                               Manage subscription ↗   (LicensePanel)
+ *                             [Commit changes to git  (switch)]
  *                                on main
+ *
+ * The subscription section is the same panel as the tab bar's pill
+ * (LicensePill), which shows only while there's something to do: the
+ * trial, a checkout, a payment issue.
  *
  * The switch saves autoCommit in the studio's settings.json through the
  * studio server (history-auto-commit) and applies to every showcase at
@@ -20,7 +25,8 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { studio, type StudioHistory } from "@/lib/studio";
+import { studio, useLicense, type StudioHistory } from "@/lib/studio";
+import { LicensePanel } from "./LicensePill";
 import { autoCommitExplanation } from "./auto-commit-text";
 
 /** The labeled switch on its own, so it can be drawn without a studio
@@ -99,6 +105,7 @@ export function StudioSettings() {
   const [inStudio, setInStudio] = useState(false);
   useEffect(() => setInStudio(Boolean(studio()?.history)), []);
   const [open, setOpen] = useState(false);
+  const license = useLicense();
   const [status, setStatus] = useState<StudioHistory | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +147,10 @@ export function StudioSettings() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) void refresh();
+        if (next) {
+          void refresh();
+          void studio()!.license.refresh();
+        }
       }}
     >
       <PopoverTrigger asChild>
@@ -171,6 +181,11 @@ export function StudioSettings() {
         <p className="mb-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
           Studio settings
         </p>
+        {license && (
+          <div className="mb-4 border-b border-border pb-4">
+            <LicensePanel license={license} close={() => setOpen(false)} />
+          </div>
+        )}
         <AutoCommitSwitch status={status} saving={saving} onChange={(on) => void change(on)} />
         {error && (
           <p role="alert" className="mt-3 text-xs text-destructive">
