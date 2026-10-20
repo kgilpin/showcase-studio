@@ -1,22 +1,20 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  FREE_EXPORTS_PER_MONTH,
+  FREE_EXPORTS,
   GRACE_MS,
   check,
-  devices,
-  MAX_DEVICES,
   checkout,
   claim,
   licenseStatus,
   newLicenseKey,
-  nextMonth,
   periodEnd,
+  portal,
   recordExport,
   verifySignature,
   webhook,
 } from "./license-core.mjs";
-import { cancelledPage, thanksPage } from "./license-pages.mjs";
+import { backPage, cancelledPage, thanksPage } from "./license-pages.mjs";
 
 const NOW = Date.parse("2026-10-15T12:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
@@ -28,9 +26,11 @@ function memoryStore() {
   const licenses = new Map();
   const subscriptions = new Map();
   const counts = new Map();
+  const uses = new Map();
   return {
     licenses,
     counts,
+    uses,
     getLicense: async (key) => licenses.get(key) ?? null,
     keyForSubscription: async (id) => subscriptions.get(id) ?? null,
     async createPendingLicense(item) {
@@ -56,19 +56,23 @@ function memoryStore() {
       if (license.lastEventAt > eventAt) return;
       Object.assign(license, fields, { lastEventAt: eventAt });
     },
-    async addDevice(key, deviceId, entry, limit) {
-      const { devices } = licenses.get(key);
-      if (devices[deviceId]) return true;
-      if (Object.keys(devices).length >= limit) return false;
-      devices[deviceId] = entry;
-      return true;
+    async recordUse(key, deviceId, now) {
+      const id = `${key}/${deviceId}`;
+      const use = uses.get(id);
+      if (use) {
+        Object.assign(use, { lastSeen: now, exports: use.exports + 1 });
+        return { newDevice: false, devices: null };
+      }
+      uses.set(id, { firstSeen: now, lastSeen: now, exports: 1 });
+      const license = licenses.get(key);
+      license.machineCount = (license.machineCount ?? 0) + 1;
+      return { newDevice: true, devices: license.machineCount };
     },
-    removeDevice: async (key, deviceId) => void delete licenses.get(key).devices[deviceId],
-    exportsThisMonth: async (device, month) => counts.get(`${device}/${month}`) ?? 0,
-    async countExport(device, month, limit) {
-      const used = counts.get(`${device}/${month}`) ?? 0;
+    freeExportsUsed: async (device) => counts.get(device) ?? 0,
+    async countFreeExport(device, limit) {
+      const used = counts.get(device) ?? 0;
       if (used >= limit) return { allowed: false, used };
-      counts.set(`${device}/${month}`, used + 1);
+      counts.set(device, used + 1);
       return { allowed: true, used: used + 1 };
     },
   };
@@ -87,16 +91,15 @@ function fakeStripe(calls = {}) {
   };
 }
 
-/** A license made through the thank-you page, with this device on it. */
-async function licensed(store, { addDevice = true } = {}) {
+/** A good license, made through the thank-you page. */
+async function licensed(store) {
   const session = { status: "complete", mode: "subscription", subscription: subscription() };
   const stripe = fakeStripe({ getCheckoutSession: async () => session });
   const [, { licenseKey }] = await claim("cs_test_abcdefgh", { stripe, store, now: NOW });
-  if (addDevice) {
-    await devices("add", { licenseKey, deviceId: DEVICE, name: "Studio Mac" }, { store, now: NOW });
-  }
   return licenseKey;
 }
+
+const device = (n) => `device-${String(n).padStart(16, "0")}`;
 
 const subscription = (fields = {}) => ({
   id: "sub_1",
@@ -152,7 +155,7 @@ describe("licenseStatus", () => {
 describe("checkout", () => {
   /** A checkout started through /checkout: the params Stripe got, the
    *  customer it made, and the pending license. */
-  async function started(store) {
+  async function started(store, { forStudio = false } = {}) {
     let sent, customerKey;
     const stripe = fakeStripe({
       createCustomer: async (key) => ((customerKey = key), { id: "cus_1" }),
@@ -167,6 +170,7 @@ describe("checkout", () => {
       priceId: "price_1",
       selfUrl: "https://license.test",
       now: NOW,
+      forStudio,
     });
     return { result, sent, customerKey, stripe };
   }
@@ -181,6 +185,22 @@ describe("checkout", () => {
       success_url: "https://license.test/thanks?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "https://license.test/cancelled",
     });
+  });
+
+  it("hands the studio the checkout URL and the key, and returns the buyer to it", async () => {
+    const store = memoryStore();
+    const { result, sent, customerKey } = await started(store, { forStudio: true });
+    expect(result).toEqual([
+      200,
+      { checkoutUrl: "https://checkout.stripe.test/c", licenseKey: customerKey },
+    ]);
+    expect(sent.success_url).toBe(
+      "https://license.test/thanks?session_id={CHECKOUT_SESSION_ID}&from=studio",
+    );
+    expect(sent.cancel_url).toBe("https://license.test/cancelled?from=studio");
+    // Until it's paid, the key the studio holds unlocks nothing.
+    const [, status] = await check({ licenseKey: customerKey }, { store, now: NOW });
+    expect(status).toMatchObject({ valid: false, status: "pending" });
   });
 
   it("makes the key first, on the customer, so the first invoice carries it", async () => {
@@ -365,58 +385,52 @@ describe("claim", () => {
 });
 
 describe("free exports", () => {
-  it("allows two a month per device, then says no until next month", async () => {
+  it("allows two per device in all, then says no — there's no reset", async () => {
     const store = memoryStore();
     const results = [];
-    for (let i = 0; i < FREE_EXPORTS_PER_MONTH + 1; i++) {
+    for (let i = 0; i < FREE_EXPORTS + 1; i++) {
       results.push((await recordExport({ deviceId: DEVICE }, { store, now: NOW }))[1]);
     }
     expect(results.map((r) => r.allowed)).toEqual([true, true, false]);
-    expect(results[2].freeExports).toEqual({
-      used: 2,
-      limit: 2,
-      left: 0,
-      resets: "2026-11-01T00:00:00.000Z",
-    });
-    const nextMonthNow = Date.parse("2026-11-01T00:00:00Z");
-    expect(
-      (await recordExport({ deviceId: DEVICE }, { store, now: nextMonthNow }))[1].allowed,
-    ).toBe(true);
+    expect(results[2].freeExports).toEqual({ used: 2, limit: 2, left: 0 });
+    const nextYear = NOW + 365 * DAY;
+    expect((await recordExport({ deviceId: DEVICE }, { store, now: nextYear }))[1].allowed).toBe(
+      false,
+    );
+    // Another machine has its own two.
+    expect((await recordExport({ deviceId: device(2) }, { store, now: NOW }))[1].allowed).toBe(
+      true,
+    );
   });
 
-  it("doesn't count an export made with a good license on this device", async () => {
+  it("doesn't count an export made with a good license, from any machine", async () => {
     const store = memoryStore();
     const licenseKey = await licensed(store);
-    for (let i = 0; i < 5; i++) {
+    for (const deviceId of [DEVICE, device(1), device(2)]) {
       const [, result] = await recordExport(
-        { deviceId: DEVICE, licenseKey: licenseKey.toLowerCase() },
-        { store, now: NOW },
+        { deviceId, licenseKey: licenseKey.toLowerCase(), kind: "video" },
+        { store, now: NOW, log: () => {} },
       );
       expect(result).toMatchObject({ allowed: true, licensed: true });
     }
     expect(store.counts.size).toBe(0);
   });
 
-  it("counts a licensed export on a device that isn't on the license, and says why", async () => {
+  it("counts against the free exports when the license isn't good, and says why", async () => {
     const store = memoryStore();
-    const licenseKey = await licensed(store, { addDevice: false });
-    const [, result] = await recordExport({ deviceId: DEVICE, licenseKey }, { store, now: NOW });
-    expect(result).toMatchObject({
-      allowed: true,
-      licensed: false,
-      licenseProblem: "device-not-added",
-    });
-    expect(result.freeExports.left).toBe(1);
-  });
-
-  it("counts against the free exports when the license isn't good", async () => {
-    const store = memoryStore();
-    const [, result] = await recordExport(
+    const [, unknown] = await recordExport(
       { deviceId: DEVICE, licenseKey: "SS-0000-0000-0000-0000" },
       { store, now: NOW },
     );
-    expect(result).toMatchObject({ allowed: true, licensed: false, licenseProblem: "unknown" });
-    expect(result.freeExports.left).toBe(1);
+    expect(unknown).toMatchObject({ allowed: true, licensed: false, licenseProblem: "unknown" });
+    expect(unknown.freeExports.left).toBe(1);
+
+    const licenseKey = await licensed(store);
+    const [, ended] = await recordExport(
+      { deviceId: DEVICE, licenseKey },
+      { store, now: NOW + 60 * DAY },
+    );
+    expect(ended.licenseProblem).toBe("ended");
   });
 
   it("needs a device id", async () => {
@@ -425,9 +439,27 @@ describe("free exports", () => {
       400,
     );
   });
+});
 
-  it("knows when the month turns over", () => {
-    expect(nextMonth(Date.parse("2026-12-31T23:59:59Z"))).toBe("2027-01-01T00:00:00.000Z");
+describe("the audit of licensed exports", () => {
+  it("records each machine a key exports from, and counts the machines", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store);
+    const lines = [];
+    const log = (line) => lines.push(JSON.parse(line));
+    for (const deviceId of [DEVICE, DEVICE, device(1)]) {
+      await recordExport({ deviceId, licenseKey, kind: "video" }, { store, now: NOW, log });
+    }
+    expect(store.licenses.get(licenseKey).machineCount).toBe(2);
+    expect(store.uses.get(`${licenseKey}/${DEVICE}`).exports).toBe(2);
+    expect(lines).toHaveLength(3);
+    expect(lines[2]).toEqual({
+      audit: "export",
+      licenseKey,
+      deviceId: device(1),
+      kind: "video",
+      devices: 2,
+    });
   });
 });
 
@@ -452,73 +484,6 @@ describe("check", () => {
     const store = memoryStore();
     expect((await check({}, { store, now: NOW }))[0]).toBe(400);
     expect((await check({ licenseKey: "hello" }, { store, now: NOW }))[0]).toBe(400);
-  });
-});
-
-describe("devices", () => {
-  const device = (n) => `device-${String(n).padStart(16, "0")}`;
-
-  it("adds up to the limit, then refuses and lists what's there", async () => {
-    const store = memoryStore();
-    const licenseKey = await licensed(store, { addDevice: false });
-    for (let n = 0; n < MAX_DEVICES; n++) {
-      const [status] = await devices(
-        "add",
-        { licenseKey, deviceId: device(n), name: `Mac ${n}` },
-        { store, now: NOW + n },
-      );
-      expect(status).toBe(200);
-    }
-    const [status, body] = await devices(
-      "add",
-      { licenseKey, deviceId: device(9), name: "One too many" },
-      { store, now: NOW },
-    );
-    expect(status).toBe(409);
-    expect(body.devices.map((d) => d.name)).toEqual(["Mac 0", "Mac 1", "Mac 2"]);
-  });
-
-  it("adds a device already on the license again without using a place", async () => {
-    const store = memoryStore();
-    const licenseKey = await licensed(store);
-    const [, body] = await devices(
-      "add",
-      { licenseKey, deviceId: DEVICE, name: "Renamed" },
-      { store, now: NOW },
-    );
-    expect(body.devices).toEqual([
-      { deviceId: DEVICE, name: "Studio Mac", addedAt: new Date(NOW).toISOString() },
-    ]);
-  });
-
-  it("frees a place when one is removed", async () => {
-    const store = memoryStore();
-    const licenseKey = await licensed(store);
-    const [, body] = await devices("remove", { licenseKey, deviceId: DEVICE }, { store, now: NOW });
-    expect(body.devices).toEqual([]);
-    const [, result] = await recordExport({ deviceId: DEVICE, licenseKey }, { store, now: NOW });
-    expect(result.licenseProblem).toBe("device-not-added");
-  });
-
-  it("won't add a device to a license that has ended, or one that doesn't exist", async () => {
-    const store = memoryStore();
-    const licenseKey = await licensed(store, { addDevice: false });
-    const later = NOW + 60 * DAY;
-    const add = { licenseKey, deviceId: DEVICE, name: "Mac" };
-    expect((await devices("add", add, { store, now: later }))[0]).toBe(409);
-    const unknown = { ...add, licenseKey: "SS-0000-0000-0000-0000" };
-    expect((await devices("add", unknown, { store, now: NOW }))[0]).toBe(404);
-    expect((await devices("add", { ...add, licenseKey: "nope" }, { store, now: NOW }))[0]).toBe(
-      400,
-    );
-  });
-
-  it("are reported by check, with whether this device is one of them", async () => {
-    const store = memoryStore();
-    const licenseKey = await licensed(store);
-    const [, body] = await check({ licenseKey, deviceId: DEVICE }, { store, now: NOW });
-    expect(body).toMatchObject({ valid: true, thisDevice: true, maxDevices: MAX_DEVICES });
-    expect(body.devices).toHaveLength(1);
   });
 });
 
@@ -551,6 +516,33 @@ describe("the license key on Stripe", () => {
   });
 });
 
+describe("portal", () => {
+  it("opens Stripe's Customer Portal for the license's customer", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store);
+    let asked;
+    const stripe = fakeStripe({
+      createPortalSession: async (customer, returnUrl) => (
+        (asked = { customer, returnUrl }),
+        { url: "https://billing.stripe.test/p" }
+      ),
+    });
+    const [status, body] = await portal(
+      { licenseKey },
+      { store, stripe, selfUrl: "https://license.test" },
+    );
+    expect([status, body]).toEqual([200, { url: "https://billing.stripe.test/p" }]);
+    expect(asked).toEqual({ customer: "cus_1", returnUrl: "https://license.test/back" });
+  });
+
+  it("refuses a malformed or unknown key", async () => {
+    const store = memoryStore();
+    const ctx = { store, stripe: fakeStripe(), selfUrl: "https://license.test" };
+    expect((await portal({ licenseKey: "nope" }, ctx))[0]).toBe(400);
+    expect((await portal({ licenseKey: "SS-0000-0000-0000-0000" }, ctx))[0]).toBe(404);
+  });
+});
+
 describe("pages", () => {
   it("shows the key on the thank-you page, escaped", () => {
     const html = thanksPage([200, { licenseKey: "SS-ABCD-<b>" }]);
@@ -561,5 +553,13 @@ describe("pages", () => {
       "this checkout isn&#39;t finished",
     );
     expect(cancelledPage()).toContain("Nothing was charged");
+  });
+
+  it("sends a buyer who started in the studio back to it", () => {
+    const html = thanksPage([200, { licenseKey: "SS-ABCD" }], { fromStudio: true });
+    expect(html).toContain("Go back to Showcase Studio");
+    expect(html).toContain("SS-ABCD");
+    expect(cancelledPage({ fromStudio: true })).toContain("go back to Showcase Studio");
+    expect(backPage()).toContain("close this tab");
   });
 });

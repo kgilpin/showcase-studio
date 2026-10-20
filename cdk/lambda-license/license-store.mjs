@@ -1,14 +1,17 @@
 /* The license table in DynamoDB: the store license-core.mjs asks for.
- * One table, one string key "pk", three kinds of item:
+ * One table, one string key "pk":
  *
- *   LICENSE#<key>               the license: status, validUntil, the
- *                               subscription and customer, lastEventAt,
- *                               devices { <device id>: { name, addedAt } };
- *                               a "pending" one (checkout started, not
- *                               paid) has expiresAt, so TTL drops it
- *   SUB#<subscription id>       → licenseKey (finds a license from a
- *                               Stripe event)
- *   EXPORTS#<device>#<YYYY-MM>  count; expiresAt drops it after ~3 months
+ *   LICENSE#<key>          the license: status, validUntil, the
+ *                          subscription and customer, lastEventAt, and
+ *                          machineCount (distinct devices that exported
+ *                          with it); a "pending" one (checkout started,
+ *                          not paid) has expiresAt, so TTL drops it
+ *   SUB#<subscription id>  → licenseKey (finds a license from a Stripe
+ *                          event)
+ *   USE#<key>#<device>     firstSeen, lastSeen, exports: one per device
+ *                          that exported with a license — the audit trail
+ *                          for a key shared across machines
+ *   FREE#<device>          count: the device's free exports, in all
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
@@ -138,56 +141,47 @@ export function createStore(TableName, client = new DynamoDBClient({})) {
       }
     },
 
-    /* Adds the device unless the license already has `limit` of them; a
-     * device already on it stays as it was. */
-    async addDevice(key, deviceId, entry, limit) {
-      try {
-        await db.send(
-          new UpdateCommand({
-            TableName,
-            Key: { pk: `LICENSE#${key}` },
-            UpdateExpression: "SET devices.#d = if_not_exists(devices.#d, :entry)",
-            ConditionExpression:
-              "attribute_exists(pk) AND (attribute_exists(devices.#d) OR size(devices) < :limit)",
-            ExpressionAttributeNames: { "#d": deviceId },
-            ExpressionAttributeValues: { ":entry": entry, ":limit": limit },
-          }),
-        );
-        return true;
-      } catch (error) {
-        if (!isConditionFailure(error)) throw error;
-        return false;
-      }
-    },
-
-    async removeDevice(key, deviceId) {
-      await db.send(
+    /* One update for the device's row; when it's the device's first
+     * licensed export, the license's machineCount goes up too. */
+    async recordUse(key, deviceId, now) {
+      const { Attributes } = await db.send(
+        new UpdateCommand({
+          TableName,
+          Key: { pk: `USE#${key}#${deviceId}` },
+          UpdateExpression:
+            "SET firstSeen = if_not_exists(firstSeen, :now), lastSeen = :now ADD exports :one",
+          ExpressionAttributeValues: { ":now": now, ":one": 1 },
+          ReturnValues: "UPDATED_OLD",
+        }),
+      );
+      if (Attributes?.exports) return { newDevice: false, devices: null };
+      const counted = await db.send(
         new UpdateCommand({
           TableName,
           Key: { pk: `LICENSE#${key}` },
-          UpdateExpression: "REMOVE devices.#d",
-          ConditionExpression: "attribute_exists(pk)",
-          ExpressionAttributeNames: { "#d": deviceId },
+          UpdateExpression: "ADD machineCount :one",
+          ExpressionAttributeValues: { ":one": 1 },
+          ReturnValues: "UPDATED_NEW",
         }),
       );
+      return { newDevice: true, devices: counted.Attributes.machineCount };
     },
 
-    async exportsThisMonth(deviceId, month) {
-      return (await get(`EXPORTS#${deviceId}#${month}`))?.count ?? 0;
+    async freeExportsUsed(deviceId) {
+      return (await get(`FREE#${deviceId}`))?.count ?? 0;
     },
 
     /* One atomic step: add one unless the count has reached the limit. */
-    async countExport(deviceId, month, limit) {
-      const expiresAt = Math.floor(Date.parse(`${month}-01T00:00:00Z`) / 1000) + 100 * 24 * 3600;
+    async countFreeExport(deviceId, limit) {
       try {
         const { Attributes } = await db.send(
           new UpdateCommand({
             TableName,
-            Key: { pk: `EXPORTS#${deviceId}#${month}` },
-            UpdateExpression: "ADD #c :one SET expiresAt = :exp",
+            Key: { pk: `FREE#${deviceId}` },
+            UpdateExpression: "ADD #c :one",
             ConditionExpression: "attribute_not_exists(#c) OR #c < :limit",
             ExpressionAttributeNames: { "#c": "count" },
-            ExpressionAttributeValues: { ":one": 1, ":limit": limit, ":exp": expiresAt },
+            ExpressionAttributeValues: { ":one": 1, ":limit": limit },
             ReturnValues: "UPDATED_NEW",
             ReturnValuesOnConditionCheckFailure: "ALL_OLD",
           }),

@@ -2,34 +2,34 @@
  * they can be tested (license.mjs wires them up). docs/licensing.md has
  * the whole design. The requests:
  *
- *   POST /checkout   → 303 to a Stripe Checkout page for the $10/month
- *                      subscription (a Buy button posts here)
- *   POST /webhook    ← Stripe: creates, renews and cancels licenses;
- *                      the signature is checked before anything else
- *   GET  /thanks?session_id=…
- *                    → the thank-you page Stripe returns a buyer to,
- *                      showing the license key (license-pages.mjs)
+ *   POST /checkout   a form post (a Buy button) → 303 to Stripe Checkout
+ *                    JSON { deviceId } (the studio) → { checkoutUrl,
+ *                      licenseKey }: the studio keeps the key and waits
+ *                      for it to turn on
+ *   POST /webhook    ← Stripe: turns licenses on, renews and cancels
+ *                      them; the signature is checked before anything
+ *   GET  /thanks?session_id=…[&from=studio]
+ *                    → the page Stripe returns a buyer to
  *   POST /check      { licenseKey?, deviceId? }
- *                    → whether the key is good, until when, and its
- *                      devices; with a deviceId, also that device's free
- *                      exports left this month
- *   POST /devices/add     { licenseKey, deviceId, name }
- *   POST /devices/remove  { licenseKey, deviceId }
- *                    → puts a device on the license (up to MAX_DEVICES)
- *                      or takes one off; answers with the device list
- *   POST /export     { deviceId, licenseKey? }
- *                    → records one export and says whether it may run
+ *                    → whether the key is good and until when, and the
+ *                      device's free exports left
+ *   POST /export     { deviceId, licenseKey?, kind? }
+ *                    → whether a full-quality export may run: always
+ *                      with a good license (and the key and device are
+ *                      logged, to spot a key shared across machines);
+ *                      otherwise it uses one of the device's free exports
+ *   POST /portal     { licenseKey } → { url } of the Stripe Customer
+ *                      Portal for that license's customer
  *
  * The key is made when checkout starts, on a Stripe customer made for
  * it, so even the first invoice carries it; the license waits as
  * "pending" until the subscription it pays for arrives — through the
- * webhook or the thank-you page, whichever comes first.
- * The key is the account: whoever has it can add and remove devices, so
- * no login (and no email of our own) is needed. */
+ * webhook or the thank-you page, whichever comes first. The key is the
+ * account: there is no login, and no email of our own. */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-/** Free exports per device per calendar month (UTC), without a license. */
-export const FREE_EXPORTS_PER_MONTH = 2;
+/** Free full-quality exports per device, in all, without a license. */
+export const FREE_EXPORTS = 2;
 
 /** How long a license stays good after its paid period ends, while
  *  Stripe retries a card or a renewal webhook is late. */
@@ -37,9 +37,6 @@ export const GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** How old a webhook's timestamp may be (Stripe's own default). */
 export const WEBHOOK_TOLERANCE_S = 300;
-
-/** Devices one license covers. */
-export const MAX_DEVICES = 3;
 
 const GOOD_STATUSES = new Set(["active", "trialing", "past_due"]);
 const LICENSE_KEY = /^SS(-[0-9A-HJKMNP-TV-Z]{4}){4}$/;
@@ -97,16 +94,6 @@ export function licenseStatus(license, now) {
   };
 }
 
-/** A license's devices, oldest first, for the studio to list. */
-const deviceList = (license) =>
-  Object.entries(license?.devices ?? {})
-    .map(([deviceId, d]) => ({
-      deviceId,
-      name: d.name,
-      addedAt: new Date(d.addedAt).toISOString(),
-    }))
-    .sort((a, b) => a.addedAt.localeCompare(b.addedAt));
-
 /* ---------- the store ----------
  *
  * store: {
@@ -123,13 +110,11 @@ const deviceList = (license) =>
  *                                         one made first by a racing call)
  *   updateLicense(key, fields, eventAt) → applies fields unless a newer
  *                                         event already did
- *   addDevice(key, deviceId, entry, limit)
- *                                       → true when the device is on the
- *                                         license (added now or before),
- *                                         false when it's full
- *   removeDevice(key, deviceId)
- *   exportsThisMonth(deviceId, month)   → the count
- *   countExport(deviceId, month, limit) → { allowed, used }: adds one
+ *   recordUse(key, deviceId, now)       → notes a licensed export from
+ *                                         this device; counts the distinct
+ *                                         devices on the license
+ *   freeExportsUsed(deviceId)           → the count
+ *   countFreeExport(deviceId, limit)    → { allowed, used }: adds one
  *                                         only while used < limit
  * }
  */
@@ -159,7 +144,6 @@ async function ensureLicense(subscription, { store, stripe, now, eventAt = now }
     subscriptionId: subscription.id,
     createdAt: now,
     lastEventAt: eventAt,
-    devices: {},
     ...fields,
   });
   if (licenseKey === made && fields.stripeCustomerId) {
@@ -184,7 +168,7 @@ export const PENDING_DAYS = 2;
  *  Function URL's origin): a caller can't send a buyer anywhere else.
  *  A checkout that's abandoned leaves an empty customer in Stripe and a
  *  pending license that the table drops after PENDING_DAYS. */
-export async function checkout({ stripe, store, priceId, selfUrl, now }) {
+export async function checkout({ stripe, store, priceId, selfUrl, now, forStudio = false }) {
   const licenseKey = newLicenseKey();
   const customer = await stripe.createCustomer(licenseKey);
   await store.createPendingLicense({
@@ -195,7 +179,6 @@ export async function checkout({ stripe, store, priceId, selfUrl, now }) {
     cancelAtPeriodEnd: false,
     createdAt: now,
     lastEventAt: 0,
-    devices: {},
     expiresAt: Math.floor(now / 1000) + PENDING_DAYS * 24 * 3600,
   });
   const session = await stripe.createCheckoutSession({
@@ -205,10 +188,13 @@ export async function checkout({ stripe, store, priceId, selfUrl, now }) {
     "subscription_data[metadata][license_key]": licenseKey,
     "line_items[0][price]": priceId,
     "line_items[0][quantity]": "1",
-    success_url: `${selfUrl}/thanks?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${selfUrl}/cancelled`,
+    success_url: `${selfUrl}/thanks?session_id={CHECKOUT_SESSION_ID}${forStudio ? "&from=studio" : ""}`,
+    cancel_url: `${selfUrl}/cancelled${forStudio ? "?from=studio" : ""}`,
     allow_promotion_codes: "true",
   });
+  // The key goes to the studio that started the checkout: until it's
+  // paid, it's a pending license that unlocks nothing.
+  if (forStudio) return [200, { checkoutUrl: session.url, licenseKey }];
   return [303, { url: session.url }];
 }
 
@@ -281,16 +267,14 @@ export async function claim(sessionId, { stripe, store, now }) {
 
 /* ---------- POST /check ---------- */
 
-const monthOf = (now) => new Date(now).toISOString().slice(0, 7); // "2026-10"
-
-/** The first moment of next month, UTC — when the free count resets. */
-export function nextMonth(now) {
-  const d = new Date(now);
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString();
-}
-
 const BAD_KEY = [400, { error: "that isn't a license key" }];
 const BAD_DEVICE = [400, { error: "deviceId must be 16-128 url-safe characters" }];
+
+const freeExports = (used) => ({
+  used,
+  limit: FREE_EXPORTS,
+  left: Math.max(0, FREE_EXPORTS - used),
+});
 
 export async function check(payload, { store, now }) {
   const result = {};
@@ -299,96 +283,61 @@ export async function check(payload, { store, now }) {
   if (payload?.licenseKey != null) {
     const key = normalizeKey(payload.licenseKey);
     if (!LICENSE_KEY.test(key)) return BAD_KEY;
-    const license = await store.getLicense(key);
-    Object.assign(result, licenseStatus(license, now));
-    if (license) {
-      result.devices = deviceList(license);
-      result.maxDevices = MAX_DEVICES;
-      if (deviceId) result.thisDevice = Boolean(license.devices?.[deviceId]);
-    }
+    Object.assign(result, licenseStatus(await store.getLicense(key), now));
   }
-  if (deviceId != null) {
-    const used = await store.exportsThisMonth(deviceId, monthOf(now));
-    result.freeExports = {
-      used,
-      limit: FREE_EXPORTS_PER_MONTH,
-      left: Math.max(0, FREE_EXPORTS_PER_MONTH - used),
-      resets: nextMonth(now),
-    };
-  }
+  if (deviceId != null) result.freeExports = freeExports(await store.freeExportsUsed(deviceId));
   if (Object.keys(result).length === 0) {
     return [400, { error: "send a licenseKey, a deviceId, or both" }];
   }
   return [200, { ...result, checkedAt: new Date(now).toISOString() }];
 }
 
-/* ---------- POST /devices/add, /devices/remove ---------- */
-
-/** The key is the account: it's all a device needs to join or leave. A
- *  canceled license can still have devices taken off, but not added. */
-export async function devices(action, payload, { store, now }) {
-  const key = normalizeKey(payload?.licenseKey);
-  if (!LICENSE_KEY.test(key)) return BAD_KEY;
-  const deviceId = String(payload?.deviceId ?? "");
-  if (!DEVICE_ID.test(deviceId)) return BAD_DEVICE;
-  const license = await store.getLicense(key);
-  if (!license) return [404, { error: "no such license" }];
-
-  if (action === "remove") {
-    await store.removeDevice(key, deviceId);
-  } else {
-    if (!licenseStatus(license, now).valid) {
-      return [409, { error: "this license has ended", status: license.status }];
-    }
-    const name =
-      String(payload.name ?? "")
-        .trim()
-        .slice(0, 64) || "Unnamed device";
-    const added = await store.addDevice(key, deviceId, { name, addedAt: now }, MAX_DEVICES);
-    if (!added) {
-      return [
-        409,
-        {
-          error: `This license already covers ${MAX_DEVICES} devices. Remove one to add this one.`,
-          devices: deviceList(await store.getLicense(key)),
-          maxDevices: MAX_DEVICES,
-        },
-      ];
-    }
-  }
-  return [200, { devices: deviceList(await store.getLicense(key)), maxDevices: MAX_DEVICES }];
-}
-
 /* ---------- POST /export ---------- */
 
-/** Called as an export starts. A good license with this device on it
- *  always may; otherwise the device's free count goes up by one, unless
- *  it's used up. `license` says why a key that was sent didn't count. */
-export async function recordExport(payload, { store, now }) {
+/** Called as a full-quality export starts (the studio decides which
+ *  kinds count). A good license always may, from any machine: the key
+ *  and the device are recorded (store.recordUse, plus one log line), so
+ *  a key used on many machines shows up. Without one, the device uses
+ *  one of its FREE_EXPORTS, unless they're gone. `licenseProblem` says
+ *  why a key that was sent didn't count. */
+export async function recordExport(payload, { store, now, log = console.log }) {
   const deviceId = String(payload?.deviceId ?? "");
   if (!DEVICE_ID.test(deviceId)) return BAD_DEVICE;
+  const kind = String(payload.kind ?? "").slice(0, 32);
   let licenseProblem;
   if (payload.licenseKey != null) {
     const key = normalizeKey(payload.licenseKey);
     const license = LICENSE_KEY.test(key) ? await store.getLicense(key) : null;
     const status = licenseStatus(license, now);
-    if (!status.valid) licenseProblem = license ? "ended" : "unknown";
-    else if (!license.devices?.[deviceId]) licenseProblem = "device-not-added";
-    else return [200, { allowed: true, licensed: true, validUntil: status.validUntil }];
+    if (status.valid) {
+      const { devices } = await store.recordUse(key, deviceId, now);
+      log(JSON.stringify({ audit: "export", licenseKey: key, deviceId, kind, devices }));
+      return [200, { allowed: true, licensed: true, validUntil: status.validUntil }];
+    }
+    licenseProblem = !license ? "unknown" : license.status === "pending" ? "pending" : "ended";
   }
-  const { allowed, used } = await store.countExport(deviceId, monthOf(now), FREE_EXPORTS_PER_MONTH);
+  const { allowed, used } = await store.countFreeExport(deviceId, FREE_EXPORTS);
   return [
     200,
     {
       allowed,
       licensed: false,
       ...(licenseProblem && { licenseProblem }),
-      freeExports: {
-        used,
-        limit: FREE_EXPORTS_PER_MONTH,
-        left: Math.max(0, FREE_EXPORTS_PER_MONTH - used),
-        resets: nextMonth(now),
-      },
+      freeExports: freeExports(used),
     },
   ];
+}
+
+/* ---------- POST /portal ---------- */
+
+/** stripe.createPortalSession(customerId, returnUrl) → { url }: Stripe's
+ *  own page to update the card, see invoices and cancel. The key is the
+ *  proof of who's asking. */
+export async function portal(payload, { store, stripe, selfUrl }) {
+  const key = normalizeKey(payload?.licenseKey);
+  if (!LICENSE_KEY.test(key)) return BAD_KEY;
+  const license = await store.getLicense(key);
+  if (!license?.stripeCustomerId) return [404, { error: "no such license" }];
+  const session = await stripe.createPortalSession(license.stripeCustomerId, `${selfUrl}/back`);
+  return [200, { url: session.url }];
 }

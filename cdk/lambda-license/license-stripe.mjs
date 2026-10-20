@@ -36,6 +36,8 @@ export function createStripe(secretKey, fetchImpl = fetch) {
     /* A customer made at checkout start, with the key already on it, so
      * the first invoice carries it too. */
     createCustomer: (licenseKey) => call("POST", "/customers", keyFields(licenseKey)),
+    createPortalSession: (customerId, returnUrl) =>
+      call("POST", "/billing_portal/sessions", { customer: customerId, return_url: returnUrl }),
     /* The same fields on a customer made some other way. */
     tagCustomer: (customerId, licenseKey) =>
       call("POST", `/customers/${encodeURIComponent(customerId)}`, keyFields(licenseKey)),

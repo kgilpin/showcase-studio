@@ -29,30 +29,51 @@ const page = (title, body) => `<!doctype html>
 <body><main>${body}</main></body>
 </html>`;
 
-/** The page for a finished checkout: claim()'s answer, or its error. */
-export function thanksPage([status, result]) {
+/** The page for a finished checkout: claim()'s answer, or its error.
+ *  When the studio started the checkout it is already waiting for the
+ *  license to turn on, so the page only sends the buyer back to it. */
+export function thanksPage([status, result], { fromStudio = false } = {}) {
   if (status !== 200) {
     return page(
       "Something went wrong",
-      `<h1>We couldn't find your license</h1>
+      `<h1>We couldn't find your subscription</h1>
 <p>${escape(result.error ?? "Unknown error")}.</p>
-<p>If you were charged, your license key is also on your Stripe receipt. Reload this page in a minute, or reply to the receipt email for help.</p>`,
+<p>If you were charged, your license key is on your Stripe receipt. Reload this page in a minute.</p>`,
+    );
+  }
+  const key = `<div class="key"><code id="key">${escape(result.licenseKey)}</code>
+<button onclick="navigator.clipboard.writeText(document.getElementById('key').textContent).then(()=>{this.textContent='Copied'})">Copy</button></div>`;
+  if (fromStudio) {
+    return page(
+      "Thank you",
+      `<h1>You're subscribed</h1>
+<p>Go back to Showcase Studio — it's already unlocked, and your export can go ahead.</p>
+<p>To use Showcase Studio on another computer, enter this license key there:</p>
+${key}
+<p>The key is also on every receipt Stripe emails you.</p>`,
     );
   }
   return page(
     "Thank you",
-    `<h1>Thank you — you're licensed</h1>
+    `<h1>You're subscribed</h1>
 <p>Your license key:</p>
-<div class="key"><code id="key">${escape(result.licenseKey)}</code>
-<button onclick="navigator.clipboard.writeText(document.getElementById('key').textContent).then(()=>{this.textContent='Copied'})">Copy</button></div>
-<p>In Showcase Studio, open the gear button, choose <b>License</b>, and paste the key. It works on up to 3 of your computers.</p>
-<p>The key is also on every receipt Stripe emails you, so you can find it again.</p>`,
+${key}
+<p>In Showcase Studio, click the <b>Trial</b> button at the top right, choose <b>I have a key</b>, and paste it.</p>
+<p>The key is also on every receipt Stripe emails you.</p>`,
   );
 }
 
-export const cancelledPage = () =>
+export const cancelledPage = ({ fromStudio = false } = {}) =>
   page(
     "Checkout cancelled",
     `<h1>Checkout cancelled</h1>
-<p>Nothing was charged. You still have your free exports each month.</p>`,
+<p>Nothing was charged.${fromStudio ? " You can close this tab and go back to Showcase Studio." : ""}</p>`,
+  );
+
+/** Where the Stripe Customer Portal returns to. */
+export const backPage = () =>
+  page(
+    "Showcase Studio",
+    `<h1>All set</h1>
+<p>You can close this tab and go back to Showcase Studio.</p>`,
   );
