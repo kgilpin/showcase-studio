@@ -3,7 +3,9 @@
  *
  *   LICENSE#<key>               the license: status, validUntil, the
  *                               subscription and customer, lastEventAt,
- *                               devices { <device id>: { name, addedAt } }
+ *                               devices { <device id>: { name, addedAt } };
+ *                               a "pending" one (checkout started, not
+ *                               paid) has expiresAt, so TTL drops it
  *   SUB#<subscription id>       → licenseKey (finds a license from a
  *                               Stripe event)
  *   EXPORTS#<device>#<YYYY-MM>  count; expiresAt drops it after ~3 months
@@ -12,6 +14,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   GetCommand,
+  PutCommand,
   TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
@@ -60,6 +63,51 @@ export function createStore(TableName, client = new DynamoDBClient({})) {
       } catch (error) {
         if (!isConditionFailure(error)) throw error;
         return (await get(`SUB#${item.subscriptionId}`)).licenseKey;
+      }
+    },
+
+    async createPendingLicense(item) {
+      await db.send(
+        new PutCommand({
+          TableName,
+          Item: { pk: `LICENSE#${item.licenseKey}`, ...item },
+          ConditionExpression: "attribute_not_exists(pk)",
+        }),
+      );
+    },
+
+    /* The pending license and its subscription, linked both ways in one
+     * step; it stops expiring. The webhook and the thank-you page can
+     * race to do this — the second finds the first's link. */
+    async attachSubscription(key, subscriptionId) {
+      try {
+        await db.send(
+          new TransactWriteCommand({
+            TransactItems: [
+              {
+                Put: {
+                  TableName,
+                  Item: { pk: `SUB#${subscriptionId}`, licenseKey: key },
+                  ConditionExpression: "attribute_not_exists(pk)",
+                },
+              },
+              {
+                Update: {
+                  TableName,
+                  Key: { pk: `LICENSE#${key}` },
+                  UpdateExpression: "SET subscriptionId = :s REMOVE expiresAt",
+                  ConditionExpression:
+                    "attribute_exists(pk) AND attribute_not_exists(subscriptionId)",
+                  ExpressionAttributeValues: { ":s": subscriptionId },
+                },
+              },
+            ],
+          }),
+        );
+        return key;
+      } catch (error) {
+        if (!isConditionFailure(error)) throw error;
+        return (await get(`SUB#${subscriptionId}`))?.licenseKey ?? null;
       }
     },
 

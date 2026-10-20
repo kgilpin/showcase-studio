@@ -62,7 +62,7 @@ export const handler = async (event) => {
       const { stripe, priceId } = await loadConfig();
       // Stripe returns the buyer to this same Function URL's pages.
       const selfUrl = `https://${event.requestContext.domainName}`;
-      const [status, body] = await checkout({ stripe, priceId, selfUrl });
+      const [status, body] = await checkout({ stripe, store, priceId, selfUrl, now });
       return respond(status, body, { location: body.url });
     }
     if (route === "POST /webhook") {

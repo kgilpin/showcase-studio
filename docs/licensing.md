@@ -58,10 +58,28 @@ website, a link from the studio — is a form that posts to `/checkout`.
   User cancels            ── POST /webhook (subscription.deleted) ──► status canceled
 ```
 
+The key is made when checkout **starts**, not after payment:
+
+```
+  POST /checkout
+    1. make a key                       SS-XXXX-…
+    2. make a Stripe customer with the key on its invoices
+    3. save the license as "pending"    (dropped after 2 days if unpaid)
+    4. start Checkout for that customer, the key in the
+       subscription's metadata
+  buyer pays
+    5. webhook or /thanks, whichever comes first, finds the key in the
+       subscription's metadata and turns the pending license on
+```
+
+So the very first invoice already carries the key. An abandoned
+checkout leaves an empty customer in Stripe and a pending row that the
+table deletes after 2 days.
+
 The thank-you page and the webhook race: the buyer can land on
 `/thanks` before Stripe's webhook arrives. So `/thanks` asks Stripe
-about the checkout itself and makes the license if the webhook hasn't
-yet. Both paths make at most one license per subscription (a
+about the checkout itself and turns the license on if the webhook
+hasn't yet. Both paths link at most one license per subscription (a
 conditional write on `SUB#<subscription id>`).
 
 ## The endpoints
@@ -119,16 +137,17 @@ We send no email (no SES). Two places carry the key:
    Reloading it shows the same key. It could later offer a
    `showcase-studio://license?key=…` link once the app registers that
    URL scheme.
-2. **Stripe's own emails.** When the license is made, the service
-   writes the key onto the Stripe customer as an invoice custom field
+2. **Stripe's own emails.** When checkout starts, the service makes
+   the Stripe customer with the key on it as an invoice custom field
    ("License key") and as metadata. Stripe then prints it on every
    invoice, so each monthly receipt carries it, and support can find a
    customer by key in the Stripe dashboard. _Check in test mode that
    the field shows in the receipt email itself and not only in the
    invoice PDF._
 
-If writing to Stripe fails, the license is still made; the thank-you
-page is the main path.
+A subscription made some other way (in the Stripe dashboard, say) gets
+a new key when its webhook arrives, written onto the customer then, so
+only its later invoices carry it.
 
 ## Devices
 

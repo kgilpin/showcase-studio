@@ -20,8 +20,10 @@
  *   POST /export     { deviceId, licenseKey? }
  *                    → records one export and says whether it may run
  *
- * A license belongs to one Stripe subscription. Whichever comes first —
- * the webhook or the thank-you page — makes the key; the other finds it.
+ * The key is made when checkout starts, on a Stripe customer made for
+ * it, so even the first invoice carries it; the license waits as
+ * "pending" until the subscription it pays for arrives — through the
+ * webhook or the thank-you page, whichever comes first.
  * The key is the account: whoever has it can add and remove devices, so
  * no login (and no email of our own) is needed. */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -110,6 +112,12 @@ const deviceList = (license) =>
  * store: {
  *   getLicense(key)                     → the license item, or null
  *   keyForSubscription(subscriptionId)  → its license key, or null
+ *   createPendingLicense(item)          → saves a license that has no
+ *                                         subscription yet (checkout start)
+ *   attachSubscription(key, subscriptionId)
+ *                                       → the key now on record for the
+ *                                         subscription (this one, or one a
+ *                                         racing call attached first)
  *   createLicense(item)                 → the key now on record for
  *                                         item.subscriptionId (item's, or
  *                                         one made first by a racing call)
@@ -126,17 +134,25 @@ const deviceList = (license) =>
  * }
  */
 
-/** The license for a subscription, made if this is the first sight of
- *  it. A new key is also written onto the Stripe customer
- *  (stripe.tagCustomer), so it appears on every invoice Stripe emails
- *  and can be found in the Stripe dashboard. */
+/** The license for a subscription. Normally /checkout made it, pending,
+ *  and named it in the subscription's metadata; this attaches the two.
+ *  A subscription made some other way (the Stripe dashboard, say) gets a
+ *  new license here, and its key is written onto the customer after the
+ *  fact (stripe.tagCustomer), so later invoices carry it. */
 async function ensureLicense(subscription, { store, stripe, now, eventAt = now }) {
-  const existing = await store.keyForSubscription(subscription.id);
+  const fields = licenseFields(subscription);
+  let existing = await store.keyForSubscription(subscription.id);
+  const pendingKey = normalizeKey(subscription.metadata?.license_key);
+  if (!existing && LICENSE_KEY.test(pendingKey)) {
+    const pending = await store.getLicense(pendingKey);
+    if (pending && pending.stripeCustomerId === fields.stripeCustomerId) {
+      existing = await store.attachSubscription(pendingKey, subscription.id);
+    }
+  }
   if (existing) {
-    await store.updateLicense(existing, licenseFields(subscription), eventAt);
+    await store.updateLicense(existing, fields, eventAt);
     return existing;
   }
-  const fields = licenseFields(subscription);
   const made = newLicenseKey();
   const licenseKey = await store.createLicense({
     licenseKey: made,
@@ -159,12 +175,34 @@ async function ensureLicense(subscription, { store, stripe, now, eventAt = now }
 
 /* ---------- POST /checkout ---------- */
 
-/** stripe.createCheckoutSession(params) → { url }. Stripe returns the
- *  buyer to this service's own pages (selfUrl is the Function URL's
- *  origin): a caller can't send a buyer anywhere else. */
-export async function checkout({ stripe, priceId, selfUrl }) {
+/** How long a pending license (a checkout that was never paid) is kept. */
+export const PENDING_DAYS = 2;
+
+/** stripe.createCustomer(licenseKey) → { id }: a customer with the key
+ *  on its invoices; stripe.createCheckoutSession(params) → { url }.
+ *  Stripe returns the buyer to this service's own pages (selfUrl is the
+ *  Function URL's origin): a caller can't send a buyer anywhere else.
+ *  A checkout that's abandoned leaves an empty customer in Stripe and a
+ *  pending license that the table drops after PENDING_DAYS. */
+export async function checkout({ stripe, store, priceId, selfUrl, now }) {
+  const licenseKey = newLicenseKey();
+  const customer = await stripe.createCustomer(licenseKey);
+  await store.createPendingLicense({
+    licenseKey,
+    stripeCustomerId: customer.id,
+    status: "pending",
+    validUntil: null,
+    cancelAtPeriodEnd: false,
+    createdAt: now,
+    lastEventAt: 0,
+    devices: {},
+    expiresAt: Math.floor(now / 1000) + PENDING_DAYS * 24 * 3600,
+  });
   const session = await stripe.createCheckoutSession({
     mode: "subscription",
+    customer: customer.id,
+    client_reference_id: licenseKey,
+    "subscription_data[metadata][license_key]": licenseKey,
     "line_items[0][price]": priceId,
     "line_items[0][quantity]": "1",
     success_url: `${selfUrl}/thanks?session_id={CHECKOUT_SESSION_ID}`,

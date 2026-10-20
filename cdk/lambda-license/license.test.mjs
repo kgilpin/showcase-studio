@@ -33,6 +33,18 @@ function memoryStore() {
     counts,
     getLicense: async (key) => licenses.get(key) ?? null,
     keyForSubscription: async (id) => subscriptions.get(id) ?? null,
+    async createPendingLicense(item) {
+      licenses.set(item.licenseKey, { ...item });
+    },
+    async attachSubscription(key, subscriptionId) {
+      if (subscriptions.has(subscriptionId)) return subscriptions.get(subscriptionId);
+      const license = licenses.get(key);
+      if (!license || license.subscriptionId) return null;
+      subscriptions.set(subscriptionId, key);
+      license.subscriptionId = subscriptionId;
+      delete license.expiresAt;
+      return key;
+    },
     async createLicense(item) {
       if (subscriptions.has(item.subscriptionId)) return subscriptions.get(item.subscriptionId);
       subscriptions.set(item.subscriptionId, item.licenseKey);
@@ -69,6 +81,8 @@ function fakeStripe(calls = {}) {
     tagged,
     getSubscription: async () => subscription(),
     tagCustomer: async (customer, key) => void tagged.set(customer, key),
+    createCustomer: async (key) => ({ id: "cus_1", key }),
+    createCheckoutSession: async () => ({ url: "https://checkout.stripe.test/c" }),
     ...calls,
   };
 }
@@ -136,27 +150,79 @@ describe("licenseStatus", () => {
 });
 
 describe("checkout", () => {
-  it("starts a subscription checkout that returns to this service's own pages", async () => {
-    let sent;
-    const stripe = {
+  /** A checkout started through /checkout: the params Stripe got, the
+   *  customer it made, and the pending license. */
+  async function started(store) {
+    let sent, customerKey;
+    const stripe = fakeStripe({
+      createCustomer: async (key) => ((customerKey = key), { id: "cus_1" }),
       createCheckoutSession: async (params) => (
         (sent = params),
         { url: "https://checkout.stripe.test/c" }
       ),
-    };
-    const [status, body] = await checkout({
+    });
+    const result = await checkout({
       stripe,
+      store,
       priceId: "price_1",
       selfUrl: "https://license.test",
+      now: NOW,
     });
-    expect(status).toBe(303);
-    expect(body.url).toBe("https://checkout.stripe.test/c");
+    return { result, sent, customerKey, stripe };
+  }
+
+  it("starts a subscription checkout that returns to this service's own pages", async () => {
+    const { result, sent } = await started(memoryStore());
+    expect(result).toEqual([303, { url: "https://checkout.stripe.test/c" }]);
     expect(sent).toMatchObject({
       mode: "subscription",
+      customer: "cus_1",
       "line_items[0][price]": "price_1",
       success_url: "https://license.test/thanks?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "https://license.test/cancelled",
     });
+  });
+
+  it("makes the key first, on the customer, so the first invoice carries it", async () => {
+    const store = memoryStore();
+    const { sent, customerKey } = await started(store);
+    expect(customerKey).toMatch(/^SS-/);
+    expect(sent["subscription_data[metadata][license_key]"]).toBe(customerKey);
+    const pending = store.licenses.get(customerKey);
+    expect(pending).toMatchObject({ status: "pending", stripeCustomerId: "cus_1" });
+    expect(pending.expiresAt).toBeGreaterThan(NOW / 1000);
+    expect(licenseStatus(pending, NOW).valid).toBe(false);
+  });
+
+  it("turns the pending license on when its subscription arrives, keeping the key", async () => {
+    const store = memoryStore();
+    const { customerKey, stripe } = await started(store);
+    const paid = subscription({ metadata: { license_key: customerKey } });
+    const [b1, s1] = signed({ type: "customer.subscription.created", data: { object: paid } });
+    const [, result] = await webhook(b1, s1, { secret: SECRET, store, stripe, now: NOW });
+    expect(result.licenseKey).toBe(customerKey);
+    expect(store.licenses.size).toBe(1);
+    const license = store.licenses.get(customerKey);
+    expect(licenseStatus(license, NOW).valid).toBe(true);
+    expect(license.expiresAt).toBeUndefined();
+    // The key was on the customer from the start: no second write.
+    expect(stripe.tagged.size).toBe(0);
+
+    // The thank-you page, arriving second, finds the same key.
+    const session = { status: "complete", mode: "subscription", subscription: paid };
+    const thanks = fakeStripe({ getCheckoutSession: async () => session });
+    const [, claimed] = await claim("cs_test_abcdefgh", { stripe: thanks, store, now: NOW });
+    expect(claimed.licenseKey).toBe(customerKey);
+  });
+
+  it("won't attach a pending license named by a subscription of another customer", async () => {
+    const store = memoryStore();
+    const { customerKey, stripe } = await started(store);
+    const other = subscription({ customer: "cus_other", metadata: { license_key: customerKey } });
+    const [b1, s1] = signed({ type: "customer.subscription.created", data: { object: other } });
+    const [, result] = await webhook(b1, s1, { secret: SECRET, store, stripe, now: NOW });
+    expect(result.licenseKey).not.toBe(customerKey);
+    expect(store.licenses.get(customerKey).status).toBe("pending");
   });
 });
 
