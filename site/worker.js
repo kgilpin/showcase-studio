@@ -1,5 +1,6 @@
 /**
- * The site is static files (public/), served by Cloudflare. This Worker runs
+ * The site is static files (dist/client, prerendered by npm run build),
+ * served by Cloudflare. This Worker runs
  * only for /media/* and /download/* (run_worker_first in wrangler.toml):
  *
  *   /media/*     the static file, in byte ranges. Safari asks for a video in

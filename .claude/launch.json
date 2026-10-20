@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "site", "run", "dev"],
       "port": 8098
+    },
+    {
+      "name": "site-wrangler",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "site", "run", "dev:wrangler"],
+      "port": 8098
     }
   ]
 }

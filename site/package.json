@@ -2,18 +2,32 @@
   "name": "showcase-studio-site",
   "private": true,
   "license": "Elastic-2.0",
-  "description": "The Showcase Studio marketing site: static files in public/, served by a Cloudflare Worker.",
+  "description": "The Showcase Studio marketing site: a TanStack Start app, prerendered to static files and served by a Cloudflare Worker.",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/serve.mjs",
-    "dev:wrangler": "wrangler dev --port 8098",
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview --port 8098",
+    "typecheck": "tsc --noEmit",
+    "dev:wrangler": "vite build && wrangler dev --port ${PORT:-8098}",
     "media": "node scripts/prepare-media.mjs",
     "capture:prompter": "node scripts/capture-prompter.mjs",
     "publish-release": "node scripts/publish-release.mjs",
-    "deploy": "wrangler deploy --env goo --profile goo && wrangler deploy --env downloads",
-    "deploy:preview": "wrangler versions upload --env goo --profile goo"
+    "deploy": "vite build && wrangler deploy --env goo --profile goo && wrangler deploy --env downloads",
+    "deploy:preview": "vite build && wrangler versions upload --env goo --profile goo"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-start": "^1.168.32",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5",
     "wrangler": "^4.151.1"
   },
   "engines": {
