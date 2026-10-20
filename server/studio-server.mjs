@@ -67,6 +67,7 @@ import { ensureLibrarySettings } from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { airDrop, canAirDrop } from "./airdrop.mjs";
 import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
+import { createLicense, LicenseRequired } from "./license.mjs";
 import { createTerminals } from "./terminals.mjs";
 import { whisperPath } from "./transcribe.mjs";
 
@@ -243,6 +244,9 @@ function locateReferences(text, found) {
  *   copyText      puts text on the system clipboard (the share tool)
  *   sendToPhone   opens the AirDrop window for a file (a Mac only)
  *   settings      { load, save } — the persisted settings
+ *   licensing     makes the license client (server/license.mjs) from
+ *                 { settings, openUrl, onChange }; tests pass a fake, so
+ *                 nothing reaches the license service
  *   commitDelayMs how long a showcase must stay unchanged before the
  *                 studio commits it (server/showcase-history.mjs)
  */
@@ -259,6 +263,7 @@ export function createStudio({
   copyText = copyToClipboard,
   sendToPhone = canAirDrop() ? airDrop : null,
   settings = { load: loadSettings, save: saveSettings },
+  licensing = createLicense,
   log = (message) => console.log(message),
   commitDelayMs = 5000,
 }) {
@@ -459,7 +464,22 @@ add notes specific to this library below, and the studio won't touch them.
   });
   const share = createShare({ getLibrary: () => showcasesDir, exportRecords });
 
+  /* ---------- licensing (server/license.mjs) ---------- */
+
+  /* Every change to what the page should show — a check, a checkout
+   * paid, a free video used — goes to every page as the "license" event. */
+  const license = licensing({
+    settings,
+    openUrl,
+    onChange: (status) => emit("license", status),
+  });
+
   async function recordedExport(kind, showcaseId, { onProgress, signal } = {}) {
+    /* Full-quality videos need a license or a free export; the page asks
+     * first, so this refusal is what Claude's export tool (and --export)
+     * meet. */
+    const verdict = await license.beforeExport(kind);
+    if (!verdict.allowed) throw new LicenseRequired(verdict.message);
     const recorded = RECORDED_KINDS.includes(kind);
     const fingerprint = recorded ? exportRecords.fingerprint(showcaseId) : undefined;
     const durationMs = recorded ? showcaseDurationMs(showcasesDir, showcaseId) : undefined;
@@ -602,6 +622,7 @@ add notes specific to this library below, and the studio won't touch them.
 
   const mcpContext = {
     info,
+    license,
     getUrl: () => url,
     getShowcasesDir: () => showcasesDir,
     renderer,
@@ -998,6 +1019,15 @@ scenes:
       return job ? { ok: true, job } : { ok: false, error: `No export job named "${jobId}"` };
     },
     "export-current": () => ({ ok: true, job: exportJobs.current() ?? null }),
+    "license-status": async ({ refresh } = {}) => ({
+      ok: true,
+      status: await license.refresh({ force: refresh === true }),
+    }),
+    "license-checkout": () => license.startCheckout(),
+    "license-checkout-cancel": () => license.cancelCheckout(),
+    "license-key": ({ key } = {}) => license.enterKey(key),
+    "license-portal": () => license.openPortal(),
+    "license-remove": () => license.removeKey(),
     "export-reveal": revealExport,
     "share-status": shareAction(({ showcaseId }) => ({
       status: share.status(String(showcaseId ?? "")),
@@ -1211,6 +1241,7 @@ scenes:
 
     async close() {
       unregisterStudio();
+      license.close();
       await claiming;
       release();
       if (watcher) {

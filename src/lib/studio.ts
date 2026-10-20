@@ -44,6 +44,37 @@ export type StudioExports = {
   onChange(callback: (job: StudioExportJob) => void): () => void;
 };
 
+/** What the studio knows about the license (server/license.mjs):
+ *  trial — no good license, freeLeft full-quality videos left;
+ *  subscribed; payment — subscribed, but the last payment failed;
+ *  waiting — a checkout is open in the browser. */
+export type StudioLicense = {
+  state: "trial" | "subscribed" | "payment" | "waiting";
+  freeLeft: number;
+  freeLimit: number;
+  hasKey: boolean;
+  /** A key is saved, but its subscription has ended. */
+  ended: boolean;
+  validUntil: string | null;
+  renews: boolean;
+  checkedAt: string | null;
+};
+
+type Done = { ok: boolean; error?: string };
+
+export type StudioLicensing = {
+  /** Asks the license service again (force: even if it asked recently). */
+  refresh(force?: boolean): Promise<Done & { status?: StudioLicense }>;
+  /** Opens a Stripe checkout in the browser and waits for it to be paid;
+   *  the "license" event says when it is. */
+  checkout(): Promise<Done>;
+  cancelCheckout(): Promise<Done>;
+  /** A key the user typed: saved only if its subscription is good. */
+  enterKey(key: string): Promise<Done>;
+  /** Opens Stripe's Customer Portal in the browser. */
+  portal(): Promise<Done>;
+};
+
 /** What a finished media build reports (server/build-media.mjs). */
 export type StudioBuildReport = {
   built: string[];
@@ -295,6 +326,8 @@ export type ShowcaseStudio = {
   /** Media builds from a showcase's cut list: their own lane, so a
    *  build and an export don't block each other. */
   builds: StudioBuilds;
+  /** The subscription: status, checkout, a typed key, the portal. */
+  license: StudioLicensing;
   /** Per-showcase terminals running the user's own Claude Code. */
   terminal: StudioTerminal;
   /** Scaffolding for new showcases (the home page's "+" card). */
@@ -391,7 +424,7 @@ function dispatch(event: string, data: unknown) {
   for (const listener of [...(listeners.get(event) ?? [])]) listener(data);
 }
 
-const EVENTS = ["reload", "info", "export", "build", "terminal-data", "terminal-exit"];
+const EVENTS = ["reload", "info", "export", "build", "license", "terminal-data", "terminal-exit"];
 
 function followEvents() {
   const source = new EventSource(`${API}/events`);
@@ -490,6 +523,50 @@ export function useExportJob(): StudioExportJob | null {
   );
 }
 
+/* ---------- licensing ---------- */
+
+/* What the pill and the export dialogs show, kept current from the
+ * "license" events, plus one ask on connect. */
+let license: StudioLicense | null = null;
+
+function setLicense(next: StudioLicense | null) {
+  license = next;
+  dispatch("license-status", next);
+}
+
+on("license", (data) => setLicense(data as StudioLicense));
+on("info", () => {
+  void post<{ ok: boolean; status?: StudioLicense }>("license-status").then((result) => {
+    if (result.ok && result.status) setLicense(result.status);
+  });
+});
+
+function createLicensing(): StudioLicensing {
+  return {
+    refresh: async (force = false) => {
+      const result = await post<Done & { status?: StudioLicense }>("license-status", {
+        refresh: force,
+      });
+      if (result.ok && result.status) setLicense(result.status);
+      return result;
+    },
+    checkout: () => post("license-checkout"),
+    cancelCheckout: () => post("license-checkout-cancel"),
+    enterKey: (key) => post("license-key", { key }),
+    portal: () => post("license-portal"),
+  };
+}
+
+/** The license as last heard; null before the first answer and on a
+ *  plain web build. */
+export function useLicense(): StudioLicense | null {
+  return useSyncExternalStore(
+    (onChange) => on("license-status", onChange),
+    () => license,
+    () => null,
+  );
+}
+
 /* ---------- media builds ---------- */
 
 /* The newest media build, kept current the same way as exports: the
@@ -568,6 +645,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
     windowLock: () => info?.lock ?? null,
     exports: createExports(),
     builds: createBuilds(),
+    license: createLicensing(),
     terminal: createTerminal(first.features.terminal),
     showcases: { create: (name) => post("showcase-create", { name }) },
     scenes: { edit: (payload) => post("scene-edit", payload) },

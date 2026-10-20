@@ -1,0 +1,201 @@
+/* The subscription's status, as a pill at the right of a showcase's tab
+ * bar (ShowcaseNav), beside the gear. Clicking it opens a small panel
+ * with what can be done from there:
+ *
+ *   pill                      panel
+ *   ------------------------  ------------------------------------------
+ *   Trial · 2 videos left     Subscribe ↗ · I have a key
+ *   Waiting for payment…      (checkout is open in the browser) · Cancel
+ *   Subscribed                Renews Nov 20 · Manage subscription ↗
+ *   Payment issue  (amber)    Update card ↗
+ *
+ * ↗ marks what opens Stripe in the browser. Only full-quality videos
+ * count; drafts, screenshots and the script are always free. The state
+ * comes from the studio (server/license.mjs) through useLicense; renders
+ * nothing when no studio serves the page. */
+import { useEffect, useState } from "react";
+import { ExternalLink, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { studio, useLicense, type StudioLicense } from "@/lib/studio";
+import { PRICE, pillLabel, subscribe } from "./license-actions";
+
+const day = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+
+/** Typing a key in: checked with the service, saved only if it's good. */
+export function KeyForm({ onDone }: { onDone?: () => void }) {
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!key.trim()) return setError("Paste your license key first");
+    setBusy(true);
+    const result = await studio()!.license.enterKey(key);
+    setBusy(false);
+    if (!result.ok) return setError(result.error ?? "That key didn't work");
+    toast.success("You're subscribed");
+    onDone?.();
+  };
+  return (
+    <form onSubmit={(e) => void submit(e)} className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={key}
+          onChange={(e) => {
+            setKey(e.target.value);
+            setError(null);
+          }}
+          placeholder="SS-XXXX-XXXX-XXXX-XXXX"
+          aria-label="License key"
+          className="font-mono text-xs"
+          autoFocus
+        />
+        <Button type="submit" variant="outline" disabled={busy}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : "Use key"}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+/** Opens Stripe's Customer Portal. */
+async function manage() {
+  const result = await studio()!.license.portal();
+  if (!result.ok) toast.error("Stripe didn't open", { description: result.error });
+}
+
+const opensStripe = <ExternalLink className="size-3.5" aria-hidden />;
+
+/** What the panel holds for each state. */
+function LicensePanel({ license, close }: { license: StudioLicense; close: () => void }) {
+  const [typingKey, setTypingKey] = useState(false);
+
+  if (license.state === "waiting") {
+    return (
+      <div className="space-y-3">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          <Loader2 className="size-4 animate-spin" /> Waiting for payment
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Finish checking out in your browser. This updates on its own once you&apos;ve paid.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => void studio()!.license.cancelCheckout()}>
+          Stop waiting
+        </Button>
+      </div>
+    );
+  }
+
+  if (license.state === "subscribed" || license.state === "payment") {
+    const payment = license.state === "payment";
+    return (
+      <div className="space-y-3">
+        <p className="text-sm font-medium">{payment ? "Payment issue" : "Subscribed"}</p>
+        <p className="text-sm text-muted-foreground">
+          {payment
+            ? "Your last payment didn't go through. Update your card to keep exporting full-quality videos."
+            : license.validUntil
+              ? `${license.renews ? "Renews" : "Ends"} ${day(license.validUntil)}. Unlimited full-quality videos.`
+              : "Unlimited full-quality videos."}
+        </p>
+        <Button size="sm" variant={payment ? "default" : "outline"} onClick={() => void manage()}>
+          {payment ? "Update card" : "Manage subscription"} {opensStripe}
+        </Button>
+        <p className="text-xs text-muted-foreground">Opens Stripe in your browser.</p>
+      </div>
+    );
+  }
+
+  const n = license.freeLeft;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium">
+        {license.ended ? "Your subscription has ended" : "Trial"}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        {n > 0
+          ? `You can export ${n} more full-quality video${n === 1 ? "" : "s"}.`
+          : "You've used your free full-quality videos."}{" "}
+        Drafts, screenshots and the script are always free.
+      </p>
+      <Button
+        size="sm"
+        onClick={() => {
+          void subscribe();
+          close();
+        }}
+      >
+        Subscribe — {PRICE} {opensStripe}
+      </Button>
+      {typingKey ? (
+        <KeyForm onDone={close} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setTypingKey(true)}
+          className="block text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          I have a key
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function LicensePill() {
+  const [inStudio, setInStudio] = useState(false);
+  useEffect(() => setInStudio(studio() != null), []);
+  const license = useLicense();
+  const [open, setOpen] = useState(false);
+
+  if (!inStudio || !license) return null;
+
+  const tone =
+    license.state === "payment"
+      ? "border-amber-500/60 bg-amber-500/15 text-amber-800 dark:text-amber-200"
+      : license.state === "subscribed"
+        ? "border-primary/40 text-foreground"
+        : "border-border text-foreground/70";
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) void studio()!.license.refresh();
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Your subscription"
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors hover:bg-secondary data-[state=open]:bg-secondary",
+            tone,
+          )}
+        >
+          {license.state === "waiting" && <Loader2 className="size-3 animate-spin" />}
+          {pillLabel(license)}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-80"
+        /* Keys typed in the key field must not reach the player. */
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <LicensePanel license={license} close={() => setOpen(false)} />
+      </PopoverContent>
+    </Popover>
+  );
+}

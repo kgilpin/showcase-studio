@@ -4,6 +4,7 @@ import { FileText, Home, Images, Send, Smartphone } from "lucide-react";
 import { BuildMediaButton } from "@/components/studio/BuildMediaButton";
 import { ExportStatus } from "@/components/studio/ExportStatus";
 import { StudioSettings } from "@/components/studio/StudioSettings";
+import { LicensePill } from "@/components/studio/LicensePill";
 import { studio, useWindowLock } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +91,7 @@ export function ShowcaseNav({
       </nav>
       {built && <BuildMediaButton showcaseId={showcaseId} />}
       <ExportStatus showcaseId={showcaseId} />
+      <LicensePill />
       <StudioSettings />
     </header>
   );

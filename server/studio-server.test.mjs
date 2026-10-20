@@ -59,6 +59,14 @@ function libraryWith(...ids) {
 
 /** A studio on a temp library, mounted in a plain HTTP server on a free
  *  port. Requests the studio doesn't handle answer "app" (the page). */
+/** A license client that allows every export and never calls out. */
+const allowAll = {
+  status: () => ({ state: "subscribed" }),
+  refresh: async () => ({ state: "subscribed" }),
+  beforeExport: async () => ({ allowed: true }),
+  close: () => {},
+};
+
 async function startStudio({
   lock = null,
   features,
@@ -71,6 +79,7 @@ async function startStudio({
   sendToPhone = null,
   renderer,
   settings = memorySettings(),
+  licensing = () => allowAll,
 } = {}) {
   const library = libraryWith(...ids);
   const exportDir = tempDir("studio-exports-");
@@ -81,6 +90,7 @@ async function startStudio({
     version: "test",
     srcDir,
     settings,
+    licensing,
     renderer,
     exportDir,
     reveal,
@@ -1376,4 +1386,38 @@ describe("recording exports", () => {
     expect(renderMs).toBeGreaterThan(0);
     expect(share.exports.video.estimateMs).toBe(Math.round(frames * (renderMs / frames)));
   }, 30_000);
+});
+
+describe("licensing", () => {
+  it("fails a full-quality export the license client refuses, with its message", async () => {
+    const refuse = {
+      ...allowAll,
+      status: () => ({ state: "trial", freeLeft: 0 }),
+      beforeExport: async (kind) =>
+        kind === "video"
+          ? { allowed: false, message: "You've used your 2 free full-quality videos." }
+          : { allowed: true },
+    };
+    const { post } = await startStudio({ licensing: () => refuse });
+    const { job } = await post("export", { kind: "video", showcaseId: "nova" });
+    let status = job;
+    for (let i = 0; i < 100 && status.status === "running"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      status = (await post("export-status", { jobId: job.jobId })).job;
+    }
+    expect(status).toMatchObject({
+      status: "failed",
+      error: "You've used your 2 free full-quality videos.",
+    });
+    expect(await post("license-status", {})).toEqual({
+      ok: true,
+      status: { state: "subscribed" },
+    });
+  });
+
+  it("hands the license client what it needs to tell pages about changes", async () => {
+    let given;
+    await startStudio({ licensing: (deps) => ((given = deps), allowAll) });
+    expect(Object.keys(given).sort()).toEqual(["onChange", "openUrl", "settings"]);
+  });
 });
