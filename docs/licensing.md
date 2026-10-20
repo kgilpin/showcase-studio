@@ -1,61 +1,53 @@
 # Licensing
 
-Status: a sketch. The service is built (`cdk/lib/license-stack.ts`,
-`cdk/lambda-license/`) but not deployed, and the studio doesn't call it
-yet.
+Status: built and running on dev (Stripe test mode). The service is in
+`cdk/lib/license-stack.ts` and `cdk/lambda-license/`; the studio side
+is `server/license.mjs` and the components in `src/components/studio/`
+(`LicensePill`, `SubscribeDialog`). Prod isn't set up yet.
 
 ## The rules
 
-- Without a license, a computer gets **2 free exports per calendar
-  month**. Drafts don't count.
-- After that it needs a license: **$10/month**, a Stripe subscription.
-- One license covers **up to 3 computers**. The license key is the
-  account: entering it in the studio adds that computer; the studio can
-  also take one off to make room.
+- Without a subscription, each computer gets **2 free full-quality
+  videos in all** (`video`, `video-43`). There is no monthly reset.
+- Drafts, App Store screenshots and the script are always free.
+- After that it needs a subscription: **$10/month** through Stripe.
+- A license key works on **any number of computers**. Each licensed
+  export is logged with the key and the computer, so a key shared
+  widely shows up (see "Spotting a shared key"). A limit can come later.
 
 ## The pieces
 
-| Piece           | Where                                         | Job                                                                                   |
-| --------------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Stripe          | Stripe                                        | Takes payment, renews monthly, emails receipts, sends events                          |
-| License service | AWS: one Lambda + one DynamoDB table (`cdk/`) | Makes keys, tracks status and devices, counts free exports, serves the thank-you page |
-| Studio          | `server/`                                     | Stores the key, adds this computer, asks before each export                           |
-| Website         | Cloudflare Pages (later)                      | A Buy button that posts to the service                                                |
+| Piece           | Where                                          | Job                                                                                    |
+| --------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Stripe          | Stripe (SiteForward LLC)                       | Takes payment, renews monthly, emails receipts, hosts the Customer Portal              |
+| License service | AWS: one Lambda + one DynamoDB table (`cdk/`)  | Makes keys, tracks status, counts free videos, logs licensed exports, serves the pages |
+| Studio          | `server/license.mjs`, `src/components/studio/` | Shows the status, runs the checkout, asks before each full-quality video               |
+| Website         | `site/` (later)                                | A Buy button that posts to the service, and a "Manage subscription" link               |
 
-For now everything runs on the Lambda's generated Function URL
-(`https://<id>.lambda-url.us-east-1.on.aws/`). No custom domain and no
-website is needed to sell a license: a Buy button anywhere — the
-website, a link from the studio — is a form that posts to `/checkout`.
+Everything runs on the Lambda's generated Function URL
+(`https://<id>.lambda-url.us-east-1.on.aws/`). No custom domain or
+website is needed to sell a subscription.
 
-## The flow
+## Subscribing from the studio (the usual way)
 
 ```
-  Buy button               Stripe                  License service (AWS)
-  ──────────               ──────                  ─────────────────────
-  [Buy] ── POST /checkout ─────────────────────────► makes a Checkout session
-        ◄──────────────── 303 to Stripe ─────────────┘
-        ──► Stripe Checkout page
-            buyer pays ──────► subscription made
-                               │
-                               ├─ POST /webhook ───► checks the signature
-                               │  (signed event)     makes the license key
-                               │                     ──► DynamoDB table
-                               │                     ──► key written onto the
-                               │                         Stripe customer
-                               │
-                               └─ sends buyer to ──► GET /thanks?session_id=…
-                                                     finds (or makes) the key
-                                                     shows it, with [Copy]
-
-  Studio
-  ──────
-  user pastes key ── POST /devices/add { key, deviceId, name } ──► added (or full)
-                     key saved in settings.json
-  before an export ─ POST /export { deviceId, licenseKey } ──────► allowed?
-  once a day ─────── POST /check  { licenseKey, deviceId } ──────► valid until? devices?
-
-  Every month Stripe renews ── POST /webhook (subscription.updated) ──► new end date
-  User cancels            ── POST /webhook (subscription.deleted) ──► status canceled
+ Studio                                     Browser
+ ──────                                     ───────
+ Full quality… with no free videos left
+ ┌──────────────────────────────────┐
+ │ You've used your 2 free videos   │
+ │ [I have a key] [Not now] [Subscribe ↗]──► POST /checkout {deviceId} (JSON)
+ └──────────────────────────────────┘       ◄─ { checkoutUrl, licenseKey }
+                                             studio saves the key as pending,
+                                             opens Stripe Checkout ──► pays
+ ┌──────────────────────────────────┐                                 │
+ │ Waiting for payment…  [Stop]     │◄── studio asks /check every     ▼
+ └──────────────────────────────────┘    3 seconds              /thanks?…&from=studio
+ paid ──► ┌──────────────────────────┐                          "You're subscribed. Go
+          │ ✓ Subscription activated │                           back to Showcase Studio"
+          │ Your export has started… │                           (key shown, for another
+          │ [Done]                   │                            computer)
+          └──────────────────────────┘
 ```
 
 The key is made when checkout **starts**, not after payment:
@@ -68,18 +60,28 @@ The key is made when checkout **starts**, not after payment:
     4. start Checkout for that customer, the key in the
        subscription's metadata
   buyer pays
-    5. webhook or /thanks, whichever comes first, finds the key in the
-       subscription's metadata and turns the pending license on
+    5. the webhook or /thanks, whichever comes first, finds the key in
+       the subscription's metadata and turns the license on
 ```
 
-So the very first invoice already carries the key. An abandoned
-checkout leaves an empty customer in Stripe and a pending row that the
-table deletes after 2 days.
+So the very first invoice already carries the key, and the studio can
+hold the key before payment: until it's paid, it unlocks nothing. If
+the studio was closed when the payment landed, it picks the pending key
+up on its next check.
 
-The thank-you page and the webhook race: the buyer can land on
-`/thanks` before Stripe's webhook arrives. So `/thanks` asks Stripe
-about the checkout itself and turns the license on if the webhook
-hasn't yet. Both paths link at most one license per subscription (a
+A Buy button anywhere else (the website) is a plain form; the buyer
+gets the key on the thank-you page and types it into the studio with
+"I have a key":
+
+```html
+<form method="post" action="<CheckoutUrl output>">
+  <button>Subscribe — $10/month</button>
+</form>
+```
+
+The webhook and `/thanks` race: the buyer can land on `/thanks` before
+Stripe's webhook arrives, so `/thanks` asks Stripe about the checkout
+itself. Both paths link at most one license per subscription (a
 conditional write on `SUB#<subscription id>`).
 
 ## The endpoints
@@ -87,40 +89,28 @@ conditional write on `SUB#<subscription id>`).
 One Lambda, one Function URL, routed by path. The URL is the stack's
 `LicenseApiUrl` output.
 
-| Request                                              | Who calls it                                  | Answer                                                                                                     |
-| ---------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `POST /checkout`                                     | a Buy button (a plain `<form method="post">`) | `303` to Stripe Checkout                                                                                   |
-| `POST /webhook`                                      | Stripe                                        | `200` once handled; `400` on a bad signature                                                               |
-| `GET /thanks?session_id=cs_…`                        | Stripe sends the buyer here                   | an HTML page with the key                                                                                  |
-| `GET /cancelled`                                     | Stripe, if the buyer backs out                | an HTML page: nothing was charged                                                                          |
-| `POST /check` `{ licenseKey?, deviceId? }`           | the studio                                    | `valid`, `validUntil`, `renews`, `devices`, `thisDevice`, and `freeExports: { used, limit, left, resets }` |
-| `POST /devices/add` `{ licenseKey, deviceId, name }` | the studio, when a key is entered             | the device list; `409` when 3 are already on it                                                            |
-| `POST /devices/remove` `{ licenseKey, deviceId }`    | the studio's License panel                    | the device list                                                                                            |
-| `POST /export` `{ deviceId, licenseKey? }`           | the studio, as a counted export starts        | `{ allowed, licensed, licenseProblem?, freeExports? }`                                                     |
-
-The Buy button is just:
-
-```html
-<form method="post" action="<CheckoutUrl output>">
-  <button>Buy — $10/month</button>
-</form>
-```
-
-Stripe returns the buyer to the service's own `/thanks` and
-`/cancelled` pages. Those are fixed in code, so nobody can use
-`/checkout` to send a buyer somewhere else. When the website is ready,
-it can take those two pages over (the website's `/thanks` would call
-the service for the key).
+| Request                                          | Who calls it                               | Answer                                                                          |
+| ------------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------- |
+| `POST /checkout` (form)                          | a Buy button                               | `303` to Stripe Checkout                                                        |
+| `POST /checkout` (JSON `{ deviceId }`)           | the studio                                 | `{ checkoutUrl, licenseKey }`                                                   |
+| `POST /webhook`                                  | Stripe                                     | `200` once handled; `400` on a bad signature                                    |
+| `GET /thanks?session_id=cs_…[&from=studio]`      | Stripe sends the buyer here                | an HTML page with the key                                                       |
+| `GET /cancelled[?from=studio]`                   | Stripe, if the buyer backs out             | an HTML page: nothing was charged                                               |
+| `GET /back`                                      | the Customer Portal's return link          | "You can close this tab"                                                        |
+| `POST /check` `{ licenseKey?, deviceId? }`       | the studio                                 | `valid`, `status`, `validUntil`, `renews`, `freeExports: { used, limit, left }` |
+| `POST /export` `{ deviceId, licenseKey?, kind }` | the studio, as a full-quality video starts | `{ allowed, licensed, licenseProblem?, freeExports? }`                          |
+| `POST /portal` `{ licenseKey }`                  | the studio's Manage subscription           | `{ url }` of Stripe's Customer Portal                                           |
 
 ## The table
 
 One DynamoDB table, key `pk`:
 
-| `pk`                             | Holds                                                                                                                                           |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LICENSE#SS-XXXX-XXXX-XXXX-XXXX` | `status`, `validUntil`, `cancelAtPeriodEnd`, `subscriptionId`, `stripeCustomerId`, `lastEventAt`, `devices: { <device id>: { name, addedAt } }` |
-| `SUB#sub_…`                      | `licenseKey` — finds the license from a Stripe event                                                                                            |
-| `EXPORTS#<device id>#2026-10`    | `count`; deleted by TTL ~100 days after the month starts                                                                                        |
+| `pk`                             | Holds                                                                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `LICENSE#SS-XXXX-XXXX-XXXX-XXXX` | `status` (`pending` until paid), `validUntil`, `cancelAtPeriodEnd`, `subscriptionId`, `stripeCustomerId`, `lastEventAt`, `machineCount` |
+| `SUB#sub_…`                      | `licenseKey` — finds the license from a Stripe event                                                                                    |
+| `USE#<key>#<device id>`          | `firstSeen`, `lastSeen`, `exports`: one row per computer a key exported from                                                            |
+| `FREE#<device id>`               | `count`: the computer's free videos used, in all                                                                                        |
 
 A license is good while its status is `active`, `trialing` or
 `past_due` and the paid period hasn't ended more than 3 days ago. The 3
@@ -129,190 +119,78 @@ days cover a late renewal webhook and Stripe's card retries.
 Stripe doesn't promise to send events in order. Each license remembers
 the time of the last event it applied and ignores older ones.
 
-## How the key reaches the user — without sending email ourselves
+## How the key reaches the user — no email of our own
 
-We send no email (no SES). Two places carry the key:
+1. **The thank-you page** shows it, with a Copy button.
+2. **Stripe's emails.** The key is an invoice custom field ("License
+   key") on the customer, so every invoice carries it, and the customer
+   can be found by key in the Stripe dashboard (metadata
+   `license_key`).
+3. **The Customer Portal** lists the invoices, so a lost key can be
+   found there too.
 
-1. **The thank-you page** (`/thanks`) shows it, with a Copy button.
-   Reloading it shows the same key. It could later offer a
-   `showcase-studio://license?key=…` link once the app registers that
-   URL scheme.
-2. **Stripe's own emails.** When checkout starts, the service makes
-   the Stripe customer with the key on it as an invoice custom field
-   ("License key") and as metadata. Stripe then prints it on every
-   invoice, so each monthly receipt carries it, and support can find a
-   customer by key in the Stripe dashboard. _Check in test mode that
-   the field shows in the receipt email itself and not only in the
-   invoice PDF._
+## Managing the subscription
 
-A subscription made some other way (in the Stripe dashboard, say) gets
-a new key when its webhook arrives, written onto the customer then, so
-only its later invoices carry it.
+Stripe's Customer Portal: change the card, see invoices, cancel. The
+studio's **Manage subscription** (under the gear) calls `/portal` with
+the saved key — the key proves who's asking, so there's no login. What
+the portal offers is set in Stripe under Settings → Billing → Customer
+portal. Cancelling there sends the same webhook events, and the license
+ends with the paid period.
 
-## Devices
+## Spotting a shared key
 
-The license key is the account: whoever has it can add and remove
-computers. There is no login, so there is no password reset and no
-email to send.
+Every licensed export writes `USE#<key>#<device>` and, the first time a
+computer shows up, adds one to the license's `machineCount`. It also
+logs one line to CloudWatch:
 
 ```
-  License panel (studio)
-  ┌───────────────────────────────────────────────┐
-  │  License  SS-7K2M-…     active, renews Nov 15  │
-  │                                                │
-  │  Computers (2 of 3)                            │
-  │   • Kevin's MacBook Pro   (this computer)      │
-  │   • Studio iMac           [Remove]             │
-  └───────────────────────────────────────────────┘
+{"audit":"export","licenseKey":"SS-…","deviceId":"…","kind":"video","devices":2}
 ```
 
-- **Entering a key** calls `/devices/add` with this computer's ID and
-  its name (`os.hostname()`). If 3 are already on the license, the
-  studio shows the list and lets the user remove one.
-- **An export** is licensed only from a computer on the license. From
-  any other, `/export` answers `licenseProblem: "device-not-added"` and
-  counts it as a free export, so the studio can say "This computer
-  isn't on your license — add it".
-- **Sharing a key:** someone could add a friend's computer and remove
-  it later. That's fine for now; if it becomes a problem, limit how many
-  removals a license gets per month.
+To list keys used on more than 3 computers:
+
+```bash
+aws dynamodb scan --profile siteforward --region us-east-1 --table-name <the Licenses table> --filter-expression "machineCount > :n" --expression-attribute-values '{":n":{"N":"3"}}' --projection-expression "licenseKey, machineCount"
+```
 
 ## The studio
 
-### Storing the key
+| Where                       | What                                                                                                                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/license.mjs`        | the computer's ID, the key in `settings.json`, the check before a full-quality video, the offline rule, the checkout and its waiting                                                            |
+| `server/studio-server.mjs`  | asks it before every export (`recordedExport`), so the Export button, the Share page, `--export` and Claude's `export` tool all meet the same rule; page actions `license-*`; a `license` event |
+| `LicensePill`               | the tab bar pill while there's something to do: **Trial · 2 videos left**, **Waiting for payment…**, **Payment issue** (amber). A subscription in good standing has no pill                     |
+| `StudioSettings` (the gear) | the Subscription section: **Subscribed · Active**, "Renews Nov 20", Manage subscription ↗                                                                                                       |
+| `SubscribeDialog`           | opened by Full quality… (Showcase page) and Export (Share page) when no free videos are left                                                                                                    |
 
-In `settings.json` through `server/settings.mjs`, beside the other
-settings:
+Saved in `settings.json`:
 
 ```json
 "license": {
   "key": "SS-XXXX-XXXX-XXXX-XXXX",
-  "lastCheck": {
-    "valid": true,
-    "thisDevice": true,
-    "validUntil": "2026-11-15T12:00:00.000Z",
-    "checkedAt": "2026-10-15T12:00:00.000Z"
-  }
+  "pendingKey": "SS-…",
+  "lastCheck": { "valid": true, "status": "active", "validUntil": "…", "renews": true, "checkedAt": "…" },
+  "free": { "used": 2, "limit": 2, "left": 0 },
+  "offlineUsed": 0
 }
 ```
 
-The user pastes the key into a License panel (under the gear button,
-beside "Commit changes to git"). The studio adds this computer with
-`/devices/add` and saves the key only if that works.
+**The computer's ID** is not a number saved in settings (deleting the
+file would reset it). It's the machine's own ID, hashed so the service
+never sees the real one: macOS `IOPlatformUUID`, Windows `MachineGuid`,
+Linux `/etc/machine-id`, then `base64url(sha256("showcase-studio:" + id))`.
 
-### Offline
+**Offline:** a good license works for **7 days** after its last check.
+Without one, the free videos left as last known can still be used, and
+are counted locally until the service is back.
 
-The studio checks the license at most once a day, and on start. If the
-service can't be reached, it trusts the last good check (`valid` and
-`thisDevice`) for **7 days** after `checkedAt`. After that, counted
-exports need a connection.
+**When a free video is used:** as the export starts, in one atomic step
+on the server. A cancelled or failed export still uses one.
 
-```
-  counted export starts
-       │
-       ├─ online ──► POST /export ──► allowed? ──► run / refuse
-       │
-       └─ offline ─► lastCheck good and checkedAt < 7 days ago? ──► run
-                     else free exports left on this computer (local count)? ──► run
-                     else ──► refuse: "Connect to the internet to export"
-```
-
-### Where free exports are counted
-
-**On the server, by device ID.**
-
-|               | Count on the computer only | Count on the server by device ID            |
-| ------------- | -------------------------- | ------------------------------------------- |
-| Reset by      | deleting `settings.json`   | changing the computer's hardware ID         |
-| Works offline | yes                        | no — needs a local fallback                 |
-| Server work   | none                       | one small table item per computer per month |
-
-A count kept only on the computer resets when someone deletes one
-file, and people find that quickly. A server count keyed by the
-hardware ID survives a reinstall and a new settings file. The service
-is needed anyway for the license, and the same device ID is what puts a
-computer on a license.
-
-The device ID is not a random number saved in settings (that resets
-just like a local count). It is the machine's own ID, hashed so the
-server never sees the real one:
-
-- macOS: `IOPlatformUUID` (from `ioreg -rd1 -c IOPlatformExpertDevice`)
-- Windows: `MachineGuid` (registry, `HKLM\SOFTWARE\Microsoft\Cryptography`)
-- `deviceId = base64url(sha256("showcase-studio:" + id))`
-
-Offline, the studio falls back to its own count in `settings.json`,
-with the same rule (2 a month). The free tier is a nudge, not a lock;
-the goal is that getting around it is more trouble than $10.
-
-The count goes up when the export **starts**, in one atomic step on the
-server. So a cancelled or failed export still uses one. Counting when
-it finishes instead is a small change if that turns out to annoy
-people.
-
-### Which exports count
-
-Everything but drafts:
-
-| Kind (`EXPORT_KINDS`)           | Counts?                                      |
-| ------------------------------- | -------------------------------------------- |
-| `video`, `video-43`             | yes                                          |
-| `screens`                       | yes                                          |
-| `script`                        | yes (it's an export too; easy to free later) |
-| `video-draft`, `video-43-draft` | no                                           |
-
-### Where the check goes (not wired yet)
-
-Every export — the Export button, `--export`, and the `export` MCP
-tool — goes through one place: `recordedExport` in
-`server/studio-server.mjs` (run by `exportJobs.start` and `exportNow`).
-The check belongs at its top, so every caller gets it and none can skip
-it:
-
-```js
-// server/studio-server.mjs — sketch
-const COUNTED_KINDS = EXPORT_KINDS.filter((kind) => !kind.endsWith("-draft"));
-
-async function recordedExport(kind, showcaseId, { onProgress, signal } = {}) {
-  if (COUNTED_KINDS.includes(kind)) {
-    const verdict = await license.beforeExport(); // server/license.mjs
-    if (!verdict.allowed) throw new LicenseRequired(verdict);
-  }
-  …
-}
-```
-
-`server/license.mjs` (new) would hold the device ID, the settings read
-and write, the calls to `/export`, `/check` and `/devices/*`, and the
-offline rule above. It takes the service URL the same way the prompter
-does (a default in code, a `licenseUrl` setting to point one machine at
-Dev).
-
-A refusal makes the job fail with a clear message. That message
-reaches each caller the way errors already do:
-
-- **The Export button**: the job's `error`, shown in the export panel,
-  plus a "Buy a license" button and a field to paste a key.
-- **The `export` MCP tool**: `export_status` reports the job failed,
-  with the same message, so Claude can tell the user. The tool's
-  description should say drafts are always free.
-
-What the user sees at the limit:
-
-```
-  ┌───────────────────────────────────────────────────────┐
-  │  You've used your 2 free exports for October.          │
-  │  Drafts are always free.                               │
-  │                                                        │
-  │  More start on November 1, or get unlimited exports    │
-  │  with a license — $10/month, up to 3 computers.        │
-  │                                                        │
-  │  [ Buy a license ]   [ I have a key: ____________ ]    │
-  └───────────────────────────────────────────────────────┘
-```
-
-Before the limit, the export panel can say "1 free export left this
-month", from `/check`'s `freeExports`.
+**Which service:** `LICENSE_URL` in `server/license.mjs` — dev for now.
+`licenseUrl` in `settings.json` or `LICENSE_URL` in the environment
+points one machine elsewhere.
 
 ## Setting it up
 
@@ -369,7 +247,9 @@ the stack is deleted.
 
 ## Still open
 
+- Prod: a live price and webhook, `ShowcaseLicenseStack-Prod`, and
+  `LICENSE_URL` pointed at it.
 - Whether Stripe's receipt email shows the invoice custom field, or
-  only the invoice PDF does (check in test mode).
-- 3 computers per license is a starting number (`MAX_DEVICES` in
-  `license-core.mjs`).
+  only the invoice PDF does.
+- A `showcase-studio://` link from the thank-you page back into the app.
+- Removing the empty Stripe customers that abandoned checkouts leave.
