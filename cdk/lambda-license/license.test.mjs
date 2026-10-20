@@ -325,6 +325,28 @@ describe("webhook", () => {
     expect(licenseStatus(store.licenses.get(licenseKey), later + DAY).valid).toBe(false);
   });
 
+  it("treats the portal's cancel (cancel_at, a date) as not renewing, ending then", async () => {
+    const store = memoryStore();
+    const ctx = { secret: SECRET, store, stripe, now: NOW };
+    const [b1, s1] = signed({
+      type: "customer.subscription.created",
+      data: { object: subscription() },
+    });
+    const [, { licenseKey }] = await webhook(b1, s1, ctx);
+    const cancelAt = (NOW + 20 * DAY) / 1000; // before the period's end, NOW + 30 days
+    const [b2, s2] = signed(
+      {
+        type: "customer.subscription.updated",
+        data: { object: subscription({ cancel_at: cancelAt, cancel_at_period_end: false }) },
+      },
+      { at: NOW + 1000 },
+    );
+    await webhook(b2, s2, ctx);
+    const license = store.licenses.get(licenseKey);
+    expect(licenseStatus(license, NOW)).toMatchObject({ valid: true, renews: false });
+    expect(license.validUntil).toBe(cancelAt * 1000);
+  });
+
   it("ignores an event older than the last one applied", async () => {
     const store = memoryStore();
     const ctx = { secret: SECRET, store, stripe, now: NOW };

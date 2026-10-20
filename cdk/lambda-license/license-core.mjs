@@ -72,12 +72,23 @@ export function periodEnd(subscription) {
   return typeof seconds === "number" ? seconds * 1000 : null;
 }
 
+/** A cancel set for later: Stripe's Customer Portal sets cancel_at (a
+ *  date) rather than cancel_at_period_end, so both count. The license
+ *  ends at whichever comes first, the paid period's end or that date. */
 const licenseFields = (subscription) => ({
   status: String(subscription.status),
-  validUntil: periodEnd(subscription),
-  cancelAtPeriodEnd: subscription.cancel_at_period_end === true,
+  validUntil: endsAt(subscription),
+  cancelAtPeriodEnd: subscription.cancel_at_period_end === true || cancelAt(subscription) != null,
   stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : null,
 });
+
+const cancelAt = (subscription) =>
+  typeof subscription?.cancel_at === "number" ? subscription.cancel_at * 1000 : null;
+
+const endsAt = (subscription) => {
+  const ends = [periodEnd(subscription), cancelAt(subscription)].filter((t) => t != null);
+  return ends.length ? Math.min(...ends) : null;
+};
 
 /** What the studio is told about a license. */
 export function licenseStatus(license, now) {
