@@ -226,3 +226,14 @@ describe("status", () => {
     expect(license.status().state).toBe("payment");
   });
 });
+
+describe("the saved key", () => {
+  it("is handed over on its own, and never in the status", async () => {
+    const { license, service } = setup();
+    expect(license.savedKey()).toBeNull();
+    service.pay();
+    await license.enterKey(KEY);
+    expect(license.savedKey()).toBe(KEY);
+    expect(JSON.stringify(license.status())).not.toContain(KEY);
+  });
+});

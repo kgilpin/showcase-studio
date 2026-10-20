@@ -376,6 +376,12 @@ export function createLicense({
     }
   }
 
+  /** The saved key itself, for the Subscription section to show and copy
+   *  (to use the studio on another computer). Asked for on its own, so
+   *  status() — which goes to every page and to Claude's studio_info —
+   *  never carries it. */
+  const savedKey = () => saved().key ?? null;
+
   /** Takes the key off this computer (it stays good elsewhere). */
   function removeKey() {
     stopWaiting();
@@ -392,6 +398,7 @@ export function createLicense({
     cancelCheckout,
     enterKey,
     openPortal,
+    savedKey,
     removeKey,
     close: stopWaiting,
   };

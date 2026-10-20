@@ -1028,6 +1028,7 @@ scenes:
     "license-key": ({ key } = {}) => license.enterKey(key),
     "license-portal": () => license.openPortal(),
     "license-remove": () => license.removeKey(),
+    "license-key-get": () => ({ ok: true, key: license.savedKey() }),
     "export-reveal": revealExport,
     "share-status": shareAction(({ showcaseId }) => ({
       status: share.status(String(showcaseId ?? "")),

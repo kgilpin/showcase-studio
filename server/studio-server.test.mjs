@@ -1415,6 +1415,12 @@ describe("licensing", () => {
     });
   });
 
+  it("gives the page the saved key only when it asks for it", async () => {
+    const withKey = { ...allowAll, savedKey: () => "SS-AAAA-BBBB-CCCC-DDDD" };
+    const { post } = await startStudio({ licensing: () => withKey });
+    expect(await post("license-key-get", {})).toEqual({ ok: true, key: "SS-AAAA-BBBB-CCCC-DDDD" });
+  });
+
   it("hands the license client what it needs to tell pages about changes", async () => {
     let given;
     await startStudio({ licensing: (deps) => ((given = deps), allowAll) });

@@ -11,7 +11,9 @@
  * A subscription in good standing needs no space in the tab bar: then
  * the pill is gone, and the same panel (LicensePanel) is the
  * Subscription section of the gear button's settings (StudioSettings):
- * "Active · Renews Nov 20 · Manage subscription ↗".
+ * "Active · Renews Nov 20 · Manage subscription ↗", and the license key
+ * (KeyLine), partly hidden, with Copy — for using the studio on another
+ * computer.
  *
  * ↗ marks what opens Stripe in the browser. Only full-quality videos
  * count; drafts, screenshots and the script are always free. The state
@@ -72,6 +74,44 @@ export function KeyForm({ onDone }: { onDone?: () => void }) {
   );
 }
 
+/** SS-6YZ8-••••-••••-0K39: enough to recognize, not to read off a screen. */
+const masked = (key: string) => key.replace(/^(SS-\w{4})-\w{4}-\w{4}-/, "$1-••••-••••-");
+
+/** The saved key, for using Showcase Studio on another computer: asked
+ *  for when shown (the status never carries it), hidden in part until
+ *  Show, and copied whole. */
+function KeyLine() {
+  const [key, setKey] = useState<string | null>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    void studio()!.license.key().then(setKey);
+  }, []);
+  if (!key) return null;
+  const copy = async () => {
+    if (await studio()!.share.copy(key)) toast.success("License key copied");
+    else toast.error("Couldn't copy", { description: "Select the key and copy it yourself." });
+  };
+  return (
+    <div className="space-y-1.5 border-t border-border pt-3">
+      <p className="text-xs text-muted-foreground">License key</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 select-all whitespace-nowrap rounded bg-secondary px-2 py-1 font-mono text-[11px]">
+          {shown ? key : masked(key)}
+        </code>
+        <Button size="sm" variant="ghost" onClick={() => setShown(!shown)}>
+          {shown ? "Hide" : "Show"}
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => void copy()}>
+          Copy
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        To use Showcase Studio on another computer, enter this key there.
+      </p>
+    </div>
+  );
+}
+
 /** Opens Stripe's Customer Portal. */
 async function manage() {
   const result = await studio()!.license.portal();
@@ -123,6 +163,7 @@ export function LicensePanel({ license, close }: { license: StudioLicense; close
           {payment ? "Update card" : "Manage subscription"} {opensStripe}
         </Button>
         <p className="text-xs text-muted-foreground">Opens Stripe in your browser.</p>
+        <KeyLine />
       </div>
     );
   }

@@ -73,6 +73,8 @@ export type StudioLicensing = {
   enterKey(key: string): Promise<Done>;
   /** Opens Stripe's Customer Portal in the browser. */
   portal(): Promise<Done>;
+  /** The license key saved on this computer, or null. */
+  key(): Promise<string | null>;
 };
 
 /** What a finished media build reports (server/build-media.mjs). */
@@ -554,6 +556,7 @@ function createLicensing(): StudioLicensing {
     cancelCheckout: () => post("license-checkout-cancel"),
     enterKey: (key) => post("license-key", { key }),
     portal: () => post("license-portal"),
+    key: async () => (await post<Done & { key?: string | null }>("license-key-get")).key ?? null,
   };
 }
 
