@@ -48,11 +48,10 @@ Claude, and you can also edit in the studio yourself.
 
 **The first time,** the plugin also needs the Showcase Studio app. If it
 isn't installed, Claude runs the plugin's installer (`bin/install-app`).
-It downloads the app from this repo's GitHub releases, checks its
-SHA-256 hash, and puts it in `~/Applications`. It needs:
-
-- a Mac with Apple Silicon
-- the GitHub CLI (`gh`), logged in with access to this repository
+It downloads the app from https://showcasestudio.dev/download/, checks
+its SHA-256 hash, and puts it in `~/Applications` (on Windows,
+`%LOCALAPPDATA%\Programs`). It needs a Mac with Apple Silicon, or Windows
+on x64.
 
 After the install, run `/mcp` and reconnect `showcase-studio` (or start a
 new session) so the tools appear.
@@ -218,3 +217,10 @@ installed before you cut one.
 Every mode runs the same studio server — the dev server mounts it, and so
 does the packaged app — so the page never knows which one it's talking
 to.
+
+## License
+
+Showcase Studio is source-available, not open source. The code and the app
+builds are licensed under the [Elastic License 2.0](LICENSE), copyright
+SiteForward, LLC. You may use, change and share them, but you may not get
+around the app's license checks or offer it as a hosted service.

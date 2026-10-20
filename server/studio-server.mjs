@@ -47,6 +47,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { buildMedia } from "./build-media.mjs";
+import { buildVoiceover, hasVoiceover } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
@@ -505,17 +506,30 @@ add notes specific to this library below, and the studio won't touch them.
    * durationMs, all derived from the spans in showcase.yaml. Its own job
    * lane, so a build and an export don't block each other, reported to
    * pages as the "build" event. */
+  /* A showcase voiced by Polly (meta.voiceover, server/voiceover.mjs)
+   * builds in the same lane: "voiceover" asks for it by name, and a plain
+   * "build" of such a showcase — the Build media button — picks it. */
   const buildJobs = createExportJobs(
-    (_kind, showcaseId, { onProgress, signal, force, only }) =>
-      buildMedia({
-        showcasesDir,
-        showcaseId,
-        force,
-        only,
-        onProgress,
-        signal,
-        beforeWrite: recordSelfWrite,
-      }).then((result) => {
+    (kind, showcaseId, { onProgress, signal, force, only }) =>
+      (kind === "voiceover" || hasVoiceover(showcasesDir, showcaseId)
+        ? buildVoiceover({
+            showcasesDir,
+            showcaseId,
+            force,
+            onProgress,
+            signal,
+            beforeWrite: recordSelfWrite,
+          })
+        : buildMedia({
+            showcasesDir,
+            showcaseId,
+            force,
+            only,
+            onProgress,
+            signal,
+            beforeWrite: recordSelfWrite,
+          })
+      ).then((result) => {
         if (!result.ok) throw new Error(result.error);
         logUi(showcaseId, "build", {
           built: result.built,
@@ -1044,6 +1058,16 @@ scenes:
             force: force === true,
             only: Array.isArray(only) ? only.map(String) : undefined,
           }),
+        };
+      } catch (error) {
+        return { ok: false, error: String(error?.message ?? error) };
+      }
+    },
+    voiceover: ({ showcaseId, force }) => {
+      try {
+        return {
+          ok: true,
+          job: buildJobs.start("voiceover", String(showcaseId ?? ""), { force: force === true }),
         };
       } catch (error) {
         return { ok: false, error: String(error?.message ?? error) };

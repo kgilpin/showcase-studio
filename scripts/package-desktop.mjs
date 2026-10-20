@@ -53,6 +53,7 @@ writeFileSync(
       version: rootPkg.version,
       description: "Showcase Studio — video-style product tours as a desktop studio",
       private: true,
+      license: rootPkg.license,
       type: "module",
       main: "electron/main.mjs",
       dependencies: Object.fromEntries(RUNTIME_DEPS.map((dep) => [dep, versionOf(dep)])),
@@ -109,6 +110,8 @@ for (const shared of [
   cpSync(path.join(repoRoot, "src", shared), path.join(stage, "src", shared));
 }
 cpSync(path.join(repoRoot, ".output"), path.join(stage, ".output"), { recursive: true });
+/* The license covers the app's builds too, so each copy carries it. */
+cpSync(path.join(repoRoot, "LICENSE"), path.join(stage, "LICENSE"));
 
 /* On Windows npm is npm.cmd, which Node only starts through a shell. */
 execFileSync("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], {

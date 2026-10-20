@@ -13,6 +13,7 @@
 import { execFile } from "node:child_process";
 import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
+import { gitProgram } from "./git-program.mjs";
 
 const SHOWN = 10; // file names listed per kind; the counts cover the rest
 
@@ -46,7 +47,7 @@ const OWN = /(^|\/)(\.studio|\.claude)(\/|$)|(^|\/)\.DS_Store$/;
  *    uncommitted  { count, files } — tracked files with uncommitted changes
  *  Both count only files inside a showcase's folder. Paths in `files` are
  *  relative to the library. */
-export async function libraryInGit(library, { gitPath = "git" } = {}) {
+export async function libraryInGit(library, { gitPath = gitProgram() } = {}) {
   const top = await git(["rev-parse", "--show-toplevel"], library, gitPath);
   if (!top.ok) return null;
   const root = top.stdout.trim();

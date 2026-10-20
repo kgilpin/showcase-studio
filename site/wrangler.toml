@@ -1,0 +1,57 @@
+# The Showcase Studio marketing site: a Cloudflare Worker that serves the
+# static files in public/, uploaded as is; public/_headers sets the response
+# headers. worker.js runs only for /media/*, to answer byte-range requests,
+# which Safari needs to play the hero video, and for /download/*, the app's
+# releases from the R2 bucket below (scripts/publish-release.mjs uploads
+# them).
+#   npm run dev:wrangler   serve public/ locally the way Cloudflare does (:8098)
+#   npm run deploy         upload public/ and serve it at showcasestudio.dev
+#   npm run deploy:preview upload a version without serving it, for a preview URL
+# No account_id: wrangler deploys to the account it is logged in to, so the
+# same config works after the domain moves accounts.
+name = "showcase-studio"
+compatibility_date = "2026-10-16"
+main = "worker.js"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/media/*", "/download/*"]
+
+[[routes]]
+pattern = "showcasestudio.dev"
+custom_domain = true
+
+# The app's releases. The bucket must be in the account wrangler deploys
+# to: create it once with
+#   npx wrangler r2 bucket create showcase-studio-releases
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "showcase-studio-releases"
+
+# Until the domain moves to SiteForward (around 2026-10-26): the bucket is in
+# SiteForward and the domain in goo.global, and a Worker can only read a
+# bucket in its own account. So the bucket's Worker runs in SiteForward on
+# workers.dev, and the site's Worker relays /download/* to it. npm run
+# deploy runs both deploys:
+#   wrangler deploy --env goo --profile goo   the live site, in goo.global
+#   wrangler deploy --env downloads           the downloads Worker, in
+#                                             SiteForward (the default sign-in)
+# After the move, switch back:
+#   1. package.json: "deploy": "wrangler deploy" and
+#      "deploy:preview": "wrangler versions upload"
+#   2. delete both sections below, and the DOWNLOADS_ORIGIN relay in worker.js
+#   3. npm run deploy, signed in as SiteForward: the site's Worker (already
+#      in SiteForward, unused until then) gets the bucket and the domain
+#   4. delete the showcase-studio Worker in goo.global and the
+#      showcase-studio-downloads Worker in SiteForward
+[env.downloads]
+name = "showcase-studio-downloads"
+workers_dev = true
+routes = []
+r2_buckets = [{ binding = "RELEASES", bucket_name = "showcase-studio-releases" }]
+
+[env.goo]
+name = "showcase-studio"
+routes = [{ pattern = "showcasestudio.dev", custom_domain = true }]
+vars = { DOWNLOADS_ORIGIN = "https://showcase-studio-downloads.siteforward.workers.dev" }

@@ -1,6 +1,6 @@
 ---
 name: studio-release
-description: Release Showcase Studio from main — bump the version, build the signed and notarized Mac app, tag, let CI build Windows, publish the GitHub release with all four assets, and verify the install as a user. Use when the user asks to release, ship, or publish a new version of the app.
+description: Release Showcase Studio from main — bump the version, build the signed and notarized Mac app, tag, let CI build Windows, publish the four assets to showcasestudio.dev/download (and the GitHub release, kept as the record), and verify the install as a user. Use when the user asks to release, ship, or publish a new version of the app.
 argument-hint: "[version, e.g. 0.5.0 — default: chosen from what ships, by semantic versioning]"
 ---
 
@@ -18,7 +18,9 @@ preflight + behavior review ─► version commit ─► Mac build (signed + not
                                                                                          │
                               CI builds Windows from the tag ◄───────────────────────────┘
                                           │
-      GitHub release: Mac zip + SHA256SUMS now, Windows zip + SHA256SUMS-win-x64 when CI is done
+      Mac zip + SHA256SUMS now, Windows zip + SHA256SUMS-win-x64 when CI is done, each to:
+        showcasestudio.dev/download  (R2 bucket — what users and the installer download)
+        GitHub release               (the private record of each build)
                                           │
                        install through the plugin's installer, check it, report
 ```
@@ -32,6 +34,8 @@ git status --short            # nothing modified or staged (untracked leftovers 
 git rev-parse --abbrev-ref HEAD   # main
 git fetch origin && git rev-list --left-right --count origin/main...main   # 0 0
 gh auth status                # logged in
+(cd site && npm ci && npx wrangler whoami)   # signed in to the SiteForward account,
+                                             # which serves showcasestudio.dev
 security find-identity -v -p codesigning | grep "Developer ID Application"   # one line
 xcrun notarytool history --keychain-profile showcase-studio | head -3         # no error
 ls electron/node_modules/electron >/dev/null                                 # npm run setup:desktop was run
@@ -157,7 +161,21 @@ Note its run id: `gh run list -L 3 --json databaseId,event,headBranch` — the
 
 ## 5. Publish the release, Mac first
 
-Right after the push, so plugin updates find it:
+Right after the push, so plugin updates find it. First the site, which
+is what users and the plugin's installer download from:
+
+```sh
+npm --prefix site run publish-release -- mac X.Y.Z dist-electron/dist
+```
+
+It checks the zip against `SHA256SUMS`, uploads both to the R2 bucket
+`showcase-studio-releases` under `vX.Y.Z/`, and then points
+`/download/latest/mac` at them. Done means
+`curl -sI https://showcasestudio.dev/download/latest/mac` redirects to
+`/download/vX.Y.Z/Showcase-Studio-X.Y.Z-mac-arm64.zip`, and a `curl -sI`
+of that says `200` with the zip's size.
+
+Then the GitHub release, the record of what was built from which tag:
 
 ```sh
 gh release create vX.Y.Z dist-electron/dist/Showcase-Studio-X.Y.Z-mac-arm64.zip dist-electron/dist/SHA256SUMS \
@@ -174,8 +192,13 @@ finishes.
 ```sh
 gh run watch <run id> --exit-status --interval 20
 gh run download <run id> -n showcase-studio-win-x64 -D <folder>
+npm --prefix site run publish-release -- win X.Y.Z <folder>
 gh release upload vX.Y.Z <folder>/Showcase-Studio-X.Y.Z-win-x64.zip <folder>/SHA256SUMS-win-x64
 ```
+
+Until this step, `/download/latest/win` still points at the last
+release's Windows build, which is what a Windows user should get
+meanwhile.
 
 If the `Tests` step fails on Windows with
 `EBUSY: resource busy or locked, rmdir ...Temp\studio-...`, a test's temp
@@ -185,8 +208,9 @@ the delete for six seconds, so this should be rare: `gh run rerun <run id> --fai
 once, and if it repeats, treat it as real. Any other failure is real —
 read `gh run view <run id> --log-failed` and stop.
 
-Done means `gh release view vX.Y.Z --json assets` lists four assets:
-the Mac zip, `SHA256SUMS`, the Windows zip and `SHA256SUMS-win-x64`.
+Done means `/download/latest/win` redirects to the X.Y.Z Windows zip,
+and `gh release view vX.Y.Z --json assets` lists four assets: the Mac
+zip, `SHA256SUMS`, the Windows zip and `SHA256SUMS-win-x64`.
 
 ## 7. Verify as a user
 
@@ -196,7 +220,8 @@ Install the release the way the plugin does, onto this Mac:
 sh plugins/showcase-studio/bin/install-app
 ```
 
-It must download `vX.Y.Z`, pass the checksum, and install to
+It must download `vX.Y.Z` from showcasestudio.dev, pass the checksum,
+and install to
 `~/Applications/Showcase Studio.app`. Then:
 
 ```sh
@@ -211,7 +236,8 @@ newer shells don't.
 
 ## 8. Report
 
-Tell the user: the version, the release URL, the four assets, the
+Tell the user: the version, the download links and the GitHub release
+URL, the four assets, the
 signing identity and notarization result, the Windows run's result, and
 the install check. If a step was skipped or is still pending (the
 Windows upload, say), say so plainly.

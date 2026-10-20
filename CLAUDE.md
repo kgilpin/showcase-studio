@@ -78,15 +78,77 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # server/studio-server.mjs); prompterPublishUrl in the studio settings
 # points one machine at Dev.
 
-# The license service (cdk/, its own CDK app: bin/license.ts), not yet
-# deployed or called by the studio — docs/licensing.md has the design and
-# the one-time Stripe and SSM setup. Same -c environment=dev|prod
+# The license service (cdk/, its own CDK app: bin/license.ts), in the
+# siteforward AWS account with SiteForward LLC's Stripe. Dev is deployed
+# (Stripe test mode); prod isn't yet. docs/licensing.md has the design
+# and the one-time Stripe and SSM setup. Same -c environment=dev|prod
 # convention (→ ShowcaseLicenseStack-Dev / -Prod). It runs on its
 # generated Function URL, thank-you page included, so it needs no
 # website. Stripe keys live in SSM, never in the repo.
 #   cd cdk && npm run synth:license
 #   AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
 # Its rules are tested with the rest: npm test (cdk/lambda-license/).
+
+# The marketing site (site/), live at https://showcasestudio.dev: static
+# files served by a Cloudflare Worker, its own npm package, nothing shared
+# with the studio's build or the AWS stack.
+#   cd site && npm i
+#   npm run dev            serve site/public on http://localhost:8098
+#                          (a small Node server, no dependencies)
+#   npm run dev:wrangler   the same, the way Cloudflare serves it, with
+#                          /download/* from wrangler's local R2 bucket
+#   npm run publish-release -- <mac|win> <version> <folder> [--local]
+#                          put a release's zip and checksum file in the R2
+#                          bucket showcase-studio-releases and point
+#                          /download/latest/<mac|win> at it (--local: the
+#                          bucket dev:wrangler serves). The studio-release
+#                          skill runs it.
+#   npm run media          make site/public/media from the repo: the hero
+#                          video from the showcase-studio export, the two
+#                          NOVA example frames from the nova export, and
+#                          the teleprompter picture. Export first, at
+#                          the root: npm run dev -- --export
+#                          video:showcase-studio, and --export
+#                          video-draft:nova. Commit the results.
+#   npm run capture:prompter
+#                          capture the NOVA teleprompter picture into
+#                          site/media-src/ from a studio on :8123 (start
+#                          one at the root: PORT=8123 npm run dev --
+#                          --no-terminal --no-auto-commit --alongside)
+# Deploy (the Worker "showcase-studio", from site/wrangler.toml):
+#   npx wrangler login     once, in a browser, as the account that holds
+#                          the showcasestudio.dev zone (npx wrangler whoami
+#                          says which account you are in)
+#   npm run deploy         upload site/public, serve it at showcasestudio.dev
+#                          (until the move: both deploys below)
+#   npm run deploy:preview upload a version without serving it
+# wrangler.toml names no account, so a deploy goes to whichever account
+# wrangler is logged in to. The domain is in the goo.global account and
+# moves to the SiteForward account around 2026-10-26. Until then:
+#
+#   showcasestudio.dev ── /download/* ──► showcase-studio-downloads ──► R2 bucket
+#   (goo.global Worker,                   (SiteForward Worker on       showcase-studio-
+#    no bucket)                            workers.dev)                releases
+#
+# A Worker can only read a bucket in its own account, so the site's Worker
+# relays downloads to the same worker.js deployed beside the bucket.
+# wrangler login is SiteForward; goo.global is the wrangler auth profile
+# "goo" (npx wrangler auth create goo). npm run deploy runs both deploys:
+#   wrangler deploy --env goo --profile goo      the site, in goo.global
+#   wrangler deploy --env downloads              the downloads Worker, in
+#                                                SiteForward
+# Releases upload to the SiteForward bucket only (publish-release, as is).
+# After the move, switch back with the four steps at the end of
+# site/wrangler.toml: the plain deploy scripts in site/package.json, no
+# env sections or relay, npm run deploy as SiteForward, then delete the
+# two Workers that are no longer used.
+# wrangler remembers the account in
+# site/node_modules/.cache/wrangler/wrangler-account.json: after logging
+# in as another account, delete that file, or wrangler keeps sending
+# requests to the old account ("Authentication error [code: 10000]").
+# wrangler refuses to run below a folder holding a stale
+# .wrangler/deploy/config.json (an old studio build can leave one at the
+# repo root, pointing at .output/server/wrangler.json): delete that folder.
 
 npm run export:script              # print every showcase's narration script
 npm run export:script -- <id>      # (or one) as plain text to stdout — the
@@ -119,7 +181,9 @@ npm run release:desktop            # the same, as the release: a signed,
                                    # "accepted" / "Notarized Developer ID".
                                    # The whole release — version bump, this
                                    # build, tag, the Windows CI build, the
-                                   # GitHub release, the install check — is
+                                   # upload to showcasestudio.dev/download,
+                                   # the GitHub release (kept as the
+                                   # record), the install check — is
                                    # the /studio-release skill
                                    # (.claude/skills/studio-release).
 npm run build:icon                 # render the app icon: build/icon.svg (the
@@ -212,12 +276,14 @@ npm run dev -- --new [<library folder>]
 # The preview shows the studio the MCP tools started: Claude opens
 # studio_start's URL. To show the user one showcase, call studio_start
 # with showcase: <id>, which locks the studio to it (no Home link); leave
-# it out only for the whole library. There is no .claude/launch.json, in
-# libraries or in this repo. A preview-button studio would be a second
-# studio on the same library: the tools wouldn't use it, and its commits
-# would sweep up the session's work in progress. (The studio removes the ones earlier
-# versions wrote into libraries.) For UI work, studio_start's studio is
-# already the npm run dev studio from source, with hot reload.
+# it out only for the whole library. Libraries have no
+# .claude/launch.json, and this repo's lists only the marketing site
+# ("site", on :8098) — never a studio (dev or dev:electron). A
+# preview-button studio would be a second studio on the same library: the
+# tools wouldn't use it, and its commits would sweep up the session's work
+# in progress. (The studio removes the ones earlier versions wrote into
+# libraries.) For UI work, studio_start's studio is already the npm run
+# dev studio from source, with hot reload.
 # From source, the studio runs as a child process of the MCP server
 # (server/child-studio.mjs runs scripts/dev.mjs), so each studio_start
 # runs the code as it is then: after changing server code, studio_stop
@@ -317,7 +383,7 @@ npm run dev -- --new [<library folder>]
     `showcase-history.mjs`, `screenshot_slide`, `validate`, `transcribe`
     (with `save`, which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
-    `build-media.mjs`, `export`/`export_status`/`export_cancel`,
+    `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`,
     `share_status`/`share`/`share_record` through `share.mjs`.
   - `export-records.mjs`: a record of each video export, full quality and
     draft, with how long it took to render (the next export's time
@@ -356,6 +422,21 @@ npm run dev -- --new [<library folder>]
     — so nothing is copied across by hand and the picture cannot drift from
     the voice; idempotent through a fingerprint of each output's inputs in
     `<library>/.studio/build/<showcase>.json`.
+  - `voiceover.mjs`: a synthesized voiceover, for a showcase with no
+    recording: `meta.voiceover` names the AWS Polly voice and engine (and,
+    optionally, the AWS profile and region), and the build reads each
+    caption aloud through the `aws` command, so the user's own sign-in
+    works. Each caption gets a window — 250 ms lead, the clip rounded up
+    to the millisecond, 450 ms tail, the last one 1.5 s more — joined
+    from 24 kHz PCM into `assets/<track>.m4a`, so the `durationMs` pins it
+    writes through `scene-edit.mjs` add up to the track exactly. Whisper
+    hears each clip on its own for `assets/<track>.words.json`, its times
+    fitted to where the clip is voiced. Clips (and what whisper heard) are
+    cached in `<library>/.studio/build/voiceover/<showcase>/` by voice,
+    engine and text, so only a changed caption calls Polly again. It runs
+    in the media-build lane: `build_voiceover`, the `voiceover` action,
+    and a plain `build` (the Build media button) of a showcase with
+    `meta.voiceover`.
   - `transcript.mjs`: the recording's editable transcript,
     `assets/<recording>.transcript.json`: whisper's sub-word tokens merged
     into whole words, and a `corrections` list — respell a word, fold two
@@ -364,6 +445,9 @@ npm run dev -- --new [<library folder>]
     a cut's timeline.
   - `ffmpeg.mjs`: the bundled binary, plus reading a file's duration and
     loudness back out of its stderr — ffmpeg-static ships no ffprobe.
+  - `git-program.mjs`: git's full path, found once and reused by the
+    history and `library-git.mjs`: started by its bare name, every git
+    command paid a search along PATH (40–50 ms on a Mac, against 6 ms).
   - `exporter.mjs`: screens, video and script exports, slide screenshots and
     validate, drawn by a page renderer — `renderer-playwright.mjs` from
     source, Google Chrome when installed; Electron's in the packaged app —
@@ -497,8 +581,10 @@ npm run dev -- --new [<library folder>]
   `SHOWCASE_STUDIO_INSTALL_DIR`, `~/Applications`, `/Applications`), prefers
   the version in `app-version` — pinned separately from the plugin's own
   version, so the plugin can change without a new app release — and runs it
-  with `--mcp`; `bin/install-app` installs that version from the GitHub
-  release (`gh release download`, SHA-256 check, into `~/Applications`), and
+  with `--mcp`; `bin/install-app` installs that version from
+  `https://showcasestudio.dev/download/v<version>/` (`curl`, SHA-256 check,
+  into `~/Applications`; `SHOWCASE_STUDIO_DOWNLOAD_URL` points it at
+  another site, such as a local `npm run dev:wrangler`), and
   the skill runs it when the studio tools are missing;
   `skills/showcase/SKILL.md` is the working session
   (`/showcase-studio:showcase <name>`): start the studio — in Claude Code's
@@ -536,16 +622,35 @@ npm run dev -- --new [<library folder>]
   `PROMPTER_PUBLISH_URL` env points elsewhere.
   Beside it, the license service (`lib/license-stack.ts`, its own app in
   `bin/license.ts`): one DynamoDB table and one Lambda behind a Function
-  URL, routed by path — `/checkout` (303 to Stripe Checkout, a Buy
-  button posts here), `/webhook` (Stripe, signature checked), `/thanks`
-  and `/cancelled` (the pages Stripe returns a buyer to; `/thanks` shows
-  the key, which is also written onto the Stripe customer's invoices —
-  no email of our own), `/check`, `/devices/add`, `/devices/remove` and
-  `/export` (the studio: license status, up to 3 computers per key, and
-  2 free non-draft exports per computer per month).
-  Rules in `lambda-license/license-core.mjs`, wired to DynamoDB, Stripe
-  (plain fetch) and SSM by the other files there. Design, open questions
-  and where the studio's check would go: `docs/licensing.md`.
+  URL, routed by path — `/checkout` (a Buy button's form post gets a 303
+  to Stripe Checkout; the studio's JSON request gets the checkout URL and
+  the license key, made before payment and written onto the new Stripe
+  customer so every invoice carries it), `/webhook` (Stripe, signature
+  checked), `/thanks`, `/cancelled` and `/back` (the pages Stripe returns
+  a buyer to), `/check` (license status and a machine's free exports),
+  `/export` (2 free full-quality exports per machine in all; with a good
+  license, any number, each logged with the key and machine so a shared
+  key shows up) and `/portal` (Stripe's Customer Portal for the key's
+  customer). Rules in `lambda-license/license-core.mjs`, wired to
+  DynamoDB, Stripe (plain fetch) and SSM by the other files there.
+  Design: `docs/licensing.md`.
+- `site/`: The marketing site at https://showcasestudio.dev, a Cloudflare
+  Worker that serves static files (own npm package; only `wrangler` as a
+  dependency). `worker.js` runs only for `/media/*`, to answer byte-range
+  requests, which Safari needs to play the hero video, and for
+  `/download/*`: the app's releases, from the R2 bucket
+  `showcase-studio-releases` (zips are too big for static files, which
+  Cloudflare caps at 25 MiB). The bucket holds `v<version>/<file>` for
+  each release and `latest.json` (`{"mac": …, "win": …}`), which
+  `/download/latest/mac` and `/download/latest/win` redirect by.
+  `scripts/publish-release.mjs` uploads a release and writes
+  `latest.json` last. The GitHub release stays as the private record of
+  each build; users download from the site. `public/` is
+  uploaded as is: `index.html` (the one landing page), `styles.css`, `_headers`, and
+  `media/` (made by `scripts/prepare-media.mjs`). Its download buttons
+  link to `/download/latest/*`, so a release doesn't touch the page.
+  There is no YouTube
+  link yet: add one to the top bar and the footer when the channel exists.
 - `gold_traces/`: The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
   appmap-node) and `baseline/appmaps/` holds the blessed, sanitized

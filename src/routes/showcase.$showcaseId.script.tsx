@@ -92,7 +92,7 @@ function ScriptScreen() {
         showcaseId={showcaseId}
         title={showcase.title}
         current="script"
-        built={showcase.builtFromRecording}
+        built={showcase.builtMedia}
       />
       <div className="mx-auto box-content max-w-4xl px-6 sm:px-10">
         <header className="mt-8 border-b border-border pb-8">

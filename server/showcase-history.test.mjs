@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { commitMessage, noIdentityReason, tooBigToInit } from "./showcase-history.mjs";
 import { createStudio } from "./studio-server.mjs";
+import { gitProgram } from "./git-program.mjs";
 
 const cleanups = [];
 afterEach(async () => {
@@ -28,7 +29,11 @@ scenes:
 `;
 
 const git = (cwd, ...args) =>
-  execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  execFileSync(gitProgram(), args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 
 /** A temp folder holding a showcases library at `showcases/` with one
  *  showcase, "nova". With `repo`, the folder is a git repository with a
@@ -59,6 +64,17 @@ function project({ repo = true } = {}) {
 async function startStudio(library, { delay = DELAY, autoCommit, features = {} } = {}) {
   let saved = autoCommit === undefined ? {} : { autoCommit };
   const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
+  /* The history logs each commit it makes. Waiting for that line, rather
+   * than asking git every few milliseconds, keeps the gold trace the same
+   * from run to run: a polling loop runs a different number of times
+   * depending on how busy the machine is. */
+  let commitsLogged = 0;
+  const commitWaiters = [];
+  const log = (message) => {
+    if (!message.startsWith("studio: committed ")) return;
+    commitsLogged += 1;
+    for (const waiter of commitWaiters.splice(0)) waiter();
+  };
   const studio = createStudio({
     showcasesDir: library,
     version: "test",
@@ -69,7 +85,7 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
      * test's end, so the gold traces would record it only sometimes. */
     features: { terminal: false, watch: false, ...features },
     commitDelayMs: delay,
-    log: () => {},
+    log,
   });
   cleanups.push(() => studio.close());
   const call = async (name, args) => {
@@ -110,7 +126,11 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
       req.socket = { remoteAddress: "127.0.0.1" };
       void studio.handle(req, res, () => resolve(null));
     });
-  return { studio, call, post, get, saved: () => saved };
+  /* Resolves once the studio has logged its nth commit. */
+  const committed = async (n) => {
+    while (commitsLogged < n) await new Promise((resolve) => commitWaiters.push(resolve));
+  };
+  return { studio, call, post, get, committed, saved: () => saved };
 }
 
 const commits = (dir) => git(dir, "log", "--format=%s").split("\n");
@@ -134,7 +154,7 @@ function withGitIdentity() {
   });
 }
 
-async function waitFor(check, { timeout = 5000 } = {}) {
+async function waitFor(check, { timeout = 10_000 } = {}) {
   const start = Date.now();
   while (!check()) {
     if (Date.now() - start > timeout) throw new Error("timed out waiting");
@@ -147,7 +167,18 @@ const editTitle = (value) => ({
   edits: [{ field: "scene.set", sceneId: "intro", name: "title", value }],
 });
 
-describe("showcase history", () => {
+/* Every test that starts a studio drives real git: making the repository,
+ * the studio's own checks and commit, and each look at the log — some 30
+ * git processes a test. Run by its full path (git-program.mjs) a native
+ * git takes about 6 ms, and these tests finish in 0.1–2 s. A slow git
+ * makes them much slower: an Intel git on an Apple silicon Mac (an old
+ * Homebrew in /usr/local) runs under Rosetta at 35–130 ms a process, and
+ * there they took 2–4.5 s idle and 5.7 s under load, past vitest's
+ * default 5 s. The quiet period itself is only 150 ms. A commit that
+ * never comes still fails: waitFor gives up at 10 s. */
+const GIT_TESTS = { timeout: 20_000 };
+
+describe("showcase history", GIT_TESTS, () => {
   it("groups a studio UI edit and an MCP edit into one commit after the quiet period", async () => {
     const { dir, library } = await project();
     const { call, post } = await startStudio(library);
@@ -198,10 +229,11 @@ describe("showcase history", () => {
     writeFileSync(path.join(dir, "notes.txt"), "staged by the user\n");
     git(dir, "add", "notes.txt");
     writeFileSync(path.join(dir, "scratch.txt"), "not staged\n");
-    const { call } = await startStudio(library);
+    const { call, committed } = await startStudio(library);
     await call("edit_showcase", editTitle("Changed"));
 
-    await waitFor(() => commits(dir).length === 2);
+    await committed(1);
+    expect(commits(dir)).toHaveLength(2);
     expect(git(dir, "show", "--name-only", "--format=", "HEAD")).toBe(
       "showcases/nova/showcase.yaml",
     );
@@ -401,7 +433,7 @@ describe("showcase history", () => {
   });
 });
 
-describe("the Commit changes to git switch", () => {
+describe("the Commit changes to git switch", GIT_TESTS, () => {
   const settingLines = (library) =>
     readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8")
       .trim()

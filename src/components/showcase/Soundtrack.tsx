@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, X } from "lucide-react";
 import { isCapturePage } from "@/lib/window-lock.mjs";
 
 /**
@@ -8,9 +8,14 @@ import { isCapturePage } from "@/lib/window-lock.mjs";
  *
  * Because people expect sound and a small muted icon is easy to miss, a
  * "Sound is off" prompt sits above the toggle until the viewer unmutes
- * for the first time. Clicking it is a user gesture, so the browser lets
- * the audio play. Muting again later doesn't bring the prompt back.
+ * for the first time or closes it with its × button (which leaves the
+ * sound off). Clicking it is a user gesture, so the browser lets the
+ * audio play. Muting again later doesn't bring the prompt back.
+ *
+ * The prompt shows once per browser session: after it has appeared, other
+ * showcases and page reloads in the same tab start muted without it.
  */
+const PROMPT_SEEN_KEY = "showcase-studio:sound-prompt-seen";
 export function Soundtrack({
   paused,
   soundtrack,
@@ -30,7 +35,16 @@ export function Soundtrack({
   const src = soundtrack.src;
 
   useEffect(() => {
-    setShowPrompt(!isCapturePage(window.location.pathname, window.location.search));
+    if (isCapturePage(window.location.pathname, window.location.search)) return;
+    /* Storage can be blocked (private windows, blocked site data); the
+     * prompt then just shows on every page, as it used to. */
+    try {
+      if (sessionStorage.getItem(PROMPT_SEEN_KEY)) return;
+      sessionStorage.setItem(PROMPT_SEEN_KEY, "1");
+    } catch {
+      /* fall through and show it */
+    }
+    setShowPrompt(true);
   }, []);
 
   const toggle = () => {
@@ -76,13 +90,25 @@ export function Soundtrack({
     <span className="relative inline-flex">
       <audio ref={audioRef} src={src} loop preload="auto" />
       {muted && showPrompt && (
-        <button
-          type="button"
-          onClick={toggle}
-          className="absolute bottom-full right-0 mb-3 flex items-center gap-2 whitespace-nowrap rounded-full bg-primary px-3.5 py-2 text-xs font-medium text-primary-foreground shadow-lg transition-colors hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          <VolumeX className="size-3.5" />
-          {what} is off — click to unmute
+        <span className="absolute bottom-full right-0 mb-3 flex items-center whitespace-nowrap rounded-full bg-primary text-xs font-medium text-primary-foreground shadow-lg">
+          <button
+            type="button"
+            onClick={toggle}
+            className="flex items-center gap-2 rounded-l-full py-2 pl-3.5 pr-2 transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <VolumeX className="size-3.5" />
+            {what} is off — click to unmute
+          </button>
+          {/* Closing the prompt leaves the sound off. */}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            title="Dismiss"
+            onClick={() => setShowPrompt(false)}
+            className="mr-1 rounded-full p-1.5 text-primary-foreground/70 transition-colors hover:bg-primary-foreground/10 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <X className="size-3.5" />
+          </button>
           {/* A small pointer down to the mute toggle it stands for. The
            * prompt is right-aligned with the toggle so it can't run off
            * the right edge of a narrow window. */}
@@ -90,7 +116,7 @@ export function Soundtrack({
             aria-hidden
             className="absolute right-[13px] top-full border-x-[6px] border-t-[6px] border-x-transparent border-t-primary"
           />
-        </button>
+        </span>
       )}
       <button
         type="button"

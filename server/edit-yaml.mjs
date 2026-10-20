@@ -121,6 +121,22 @@ const META_FIELDS = {
   cover: { kind: "string", removable: true },
   soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
   notes: { kind: "string", removable: true },
+  /* A synthesized voiceover's settings (server/voiceover.mjs): the Polly
+   * voice and engine, how to reach AWS, and the track's asset key. */
+  voiceover: {
+    kind: "map",
+    map: {
+      voice: false,
+      engine: false,
+      profile: false,
+      region: false,
+      track: false,
+      leadMs: false,
+      tailMs: false,
+      holdMs: false,
+    },
+    removable: true,
+  },
   /* The persistent brand mark ("bug") drawn in a corner of every slide
    * (src/content/watermark.ts). */
   watermark: { kind: "watermark", removable: true },

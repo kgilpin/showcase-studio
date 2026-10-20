@@ -5,23 +5,25 @@ meta:
   captionStyle: karaoke
   notes: |-
     Script draft for the plugin pitch: Showcase Studio runs as a Claude Code plugin, so it uses the subscription you already have, every tool on your machine, and plain files you can share across projects.
-    Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile) by synth-voiceover.mjs: one clip per caption, each placed in a window of 250 ms lead + spoken length + 450 ms tail (the last caption holds 1.5 s more for the end card). Every caption's durationMs is pinned to its window, and the windows sum to 60732 ms, the audio's length. assets/voiceover-synth.words.json holds the transcribe tool's word timestamps for the karaoke captions. After any caption edit, re-run the synthesis and re-pin, or the voice drifts out of sync.
-    The on-camera scene still plays assets/scene-1-setup.mp4, an old clip that says the previous script. The master recording it was cut from, and an earlier recorded voiceover, were dropped from this folder: these showcases ship as examples, so only the files the slides use are kept. To record for real: read the final script on the phone teleprompter, cut a new on-camera clip, then point soundtrack at the new recording, re-pin, and replace the words file.
+    Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile, us-east-1): one clip per caption (24 kHz mp3), each placed in a window of 250 ms lead + spoken length (rounded up to the millisecond) + 450 ms tail; the last caption holds 1.5 s more for the end card. Every caption's durationMs is pinned to its window, and the windows sum to 44788 ms, the audio's length. assets/voiceover-synth.words.json has one segment per caption window, with the caption's own words and the transcribe tool's word times fitted into the span where that caption's clip is voiced (whisper drifts across caption boundaries, so its times aren't used as they come). meta.voiceover holds these settings: after any caption edit, run build_voiceover (or press Build media), which re-voices only the changed captions and re-pins them. Last made 2026-10-16.
+    These showcases ship as examples, so only the files the slides use belong in the folder. The old on-camera clip and the git scene's graphic were removed; both are in git history.
+  voiceover: { voice: Matthew, engine: generative, profile: kgilpin, region: us-east-1, track: voiceover-synth }
   soundtrack: { src: voiceover-synth, volume: 1, sync: true }
 
 scenes:
   - id: setup
     theme: footage
-    eyebrow: On camera
-    note: "The on-camera hook, to be re-recorded. Until then it plays the old clip assets/scene-1-setup.mp4, which says the previous line, and the timing follows the new words, so the clip is cut short. fit: contain keeps the landscape framing on the portrait stage. The master recording this was cut from is no longer in the folder (see meta.notes)."
+    eyebrow: Made with
+    note: "The opening shot: a screenshot of Claude Code Desktop with the studio open beside the chat, working on this very showcase (assets/showcase studio in claude.png). fit: contain keeps the landscape screenshot whole on the portrait stage."
     captions:
       - text: I made this video with Showcase Studio, a Claude Code plugin.
         durationMs: 4516
     media:
-      kind: video
-      asset: scene-1-setup
-      alt: "The narrator on camera: this video was made with Claude Code inside the app's own repo"
+      kind: image
+      asset: showcase studio in claude
+      alt: Claude Code Desktop with Showcase Studio open beside the chat, playing this showcase
       fit: contain
+      motion: zoom-in
 
   - id: plugin
     theme: console
@@ -30,8 +32,6 @@ scenes:
     captions:
       - text: Type /showcase, and the studio opens right beside your chat.
         durationMs: 4252
-      - text: It runs on your Claude Code subscription, so there's no new account and nothing extra to pay.
-        durationMs: 5452
     media:
       kind: graphic
       graphic: showcase-command
@@ -43,8 +43,10 @@ scenes:
     title: Every tool on your machine
     note: The screenshot shows Claude choosing AWS Polly voices on the user's own account to make a voiceover, with the studio playing beside the chat.
     captions:
-      - text: Claude can use every tool on your machine. Here it makes a voiceover with my own AWS account.
-        durationMs: 5956
+      - text: You can use all the power and context of Claude.
+        durationMs: 3412
+      - text: Here it makes a voiceover with my own AWS account.
+        durationMs: 3748
     media:
       kind: image
       asset: shot-claude-desktop
@@ -54,10 +56,12 @@ scenes:
   - id: prompter
     theme: feature
     eyebrow: Recording
-    title: Switch to your phone for video recording
+    title: Record with the teleprompter
     captions:
-      - text: When it's time to record yourself, the script scrolls on your phone like a teleprompter.
-        durationMs: 5068
+      - text: You can record video using the built-in teleprompter
+        durationMs: 3580
+      - text: on your computer or on your phone.
+        durationMs: 2764
     media:
       kind: image
       asset: shot-prompter
@@ -69,52 +73,39 @@ scenes:
     eyebrow: Your files
     title: Plain files on your machine
     captions:
-      - text: "The whole video is plain files on your machine: the script, the screenshots, and the recordings."
-        durationMs: 6004
-      - text: Pull in a clip from another project, and it's ready to use.
-        durationMs: 3820
+      - text: "The script, screenshots, and other media are all ordinary files on your computer."
+        durationMs: 5404
+      - text: Drag in a new clip or screenshot, and it's ready to use.
+        durationMs: 3796
     media:
       kind: image
       asset: shot-assets-portrait
       alt: The assets page listing the project's screenshots, recordings, and where each is used
       motion: still
-  - id: git
-    theme: console
-    eyebrow: Versioning
-    title: Every change, committed
-    note: "PLANNED FEATURE: this scene describes the studio making its own git commits for every change. The studio does not do this yet (today its generated README tells users to run git init and commit themselves). Ship automatic commits before publishing this video, or rewrite this scene."
-    captions:
-      - text: The studio commits every change to git.
-        durationMs: 2980
-      - text: Review a change, revert it, or branch a new cut, the way you'd review code.
-        durationMs: 4972
-    media:
-      kind: graphic
-      graphic: git-lanes
-      alt: A git commit graph of a showcase folder, with a new-cut branch merging back
 
   - id: export
     theme: console
     eyebrow: Export
     title: One script - three exports
     captions:
-      - text: One script gives you a TikTok-style video, a widescreen YouTube video, and captioned screenshots for the App Store.
-        durationMs: 7276
+      - text: When you're done, you can export in "shorts" format, widescreen, and captioned screenshots for the App Store.
+        durationMs: 6676
     media:
       kind: graphic
       graphic: player-formats
       alt: One showcase.yaml fanning out to the App Store, TikTok, and YouTube renditions
 
   - id: outro
-    theme: statement
+    theme: console
     title: Showcase Studio
     captions:
-      - text: Videos of your app, made with the Claude Code you already have.
-        durationMs: 4180
-      - text: Add the plugin to Claude Code from GitHub, and make your first video today.
-        durationMs: 6256
+      - text: Add the Showcase Studio plugin to Claude Code, and make your first video today.
+        durationMs: 6640
     media:
-      kind: none
+      kind: graphic
+      graphic: plugin-install
+      alt: "A terminal: the two commands that add the Showcase Studio plugin type in, each confirmed, then a hint to type /showcase in Claude Code"
     eyebrow: Get it
     cta: { kind: github, label: View on GitHub, url: https://github.com/kgilpin/showcase-studio }
     ctaNote: github.com/kgilpin/showcase-studio
+    note: 'The graphic is graphics/plugin-install.tsx, a stylized terminal: the two plugin commands from the README type in as the caption starts ("Add the Showcase Studio plugin...", 0.4 s in, when the voice starts). Retime its FIRST constant if a caption is added before it.'
