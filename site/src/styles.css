@@ -666,6 +666,31 @@ main {
   font-weight: 700;
 }
 
+/* FAQ page: one question after another, in a readable column */
+.faq {
+  padding-bottom: 112px;
+}
+
+.question {
+  max-width: 44em;
+}
+
+.question + .question {
+  margin-top: 40px;
+  padding-top: 40px;
+  border-top: 1px solid var(--line);
+}
+
+.question h2 {
+  margin-bottom: 12px;
+  font-size: 26px;
+}
+
+.question p {
+  margin: 0;
+  color: var(--soft);
+}
+
 /* Download */
 .download {
   padding: 112px 0 128px;
@@ -1057,12 +1082,14 @@ footer .brand {
   }
 
   footer {
+    flex-wrap: wrap;
+    gap: 12px 20px;
     padding: 28px 16px 40px;
   }
 }
 
-/* Phones: three links don't fit beside the name, so "How it works"
-   goes (the name links to the home page) */
+/* Phones: only two links fit beside the name, so "How it works" and
+   "FAQ" go (the name links to the home page; the footer links the FAQ) */
 @media (max-width: 480px) {
   .top nav .optional {
     display: none;

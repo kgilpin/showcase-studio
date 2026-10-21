@@ -1,7 +1,7 @@
 /* The top bar and the footer, the same on every page. The links are
  * absolute, so they work from any page; current names the page we are
  * on, which the bar marks with the highlight. */
-export function SiteHeader({ current }: { current?: "features" }) {
+export function SiteHeader({ current }: { current?: "features" | "faq" }) {
   return (
     <header className="top">
       <Brand />
@@ -11,6 +11,9 @@ export function SiteHeader({ current }: { current?: "features" }) {
         </a>
         <a href="/features" aria-current={current === "features" ? "page" : undefined}>
           Features
+        </a>
+        <a className="optional" href="/faq" aria-current={current === "faq" ? "page" : undefined}>
+          FAQ
         </a>
         <a href="/#download">Install</a>
       </nav>
@@ -23,6 +26,7 @@ export function SiteFooter() {
     <footer>
       <Brand />
       <a href="/features">Features</a>
+      <a href="/faq">FAQ</a>
       <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
     </footer>
   );
