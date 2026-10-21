@@ -24,7 +24,6 @@ export const Route = createRootRoute({
       { property: "og:image", content: "https://showcasestudio.dev/media/hero.jpg" },
     ],
     links: [
-      { rel: "canonical", href: "https://showcasestudio.dev/" },
       { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },

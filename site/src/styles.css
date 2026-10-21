@@ -194,7 +194,8 @@ footer .brand img {
   padding-bottom: 2px;
 }
 
-.top nav a:hover {
+.top nav a:hover,
+.top nav a[aria-current="page"] {
   border-color: var(--mark);
 }
 
@@ -576,6 +577,95 @@ main {
   fill: none;
 }
 
+/* The link from the home page's overview to the Features page */
+.more {
+  margin: 112px 0 0;
+  text-align: center;
+}
+
+/* Features page: an ink intro with links to each stage, then the stages
+   on paper, each a heading beside a short list. */
+.page-intro {
+  padding: 56px 0 96px;
+}
+
+.page-intro h1 {
+  max-width: 12em;
+}
+
+.jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 36px;
+  max-width: 52em;
+}
+
+.jump a {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.jump a:hover {
+  border-color: var(--mark);
+  background: var(--mark);
+  color: var(--ink);
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 72px;
+  scroll-margin-top: 24px;
+}
+
+.stage + .stage {
+  margin-top: 72px;
+  padding-top: 72px;
+  border-top: 1px solid var(--line);
+}
+
+.stage-head p {
+  color: var(--soft);
+}
+
+.stage ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--soft);
+}
+
+.stage li + li {
+  margin-top: 12px;
+}
+
+/* A small highlight square for each item */
+.stage li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--mark);
+}
+
+.stage li strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
 /* Download */
 .download {
   padding: 112px 0 128px;
@@ -926,6 +1016,24 @@ footer .brand {
     padding: 80px 0 96px;
   }
 
+  .more {
+    margin-top: 72px;
+  }
+
+  .page-intro {
+    padding: 24px 0 64px;
+  }
+
+  .stage {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .stage + .stage {
+    margin-top: 48px;
+    padding-top: 48px;
+  }
+
   .download-grid {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -950,6 +1058,14 @@ footer .brand {
 
   footer {
     padding: 28px 16px 40px;
+  }
+}
+
+/* Phones: three links don't fit beside the name, so "How it works"
+   goes (the name links to the home page) */
+@media (max-width: 480px) {
+  .top nav .optional {
+    display: none;
   }
 }
 

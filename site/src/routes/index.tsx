@@ -5,19 +5,17 @@ import { CaptionHeadline } from "../components/CaptionHeadline";
 import { CopyBlock } from "../components/CopyBlock";
 import { Destinations } from "../components/Destinations";
 import { HeroVideo } from "../components/HeroVideo";
+import { SiteFooter, SiteHeader } from "../components/Site";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/")({
+  head: () => ({ links: [{ rel: "canonical", href: "https://showcasestudio.dev/" }] }),
+  component: Home,
+});
 
 function Home() {
   return (
     <>
-      <header className="top">
-        <Brand />
-        <nav>
-          <a href="#features">How it works</a>
-          <a href="#download">Install</a>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <main>
         <section className="hero">
@@ -218,6 +216,12 @@ function Home() {
               videos quickly and easily.
             </p>
           </Feature>
+
+          <p className="more">
+            <a className="button" href="/features">
+              See every feature
+            </a>
+          </p>
         </section>
 
         <section id="download" className="download">
@@ -268,22 +272,8 @@ function Home() {
         </section>
       </main>
 
-      <footer>
-        <Brand />
-        <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
-      </footer>
+      <SiteFooter />
     </>
-  );
-}
-
-function Brand() {
-  return (
-    <a className="brand" href="/">
-      <img src="/icon.svg" alt="" width={36} height={36} />
-      <span>
-        Showcase <mark>Studio</mark>
-      </span>
-    </a>
   );
 }
 

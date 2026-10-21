@@ -13,7 +13,7 @@ export default defineConfig({
       /* The pages listed here, and no crawling: the page links to
        * /download/*, which only the Worker answers. */
       prerender: { enabled: true, crawlLinks: false },
-      pages: [{ path: "/" }],
+      pages: [{ path: "/" }, { path: "/features" }],
     }),
     viteReact(),
   ],
