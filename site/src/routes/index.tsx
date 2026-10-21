@@ -102,6 +102,38 @@ function Home() {
             </p>
           </Feature>
 
+          <Feature title="Drop in your own media" art={<Timeline />}>
+            <p>
+              Add your own screenshots, video clips, screen captures, and voice recordings. Showcase
+              Studio weaves each one into the video with proper clip boundaries and timing. It all
+              stays in sync automatically.
+            </p>
+          </Feature>
+
+          <Feature
+            flip
+            title="Enhance with custom graphics and animations"
+            artClass="direct"
+            art={
+              <>
+                <Chat
+                  you="Animate the /showcase command: it types into the chat, and the studio opens beside it."
+                  tool="Wrote graphics/showcase-command.tsx"
+                  claude="Done. It plays in the plugin scene."
+                />
+                <Frame
+                  src="/media/showcase-command.jpg"
+                  alt="A frame of the Showcase Studio video: an animated Claude Code window where /showcase opens the studio beside the chat"
+                />
+              </>
+            }
+          >
+            <p>
+              Ask for a custom graphic or animation, and it generates one for you. Use it as an
+              overlay, or to demo a feature step by step.
+            </p>
+          </Feature>
+
           <Feature
             title="Revise by watching and chatting"
             artClass="direct"
@@ -304,13 +336,72 @@ function WindowBar({ title }: { title: string }) {
 
 /* A short exchange in Claude Code: the user asks, Claude edits, Claude
  * answers. */
-function Chat({ you, claude }: { you: string; claude: string }) {
+function Chat({
+  you,
+  tool = "Edited showcase.yaml",
+  claude,
+}: {
+  you: string;
+  tool?: string;
+  claude: string;
+}) {
   return (
     <div className="chat" role="group" aria-label="A chat in Claude Code">
       <WindowBar title="Claude Code" />
       <p className="msg you">{you}</p>
-      <p className="tool">Edited showcase.yaml</p>
+      <p className="tool">{tool}</p>
       <p className="msg claude">{claude}</p>
+    </div>
+  );
+}
+
+/* Scenes in a row, as the studio stitches them: each scene's picture
+ * (a screenshot or a clip) over its caption, and one voice under them all. */
+const SCENES = [
+  { src: "/media/nova-starmap.webp", kind: "Screenshot", caption: "No turns, ever." },
+  { src: "/media/nova-fleet.webp", kind: "Clip", caption: "Pick your force and launch." },
+  {
+    src: "/media/nova-gate-shot.webp",
+    kind: "Screenshot",
+    caption: "Build highways between the stars.",
+  },
+];
+// Bar heights for the voice track, in percent: a made-up waveform.
+const WAVE = [
+  30, 55, 80, 45, 65, 90, 40, 20, 50, 75, 60, 35, 85, 55, 25, 10, 45, 70, 95, 60, 40, 65, 30, 50,
+  80, 55, 35, 70, 45, 20, 60, 85, 50, 30, 65, 40,
+];
+
+function Timeline() {
+  return (
+    <div
+      className="chat timeline"
+      role="img"
+      aria-label="Three NOVA scenes in a row, two screenshots and a clip, each over its caption, with one voice recording running under all of them"
+    >
+      <WindowBar title="Showcase Studio" />
+      <div className="scenes">
+        {SCENES.map((scene) => (
+          <div className="scene" key={scene.src}>
+            <div className="thumb">
+              <img src={scene.src} alt="" loading="lazy" />
+              <span className="kind">
+                {scene.kind === "Clip" ? "▶ " : ""}
+                {scene.kind}
+              </span>
+            </div>
+            <p className="cap">{scene.caption}</p>
+          </div>
+        ))}
+      </div>
+      <div className="voice">
+        <span className="kind">Your voice</span>
+        <div className="wave">
+          {WAVE.map((h, i) => (
+            <i key={i} style={{ height: `${h}%` }} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

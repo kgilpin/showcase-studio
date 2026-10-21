@@ -7,7 +7,11 @@
  *   the nova video export               →  public/media/nova-gate.jpg, nova-capture.jpg
  *                                          (two frames of its jump gate scene, the examples
  *                                          in the first two sections)
+ *                                       →  public/media/showcase-command.jpg (8.4 s in: the
+ *                                          /showcase graphic, the "custom graphics" example)
  *   media-src/nova-prompter.png         →  public/media/prompter.webp (from npm run capture:prompter)
+ *   three of nova's screenshots         →  public/media/nova-starmap.webp, nova-fleet.webp,
+ *                                          nova-gate-shot.webp (the "add screenshots" timeline)
  *
  * Make the export first, from the repo root, with either of:
  *   npm run dev -- --export video:showcase-studio   (needs no studio running;
@@ -92,6 +96,22 @@ run([
   path.join(out, "hero.jpg"),
 ]);
 
+// The /showcase graphic (graphics/showcase-command.tsx) at 8.4 s, once
+// the studio has opened beside the chat; check it after the showcase changes.
+run([
+  "-ss",
+  "8.4",
+  "-i",
+  video,
+  "-frames:v",
+  "1",
+  "-vf",
+  "scale=540:960",
+  "-q:v",
+  "4",
+  path.join(out, "showcase-command.jpg"),
+]);
+
 // The frame times are where each caption is fully lit in the current nova
 // showcase; check the frames after the showcase changes.
 const exportsDir = path.join(os.homedir(), "Downloads", "showcase-exports", "nova");
@@ -137,8 +157,37 @@ run([
   path.join(out, "prompter.webp"),
 ]);
 
+// The timeline's thumbnails, straight from nova's assets.
+for (const [asset, name] of [
+  ["shot-starmap", "nova-starmap.webp"],
+  ["shot-send-fleet", "nova-fleet.webp"],
+  ["shot-jump-gate", "nova-gate-shot.webp"],
+]) {
+  run([
+    "-i",
+    path.join(repo, "showcases", "nova", "assets", `${asset}.png`),
+    "-vf",
+    "scale=-2:540",
+    "-c:v",
+    "libwebp",
+    "-quality",
+    "80",
+    path.join(out, name),
+  ]);
+}
+
 console.log(`hero video from ${video}\nnova frames from ${nova}`);
-for (const name of ["hero.mp4", "hero.jpg", "nova-gate.jpg", "nova-capture.jpg", "prompter.webp"]) {
+for (const name of [
+  "hero.mp4",
+  "hero.jpg",
+  "showcase-command.jpg",
+  "nova-gate.jpg",
+  "nova-capture.jpg",
+  "prompter.webp",
+  "nova-starmap.webp",
+  "nova-fleet.webp",
+  "nova-gate-shot.webp",
+]) {
   const kb = Math.round(statSync(path.join(out, name)).size / 1024);
   console.log(`${name.padEnd(22)} ${kb} KB`);
 }

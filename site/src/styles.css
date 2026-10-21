@@ -774,6 +774,80 @@ footer .brand {
   color: var(--ink-soft);
 }
 
+/* "Add screenshots…": scenes in a row over one voice track */
+.chat.timeline {
+  max-width: 460px;
+}
+
+.timeline .scenes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.timeline .thumb {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--ink-raised);
+}
+
+.timeline .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.timeline .kind {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.timeline .thumb .kind {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(18, 19, 22, 0.8);
+  color: var(--paper);
+}
+
+.chat.timeline .cap {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.timeline .voice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ink-line);
+}
+
+.timeline .voice .kind {
+  flex: none;
+}
+
+.timeline .wave {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+}
+
+.timeline .wave i {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--ink-soft);
+}
+
 .shot.frame {
   width: 240px;
   border-radius: 28px;
