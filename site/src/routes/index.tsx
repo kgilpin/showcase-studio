@@ -279,7 +279,10 @@ function Home() {
 function Brand() {
   return (
     <a className="brand" href="/">
-      Showcase <mark>Studio</mark>
+      <img src="/icon.svg" alt="" width={36} height={36} />
+      <span>
+        Showcase <mark>Studio</mark>
+      </span>
     </a>
   );
 }
