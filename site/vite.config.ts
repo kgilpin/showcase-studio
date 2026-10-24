@@ -10,10 +10,12 @@ import viteReact from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [
     tanstackStart({
-      /* The pages listed here, and no crawling: the page links to
-       * /download/*, which only the Worker answers. */
-      prerender: { enabled: true, crawlLinks: false },
-      pages: [{ path: "/" }, { path: "/features" }, { path: "/faq" }],
+      /* Only the pages listed here: no crawling, since the page links to
+       * /download/*, which only the Worker answers, and no finding routes
+       * on its own, so a route can be left out of the build. */
+      prerender: { enabled: true, crawlLinks: false, autoStaticPathsDiscovery: false },
+      // /faq waits for pricing: see FAQ_LIVE in src/components/Site.tsx.
+      pages: [{ path: "/" }, { path: "/features" }],
     }),
     viteReact(),
   ],

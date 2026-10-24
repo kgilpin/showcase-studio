@@ -618,16 +618,18 @@ npm run dev -- --new [<library folder>]
   The endpoint defaults to Prod's; settings `prompterPublishUrl` or
   `PROMPTER_PUBLISH_URL` env points elsewhere.
 - `site/`: The marketing site at https://showcasestudio.dev (own npm
-  package): a TanStack Start app with two routes, prerendered by
-  `vite build` into `dist/client` (a new route must be added to the
-  `pages` list in `vite.config.ts`), which a Cloudflare Worker serves as
-  static files, so no page is rendered on a request.
+  package): a TanStack Start app, prerendered by `vite build` into
+  `dist/client`, which a Cloudflare Worker serves as static files, so no
+  page is rendered on a request. Only the routes in the `pages` list in
+  `vite.config.ts` are built, so a new route must be added there.
   `src/routes/__root.tsx` holds the shared `<head>` (title, description,
   Open Graph tags; each route sets its own canonical link),
   `src/routes/index.tsx` the home page, a short overview, and
-  `src/routes/features.tsx` the Features page, the full list of what the
-  studio does — check each claim there against the studio before adding
-  it. `src/components/Site.tsx` is the top bar and footer every page
+  `src/routes/features.tsx` the Features page: seven sections, each a
+  picture with numbered circles beside three features — check each claim
+  against the studio before adding it. `src/routes/faq.tsx` is written
+  but not published until pricing ships (`FAQ_LIVE` in
+  `src/components/Site.tsx`). `src/components/Site.tsx` is the top bar and footer every page
   shares, and `src/components/` also holds the parts that run in the browser (the caption
   highlight, the hero video's player, the Copy button) and the
   destination logos. `src/styles.css` is the stylesheet. `worker.js` runs only for `/media/*`, to answer byte-range
