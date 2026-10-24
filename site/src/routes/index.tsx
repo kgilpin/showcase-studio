@@ -6,6 +6,7 @@ import { CopyBlock } from "../components/CopyBlock";
 import { Destinations } from "../components/Destinations";
 import { HeroVideo } from "../components/HeroVideo";
 import { SiteFooter, SiteHeader } from "../components/Site";
+import { Dir, Note, Sha, Window, WindowBar } from "../components/Window";
 
 export const Route = createFileRoute("/")({
   head: () => ({ links: [{ rel: "canonical", href: "https://showcasestudio.dev/" }] }),
@@ -303,30 +304,6 @@ function Feature({
   );
 }
 
-/* A window with a title bar and preformatted text: a folder tree, a
- * terminal. */
-function Window({ title, label, children }: { title: string; label: string; children: ReactNode }) {
-  return (
-    <div className="chat tree" role="img" aria-label={label}>
-      <WindowBar title={title} />
-      <pre>
-        <code>{children}</code>
-      </pre>
-    </div>
-  );
-}
-
-function WindowBar({ title }: { title: string }) {
-  return (
-    <div className="chat-bar" aria-hidden="true">
-      <i />
-      <i />
-      <i />
-      {title}
-    </div>
-  );
-}
-
 /* A short exchange in Claude Code: the user asks, Claude edits, Claude
  * answers. */
 function Chat({
@@ -402,7 +379,3 @@ function Timeline() {
 function Frame({ src, alt }: { src: string; alt: string }) {
   return <img className="shot frame" src={src} alt={alt} width={540} height={960} loading="lazy" />;
 }
-
-const Dir = ({ children }: { children: ReactNode }) => <span className="dir">{children}</span>;
-const Note = ({ children }: { children: ReactNode }) => <span className="note">{children}</span>;
-const Sha = ({ children }: { children: ReactNode }) => <span className="sha">{children}</span>;

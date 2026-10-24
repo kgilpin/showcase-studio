@@ -59,7 +59,8 @@ button:focus-visible {
 /* The highlight itself: a yellow box with ink text, a little wider than
    the word it sits on, so it never moves the text around it. */
 mark,
-.caption .on {
+.caption .on,
+.voice-cap .on {
   background: var(--mark);
   color: var(--ink);
   border-radius: 0.12em;
@@ -629,8 +630,8 @@ main {
   border-top: 1px solid var(--line);
 }
 
-.stage-head p {
-  color: var(--soft);
+.stage-head h2 {
+  margin: 0;
 }
 
 .stage ul {
@@ -639,18 +640,18 @@ main {
   list-style: none;
 }
 
-.stage li {
+.stage > ul > li {
   position: relative;
   padding-left: 22px;
   color: var(--soft);
 }
 
-.stage li + li {
+.stage > ul > li + li {
   margin-top: 12px;
 }
 
 /* A small highlight square for each item */
-.stage li::before {
+.stage > ul > li::before {
   content: "";
   position: absolute;
   left: 0;
@@ -661,7 +662,824 @@ main {
   background: var(--mark);
 }
 
-.stage li strong {
+/* A section with a picture: numbered pins in the picture, the same
+   numbers on the list, and the pair lit up together. */
+/* The list starts level with the top of the picture, not the title. */
+.stage.numbered {
+  grid-template-areas:
+    "head ."
+    "art list";
+  row-gap: 36px;
+}
+
+.numbered .stage-head {
+  grid-area: head;
+}
+
+.stage-art {
+  grid-area: art;
+}
+
+.numbered ul {
+  grid-area: list;
+}
+
+.pin {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--mark);
+  color: var(--ink);
+  font: 700 12px/1 var(--font);
+  vertical-align: middle;
+  cursor: default;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+
+.pin.on,
+.numbered > ul > li.on .pin {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 5px rgba(255, 216, 61, 0.35);
+}
+
+/* The fit picture. The frame is 9:16 at the screenshot's full height:
+   540 × 9/16 = 304 of 864 px wide, centered on the jump gate (x 470). */
+.fit-art {
+  position: relative;
+  max-width: 460px;
+}
+
+.fit-frame {
+  position: relative;
+}
+
+.fit-shot {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 864 / 540;
+  border-radius: 12px;
+  background: var(--ink);
+  box-shadow: 0 24px 48px rgba(18, 19, 22, 0.22);
+}
+
+.fit-zoom {
+  position: absolute;
+  inset: 0;
+  transform-origin: 54% 56%;
+  animation: fit-zoom 9s ease-in-out infinite alternate;
+}
+
+.fit-zoom img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* The frame: what's outside it is dimmed by a wide shadow. */
+.fit-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 36.8%;
+  width: 35.2%;
+  box-shadow: 0 0 0 999px rgba(18, 19, 22, 0.66);
+  outline: 2px solid var(--paper);
+  outline-offset: -2px;
+}
+
+/* Corner marks, breathing with the zoom */
+.fit-window i {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 0 solid var(--mark);
+  animation: fit-corner 9s ease-in-out infinite alternate;
+}
+
+.fit-window i:nth-child(1) {
+  top: 10px;
+  left: 10px;
+  border-width: 3px 0 0 3px;
+}
+
+.fit-window i:nth-child(2) {
+  top: 10px;
+  right: 10px;
+  border-width: 3px 3px 0 0;
+}
+
+.fit-window i:nth-child(3) {
+  bottom: 10px;
+  left: 10px;
+  border-width: 0 0 3px 3px;
+}
+
+.fit-window i:nth-child(4) {
+  bottom: 10px;
+  right: 10px;
+  border-width: 0 3px 3px 0;
+}
+
+/* The clip's timeline: frames in a row, dimmed outside the kept span */
+.clip-strip {
+  position: relative;
+  margin-top: 18px;
+}
+
+.clip-frames {
+  height: 46px;
+  border-radius: 8px;
+  background: url("/media/nova-gate-shot.webp") center / auto 100% repeat-x var(--ink);
+  box-shadow: 0 12px 24px rgba(18, 19, 22, 0.18);
+}
+
+.clip-keep {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 38%;
+  width: 30%;
+  border: 3px solid var(--mark);
+  border-radius: 6px;
+}
+
+.clip-strip::before,
+.clip-strip::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(244, 244, 241, 0.62);
+}
+
+.clip-strip::before {
+  left: 0;
+  width: 38%;
+  border-radius: 8px 0 0 8px;
+}
+
+.clip-strip::after {
+  right: 0;
+  width: 32%;
+  border-radius: 0 8px 8px 0;
+}
+
+/* The graphics picture. The ring, the leader line and the label are
+   drawn in NOVA's cyan (showcases/nova/theme.yaml, primary), and replay
+   every 6 s: ring, then line, then label. */
+.gfx-art {
+  max-width: 460px;
+}
+
+.chat.gfx-chat {
+  position: relative;
+  max-width: none;
+  margin-bottom: 18px;
+}
+
+.gfx-frame {
+  position: relative;
+}
+
+.gfx-shot {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 864 / 540;
+  border-radius: 12px;
+  background: var(--ink);
+  box-shadow: 0 24px 48px rgba(18, 19, 22, 0.22);
+}
+
+.gfx-shot img,
+.gfx-shot svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gfx-shot svg {
+  fill: none;
+  stroke: #34e7d6;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.gfx-ring,
+.gfx-leader {
+  stroke-dasharray: 100;
+  animation: gfx-draw 6s ease-out infinite;
+}
+
+.gfx-ring {
+  transform: rotate(-90deg);
+  transform-origin: 470px 303px;
+}
+
+.gfx-leader {
+  animation-name: gfx-draw-late;
+}
+
+.gfx-label {
+  position: absolute;
+  left: 60%;
+  top: 30%;
+  transform: translateY(-100%);
+  padding: 3px 8px;
+  border: 1.5px solid #34e7d6;
+  border-radius: 4px;
+  background: rgba(4, 6, 12, 0.85);
+  color: #34e7d6;
+  font: 600 12px/1.3 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: gfx-label 6s ease-out infinite;
+}
+
+@keyframes gfx-draw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  20%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes gfx-draw-late {
+  0%,
+  20% {
+    stroke-dashoffset: 100;
+  }
+  30%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes gfx-label {
+  0%,
+  30% {
+    opacity: 0;
+  }
+  38%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gfx-ring,
+  .gfx-leader,
+  .gfx-label {
+    animation: none;
+  }
+}
+
+/* The voice picture: the phone on the left, the two tracks beside it */
+.voice-art {
+  display: grid;
+  grid-template-columns: 38% 1fr;
+  align-items: center;
+  gap: 22px;
+  max-width: 460px;
+}
+
+.voice-phone {
+  position: relative;
+}
+
+.voice-phone img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 5px solid var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 24px 48px rgba(18, 19, 22, 0.22);
+}
+
+.voice-tracks {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.voice-track {
+  position: relative;
+  padding: 12px 14px 10px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 16px 32px rgba(18, 19, 22, 0.18);
+}
+
+.voice-cap {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.voice-wave {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+}
+
+.voice-wave i {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--ink-soft);
+}
+
+/* The camera preview on the phone, recording */
+.voice-cam {
+  position: absolute;
+  right: 9%;
+  bottom: 14%;
+  width: 34%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1.5px solid var(--ink-line);
+  border-radius: 8px;
+  background: linear-gradient(#3a3d46, #24262c);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.voice-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: #8d909a;
+}
+
+.rec {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff4d4d;
+}
+
+/* The take's scenes above its waveform, cut in three */
+.voice-cut {
+  position: relative;
+}
+
+.voice-scenes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  height: 40px;
+  margin-bottom: 8px;
+}
+
+.voice-scenes span {
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.voice-scenes .you {
+  padding-top: 6px;
+  background: linear-gradient(#3a3d46, #24262c);
+}
+
+.voice-scenes .app {
+  background: url("/media/nova-gate-shot.webp") 55% 55% / cover;
+}
+
+/* Where the take is cut into scenes */
+.voice-cut b {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--mark);
+}
+
+.voice-name {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+/* The social picture: a TikTok frame and an end card, both 9:16. The
+   shaded bands are where TikTok's interface sits: the top 13%, the
+   bottom 25%, and a column of buttons down the right 16%. */
+.social-art {
+  display: grid;
+  grid-template-columns: 1fr 0.72fr;
+  align-items: start;
+  gap: 18px;
+  max-width: 460px;
+}
+
+.social-frame {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border-radius: 12px;
+  background: #04060c;
+  box-shadow: 0 24px 48px rgba(18, 19, 22, 0.22);
+}
+
+.social-shot {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: url("/media/nova-gate-shot.webp") 54% 50% / cover;
+}
+
+.safe {
+  position: absolute;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(244, 244, 241, 0.13) 0 6px,
+    rgba(244, 244, 241, 0.03) 6px 12px
+  );
+}
+
+.safe.top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 13%;
+  border-radius: 12px 12px 0 0;
+}
+
+.safe.bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25%;
+  border-radius: 0 0 12px 12px;
+}
+
+.safe.right {
+  top: 13%;
+  bottom: 25%;
+  right: 0;
+  width: 16%;
+}
+
+/* The caption, just below TikTok's top band, clear of the buttons */
+.social-cap {
+  position: absolute;
+  top: 15%;
+  left: 5%;
+  right: 16%;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+
+.social-cap span {
+  display: inline-block;
+  margin: 0 0.12em;
+  padding: 0 0.12em;
+  border-radius: 0.12em;
+  animation: karaoke 3.5s steps(1) infinite;
+}
+
+@keyframes karaoke {
+  0% {
+    background: var(--mark);
+    color: var(--ink);
+    text-shadow: none;
+  }
+  20%,
+  100% {
+    background: transparent;
+    color: #fff;
+  }
+}
+
+.social-styles {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.social-styles > span:not(.fit-pin) {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+.social-styles > span.on {
+  border-color: var(--mark);
+  background: var(--mark);
+  color: var(--ink);
+}
+
+/* The end card */
+.social-end {
+  margin-top: 18%;
+}
+
+.social-frame.end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10%;
+  background:
+    radial-gradient(90% 70% at 72% 0%, rgba(52, 231, 214, 0.18), transparent 60%), #04060c;
+  color: #eaf4fa;
+  text-align: center;
+}
+
+.end-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.end-line {
+  margin: 0 0 18px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #b7c8d3;
+}
+
+.end-button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #34e7d6;
+  color: #04060c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .social-cap span {
+    animation: none;
+  }
+}
+
+/* The editing picture: the slide, the style panel overlapping its
+   right edge, and the view switch under both. */
+.edit-art {
+  position: relative;
+  max-width: 460px;
+  padding-right: 22%;
+}
+
+.edit-stage {
+  position: relative;
+  padding: 20px 22px 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background:
+    radial-gradient(90% 70% at 72% 0%, rgba(52, 231, 214, 0.12), transparent 60%), #04060c;
+  box-shadow: 0 24px 48px rgba(18, 19, 22, 0.22);
+}
+
+/* The title, open for editing: an outline and a blinking caret */
+.edit-title {
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 2px 8px;
+  border: 1.5px dashed rgba(234, 244, 250, 0.5);
+  border-radius: 6px;
+  color: #eaf4fa;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.95em;
+  margin-left: 2px;
+  vertical-align: -0.1em;
+  background: var(--mark);
+  animation: caret 1s steps(1) infinite;
+}
+
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.edit-shot {
+  aspect-ratio: 864 / 460;
+  border-radius: 10px 10px 0 0;
+  background: url("/media/nova-gate-shot.webp") 50% 40% / cover;
+}
+
+.edit-panel {
+  position: absolute;
+  top: 24%;
+  right: 0;
+  width: 34%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--ink-raised);
+  box-shadow: 0 16px 32px rgba(18, 19, 22, 0.35);
+  color: var(--ink-soft);
+}
+
+.edit-panel p {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.swatches:last-of-type {
+  margin-bottom: 0;
+}
+
+.swatches i {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--ink-line);
+}
+
+.swatches i.on {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.edit-views {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  margin-top: 16px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.edit-views > span:not(.fit-pin) {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.edit-views > span.on {
+  background: var(--mark);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+  }
+}
+
+/* The share picture: the exports, then the Share window */
+.share-art {
+  max-width: 440px;
+}
+
+.exports {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.export {
+  margin: 0;
+}
+
+.export span {
+  display: block;
+  border-radius: 8px;
+  background: center / cover var(--ink);
+  box-shadow: 0 12px 24px rgba(18, 19, 22, 0.22);
+}
+
+.export figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+.export.tall span {
+  width: 72px;
+  aspect-ratio: 9 / 16;
+}
+
+.export.wide span {
+  width: 136px;
+  aspect-ratio: 4 / 3;
+}
+
+/* Two screenshots, one behind the other */
+.export.stack {
+  display: grid;
+}
+
+.export.stack span {
+  grid-area: 1 / 1;
+  width: 58px;
+  aspect-ratio: 1320 / 2868;
+}
+
+.export.stack span:first-child {
+  transform: translate(14px, -10px) rotate(6deg);
+}
+
+.export.stack figcaption {
+  grid-area: 2 / 1;
+}
+
+.dest {
+  position: relative;
+}
+
+.dest-pin {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.fit-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes fit-zoom {
+  to {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes fit-corner {
+  to {
+    transform: scale(0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fit-zoom,
+  .fit-window i {
+    animation: none;
+  }
+}
+
+.numbered > ul > li {
+  padding-left: 36px;
+  transition: color 0.15s;
+}
+
+.numbered > ul > li::before {
+  content: none;
+}
+
+.numbered > ul > li .pin {
+  position: absolute;
+  left: 0;
+  top: 0.2em;
+}
+
+.numbered > ul > li + li {
+  margin-top: 24px;
+}
+
+.numbered > ul > li.on {
+  color: var(--text);
+}
+
+.stage > ul > li strong {
   color: var(--text);
   font-weight: 700;
 }
@@ -1054,6 +1872,11 @@ footer .brand {
     gap: 16px;
   }
 
+  .stage.numbered {
+    grid-template-areas: "head" "art" "list";
+    row-gap: 24px;
+  }
+
   .stage + .stage {
     margin-top: 48px;
     padding-top: 48px;
@@ -1088,8 +1911,8 @@ footer .brand {
   }
 }
 
-/* Phones: only two links fit beside the name, so "How it works" and
-   "FAQ" go (the name links to the home page; the footer links the FAQ) */
+/* Phones: only two links fit beside the name, so "FAQ" goes (the
+   footer links it) */
 @media (max-width: 480px) {
   .top nav .optional {
     display: none;

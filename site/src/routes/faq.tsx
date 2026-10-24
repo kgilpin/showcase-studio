@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { SiteFooter, SiteHeader } from "../components/Site";
+import { PageIntro, SiteFooter, SiteHeader } from "../components/Site";
 
 const DESCRIPTION =
   "Questions about Showcase Studio: what it costs, why it needs Claude Code, what stays on your computer, how posting works, and what it exports.";
@@ -89,10 +89,7 @@ function Faq() {
       <SiteHeader current="faq" />
 
       <main>
-        <section className="page-intro">
-          <p className="eyebrow">Questions</p>
-          <h1>Frequently asked questions</h1>
-        </section>
+        <PageIntro title="Frequently asked questions" />
 
         <section className="features faq">
           {QUESTIONS.map(({ q, a, more }) => (

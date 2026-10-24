@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /* The "Publish it" art: a Share window listing where the video can go,
  * each with its logo. */
 const DESTINATIONS = [
@@ -51,7 +53,9 @@ const DESTINATIONS = [
   },
 ];
 
-export function Destinations() {
+/* pins puts a marker in a destination's tile, by id (the Features page
+ * numbers them). */
+export function Destinations({ pins }: { pins?: Record<string, ReactNode> }) {
   return (
     <div className="chat share" role="group" aria-label="Where the video can go">
       <div className="chat-bar" aria-hidden="true">
@@ -65,6 +69,7 @@ export function Destinations() {
           <li key={d.id} className={`dest ${d.id}`}>
             <span className="logo">{d.logo}</span>
             <strong>{d.name}</strong>
+            {pins?.[d.id] && <span className="dest-pin">{pins[d.id]}</span>}
           </li>
         ))}
       </ul>
