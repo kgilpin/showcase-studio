@@ -83,7 +83,7 @@ export class LicenseRequired extends Error {
 }
 
 export const LIMIT_MESSAGE =
-  `You've used your ${FREE_EXPORTS} free full-quality videos. Subscribe ($10/month) in ` +
+  `You've used your ${FREE_EXPORTS} free full-quality videos. Subscribe ($9.50/month) in ` +
   "Showcase Studio to keep exporting them — drafts, screenshots and the script stay free.";
 
 /** settings: { load(), save(patch) } (server/settings.mjs). openUrl opens

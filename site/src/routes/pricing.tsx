@@ -5,7 +5,7 @@ import { PageIntro, SiteFooter, SiteHeader } from "../components/Site";
 import { CHECKOUT_URL, PORTAL_SIGN_IN_URL } from "../license-service";
 
 const DESCRIPTION =
-  "Free to try: two full-quality video exports on each computer, and drafts are always free. Then $10/month for unlimited full-quality videos.";
+  "Free to try: two full-quality video exports on each computer, and drafts are always free. Then $9.50/month for unlimited full-quality videos.";
 
 export const Route = createFileRoute("/pricing")({
   head: () => ({
@@ -69,7 +69,7 @@ function Pricing() {
             name={<mark>Subscription</mark>}
             price={
               <>
-                $10 <small>/ month</small>
+                $9.50 <small>/ month</small>
               </>
             }
             first={<strong>Unlimited video exports</strong>}

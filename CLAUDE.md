@@ -659,7 +659,7 @@ npm run dev -- --new [<library folder>]
   `src/routes/features.tsx` the Features page: seven sections, each a
   picture with numbered circles beside three features — check each claim
   against the studio before adding it. `src/routes/faq.tsx` is the FAQ,
-  `src/routes/pricing.tsx` the Pricing page (the trial and the $10/month
+  `src/routes/pricing.tsx` the Pricing page (the trial and the $9.50/month
   subscription side by side, then questions about the subscription — keep
   those there, not in the FAQ), and `src/routes/download.tsx` the
   Download page, at `/download` only: everything under `/download/` is a

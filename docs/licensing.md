@@ -10,7 +10,7 @@ is `server/license.mjs` and the components in `src/components/studio/`
 - Without a subscription, each computer gets **2 free full-quality
   videos in all** (`video`, `video-43`). There is no monthly reset.
 - Drafts, App Store screenshots and the script are always free.
-- After that it needs a subscription: **$10/month** through Stripe.
+- After that it needs a subscription: **$9.50/month** through Stripe.
 - A license key works on **any number of computers**. Each licensed
   export is logged with the key and the computer, so a key shared
   widely shows up (see "Spotting a shared key"). A limit can come later.
@@ -75,7 +75,7 @@ gets the key on the thank-you page and types it into the studio with
 
 ```html
 <form method="post" action="<CheckoutUrl output>">
-  <button>Subscribe — $10/month</button>
+  <button>Subscribe — $9.50/month</button>
 </form>
 ```
 
@@ -200,14 +200,14 @@ Dev is set up:
 | ------- | ------------------------------------------------------ |
 | AWS     | `siteforward` profile, account 765035994448, us-east-1 |
 | Stripe  | SiteForward LLC (`acct_1SZYeoFIehZOhU97`), test mode   |
-| Price   | `price_1URDCoFIehZOhU97xvFghjDp` ($10/month)           |
+| Price   | `price_1URDCoFIehZOhU97xvFghjDp`                       |
 | Webhook | `we_1URDCtFIehZOhU97GkN8wFLV`                          |
 
 Prod is not set up yet. It uses the same Stripe account in live mode.
 
 Stripe, in test mode first:
 
-1. Make a product "Showcase Studio" with a $10/month recurring price.
+1. Make a product "Showcase Studio" with a $9.50/month recurring price.
    Note its `price_…` id. Give the product a tax code (the sandbox
    uses `txcd_10103101`, "SaaS — electronic download — business use"):
    Stripe's Managed Payments, on by default, refuses a checkout for a

@@ -5,7 +5,7 @@
 import { toast } from "sonner";
 import { studio, type StudioLicense } from "@/lib/studio";
 
-export const PRICE = "$10/month";
+export const PRICE = "$9.50/month";
 
 /** The pill's words for a license state. */
 export function pillLabel(license: StudioLicense): string {
