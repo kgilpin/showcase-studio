@@ -6,6 +6,14 @@
 name: showcase_demo
 language: javascript
 appmap_dir: tmp/appmap
+# appmap-node nests the calls an async function makes under it only while
+# its async tracking is on, and it turns that off for the rest of the
+# vitest worker once the worker's first buffered call is older than this
+# limit (3000 ms by default). So a test's shape depended on how long the
+# tests before it in the same worker took: on a slower machine, or with
+# slower git, the same test recorded flat instead of nested. An hour is
+# longer than any run, so every test keeps the nested shape.
+async_tracking_timeout: 3600000
 packages:
   - path: server
     exclude:
@@ -19,6 +27,16 @@ packages:
       # more about the machine than about the code. The lookup itself
       # (whisperPath) stays.
       - whisperAdvice
+      # Where git is (server/git-program.mjs): every git command asks
+      # gitProgram, and the first one in a process also searches PATH
+      # (findOnPath) while later ones only check the file is still there
+      # (isFile). So which trace gets the search depends on which test ran
+      # git first in that vitest run, not on the code. The lookup is
+      # covered by server/git-program.test.mjs; the git calls that use it
+      # (showcase-history.git and others) stay in the trace.
+      - gitProgram
+      - findOnPath
+      - isFile
   - path: scripts
   - path: electron
   - path: src

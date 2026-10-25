@@ -1,11 +1,14 @@
 # The Showcase Studio marketing site: a Cloudflare Worker that serves the
-# static files in public/, uploaded as is; public/_headers sets the response
-# headers. worker.js runs only for /media/*, to answer byte-range requests,
-# which Safari needs to play the hero video, and for /download/*, the app's
-# releases from the R2 bucket below (scripts/publish-release.mjs uploads
-# them).
-#   npm run dev:wrangler   serve public/ locally the way Cloudflare does (:8098)
-#   npm run deploy         upload public/ and serve it at showcasestudio.dev
+# static files in dist/client, which npm run build makes (a TanStack Start
+# app, prerendered: see vite.config.ts); public/_headers, copied in by the
+# build, sets the response headers. worker.js runs only for /media/*, to
+# answer byte-range requests, which Safari needs to play the hero video, and
+# for /download/*, the app's releases from the R2 bucket below
+# (scripts/publish-release.mjs uploads them).
+#   npm run dev:wrangler   build, then serve dist/client locally the way
+#                          Cloudflare does (:8098)
+#   npm run deploy         build, upload dist/client and serve it at
+#                          showcasestudio.dev
 #   npm run deploy:preview upload a version without serving it, for a preview URL
 # No account_id: wrangler deploys to the account it is logged in to, so the
 # same config works after the domain moves accounts.
@@ -14,13 +17,9 @@ compatibility_date = "2026-10-16"
 main = "worker.js"
 
 [assets]
-directory = "./public"
+directory = "./dist/client"
 binding = "ASSETS"
 run_worker_first = ["/media/*", "/download/*"]
-# Pages are served without .html (/pricing is pricing.html; the default),
-# and a missing page gets 404.html with a 404.
-html_handling = "auto-trailing-slash"
-not_found_handling = "404-page"
 
 [[routes]]
 pattern = "showcasestudio.dev"
@@ -49,6 +48,9 @@ bucket_name = "showcase-studio-releases"
 #      in SiteForward, unused until then) gets the bucket and the domain
 #   4. delete the showcase-studio Worker in goo.global and the
 #      showcase-studio-downloads Worker in SiteForward
+#   5. deploy on push: a GitHub Actions workflow that runs npm run deploy
+#      in site/ on every push to main that touches site/, with a
+#      SiteForward API token in the repository's secrets
 [env.downloads]
 name = "showcase-studio-downloads"
 workers_dev = true

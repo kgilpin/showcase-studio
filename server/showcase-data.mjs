@@ -3,7 +3,11 @@
  * the vite dev middleware (vite.config.ts) and the Electron shell
  * (electron/main.mjs).
  *
- *   GET <base>/index.json               → { showcases: [{ id, hasTheme, assets, graphics }] }
+ *   GET <base>/index.json               → { showcases: [{ id, hasTheme, assets, graphics,
+ *                                                     modifiedMs }] }
+ *                                         (modifiedMs: showcase.yaml's
+ *                                         modified time, for the home
+ *                                         page's order)
  *   GET <base>/<id>/showcase.yaml
  *   GET <base>/<id>/theme.yaml
  *   GET <base>/<id>/assets/<file>
@@ -13,7 +17,7 @@
  *                                         graphics runtime; compile errors
  *                                         return 500 with the message
  */
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 export const MIME = {
@@ -58,6 +62,7 @@ export function showcaseIndex(dir) {
             GRAPHIC_EXTENSIONS.includes(path.extname(f)),
           )
         : [],
+      modifiedMs: statSync(path.join(dir, id, "showcase.yaml")).mtimeMs,
     }));
   return { showcases };
 }

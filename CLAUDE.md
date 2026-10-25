@@ -93,14 +93,18 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # webhook's signature gate, the free-video limit, a licensed export);
 # run the gold-traces engine with --dir cdk/gold_traces.
 
-# The marketing site (site/), live at https://showcasestudio.dev: static
-# files served by a Cloudflare Worker, its own npm package, nothing shared
-# with the studio's build or the AWS stack.
+# The marketing site (site/), live at https://showcasestudio.dev: a
+# TanStack Start app, prerendered to static files at build time and served
+# by a Cloudflare Worker. Its own npm package, nothing shared with the
+# studio's build or the AWS stack.
 #   cd site && npm i
-#   npm run dev            serve site/public on http://localhost:8098
-#                          (a small Node server, no dependencies)
-#   npm run dev:wrangler   the same, the way Cloudflare serves it, with
-#                          /download/* from wrangler's local R2 bucket
+#   npm run dev            the site with hot reload on http://localhost:8098
+#                          (PORT when a launcher sets it)
+#   npm run build          prerender into site/dist/client (gitignored)
+#   npm run typecheck      tsc
+#   npm run dev:wrangler   build, then serve dist/client the way Cloudflare
+#                          does, with /download/* from wrangler's local R2
+#                          bucket
 #   npm run publish-release -- <mac|win> <version> <folder> [--local]
 #                          put a release's zip and checksum file in the R2
 #                          bucket showcase-studio-releases and point
@@ -123,9 +127,12 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #   npx wrangler login     once, in a browser, as the account that holds
 #                          the showcasestudio.dev zone (npx wrangler whoami
 #                          says which account you are in)
-#   npm run deploy         upload site/public, serve it at showcasestudio.dev
-#                          (until the move: both deploys below)
-#   npm run deploy:preview upload a version without serving it
+#   npm run deploy         build, upload site/dist/client, serve it at
+#                          showcasestudio.dev (until the move: both
+#                          deploys below)
+#   npm run deploy:preview build and upload a version without serving it
+# The Pricing page's two links (site/src/license-service.ts) are dev and
+# Stripe test mode: switch them to prod before deploying.
 # wrangler.toml names no account, so a deploy goes to whichever account
 # wrangler is logged in to. The domain is in the goo.global account and
 # moves to the SiteForward account around 2026-10-26. Until then:
@@ -142,10 +149,12 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #   wrangler deploy --env downloads              the downloads Worker, in
 #                                                SiteForward
 # Releases upload to the SiteForward bucket only (publish-release, as is).
-# After the move, switch back with the four steps at the end of
+# After the move, switch back with the five steps at the end of
 # site/wrangler.toml: the plain deploy scripts in site/package.json, no
-# env sections or relay, npm run deploy as SiteForward, then delete the
-# two Workers that are no longer used.
+# env sections or relay, npm run deploy as SiteForward, delete the two
+# Workers that are no longer used, then deploy on every push to main
+# with a GitHub Actions workflow. Until then the site deploys by hand
+# (npm run deploy): nothing deploys it on push.
 # wrangler remembers the account in
 # site/node_modules/.cache/wrangler/wrangler-account.json: after logging
 # in as another account, delete that file, or wrangler keeps sending
@@ -282,7 +291,8 @@ npm run dev -- --new [<library folder>]
 # with showcase: <id>, which locks the studio to it (no Home link); leave
 # it out only for the whole library. Libraries have no
 # .claude/launch.json, and this repo's lists only the marketing site
-# ("site", on :8098) — never a studio (dev or dev:electron). A
+# ("site", npm run dev on :8098, and "site-wrangler", npm run
+# dev:wrangler) — never a studio (dev or dev:electron). A
 # preview-button studio would be a second studio on the same library: the
 # tools wouldn't use it, and its commits would sweep up the session's work
 # in progress. (The studio removes the ones earlier versions wrote into
@@ -638,9 +648,30 @@ npm run dev -- --new [<library folder>]
   customer). Rules in `lambda-license/license-core.mjs`, wired to
   DynamoDB, Stripe (plain fetch) and SSM by the other files there.
   Design: `docs/licensing.md`.
-- `site/`: The marketing site at https://showcasestudio.dev, a Cloudflare
-  Worker that serves static files (own npm package; only `wrangler` as a
-  dependency). `worker.js` runs only for `/media/*`, to answer byte-range
+- `site/`: The marketing site at https://showcasestudio.dev (own npm
+  package): a TanStack Start app, prerendered by `vite build` into
+  `dist/client`, which a Cloudflare Worker serves as static files, so no
+  page is rendered on a request. Only the routes in the `pages` list in
+  `vite.config.ts` are built, so a new route must be added there.
+  `src/routes/__root.tsx` holds the shared `<head>` (title, description,
+  Open Graph tags; each route sets its own canonical link),
+  `src/routes/index.tsx` the home page, a short overview, and
+  `src/routes/features.tsx` the Features page: seven sections, each a
+  picture with numbered circles beside three features — check each claim
+  against the studio before adding it. `src/routes/faq.tsx` is the FAQ,
+  `src/routes/pricing.tsx` the Pricing page (the trial and the $10/month
+  subscription side by side, then questions about the subscription — keep
+  those there, not in the FAQ), and `src/routes/download.tsx` the
+  Download page, at `/download` only: everything under `/download/` is a
+  release file the Worker serves. `src/routes/404.tsx` is prerendered to
+  `404.html`, which Cloudflare sends for any missing page
+  (`not_found_handling` in `wrangler.toml`); the build strips its scripts
+  (`scripts/static-404.mjs`), since it is served at paths the app doesn't
+  know. Every page is written as `<name>.html`, so Cloudflare serves it at
+  `/<name>` with no trailing slash. `src/components/Site.tsx` is the top bar and footer every page
+  shares, and `src/components/` also holds the parts that run in the browser (the caption
+  highlight, the hero video's player, the Copy button) and the
+  destination logos. `src/styles.css` is the stylesheet. `worker.js` runs only for `/media/*`, to answer byte-range
   requests, which Safari needs to play the hero video, and for
   `/download/*`: the app's releases, from the R2 bucket
   `showcase-studio-releases` (zips are too big for static files, which
@@ -649,25 +680,18 @@ npm run dev -- --new [<library folder>]
   `/download/latest/mac` and `/download/latest/win` redirect by.
   `scripts/publish-release.mjs` uploads a release and writes
   `latest.json` last. The GitHub release stays as the private record of
-  each build; users download from the site. `public/` is
-  uploaded as is: three pages, `index.html` (home: what it does),
-  `download.html` (`/download`: the plugin and the desktop app) and
-  `pricing.html` (`/pricing`: the trial, the $10/month subscription, and
-  questions), each with its own title, description, canonical URL and
-  social tags, sharing one header and footer (copied into each page:
-  there's no build step) and `styles.css`; plus `404.html`,
-  `sitemap.xml` (add a line for every new page), `robots.txt`,
-  `_headers`, and `media/` (made by `scripts/prepare-media.mjs`).
-  Cloudflare serves `/pricing` from `pricing.html` (wrangler.toml's
-  `html_handling`), and `scripts/serve.mjs` does the same locally. The
-  download buttons link to `/download/latest/*`, so a release doesn't
-  touch the pages. The pricing page's Subscribe button posts to the
-  license service's `/checkout`, and its "Manage subscription" links go
-  to Stripe's Customer Portal sign-in. Both point at **dev and Stripe
-  test mode** until prod is set up: switch them in `pricing.html` (the
-  CHECKOUT form action and the portal link) before deploying the page.
-  There is no YouTube link yet: add one to the top bar and the footer
-  when the channel exists.
+  each build; users download from the site. `public/` is copied into
+  the build as is: `_headers`, `icon.svg`, `robots.txt`, `sitemap.xml`
+  (add a line for every new page) and `media/` (made by
+  `scripts/prepare-media.mjs`). The download buttons link to
+  `/download/latest/*`, so a release doesn't touch the pages.
+  The Pricing page's Subscribe button posts to the license service's
+  `/checkout`, and its "Manage subscription" links go to Stripe's
+  Customer Portal sign-in. Both are in `src/license-service.ts` and point
+  at **dev and Stripe test mode** until prod is set up: switch them there
+  before deploying the site.
+  There is no YouTube
+  link yet: add one to the top bar and the footer when the channel exists.
 - `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
   its own `cdk/appmap.yml`): The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via

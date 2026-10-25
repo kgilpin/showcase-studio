@@ -1020,6 +1020,7 @@ export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]
       fail(entry.id, error);
     }
   }
+  const modifiedMs = new Map(data.map((entry) => [entry.id, entry.modifiedMs ?? 0]));
   const built: Showcase[] = [];
   const warnings: ShowcaseWarning[] = [];
   for (const [showcaseId, doc] of rawDocs) {
@@ -1033,7 +1034,13 @@ export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]
       fail(showcaseId, error);
     }
   }
-  showcases = built.sort((a, b) => a.title.localeCompare(b.title));
+  /* The home page lists the most recently edited showcase first (by
+   * showcase.yaml's modified time); ties, and the bundled source, which
+   * has no file times, go by title. */
+  showcases = built.sort(
+    (a, b) =>
+      (modifiedMs.get(b.id) ?? 0) - (modifiedMs.get(a.id) ?? 0) || a.title.localeCompare(b.title),
+  );
   showcaseErrors = errors;
   showcaseWarnings = warnings;
   return showcases;

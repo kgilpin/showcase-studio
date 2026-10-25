@@ -41,6 +41,10 @@ export type ShowcaseData = {
    *  HTTP source serves folder TSX compiled on request (see
    *  src/content/graphics-runtime.tsx). */
   graphics: Map<string, string>;
+  /** When showcase.yaml last changed (ms since the epoch). The HTTP
+   *  source has it from the server; the bundled source has no file
+   *  times, so its showcases sort by title alone. */
+  modifiedMs?: number | undefined;
 };
 
 export type ShowcaseSource = { load(): Promise<ShowcaseData[]> };
@@ -130,7 +134,13 @@ export const bundledSource: ShowcaseSource = {
 };
 
 type ShowcaseIndex = {
-  showcases: { id: string; hasTheme: boolean; assets: string[]; graphics?: string[] }[];
+  showcases: {
+    id: string;
+    hasTheme: boolean;
+    assets: string[];
+    graphics?: string[];
+    modifiedMs?: number;
+  }[];
 };
 
 export function httpSource(base: string): ShowcaseSource {
@@ -143,8 +153,9 @@ export function httpSource(base: string): ShowcaseSource {
     async load() {
       const index = JSON.parse(await text(`${base}/index.json`)) as ShowcaseIndex;
       return Promise.all(
-        index.showcases.map(async ({ id, hasTheme, assets, graphics }) => ({
+        index.showcases.map(async ({ id, hasTheme, assets, graphics, modifiedMs }) => ({
           id,
+          modifiedMs,
           yaml: await text(`${base}/${id}/showcase.yaml`),
           themeYaml: hasTheme ? await text(`${base}/${id}/theme.yaml`) : undefined,
           assets: assetMap(

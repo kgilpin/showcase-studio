@@ -374,3 +374,32 @@ atmosphere:
     }
   });
 });
+
+describe("library order", () => {
+  const yaml = (title: string) => `
+meta:
+  title: ${title}
+scenes:
+  - id: one
+    title: One
+`;
+
+  it("puts the most recently modified showcase.yaml first, then sorts by title", async () => {
+    const loaded = await loadFromSource({
+      load: async () => [
+        { ...data("old", yaml("Alpha"), []), modifiedMs: 1_000 },
+        { ...data("new", yaml("Zulu"), []), modifiedMs: 3_000 },
+        { ...data("tie-b", yaml("Bravo"), []), modifiedMs: 2_000 },
+        { ...data("tie-a", yaml("Able"), []), modifiedMs: 2_000 },
+        data("undated", yaml("Aardvark"), []),
+      ],
+    });
+    expect(loaded.map((showcase) => showcase.id)).toEqual([
+      "new",
+      "tie-a",
+      "tie-b",
+      "old",
+      "undated",
+    ]);
+  });
+});
