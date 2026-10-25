@@ -1,6 +1,8 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { NotFound } from "../components/NotFound";
+
 import styles from "../styles.css?url";
 
 const DESCRIPTION =
@@ -22,6 +24,9 @@ export const Route = createRootRoute({
           "Ship a feature. Show it off the same day. Claude makes the video from your repo in minutes.",
       },
       { property: "og:image", content: "https://showcasestudio.dev/media/hero.jpg" },
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Showcase Studio" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
@@ -36,14 +41,7 @@ export const Route = createRootRoute({
   }),
   shellComponent: Shell,
   component: Outlet,
-  notFoundComponent: () => (
-    <main className="download">
-      <h2>Page not found</h2>
-      <p>
-        <a href="/">Go to the home page</a>
-      </p>
-    </main>
-  ),
+  notFoundComponent: NotFound,
 });
 
 function Shell({ children }: { children: ReactNode }) {

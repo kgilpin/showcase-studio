@@ -112,7 +112,7 @@ function Faq() {
           <h2>Try it on your app</h2>
           <p className="lede">It runs in Claude Code, on the subscription you already have.</p>
           <div className="actions">
-            <a className="button primary" href="/#download">
+            <a className="button primary" href="/download">
               Install now
             </a>
           </div>

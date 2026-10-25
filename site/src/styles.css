@@ -1499,9 +1499,15 @@ main {
   border-top: 1px solid var(--line);
 }
 
-.question h2 {
+.question h2,
+.question h3 {
   margin-bottom: 12px;
   font-size: 26px;
+}
+
+/* The pricing page's questions sit under their own heading. */
+.faq > h2 {
+  margin-bottom: 48px;
 }
 
 .question p {
@@ -1512,6 +1518,111 @@ main {
 /* Download */
 .download {
   padding: 112px 0 128px;
+}
+
+/* The Download page: the cards come right after the page's title. */
+.download.install {
+  margin-top: -48px;
+  padding-top: 0;
+}
+
+/* A line that sends the reader to the next page */
+.next {
+  margin: 40px 0 0;
+  color: var(--soft);
+}
+
+/* Pricing: two plans side by side, laid out alike. Each card's name,
+   price, list and button share rows with the other card's (subgrid), so
+   the two line up whatever their text. */
+.plans {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: 24px;
+  margin: -48px 0 0;
+  padding-bottom: 112px;
+}
+
+.plan {
+  display: grid;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+  row-gap: 0;
+}
+
+.plan.featured {
+  outline: 2px solid var(--mark);
+}
+
+/* A card's title on a page whose cards are the second level (Download,
+   Pricing): sized like h3. */
+.card h2 {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.card .price {
+  margin: 10px 0 4px;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.card .price small {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--soft);
+}
+
+.checks {
+  margin: 20px 0 28px;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  position: relative;
+  padding: 6px 0 6px 28px;
+  color: var(--soft);
+}
+
+.checks li strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* The tick: a small square in the highlight */
+.checks li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.85em;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--mark);
+}
+
+.plan .button {
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.plan form {
+  margin: 0;
+}
+
+.plan .small {
+  margin: 12px 0 0;
+}
+
+/* Not found */
+.lost {
+  padding-bottom: 160px;
 }
 
 .download-grid {
@@ -1887,6 +1998,19 @@ footer .brand {
     gap: 12px;
   }
 
+  .plans {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    gap: 12px;
+    margin-top: -24px;
+    padding-bottom: 80px;
+  }
+
+  .plan {
+    grid-row: auto;
+    grid-template-rows: none;
+  }
+
   .or {
     text-align: center;
   }
@@ -1911,8 +2035,8 @@ footer .brand {
   }
 }
 
-/* Phones: only two links fit beside the name, so "FAQ" goes (the
-   footer links it) */
+/* Phones: only two links fit beside the name, so Features and FAQ go
+   (the footer links them) */
 @media (max-width: 480px) {
   .top nav .optional {
     display: none;
