@@ -241,8 +241,6 @@ describe("sliceTranscript", () => {
 
 describe("transcriptFileName", () => {
   it("sits beside the recording", () => {
-    expect(transcriptFileName("Interview - Alex.MOV")).toBe(
-      "Interview - Alex.transcript.json",
-    );
+    expect(transcriptFileName("Interview - Alex.MOV")).toBe("Interview - Alex.transcript.json");
   });
 });
