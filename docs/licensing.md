@@ -208,10 +208,12 @@ Prod is not set up yet. It uses the same Stripe account in live mode.
 Stripe, in test mode first:
 
 1. Make a product "Showcase Studio" with a $9.50/month recurring price.
-   Note its `price_…` id. Give the product a tax code (the sandbox
-   uses `txcd_10103101`, "SaaS — electronic download — business use"):
-   Stripe's Managed Payments, on by default, refuses a checkout for a
-   product without one. With Managed Payments, Stripe is the seller of
+   Note its `price_…` id. Give the product the tax code
+   `txcd_10202003`, "Downloadable Software – business use" (under
+   Digital products > Software). It is downloadable software, not SaaS:
+   it runs on the customer's own computer, and the subscription is how
+   they pay, not what they get. Stripe's Managed Payments, on by
+   default, refuses a checkout for a product without a tax code. With Managed Payments, Stripe is the seller of
    record and handles sales tax and VAT.
 2. Deploy the stack (below) and give Stripe the `WebhookUrl` output as
    a webhook endpoint, for these events: `checkout.session.completed`,
