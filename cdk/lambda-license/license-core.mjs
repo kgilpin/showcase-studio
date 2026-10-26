@@ -349,6 +349,16 @@ export async function portal(payload, { store, stripe, selfUrl }) {
   if (!LICENSE_KEY.test(key)) return BAD_KEY;
   const license = await store.getLicense(key);
   if (!license?.stripeCustomerId) return [404, { error: "no such license" }];
-  const session = await stripe.createPortalSession(license.stripeCustomerId, `${selfUrl}/back`);
+  // Stripe refuses when it has no such customer — a license from another
+  // Stripe account, say. Say so, rather than fail as an error of ours.
+  let session;
+  try {
+    session = await stripe.createPortalSession(license.stripeCustomerId, `${selfUrl}/back`);
+  } catch (error) {
+    console.warn(`portal for ${license.stripeCustomerId}`, error);
+  }
+  if (!session?.url) {
+    return [409, { error: "Stripe couldn't open the portal for this subscription" }];
+  }
   return [200, { url: session.url }];
 }

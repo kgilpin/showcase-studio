@@ -557,6 +557,22 @@ describe("portal", () => {
     expect(asked).toEqual({ customer: "cus_1", returnUrl: "https://license.test/back" });
   });
 
+  it("says Stripe refused, rather than failing, when Stripe has no such customer", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store);
+    const stripe = fakeStripe({
+      createPortalSession: async () => {
+        throw new Error("Stripe POST /billing_portal/sessions: 400 No such customer");
+      },
+    });
+    const [status, body] = await portal(
+      { licenseKey },
+      { store, stripe, selfUrl: "https://license.test" },
+    );
+    expect(status).toBe(409);
+    expect(body.error).toMatch(/Stripe couldn't open the portal/);
+  });
+
   it("refuses a malformed or unknown key", async () => {
     const store = memoryStore();
     const ctx = { store, stripe: fakeStripe(), selfUrl: "https://license.test" };

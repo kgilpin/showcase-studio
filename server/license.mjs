@@ -122,17 +122,29 @@ export function createLicense({
   const saved = () => settings.load().license ?? {};
   const save = (patch) => settings.save({ license: { ...saved(), ...patch } });
 
+  /** Throws when the service can't be reached (error.unreachable) or
+   *  fails on its side; any other answer comes back as [status, body]. */
   async function call(path, body) {
-    const response = await fetchImpl(`${base()}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let response;
+    try {
+      response = await fetchImpl(`${base()}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      throw Object.assign(new Error(error.message), { unreachable: true });
+    }
     const result = await response.json().catch(() => ({}));
-    if (response.status >= 500)
-      throw new Error(result.error ?? `license service: ${response.status}`);
+    if (response.status >= 500) {
+      throw new Error(`The license service had a problem (${result.error ?? response.status})`);
+    }
     return [response.status, result];
   }
+
+  /** The words for a failed call: offline, or the service's own problem. */
+  const failure = (error) =>
+    error.unreachable ? `Couldn't reach the license service (${error.message})` : error.message;
 
   /* ---------- what the page shows ---------- */
 
@@ -304,7 +316,7 @@ export function createLicense({
     try {
       [, result] = await call("/checkout", { deviceId: device() });
     } catch (error) {
-      return { ok: false, error: `Couldn't reach the license service (${error.message})` };
+      return { ok: false, error: failure(error) };
     }
     if (!result.checkoutUrl || !result.licenseKey) {
       return { ok: false, error: result.error ?? "The license service didn't start a checkout" };
@@ -351,7 +363,7 @@ export function createLicense({
     try {
       [code, result] = await call("/check", { licenseKey, deviceId: device() });
     } catch (error) {
-      return { ok: false, error: `Couldn't reach the license service (${error.message})` };
+      return { ok: false, error: failure(error) };
     }
     if (code === 400) return { ok: false, error: "That isn't a Showcase Studio license key." };
     if (result.status === "unknown") return { ok: false, error: "No subscription has that key." };
@@ -372,7 +384,7 @@ export function createLicense({
       openUrl(result.url);
       return { ok: true };
     } catch (error) {
-      return { ok: false, error: `Couldn't reach the license service (${error.message})` };
+      return { ok: false, error: failure(error) };
     }
   }
 

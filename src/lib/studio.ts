@@ -75,6 +75,8 @@ export type StudioLicensing = {
   portal(): Promise<Done>;
   /** The license key saved on this computer, or null. */
   key(): Promise<string | null>;
+  /** Takes the key off this computer; the subscription keeps running. */
+  remove(): Promise<Done>;
 };
 
 /** What a finished media build reports (server/build-media.mjs). */
@@ -557,6 +559,7 @@ function createLicensing(): StudioLicensing {
     enterKey: (key) => post("license-key", { key }),
     portal: () => post("license-portal"),
     key: async () => (await post<Done & { key?: string | null }>("license-key-get")).key ?? null,
+    remove: () => post("license-remove"),
   };
 }
 

@@ -83,10 +83,17 @@ const masked = (key: string) => key.replace(/^(SS-\w{4})-\w{4}-\w{4}-/, "$1-â€¢â
 function KeyLine() {
   const [key, setKey] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
-  useEffect(() => {
-    void studio()!.license.key().then(setKey);
-  }, []);
+  /* Changing the key: typing another one in, or taking it off this
+   * computer (asked once). Either way the subscription itself stays as
+   * it is in Stripe. */
+  const [changing, setChanging] = useState<"no" | "typing" | "removing">("no");
+  const load = () => void studio()!.license.key().then(setKey);
+  useEffect(load, []);
   if (!key) return null;
+  const remove = async () => {
+    const result = await studio()!.license.remove();
+    if (!result.ok) toast.error("The key wasn't removed", { description: result.error });
+  };
   const copy = async () => {
     if (await studio()!.share.copy(key)) toast.success("License key copied");
     else toast.error("Couldn't copy", { description: "Select the key and copy it yourself." });
@@ -108,9 +115,46 @@ function KeyLine() {
       <p className="text-xs text-muted-foreground">
         To use Showcase Studio on another computer, enter this key there.
       </p>
+      {changing === "no" && (
+        <div className="flex gap-4 text-xs text-muted-foreground">
+          <button type="button" className={linkClass} onClick={() => setChanging("typing")}>
+            Use a different key
+          </button>
+          <button type="button" className={linkClass} onClick={() => setChanging("removing")}>
+            Remove from this computer
+          </button>
+        </div>
+      )}
+      {changing === "typing" && (
+        <KeyForm
+          onDone={() => {
+            setChanging("no");
+            load();
+          }}
+        />
+      )}
+      {changing === "removing" && (
+        <div className="space-y-2 rounded-md border border-border p-2.5">
+          <p className="text-xs text-muted-foreground">
+            Take the key off this computer? Your subscription keeps running, and the key still works
+            anywhere you enter it.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => void remove()}>
+              Remove
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setChanging("no")}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const linkClass =
+  "whitespace-nowrap text-left underline-offset-4 hover:text-foreground hover:underline";
 
 /** Opens Stripe's Customer Portal. */
 async function manage() {

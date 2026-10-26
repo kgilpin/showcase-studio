@@ -161,7 +161,7 @@ aws dynamodb scan --profile siteforward --region us-east-1 --table-name <the Lic
 | `server/license.mjs`        | the computer's ID, the key in `settings.json`, the check before a full-quality video, the offline rule, the checkout and its waiting                                                            |
 | `server/studio-server.mjs`  | asks it before every export (`recordedExport`), so the Export button, the Share page, `--export` and Claude's `export` tool all meet the same rule; page actions `license-*`; a `license` event |
 | `LicensePill`               | the tab bar pill while there's something to do: **Trial · 2 videos left**, **Waiting for payment…**, **Payment issue** (amber). A subscription in good standing has no pill                     |
-| `StudioSettings` (the gear) | the Subscription section: **Subscribed · Active**, "Renews Nov 20", Manage subscription ↗                                                                                                       |
+| `StudioSettings` (the gear) | the Subscription section: **Subscribed · Active**, "Renews Nov 20", Manage subscription ↗, and the license key (Show, Copy), with **Use a different key** and **Remove from this computer**     |
 | `SubscribeDialog`           | opened by Full quality… (Showcase page) and Export (Share page) when no free videos are left                                                                                                    |
 
 Saved in `settings.json`:

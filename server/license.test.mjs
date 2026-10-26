@@ -31,6 +31,8 @@ function fakeService() {
     calls: [],
     async fetch(url, { body }) {
       if (service.offline) throw new Error("getaddrinfo ENOTFOUND");
+      if (service.broken)
+        return { status: 500, json: async () => ({ error: "something went wrong" }) };
       const path = new URL(url).pathname;
       const payload = JSON.parse(body);
       service.calls.push([path, payload]);
@@ -215,6 +217,29 @@ describe("subscribing", () => {
     await license.enterKey(KEY);
     expect(await license.openPortal()).toEqual({ ok: true });
     expect(opened).toEqual(["https://billing.stripe.test/p"]);
+  });
+});
+
+describe("when a call fails", () => {
+  it("tells being offline apart from a problem on the service's side", async () => {
+    const { license, service } = setup();
+    service.pay();
+    await license.enterKey(KEY);
+    service.offline = true;
+    expect((await license.openPortal()).error).toMatch(/^Couldn't reach the license service/);
+    service.offline = false;
+    service.broken = true;
+    expect((await license.openPortal()).error).toBe(
+      "The license service had a problem (something went wrong)",
+    );
+  });
+
+  it("passes on the service's own refusal", async () => {
+    const { license, service } = setup();
+    service.pay();
+    await license.enterKey(KEY);
+    service.licenses.delete(KEY);
+    expect((await license.openPortal()).error).toBe("no such license");
   });
 });
 
