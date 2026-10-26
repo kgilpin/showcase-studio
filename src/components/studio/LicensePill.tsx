@@ -32,23 +32,32 @@ import { PRICE, pillLabel, subscribe } from "./license-actions";
 const day = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 
-/** Typing a key in: checked with the service, saved only if it's good. */
+/** A whole key, as pasted: SS- and four groups of four. */
+const WHOLE_KEY = /^SS(-[0-9A-Z]{4}){4}$/;
+
+/** Typing a key in: checked with the service, saved only if it's good.
+ *  Pasting a whole key uses it at once — there's nothing left to do. */
 export function KeyForm({ onDone }: { onDone?: () => void }) {
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!key.trim()) return setError("Paste your license key first");
+  const use = async (text: string) => {
+    if (!text.trim()) return setError("Paste your license key first");
     setBusy(true);
-    const result = await studio()!.license.enterKey(key);
+    const result = await studio()!.license.enterKey(text);
     setBusy(false);
     if (!result.ok) return setError(result.error ?? "That key didn't work");
     toast.success("You're subscribed");
     onDone?.();
   };
   return (
-    <form onSubmit={(e) => void submit(e)} className="space-y-2">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void use(key);
+      }}
+      className="space-y-2"
+    >
       <div className="flex gap-2">
         <Input
           value={key}
@@ -56,12 +65,20 @@ export function KeyForm({ onDone }: { onDone?: () => void }) {
             setKey(e.target.value);
             setError(null);
           }}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData("text").trim().toUpperCase();
+            if (WHOLE_KEY.test(pasted)) {
+              e.preventDefault();
+              setKey(pasted);
+              void use(pasted);
+            }
+          }}
           placeholder="SS-XXXX-XXXX-XXXX-XXXX"
           aria-label="License key"
           className="font-mono text-xs"
           autoFocus
         />
-        <Button type="submit" variant="outline" disabled={busy}>
+        <Button type="submit" disabled={busy}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : "Use key"}
         </Button>
       </div>

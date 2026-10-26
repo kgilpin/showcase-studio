@@ -115,11 +115,23 @@ export function SubscribeDialog({
                 screenshots and the script stay free.
               </DialogDescription>
             </DialogHeader>
-            {typingKey && <KeyForm />}
-            <DialogFooter className="items-center gap-2 sm:justify-between">
-              {typingKey ? (
-                <span />
-              ) : (
+            {/* With the key field open, the key is the one thing to do:
+             * Subscribe and Not now step aside until Back. */}
+            {typingKey ? (
+              <>
+                <KeyForm />
+                <DialogFooter>
+                  <button
+                    type="button"
+                    onClick={() => setTypingKey(false)}
+                    className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    Back
+                  </button>
+                </DialogFooter>
+              </>
+            ) : (
+              <DialogFooter className="items-center gap-2 sm:justify-between">
                 <button
                   type="button"
                   onClick={() => setTypingKey(true)}
@@ -127,16 +139,16 @@ export function SubscribeDialog({
                 >
                   I have a key
                 </button>
-              )}
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Not now
-                </Button>
-                <Button onClick={() => void subscribe()}>
-                  Subscribe <ExternalLink className="size-3.5" aria-hidden />
-                </Button>
-              </div>
-            </DialogFooter>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    Not now
+                  </Button>
+                  <Button onClick={() => void subscribe()}>
+                    Subscribe <ExternalLink className="size-3.5" aria-hidden />
+                  </Button>
+                </div>
+              </DialogFooter>
+            )}
           </>
         )}
       </DialogContent>
