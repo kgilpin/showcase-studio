@@ -11,4 +11,4 @@ export const CHECKOUT_URL =
   "https://v3vlbq2dgu6wjqv6aiqediguie0ertrl.lambda-url.us-east-1.on.aws/checkout";
 
 /* Stripe's Customer Portal sign-in: cancel, or change the card. */
-export const PORTAL_SIGN_IN_URL = "https://billing.stripe.com/p/login/test_9B65kD2E66fqg0w25q57W00";
+export const PORTAL_SIGN_IN_URL = "https://billing.stripe.com/p/login/test_14A14nenqbta4dHa3ygfu00";

@@ -79,8 +79,9 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # points one machine at Dev.
 
 # The license service (cdk/, its own CDK app: bin/license.ts), in the
-# siteforward AWS account with SiteForward LLC's Stripe. Dev is deployed
-# (Stripe test mode); prod isn't yet. docs/licensing.md has the design
+# siteforward AWS account, with Showcase Studio's own Stripe account (the
+# same company, SiteForward LLC, its own account). Dev is deployed
+# (that account's sandbox); prod isn't yet. docs/licensing.md has the design
 # and the one-time Stripe and SSM setup. Same -c environment=dev|prod
 # convention (→ ShowcaseLicenseStack-Dev / -Prod). It runs on its
 # generated Function URL, thank-you page included, so it needs no

@@ -19,7 +19,7 @@ is `server/license.mjs` and the components in `src/components/studio/`
 
 | Piece           | Where                                          | Job                                                                                    |
 | --------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Stripe          | Stripe (SiteForward LLC)                       | Takes payment, renews monthly, emails receipts, hosts the Customer Portal              |
+| Stripe          | Stripe (the Showcase Studio account)           | Takes payment, renews monthly, emails receipts, hosts the Customer Portal              |
 | License service | AWS: one Lambda + one DynamoDB table (`cdk/`)  | Makes keys, tracks status, counts free videos, logs licensed exports, serves the pages |
 | Studio          | `server/license.mjs`, `src/components/studio/` | Shows the status, runs the checkout, asks before each full-quality video               |
 | Website         | `site/` (later)                                | A Buy button that posts to the service, and a "Manage subscription" link               |
@@ -196,14 +196,22 @@ points one machine elsewhere.
 
 Dev is set up:
 
-|         | Dev                                                    |
-| ------- | ------------------------------------------------------ |
-| AWS     | `siteforward` profile, account 765035994448, us-east-1 |
-| Stripe  | SiteForward LLC (`acct_1SZYeoFIehZOhU97`), test mode   |
-| Price   | `price_1URDCoFIehZOhU97xvFghjDp`                       |
-| Webhook | `we_1URDCtFIehZOhU97GkN8wFLV`                          |
+|         | Dev                                                                                  |
+| ------- | ------------------------------------------------------------------------------------ |
+| AWS     | `siteforward` profile, account 765035994448, us-east-1                               |
+| Stripe  | Showcase Studio sandbox (`acct_1UUULJFLhCAtadQE`)                                    |
+| Price   | `price_1UUUQZFLhCAtadQEwn7sby94` ($9.50/month, lookup key `showcase_studio_monthly`) |
+| Webhook | `we_1UUUaHFLhCAtadQEHzs2mVvV`                                                        |
+| Portal  | configuration `bpc_1UUsIBFLhCAtadQE8IQuxyZc`, with its sign-in page                  |
 
-Prod is not set up yet. It uses the same Stripe account in live mode.
+Showcase Studio has a Stripe account of its own, for the same company
+(SiteForward LLC), in an organization with the SiteForward LLC account.
+Buyers see Showcase Studio's own name, branding, receipts and portal,
+and its Stripe settings (Managed Payments, refunds) don't touch the
+hosting business.
+
+Prod is not set up yet. It uses the Showcase Studio account in live
+mode, once the business is verified there.
 
 Stripe, in test mode first:
 
