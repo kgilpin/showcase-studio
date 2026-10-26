@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publish } from "../cdk/lambda/publish-core.mjs";
+import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { createExportRecords } from "./export-records.mjs";
 import { contentHash } from "./scene-edit.mjs";
@@ -1343,10 +1344,14 @@ describe("sharing", () => {
 describe("recording exports", () => {
   it("records a full-quality video export, which the Share page then finds current", async () => {
     const ffmpeg = createRequire(import.meta.url)("ffmpeg-static");
+    // The exporter checks each frame is the size it asked for.
+    const { width, height } = VIDEO_FORMATS.video;
     const png = path.join(tempDir("studio-frame-"), "frame.png");
-    execFileSync(ffmpeg, ["-f", "lavfi", "-i", "color=c=red:s=2x2", "-frames:v", "1", png], {
-      stdio: "ignore",
-    });
+    execFileSync(
+      ffmpeg,
+      ["-f", "lavfi", "-i", `color=c=red:s=${width}x${height}`, "-frames:v", "1", png],
+      { stdio: "ignore" },
+    );
     const frame = readFileSync(png);
     const renderer = {
       openPage: async () => ({

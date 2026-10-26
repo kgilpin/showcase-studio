@@ -87,10 +87,30 @@ function requireRenderer(renderer) {
   return renderer;
 }
 
+/** A PNG's width and height, from its header. */
+export function pngSize(png) {
+  if (png.length < 24 || png.toString("latin1", 12, 16) !== "IHDR") return undefined;
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+}
+
+/* Every capture must be exactly the size asked for. A renderer that draws
+ * at the wrong pixel density would otherwise write a small, blurry export
+ * without a word (issue #22), so a wrong size stops the export. */
 async function withPage(renderer, size, work) {
   const page = await requireRenderer(renderer).openPage(size);
+  const capture = async () => {
+    const png = await page.capture();
+    const got = pngSize(png);
+    if (got?.width !== size.width || got?.height !== size.height) {
+      throw new Error(
+        `The page renderer drew ${got ? `${got.width}×${got.height}` : "something that isn't a PNG"}, ` +
+          `not ${size.width}×${size.height}, so the export would be the wrong size`,
+      );
+    }
+    return png;
+  };
   try {
-    return await work(page);
+    return await work({ ...page, capture });
   } finally {
     await page.close();
   }
