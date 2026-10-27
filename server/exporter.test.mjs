@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { exportScreens, pngSize, screenshotSlide, validateShowcases } from "./exporter.mjs";
+import { withTimeLimit } from "./time-limit.mjs";
 
 describe("the screenshot export", () => {
   it("fails, and leaves the previous set alone, when no scene is in the set", async () => {
@@ -87,6 +88,15 @@ describe("capture size", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("capture time limit", () => {
+  it("fails a capture that never answers instead of hanging", async () => {
+    await expect(withTimeLimit(new Promise(() => {}), 20, "no capture")).rejects.toThrow(
+      "no capture",
+    );
+    await expect(withTimeLimit(Promise.resolve(7), 20, "no capture")).resolves.toBe(7);
   });
 });
 
