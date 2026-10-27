@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
-import { exportScreens, screenshotSlide, validateShowcases } from "./exporter.mjs";
+import { exportScreens, pngSize, screenshotSlide, validateShowcases } from "./exporter.mjs";
 
 describe("the screenshot export", () => {
   it("fails, and leaves the previous set alone, when no scene is in the set", async () => {
@@ -29,6 +29,66 @@ describe("the screenshot export", () => {
 });
 
 afterEach(() => clearPageError());
+
+/** The first 24 bytes of a PNG: enough for pngSize to read its size. */
+function pngHeader(width, height) {
+  const png = Buffer.alloc(24);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
+  png.write("IHDR", 12, "latin1");
+  png.writeUInt32BE(width, 16);
+  png.writeUInt32BE(height, 20);
+  return png;
+}
+
+/** A renderer whose pages load at once and capture `png`. */
+function readyRenderer(png) {
+  return {
+    openPage: async () => ({
+      goto: async () => {},
+      evaluate: async () => {},
+      capture: async () => png,
+      close: async () => {},
+    }),
+  };
+}
+
+describe("capture size", () => {
+  it("reads a PNG's size from its header", () => {
+    expect(pngSize(pngHeader(1320, 2868))).toEqual({ width: 1320, height: 2868 });
+    expect(pngSize(Buffer.from(""))).toBeUndefined();
+  });
+
+  it("stops the screenshot export when a capture is the wrong size", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "exporter-"));
+    try {
+      const library = path.join(root, "library");
+      mkdirSync(path.join(library, "nova"), { recursive: true });
+      writeFileSync(
+        path.join(library, "nova", "showcase.yaml"),
+        "meta: {title: Nova}\nscenes:\n  - {id: intro, theme: console}\n",
+      );
+      const options = { showcasesDir: library, showcaseId: "nova", appUrl: "" };
+      // Half size, as a Retina display's offscreen window drew it (issue #22).
+      await expect(
+        exportScreens({
+          ...options,
+          renderer: readyRenderer(pngHeader(660, 1434)),
+          outDir: path.join(root, "half"),
+        }),
+      ).rejects.toThrow("The page renderer drew 660×1434, not 1320×2868");
+      expect(existsSync(path.join(root, "half", "screens"))).toBe(false);
+
+      await exportScreens({
+        ...options,
+        renderer: readyRenderer(pngHeader(1320, 2868)),
+        outDir: path.join(root, "full"),
+      });
+      expect(existsSync(path.join(root, "full", "screens", "01-intro.png"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
 
 /** A renderer whose pages never finish loading; `onGoto` runs as a page
  *  opens, like the server rendering it. */
