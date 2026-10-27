@@ -38,11 +38,11 @@ export const OFFLINE_DAYS = 7;
 /** How often the status is checked again, at most, while the studio runs. */
 const REFRESH_MS = 60 * 60 * 1000;
 
-/* The license service's Function URL (the LicenseApiUrl output of cdk/'s
- * ShowcaseLicenseStack). Dev — Stripe test mode — until prod is set up;
- * licenseUrl in settings.json or LICENSE_URL in the environment points a
- * machine elsewhere. */
-export const LICENSE_URL = "https://v3vlbq2dgu6wjqv6aiqediguie0ertrl.lambda-url.us-east-1.on.aws/";
+/* The license service's Function URL: the LicenseApiUrl output of cdk/'s
+ * ShowcaseLicenseStack-Prod, with live Stripe. licenseUrl in settings.json
+ * or LICENSE_URL in the environment points a machine elsewhere — at dev
+ * (Stripe's sandbox, no real money), https://v3vlbq2dgu6wjqv6aiqediguie0ertrl.lambda-url.us-east-1.on.aws/, to test. */
+export const LICENSE_URL = "https://7kyveiwx2fkktga22hqmmzqu4m0xocfb.lambda-url.us-east-1.on.aws/";
 
 const DAY = 24 * 60 * 60 * 1000;
 

@@ -1,9 +1,9 @@
 # Licensing
 
-Status: built and running on dev (Stripe test mode). The service is in
+Status: built and running on dev (Stripe's sandbox) and prod (live). The service is in
 `cdk/lib/license-stack.ts` and `cdk/lambda-license/`; the studio side
 is `server/license.mjs` and the components in `src/components/studio/`
-(`LicensePill`, `SubscribeDialog`). Prod isn't set up yet.
+(`LicensePill`, `SubscribeDialog`). The app and the site point at prod.
 
 ## The rules
 
@@ -210,8 +210,21 @@ Buyers see Showcase Studio's own name, branding, receipts and portal,
 and its Stripe settings (Managed Payments, refunds) don't touch the
 hosting business.
 
-Prod is not set up yet. It uses the Showcase Studio account in live
-mode, once the business is verified there.
+Prod is set up too:
+
+|         | Prod                                                                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| AWS     | `ShowcaseLicenseStack-Prod`, the same account; its service is `https://7kyveiwx2fkktga22hqmmzqu4m0xocfb.lambda-url.us-east-1.on.aws/` |
+| Stripe  | Showcase Studio, live (`acct_1UUUKaFWhuwOMY0S`), with Managed Payments                                                                |
+| Key     | a restricted live key: Customers, Checkout Sessions and Customer portal (write); Subscriptions, Prices and Products (read)            |
+| Price   | `price_1UVE7FFWhuwOMY0SiDXFgkfP` ($9.50/month, lookup key `showcase_studio_monthly`)                                                  |
+| Webhook | `we_1UVEApFWhuwOMY0SHef2qNMf`                                                                                                         |
+| Portal  | configuration `bpc_1UVEBXFWhuwOMY0SWwNQV7Fr`; sign-in `https://billing.stripe.com/p/login/cNi00j1CR3tv0lqaZfdby00`                    |
+
+The app (`LICENSE_URL` in `server/license.mjs`) and the site
+(`site/src/license-service.ts`) point at prod. To test against dev, set
+`licenseUrl` in the studio's settings.json to dev's service,
+`https://v3vlbq2dgu6wjqv6aiqediguie0ertrl.lambda-url.us-east-1.on.aws/`.
 
 Stripe, in test mode first:
 

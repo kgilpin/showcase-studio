@@ -81,7 +81,8 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # The license service (cdk/, its own CDK app: bin/license.ts), in the
 # siteforward AWS account, with Showcase Studio's own Stripe account (the
 # same company, SiteForward LLC, its own account). Dev is deployed
-# (that account's sandbox); prod isn't yet. docs/licensing.md has the design
+# (that account's sandbox), and so is prod (live). The app and the site
+# point at prod; licenseUrl in settings.json points one machine at dev. docs/licensing.md has the design
 # and the one-time Stripe and SSM setup. Same -c environment=dev|prod
 # convention (→ ShowcaseLicenseStack-Dev / -Prod). It runs on its
 # generated Function URL, thank-you page included, so it needs no
@@ -132,8 +133,8 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #                          showcasestudio.dev (until the move: both
 #                          deploys below)
 #   npm run deploy:preview build and upload a version without serving it
-# The Pricing page's two links (site/src/license-service.ts) are dev and
-# Stripe test mode: switch them to prod before deploying.
+# The Pricing page's two links (site/src/license-service.ts) are prod:
+# real money.
 # wrangler.toml names no account, so a deploy goes to whichever account
 # wrangler is logged in to. The domain is in the goo.global account and
 # moves to the SiteForward account around 2026-10-26. Until then:
@@ -689,8 +690,7 @@ npm run dev -- --new [<library folder>]
   The Pricing page's Subscribe button posts to the license service's
   `/checkout`, and its "Manage subscription" links go to Stripe's
   Customer Portal sign-in. Both are in `src/license-service.ts` and point
-  at **dev and Stripe test mode** until prod is set up: switch them there
-  before deploying the site.
+  at **prod** (live Stripe, real money).
   There is no YouTube
   link yet: add one to the top bar and the footer when the channel exists.
 - `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
