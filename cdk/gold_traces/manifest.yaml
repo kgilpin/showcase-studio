@@ -1,0 +1,35 @@
+# Gold-traces manifest for the cdk package (managed by the
+# appmap-gold-traces skill; see the README, "The AppMap skills"). Recorded
+# with cdk/appmap.yml, from cdk/: npm test there runs the Lambdas' tests.
+#
+# The license service: the purchase (checkout, webhook, thank-you page),
+# the webhook's signature gate (refused branch), the free-video limit,
+# and a licensed export with its audit.
+
+schema_version: 2
+
+commands:
+  framework: vitest
+  args: --no-file-parallelism
+
+entries:
+  - feature: license-service
+    test_file: lambda-license/license.test.mjs
+    test_name: turns the pending license on when its subscription arrives, keeping the key
+    appmap_path: vitest/turns_the_pending_license_on_when_its_subscription_arrives,_keeping_the_key.appmap.json
+    summary: The purchase — checkout makes the key and a pending license, the webhook turns it on, the thank-you page finds the same key.
+  - feature: license-service
+    test_file: lambda-license/license.test.mjs
+    test_name: refuses an unsigned event and writes nothing
+    appmap_path: vitest/refuses_an_unsigned_event_and_writes_nothing.appmap.json
+    summary: The webhook's signature gate, refused branch — a bad Stripe-Signature stops before anything is read or written.
+  - feature: license-service
+    test_file: lambda-license/license.test.mjs
+    test_name: allows two per device in all, then says no — there's no reset
+    appmap_path: "vitest/allows_two_per_device_in_all,_then_says_no_—_there's_no_reset.appmap.json"
+    summary: The free-video limit — two exports per machine in all, then a refusal.
+  - feature: license-service
+    test_file: lambda-license/license.test.mjs
+    test_name: records each machine a key exports from, and counts the machines
+    appmap_path: vitest/records_each_machine_a_key_exports_from,_and_counts_the_machines.appmap.json
+    summary: A licensed export — allowed from any machine, each one recorded and logged, so a shared key shows up.

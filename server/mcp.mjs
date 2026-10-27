@@ -417,7 +417,11 @@ export const TOOLS = [
       "~/Downloads/showcase-exports/<id>, named <id>[_43][_draft].mp4 (screenshots in " +
       "screens/); older exports move to history/ in that folder, numbered " +
       "(history/<id>_draft.1.mp4, history/screens.1/). One " +
-      "export runs at a time, shared with the studio's Export button.",
+      "export runs at a time, shared with the studio's Export button. Full-quality videos " +
+      '("video", "video-43") need a subscription after the computer\'s 2 free ones — ' +
+      "studio_info's license says how many are left; when none are, the job fails with a " +
+      "message to pass on: the user subscribes from the studio's Trial button. Drafts, " +
+      "screens and script are always free.",
     inputSchema: {
       type: "object",
       properties: {
@@ -580,6 +584,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
       changes: context.changeLog?.path(),
       ...(context.history ? { history: await context.history.status() } : {}),
+      ...(context.license ? { license: context.license.status() } : {}),
       ...pageErrorField(),
     });
   }

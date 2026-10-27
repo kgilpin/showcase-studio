@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { CaptionHeadline } from "../components/CaptionHeadline";
-import { CopyBlock } from "../components/CopyBlock";
 import { Destinations } from "../components/Destinations";
 import { HeroVideo } from "../components/HeroVideo";
+import { InstallOptions } from "../components/InstallOptions";
 import { SiteFooter, SiteHeader } from "../components/Site";
 import { Dir, Note, Sha, Window, WindowBar } from "../components/Window";
 
@@ -228,48 +228,7 @@ function Home() {
         <section id="download" className="download">
           <h2>Get Showcase Studio</h2>
 
-          <div className="download-grid">
-            <div className="card">
-              <p className="pill">Recommended</p>
-              <h3>Use it in Claude Code</h3>
-              <p>In a terminal:</p>
-              <CopyBlock
-                text={
-                  "claude plugin marketplace add kgilpin/showcase-studio\nclaude plugin install showcase-studio@showcase-studio"
-                }
-              />
-              <p>
-                Then start Claude Code in a folder for your showcases and run{" "}
-                <code>/showcase-studio:showcase new</code>. The app installs itself the first time,
-                and it all runs on the Claude Code subscription you already have.
-              </p>
-            </div>
-
-            <p className="or" aria-hidden="true">
-              or
-            </p>
-
-            <div className="card">
-              <h3>Use the desktop app</h3>
-              <p>
-                Open a folder for your showcases, and work with Claude in the app's terminal. On a
-                Mac, unzip it and move it to Applications.
-              </p>
-              {/* /download/latest/* redirects to the newest release (worker.js). */}
-              <div className="downloads">
-                <a className="button" href="/download/latest/mac">
-                  Mac <small>Apple Silicon</small>
-                </a>
-                <a className="button" href="/download/latest/win">
-                  Windows <small>x64</small>
-                </a>
-              </div>
-              <p className="small">
-                SHA-256 checksums: <a href="/download/latest/mac.sha256">Mac</a>,{" "}
-                <a href="/download/latest/win.sha256">Windows</a>.
-              </p>
-            </div>
-          </div>
+          <InstallOptions />
         </section>
       </main>
 

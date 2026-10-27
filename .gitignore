@@ -26,6 +26,7 @@ dist-ssr
 
 # CDK (the prompter site stack)
 cdk/cdk.out/
+cdk/cdk.out.license/
 
 # Editor directories and files
 .vscode/*
@@ -42,4 +43,5 @@ electron/vendor/
 # AppMap recordings and derived gold-trace work (blessed baselines are
 # committed under gold_traces/)
 tmp/appmap/
+cdk/tmp/appmap/
 .appmap/

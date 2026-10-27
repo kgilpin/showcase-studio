@@ -6,15 +6,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node scripts/static-404.mjs",
     "preview": "vite preview --port 8098",
     "typecheck": "tsc --noEmit",
-    "dev:wrangler": "vite build && wrangler dev --port ${PORT:-8098}",
+    "dev:wrangler": "npm run build && wrangler dev --port ${PORT:-8098}",
     "media": "node scripts/prepare-media.mjs",
     "capture:prompter": "node scripts/capture-prompter.mjs",
     "publish-release": "node scripts/publish-release.mjs",
-    "deploy": "vite build && wrangler deploy --env goo --profile goo && wrangler deploy --env downloads",
-    "deploy:preview": "vite build && wrangler versions upload --env goo --profile goo"
+    "deploy": "npm run build && wrangler deploy --env goo --profile goo && wrangler deploy --env downloads",
+    "deploy:preview": "npm run build && wrangler versions upload --env goo --profile goo"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.18",

@@ -1,4 +1,8 @@
-# Gold-traces manifest (managed by the appmap-gold-traces skill, which
+# Gold-traces manifest for the studio module (server/, src/, scripts/,
+# electron/), recorded with the root appmap.yml. Other modules keep their
+# own: cdk/gold_traces/ for the AWS Lambdas.
+#
+# Managed by the appmap-gold-traces skill, which
 # is installed for the user from github.com/getappmap/skills — see the
 # README, "The AppMap skills").
 #
@@ -6,8 +10,10 @@
 # node-testable subsystem — the timing model, the YAML edit write path
 # (happy path + a rejection gate), the data server (index, byte ranges,
 # and the traversal gate), and the media build (the whole pipeline plus
-# its two refusals), and the synthesized voiceover (a rebuild plus its
-# stale-write refusal). Record command and entry paths are derived; see the
+# its two refusals), the synthesized voiceover (a rebuild plus its
+# stale-write refusal), and the studio's side of licensing: its checkout
+# and its check before an export. (The license service's own traces are
+# cdk/gold_traces/, with cdk's own appmap.yml.) Record command and entry paths are derived; see the
 # skill's SKILL.md.
 
 schema_version: 2
@@ -26,61 +32,51 @@ entries:
     test_name: sums the captions and returns them with concrete times
     appmap_path: vitest/sums_the_captions_and_returns_them_with_concrete_times.appmap.json
     summary: Derived-mode slide timing — caption pricing through readingTime into concrete windows.
-
   - feature: timing
     test_file: src/content/timing.test.ts
     test_name: attaches slide-relative word windows from a transcript
     appmap_path: vitest/attaches_slide-relative_word_windows_from_a_transcript.appmap.json
     summary: Whisper-exact caption sync — transcript words matched to the narration in order.
-
   - feature: scene-edit
     test_file: server/scene-edit.test.mjs
     test_name: creates theme.yaml on first use and returns its hash
     appmap_path: vitest/creates_theme.yaml_on_first_use_and_returns_its_hash.appmap.json
     summary: The style panel's theme.yaml write path — whitelisted edit on a file created on demand.
-
   - feature: scene-edit
     test_file: server/scene-edit.test.mjs
     test_name: applies the edit and returns the written file's content hash
     appmap_path: "vitest/applies_the_edit_and_returns_the_written_file's_content_hash.appmap.json"
     summary: The full backend write path — resolve, hash-gate, patch, write, return the new hash.
-
   - feature: scene-edit
     test_file: server/scene-edit.test.mjs
     test_name: refuses a stale baseHash and leaves the file untouched
     appmap_path: vitest/refuses_a_stale_baseHash_and_leaves_the_file_untouched.appmap.json
     summary: The stale-base gate's negative branch — refusal before the patch is even computed.
-
   - feature: scene-edit
     test_file: server/scene-edit.test.mjs
     test_name: returns the edit error when the YAML rejects the edit, leaving the file untouched
     appmap_path: "vitest/returns_the_edit_error_when_the_YAML_rejects_the_edit,_leaving_the_file_untouched.appmap.json"
     summary: The whitelist gate's negative branch — the YAML edit throws and nothing is written.
-
   - feature: assets
     test_file: server/studio-server.test.mjs
     test_name: add_asset copies files in, names the key, and logs the write
     appmap_path: "vitest/add_asset_copies_files_in,_names_the_key,_and_logs_the_write.appmap.json"
     summary: A file on disk into a showcase's assets/ through the MCP tool — the checks, the copy, and the change-log line that makes the history commit it.
-
   - feature: data-server
     test_file: server/showcase-data.test.mjs
     test_name: serves index.json with the folder's index
     appmap_path: "vitest/serves_index.json_with_the_folder's_index.appmap.json"
     summary: The index listing — folder discovery into the data shape the app loads.
-
   - feature: data-server
     test_file: server/showcase-data.test.mjs
     test_name: serves a bounded range as a 206 slice
     appmap_path: vitest/serves_a_bounded_range_as_a_206_slice.appmap.json
     summary: Byte-range slicing for media seeking — request through file lookup to a 206.
-
   - feature: data-server
     test_file: server/showcase-data.test.mjs
     test_name: rejects unsatisfiable and malformed ranges with 416
     appmap_path: vitest/rejects_unsatisfiable_and_malformed_ranges_with_416.appmap.json
     summary: The range parser's negative branches — malformed and out-of-bounds ranges 416.
-
   - feature: data-server
     test_file: server/showcase-data.test.mjs
     test_name: refuses .. traversal, including URL-encoded
@@ -95,75 +91,73 @@ entries:
     test_name: "runs a page action: scene-edit through the local-request gate to the YAML write"
     appmap_path: vitest/runs_a_page_action-_scene-edit_through_the_local-request_gate_to_the_YAML_write.appmap.json
     summary: A page action end to end — /studio/api/scene-edit through the local-request gate to the YAML write.
-
   - feature: studio-server
     test_file: server/studio-server.test.mjs
     test_name: refuses a request for another host name before any action runs
     appmap_path: vitest/refuses_a_request_for_another_host_name_before_any_action_runs.appmap.json
     summary: The local-request gate's refused branch — a request for another host name gets 403 before any action runs.
-
   - feature: studio-server
     test_file: server/studio-server.test.mjs
     test_name: refuses to create a showcase or switch libraries when locked to a showcase
     appmap_path: vitest/refuses_to_create_a_showcase_or_switch_libraries_when_locked_to_a_showcase.appmap.json
     summary: The lock's refused branches — a locked studio won't create a showcase or switch its library.
-
   - feature: mcp
     test_file: server/studio-server.test.mjs
     test_name: runs MCP tools in-process through callTool
     appmap_path: vitest/runs_MCP_tools_in-process_through_callTool.appmap.json
     summary: The MCP tools as Claude Code's studio calls them — studio_info and script through callTool.
-
   - feature: change-log
     test_file: server/studio-server.test.mjs
     test_name: edit_showcase returns a version, and refuses a stale ifVersion with the UI edits since
     appmap_path: "vitest/edit_showcase_returns_a_version,_and_refuses_a_stale_ifVersion_with_the_UI_edits_since.appmap.json"
     summary: The stale-write guard's refused branch — a UI edit lands in the change log, then edit_showcase refuses an edit made against the older version and reads the log back to say what changed.
-
   - feature: history
     test_file: server/showcase-history.test.mjs
     test_name: "commits only the showcase folder: other staged work stays staged"
     appmap_path: vitest/commits_only_the_showcase_folder-_other_staged_work_stays_staged.appmap.json
     summary: An automatic commit in a real git repo — status, busy and branch checks, the message from the change log, and a commit scoped to the showcase folder so other staged work stays out.
-
   - feature: assets
     test_file: server/studio-server.test.mjs
     test_name: rewrites a shared bare name only when it means the renamed file
     appmap_path: vitest/rewrites_a_shared_bare_name_only_when_it_means_the_renamed_file.appmap.json
     summary: Asset rename through POST /studio/api/asset-rename — the reference rewrite, including the guard that leaves a shared bare name alone unless it means the renamed file.
-
   - feature: build-media
     test_file: server/build-media.test.mjs
     test_name: derives the words file from the recording's transcript
     appmap_path: "vitest/derives_the_words_file_from_the_recording's_transcript.appmap.json"
     summary: A recorded pitch built from its cut list, end to end — the plan read and the durations pinned, the spans joined into the voiceover and cut into clips with ffmpeg, the recording's transcript corrected and remapped onto this cut, and every pin written back through the YAML edit path.
-
   - feature: build-media
     test_file: server/build-media.test.mjs
     test_name: refuses a take whose picture and sound last different times
     appmap_path: vitest/refuses_a_take_whose_picture_and_sound_last_different_times.appmap.json
     summary: The cut list's own gate, refused — a scene whose picture and sound don't last the same is rejected while the plan is still being read, before anything is built or any pin is written.
-
   - feature: build-media
     test_file: server/build-media.test.mjs
     test_name: refuses a recording outside the library
     appmap_path: vitest/refuses_a_recording_outside_the_library.appmap.json
     summary: The source-path gate's refused branch — a derived cut may name a recording by path, but one that resolves outside the library never becomes a file the build reads.
-
   - feature: voiceover
     test_file: server/voiceover.test.mjs
     test_name: calls Polly again only for the caption that changed
     appmap_path: vitest/calls_Polly_again_only_for_the_caption_that_changed.appmap.json
     summary: A synthesized voiceover built twice — the captions voiced, laid out in windows and joined from PCM with ffmpeg, the words fitted to each clip's voiced span, the pins written through the YAML edit path; then one caption changes and only its clip is made again from the cache.
-
   - feature: voiceover
     test_file: server/voiceover.test.mjs
     test_name: refuses to pin captions that changed while it was talking
     appmap_path: vitest/refuses_to_pin_captions_that_changed_while_it_was_talking.appmap.json
     summary: The stale-write gate, refused — showcase.yaml changes while the clips are being made, so the pins are checked against the text the build read and none are written.
-
   - feature: page-error
     test_file: server/exporter.test.mjs
     test_name: validate fails at once with the captured page error
     appmap_path: vitest/validate_fails_at_once_with_the_captured_page_error.appmap.json
     summary: A page that failed to render — the error is recorded, and validate stops at once with its message instead of waiting out the timeout.
+  - feature: license-studio
+    test_file: server/license.test.mjs
+    test_name: opens the checkout, waits, and takes the key when it's paid
+    appmap_path: "vitest/opens_the_checkout,_waits,_and_takes_the_key_when_it's_paid.appmap.json"
+    summary: The studio's in-app checkout — starts it, opens the browser, polls until paid, then saves the key.
+  - feature: license-studio
+    test_file: server/license.test.mjs
+    test_name: allows two full-quality videos without a license, then refuses
+    appmap_path: vitest/allows_two_full-quality_videos_without_a_license,_then_refuses.appmap.json
+    summary: The studio's check before a full-quality export — two free ones allowed, the third refused with the limit message.

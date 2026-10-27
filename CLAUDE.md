@@ -78,6 +78,23 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 # server/studio-server.mjs); prompterPublishUrl in the studio settings
 # points one machine at Dev.
 
+# The license service (cdk/, its own CDK app: bin/license.ts), in the
+# siteforward AWS account, with Showcase Studio's own Stripe account (the
+# same company, SiteForward LLC, its own account). Dev is deployed
+# (that account's sandbox), and so is prod (live). The app and the site
+# point at prod; licenseUrl in settings.json points one machine at dev. docs/licensing.md has the design
+# and the one-time Stripe and SSM setup. Same -c environment=dev|prod
+# convention (→ ShowcaseLicenseStack-Dev / -Prod). It runs on its
+# generated Function URL, thank-you page included, so it needs no
+# website. Stripe keys live in SSM, never in the repo.
+#   cd cdk && npm run synth:license
+#   AWS_PROFILE=siteforward npm run deploy:license -- -c environment=dev
+# Its rules are tested with the rest (npm test at the root), and on
+# their own in the cdk package: cd cdk && npm test. cdk has its own
+# appmap.yml and gold traces (cdk/gold_traces/: the purchase, the
+# webhook's signature gate, the free-video limit, a licensed export);
+# run the gold-traces engine with --dir cdk/gold_traces.
+
 # The marketing site (site/), live at https://showcasestudio.dev: a
 # TanStack Start app, prerendered to static files at build time and served
 # by a Cloudflare Worker. Its own npm package, nothing shared with the
@@ -116,6 +133,8 @@ npm run dev:prompter               # (web/prompter) — dev server on :8097;
 #                          showcasestudio.dev (until the move: both
 #                          deploys below)
 #   npm run deploy:preview build and upload a version without serving it
+# The Pricing page's two links (site/src/license-service.ts) are prod:
+# real money.
 # wrangler.toml names no account, so a deploy goes to whichever account
 # wrangler is logged in to. The domain is in the goo.global account and
 # moves to the SiteForward account around 2026-10-26. Until then:
@@ -617,6 +636,20 @@ npm run dev -- --new [<library folder>]
   and an expired link is replaced by a new one (the share dialog says so).
   The endpoint defaults to Prod's; settings `prompterPublishUrl` or
   `PROMPTER_PUBLISH_URL` env points elsewhere.
+  Beside it, the license service (`lib/license-stack.ts`, its own app in
+  `bin/license.ts`): one DynamoDB table and one Lambda behind a Function
+  URL, routed by path — `/checkout` (a Buy button's form post gets a 303
+  to Stripe Checkout; the studio's JSON request gets the checkout URL and
+  the license key, made before payment and written onto the new Stripe
+  customer so every invoice carries it), `/webhook` (Stripe, signature
+  checked), `/thanks`, `/cancelled` and `/back` (the pages Stripe returns
+  a buyer to), `/check` (license status and a machine's free exports),
+  `/export` (2 free full-quality exports per machine in all; with a good
+  license, any number, each logged with the key and machine so a shared
+  key shows up) and `/portal` (Stripe's Customer Portal for the key's
+  customer). Rules in `lambda-license/license-core.mjs`, wired to
+  DynamoDB, Stripe (plain fetch) and SSM by the other files there.
+  Design: `docs/licensing.md`.
 - `site/`: The marketing site at https://showcasestudio.dev (own npm
   package): a TanStack Start app, prerendered by `vite build` into
   `dist/client`, which a Cloudflare Worker serves as static files, so no
@@ -627,9 +660,17 @@ npm run dev -- --new [<library folder>]
   `src/routes/index.tsx` the home page, a short overview, and
   `src/routes/features.tsx` the Features page: seven sections, each a
   picture with numbered circles beside three features — check each claim
-  against the studio before adding it. `src/routes/faq.tsx` is written
-  but not published until pricing ships (`FAQ_LIVE` in
-  `src/components/Site.tsx`). `src/components/Site.tsx` is the top bar and footer every page
+  against the studio before adding it. `src/routes/faq.tsx` is the FAQ,
+  `src/routes/pricing.tsx` the Pricing page (the trial and the $9.50/month
+  subscription side by side, then questions about the subscription — keep
+  those there, not in the FAQ), and `src/routes/download.tsx` the
+  Download page, at `/download` only: everything under `/download/` is a
+  release file the Worker serves. `src/routes/404.tsx` is prerendered to
+  `404.html`, which Cloudflare sends for any missing page
+  (`not_found_handling` in `wrangler.toml`); the build strips its scripts
+  (`scripts/static-404.mjs`), since it is served at paths the app doesn't
+  know. Every page is written as `<name>.html`, so Cloudflare serves it at
+  `/<name>` with no trailing slash. `src/components/Site.tsx` is the top bar and footer every page
   shares, and `src/components/` also holds the parts that run in the browser (the caption
   highlight, the hero video's player, the Copy button) and the
   destination logos. `src/styles.css` is the stylesheet. `worker.js` runs only for `/media/*`, to answer byte-range
@@ -642,12 +683,18 @@ npm run dev -- --new [<library folder>]
   `scripts/publish-release.mjs` uploads a release and writes
   `latest.json` last. The GitHub release stays as the private record of
   each build; users download from the site. `public/` is copied into
-  the build as is: `_headers`, `icon.svg` and `media/` (made by
-  `scripts/prepare-media.mjs`). Its download buttons
-  link to `/download/latest/*`, so a release doesn't touch the page.
+  the build as is: `_headers`, `icon.svg`, `robots.txt`, `sitemap.xml`
+  (add a line for every new page) and `media/` (made by
+  `scripts/prepare-media.mjs`). The download buttons link to
+  `/download/latest/*`, so a release doesn't touch the pages.
+  The Pricing page's Subscribe button posts to the license service's
+  `/checkout`, and its "Manage subscription" links go to Stripe's
+  Customer Portal sign-in. Both are in `src/license-service.ts` and point
+  at **prod** (live Stripe, real money).
   There is no YouTube
   link yet: add one to the top bar and the footer when the channel exists.
-- `gold_traces/`: The AppMap gold-trace baseline: `manifest.yaml` curates
+- `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
+  its own `cdk/appmap.yml`): The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
   appmap-node) and `baseline/appmaps/` holds the blessed, sanitized
   recordings. Maintained with the `appmap-gold-traces` skill, installed for

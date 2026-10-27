@@ -9,6 +9,11 @@
  *                       Full quality… ─►  confirm ─► video-43
  *   App Screens   (no menu)               screens
  *
+ * A full-quality video needs a subscription once the computer's free ones
+ * are used: then Full quality… opens SubscribeDialog instead of the
+ * confirm, and the export starts once the payment lands. While free ones
+ * are left, the confirm says it uses one.
+ *
  * One export runs at a time, whoever started it (Claude too), so the
  * button is disabled while one runs and its tooltip names it. Progress
  * shows in the tab bar (ExportStatus) and the result as a notice
@@ -33,7 +38,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { exportKindFor, exportLabel, type PlayerView } from "@/lib/export-kinds.mjs";
-import { studio, useExportJob } from "@/lib/studio";
+import { studio, useExportJob, useLicense } from "@/lib/studio";
+import { SubscribeDialog } from "./SubscribeDialog";
 
 const SIZES: Record<Exclude<PlayerView, "screens">, string> = {
   tiktok: "1080×1920",
@@ -48,6 +54,9 @@ export function ExportButton({ showcaseId, view }: { showcaseId: string; view: P
   useEffect(() => setInStudio(Boolean(studio()?.exports)), []);
   const job = useExportJob();
   const [confirming, setConfirming] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const license = useLicense();
+  const onTrial = license?.state === "trial" || license?.state === "waiting";
 
   if (!inStudio) return null;
 
@@ -103,7 +112,9 @@ export function ExportButton({ showcaseId, view }: { showcaseId: string; view: P
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex-col items-start gap-0.5"
-            onSelect={() => setConfirming(true)}
+            onSelect={() =>
+              onTrial && license.freeLeft === 0 ? setSubscribing(true) : setConfirming(true)
+            }
           >
             <span>Full quality…</span>
             <span className="text-xs text-muted-foreground">
@@ -119,6 +130,8 @@ export function ExportButton({ showcaseId, view }: { showcaseId: string; view: P
             <AlertDialogDescription>
               It renders every frame at {SIZES[view]}, 30 fps, and takes several minutes. You can
               keep working while it runs, and you&apos;ll get a notice when it&apos;s ready.
+              {onTrial &&
+                ` This uses 1 of your ${license.freeLeft} free full-quality video${license.freeLeft === 1 ? "" : "s"}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -129,6 +142,11 @@ export function ExportButton({ showcaseId, view }: { showcaseId: string; view: P
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <SubscribeDialog
+        open={subscribing}
+        onOpenChange={setSubscribing}
+        onUnlocked={() => void start(exportKindFor(view, "full"))}
+      />
     </>
   );
 }

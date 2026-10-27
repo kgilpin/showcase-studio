@@ -1,28 +1,30 @@
 import type { ReactNode } from "react";
 
-/* The FAQ isn't published yet: its answer about pricing links to a
- * /pricing page that doesn't exist until the paid plan ships. To publish
- * it, set this to true and add { path: "/faq" } to the pages in
- * vite.config.ts. */
-const FAQ_LIVE = false;
+import { PORTAL_SIGN_IN_URL } from "../license-service";
+
+type Page = "features" | "faq" | "pricing" | "download";
 
 /* The top bar and the footer, the same on every page. The links are
  * absolute, so they work from any page; current names the page we are
  * on, which the bar marks with the highlight. */
-export function SiteHeader({ current }: { current?: "features" | "faq" }) {
+export function SiteHeader({ current }: { current?: Page }) {
+  const mark = (page: Page) => (current === page ? "page" : undefined);
   return (
     <header className="top">
       <Brand />
       <nav>
-        <a href="/features" aria-current={current === "features" ? "page" : undefined}>
+        <a className="optional" href="/features" aria-current={mark("features")}>
           Features
         </a>
-        {FAQ_LIVE && (
-          <a className="optional" href="/faq" aria-current={current === "faq" ? "page" : undefined}>
-            FAQ
-          </a>
-        )}
-        <a href="/#download">Install</a>
+        <a className="optional" href="/faq" aria-current={mark("faq")}>
+          FAQ
+        </a>
+        <a href="/pricing" aria-current={mark("pricing")}>
+          Pricing
+        </a>
+        <a href="/download" aria-current={mark("download")}>
+          Download
+        </a>
       </nav>
     </header>
   );
@@ -46,8 +48,10 @@ export function SiteFooter() {
     <footer>
       <Brand />
       <a href="/features">Features</a>
-      {FAQ_LIVE && <a href="/faq">FAQ</a>}
-      <a href="https://github.com/kgilpin/showcase-studio">GitHub</a>
+      <a href="/faq">FAQ</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/download">Download</a>
+      <a href={PORTAL_SIGN_IN_URL}>Manage subscription</a>
     </footer>
   );
 }

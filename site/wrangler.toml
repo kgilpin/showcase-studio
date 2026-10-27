@@ -20,6 +20,8 @@ main = "worker.js"
 directory = "./dist/client"
 binding = "ASSETS"
 run_worker_first = ["/media/*", "/download/*"]
+# A missing page gets 404.html (prerendered from the /404 route) with a 404.
+not_found_handling = "404-page"
 
 [[routes]]
 pattern = "showcasestudio.dev"
