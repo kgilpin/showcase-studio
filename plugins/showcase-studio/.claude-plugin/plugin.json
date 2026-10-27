@@ -1,6 +1,6 @@
 {
   "name": "showcase-studio",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Work on Showcase Studio showcases with Claude: starts the studio, shows it in a window or Claude Code's preview panel, and edits and checks showcases through the studio's own tools.",
   "author": { "name": "Kevin Gilpin" },
   "repository": "https://github.com/kgilpin/showcase-studio"
