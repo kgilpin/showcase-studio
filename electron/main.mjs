@@ -615,7 +615,7 @@ app.whenReady().then(async () => {
       await studio.close();
       app.exit(0);
     } catch (error) {
-      console.error(error);
+      console.error(`${kind} ${showcaseId} failed: ${error.message}`);
       app.exit(1);
     }
     return;
@@ -722,7 +722,10 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => void studio?.close());
-/* With --mcp the studio outlives its window: Claude may still be using it. */
+/* With --mcp the studio outlives its window: Claude may still be using it.
+ * An --export has no window of its own, only the hidden page windows it
+ * renders in: closing the last of those must not quit while ffmpeg is
+ * still encoding. The export quits the app itself when it is done. */
 app.on("window-all-closed", () => {
-  if (!options.mcp) app.quit();
+  if (!options.mcp && !options.exportJob) app.quit();
 });
