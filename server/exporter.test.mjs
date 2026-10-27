@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { exportScreens, pngSize, screenshotSlide, validateShowcases } from "./exporter.mjs";
-import { fitToTarget, withTimeLimit } from "./fit-capture.mjs";
+import { withTimeLimit } from "./time-limit.mjs";
 
 describe("the screenshot export", () => {
   it("fails, and leaves the previous set alone, when no scene is in the set", async () => {
@@ -91,32 +91,7 @@ describe("capture size", () => {
   });
 });
 
-/** A window that draws `density` pixels per point, the way an offscreen
- *  window on a Retina display may draw at 1× or 2×. */
-function fakeWindow(density, size) {
-  return {
-    capture: async () => ({ width: size[0] * density, height: size[1] * density }),
-    getSize: () => size,
-    setSize: (w, h) => (size = [w, h]),
-    paint: async () => {},
-    size: () => size,
-  };
-}
-
-describe("fitting the window to the target size", () => {
-  it("resizes until the capture is the target size", async () => {
-    // Opened at target ÷ 2 for a Retina display, but drawing at 1× (issue #22).
-    const win = fakeWindow(1, [540, 960]);
-    await fitToTarget({ width: 1080, height: 1920, ...win });
-    expect(win.size()).toEqual([1080, 1920]);
-  });
-
-  it("leaves a window alone when it already draws the target size", async () => {
-    const win = fakeWindow(2, [540, 960]);
-    await fitToTarget({ width: 1080, height: 1920, ...win });
-    expect(win.size()).toEqual([540, 960]);
-  });
-
+describe("capture time limit", () => {
   it("fails a capture that never answers instead of hanging", async () => {
     await expect(withTimeLimit(new Promise(() => {}), 20, "no capture")).rejects.toThrow(
       "no capture",
