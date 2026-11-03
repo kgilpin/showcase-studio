@@ -83,7 +83,10 @@ const STEP_ART: Record<InstallArt, ReactNode> = {
       <path d="M3 11h26" />
       <circle className="dot" cx="7" cy="8" r="1" />
       <circle className="dot" cx="10.5" cy="8" r="1" />
-      <path className="accent-fill" d="M9.5 15h5.5l1.8 2h6.7a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-14a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z" />
+      <path
+        className="accent-fill"
+        d="M9.5 15h5.5l1.8 2h6.7a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-14a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"
+      />
     </svg>
   ),
   /* A terminal prompt beside a phone playing a showcase, its caption lit. */
