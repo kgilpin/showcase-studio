@@ -1,0 +1,61 @@
+# The FAQ page. Each answer is a fact about this app, checked against the
+# code: the studio only answers local requests (server/studio-server.mjs),
+# the prompter link expires after 30 days (cdk/lib/prompter-stack.ts), the
+# export sizes are src/lib/export-kinds.mjs. The inline tags allowed in
+# text are listed at the top of shared.yaml; the same questions go to search
+# engines as FAQ data, with links written as "Pricing: https://...".
+
+head:
+  title: Questions
+  description: >-
+    Questions about Showcase Studio: what it costs, why it needs Claude Code,
+    what stays on your computer, how posting works and what it exports.
+
+title: Frequently asked questions
+
+questions:
+  - q: Is it free?
+    a: >-
+      You can export two full-quality videos for free on each computer. After that, you can keep
+      making draft videos for free, as many as you like, or subscribe. See
+      <a href="/pricing">Pricing</a> for details.
+
+  - q: Do I need Claude Code?
+    a: >-
+      Yes, always. Install it as a Claude Code plugin, or run the Showcase
+      Studio app and use its built-in Claude Code terminal. Either way, it runs
+      on your Claude Code subscription. You don't need an API key.
+
+  - q: Does my code or video leave my computer?
+    a: >-
+      No. The studio only answers requests from your own computer, and your
+      videos stay on your disk. The one exception is the shared teleprompter:
+      it publishes the script's lines to a private link, which expires after
+      30 days.
+
+  - q: Does it post to TikTok for me?
+    a: >-
+      It guides you through posting, step by step. It copies the caption, opens
+      the upload page and finds the video file for you, or AirDrops it to your
+      phone. You press Post. It never uses the platforms' APIs, never asks for
+      your logins, and never does anything behind your back.
+
+  - q: Do I have to edit a timeline?
+    a: >-
+      No. Each scene's length comes from the script and the talk track, so the
+      picture, the voice and the captions can't drift apart.
+
+  - q: I don't want to record my voice. Can I still make a video?
+    a: >-
+      Yes. Claude can help you make a synthetic voiceover, and the studio uses
+      it in the video. The voice comes from Amazon Polly, through your own AWS
+      account.
+
+  - q: What sizes does it export?
+    a: >-
+      9:16 video at 1080×1920 for TikTok, Instagram Reels and YouTube Shorts.
+      4:3 video at 1440×1080 for YouTube and the web. And App Store screenshots
+      at 1320×2868.
+
+  - q: Does it run on Mac and Windows?
+    a: "Yes: Mac with Apple Silicon, and Windows (x64)."

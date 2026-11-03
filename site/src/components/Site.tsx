@@ -1,30 +1,31 @@
 import type { ReactNode } from "react";
 
+import { SITE, type Page } from "../content";
 import { PORTAL_SIGN_IN_URL } from "../license-service";
 
-type Page = "features" | "faq" | "pricing" | "download";
+/* The pages in the top bar and the footer, in order. The first two leave
+ * the top bar on a narrow screen. */
+const PAGES: Page[] = ["features", "faq", "pricing", "download"];
 
 /* The top bar and the footer, the same on every page. The links are
  * absolute, so they work from any page; current names the page we are
- * on, which the bar marks with the highlight. */
+ * on, which the bar marks with the highlight. The words are in
+ * content/shared.yaml. */
 export function SiteHeader({ current }: { current?: Page }) {
-  const mark = (page: Page) => (current === page ? "page" : undefined);
   return (
     <header className="top">
       <Brand />
       <nav>
-        <a className="optional" href="/features" aria-current={mark("features")}>
-          Features
-        </a>
-        <a className="optional" href="/faq" aria-current={mark("faq")}>
-          FAQ
-        </a>
-        <a href="/pricing" aria-current={mark("pricing")}>
-          Pricing
-        </a>
-        <a href="/download" aria-current={mark("download")}>
-          Download
-        </a>
+        {PAGES.map((page, i) => (
+          <a
+            key={page}
+            className={i < 2 ? "optional" : undefined}
+            href={`/${page}`}
+            aria-current={current === page ? "page" : undefined}
+          >
+            {SITE.nav[page]}
+          </a>
+        ))}
       </nav>
     </header>
   );
@@ -47,12 +48,29 @@ export function SiteFooter() {
   return (
     <footer>
       <Brand />
-      <a href="/features">Features</a>
-      <a href="/faq">FAQ</a>
-      <a href="/pricing">Pricing</a>
-      <a href="/download">Download</a>
-      <a href={PORTAL_SIGN_IN_URL}>Manage subscription</a>
+      {PAGES.map((page) => (
+        <a key={page} href={`/${page}`}>
+          {SITE.nav[page]}
+        </a>
+      ))}
+      <a href={PORTAL_SIGN_IN_URL}>{SITE.nav.manage}</a>
     </footer>
+  );
+}
+
+/* The block that closes the Features and FAQ pages: try it, with the
+ * install button. */
+export function TryIt() {
+  return (
+    <section className="download">
+      <h2>{SITE.try.title}</h2>
+      <p className="lede">{SITE.try.lede}</p>
+      <div className="actions">
+        <a className="button primary" href="/download">
+          {SITE.try.button}
+        </a>
+      </div>
+    </section>
   );
 }
 
@@ -61,7 +79,7 @@ function Brand() {
     <a className="brand" href="/">
       <img src="/icon.svg" alt="" width={36} height={36} />
       <span>
-        Showcase <mark>Studio</mark>
+        {SITE.brand.name} <mark>{SITE.brand.mark}</mark>
       </span>
     </a>
   );

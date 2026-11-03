@@ -655,6 +655,20 @@ npm run dev -- --new [<library folder>]
   `dist/client`, which a Cloudflare Worker serves as static files, so no
   page is rendered on a request. Only the routes in the `pages` list in
   `vite.config.ts` are built, so a new route must be added there.
+  The words on every page are in `content/*.yaml`, one file per page
+  (`home.yaml`, `features.yaml`, `faq.yaml`, `pricing.yaml`,
+  `download.yaml`) plus `shared.yaml` for what every page shares: the head
+  tags, the top bar and footer, the install cards, the closing "Try it"
+  block and the not-found page. A text change is a YAML edit, no code;
+  the comments in each file say what each key is. Text may carry
+  `<strong>`, `<code>`, `<small>`, `<mark>` and `<a href="...">`
+  (`src/markup.ts`, rendered by `src/components/Markup.tsx`; an href of
+  `portal` is Stripe's portal sign-in). `src/content.ts` imports the
+  files and types them, and the `yaml` plugin in `vite.config.ts` turns
+  each import into its data at build time, so the page ships no parser.
+  The pictures beside the text are drawn in the routes; a picture's own
+  words (chat lines, folder trees, labels) are in the YAML under `art`,
+  and `type` picks the drawing.
   `src/routes/__root.tsx` holds the shared `<head>` (title, description,
   Open Graph tags; each route sets its own canonical link),
   `src/routes/index.tsx` the home page, a short overview, and

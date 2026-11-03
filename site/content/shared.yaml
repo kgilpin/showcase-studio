@@ -1,0 +1,93 @@
+# The text that every page of showcasestudio.dev shares. Each page's own
+# text is in the file named for it: home.yaml, features.yaml, faq.yaml,
+# pricing.yaml, download.yaml.
+#
+# Any text here may use a few inline tags: <strong>, <code>, <small>,
+# <mark> and <a href="...">. Tags don't nest. A link's href is a path on
+# this site ("/pricing") or a full URL; "portal" stands for Stripe's
+# Customer Portal sign-in, kept in src/license-service.ts.
+#
+# To see a change: npm run dev shows it as soon as the file is saved, and
+# npm run build puts it in the next deploy.
+
+head:
+  # The browser tab and search result for the home page. Other pages put
+  # their own name first: "Pricing · Showcase Studio".
+  title: Showcase Studio
+  description: >-
+    Ship a feature. Show it off the same day. Showcase Studio is a Claude Code
+    plugin for Mac and Windows that makes app videos from your repo in minutes.
+  # The shorter description for links shared on social media.
+  social_description: >-
+    Ship a feature. Show it off the same day. A Claude Code plugin that makes
+    app videos from your repo in minutes.
+
+# The name in the top bar and the footer: the second word is highlighted.
+brand:
+  name: Showcase
+  mark: Studio
+
+# The links in the top bar and the footer, in order.
+nav:
+  features: Features
+  faq: FAQ
+  pricing: Pricing
+  download: Download
+  # Footer only: the link to Stripe's Customer Portal.
+  manage: Manage subscription
+
+# The block that closes the Features and FAQ pages.
+try:
+  title: Try it on your app
+  lede: It runs in Claude Code, on the subscription you already have.
+  button: Install now
+
+# The two install cards, on the home page and the Download page.
+install:
+  plugin:
+    pill: Recommended
+    title: Use it in Claude Code
+    intro: "In a terminal:"
+    # The commands in the copyable block, one per line.
+    commands: |-
+      claude plugin marketplace add kgilpin/showcase-studio
+      claude plugin install showcase-studio@showcase-studio
+    then: >-
+      Then start Claude Code in a folder for your showcases and run
+      <code>/showcase-studio:showcase new</code>. The app installs itself the
+      first time, and it all runs on the Claude Code subscription you already
+      have.
+  app:
+    title: Use the desktop app
+    # The steps, in order: a short bold lead and a line under it. The picture
+    # beside each step is drawn in src/components/InstallOptions.tsx by its
+    # art name (download, open, chat). The Mac and Windows buttons go under
+    # the first step.
+    steps:
+      - art: download
+        lead: Download it.
+        text: On a Mac, unzip it and move it to Applications.
+      - art: open
+        lead: Run it.
+        text: The app opens on a folder for your showcases.
+      - art: chat
+        lead: Open Claude inside the app.
+        text: >-
+          Claude is available in an embedded terminal. The left side of the app
+          shows your video, and the right side is Claude.
+    # The two download buttons. They always point at the newest release.
+    mac: Mac <small>Apple Silicon</small>
+    windows: Windows <small>x64</small>
+    checksums: >-
+      SHA-256 checksums: <a href="/download/latest/mac.sha256">Mac</a>,
+      <a href="/download/latest/win.sha256">Windows</a>.
+
+# The page shown for a link that goes nowhere.
+not_found:
+  head:
+    title: Not found
+    description: That page doesn't exist.
+  title: That page isn't here
+  lede: >-
+    Try the <a href="/">home page</a>, <a href="/download">Download</a> or
+    <a href="/pricing">Pricing</a>.

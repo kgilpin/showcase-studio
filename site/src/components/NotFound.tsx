@@ -1,3 +1,5 @@
+import { SITE } from "../content";
+import { Markup } from "./Markup";
 import { SiteFooter, SiteHeader } from "./Site";
 
 /* The page for a link that goes nowhere. The /404 route prerenders it to
@@ -11,10 +13,9 @@ export function NotFound() {
 
       <main>
         <section className="page-intro lost">
-          <h1>That page isn't here</h1>
+          <h1>{SITE.not_found.title}</h1>
           <p className="lede">
-            Try the <a href="/">home page</a>, <a href="/download">Download</a> or{" "}
-            <a href="/pricing">Pricing</a>.
+            <Markup text={SITE.not_found.lede} />
           </p>
         </section>
       </main>

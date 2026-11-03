@@ -1,0 +1,17 @@
+# The Download page. Its two install cards are in shared.yaml (install), since
+# the home page shows the same ones. The inline tags allowed in text are
+# listed at the top of shared.yaml.
+
+head:
+  title: Download
+  description: >-
+    Install Showcase Studio as a Claude Code plugin, or download the desktop
+    app for Mac (Apple Silicon) or Windows (x64).
+
+title: Download Showcase Studio
+lede: >-
+  Two ways in, same studio. Your first two full-quality video exports are free
+  on each computer; drafts are always free.
+
+# The line under the cards.
+next: Exporting more than two full-quality videos? <a href="/pricing">See pricing</a>.

@@ -1,6 +1,22 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
+import { parse } from "yaml";
+
+/* The site's text lives in content/*.yaml (src/content.ts reads them). An
+ * import of a .yaml file becomes a module whose default export is the
+ * file's data, parsed here at build time, so the page ships no parser.
+ * In npm run dev, saving a file reloads the page with the new text. */
+function yaml(): Plugin {
+  return {
+    name: "site-yaml",
+    enforce: "pre",
+    transform(code, id) {
+      if (!/\.ya?ml$/.test(id)) return;
+      return { code: `export default ${JSON.stringify(parse(code))};`, map: null };
+    },
+  };
+}
 
 /* The site is a TanStack Start app, prerendered at build time: vite build
  * writes finished HTML for every page into dist/client, beside the JS, the
@@ -9,6 +25,7 @@ import viteReact from "@vitejs/plugin-react";
  * /media/* and /download/*. */
 export default defineConfig({
   plugins: [
+    yaml(),
     tanstackStart({
       /* Only the pages listed here: no crawling, since the page links to
        * /download/*, which only the Worker answers, and no finding routes

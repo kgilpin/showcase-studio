@@ -2,30 +2,24 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-r
 import type { ReactNode } from "react";
 
 import { NotFound } from "../components/NotFound";
+import { ORIGIN, SITE } from "../content";
 
 import styles from "../styles.css?url";
-
-const DESCRIPTION =
-  "Ship a feature. Show it off the same day. Showcase Studio is a Claude Code plugin for Mac and Windows that makes app videos from your repo in minutes.";
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Showcase Studio" },
-      { name: "description", content: DESCRIPTION },
+      { title: SITE.head.title },
+      { name: "description", content: SITE.head.description },
       { name: "theme-color", content: "#121316" },
-      { property: "og:title", content: "Showcase Studio" },
-      { property: "og:url", content: "https://showcasestudio.dev/" },
-      {
-        property: "og:description",
-        content:
-          "Ship a feature. Show it off the same day. Claude makes the video from your repo in minutes.",
-      },
-      { property: "og:image", content: "https://showcasestudio.dev/media/hero.jpg" },
+      { property: "og:title", content: SITE.head.title },
+      { property: "og:url", content: `${ORIGIN}/` },
+      { property: "og:description", content: SITE.head.social_description },
+      { property: "og:image", content: `${ORIGIN}/media/hero.jpg` },
       { property: "og:type", content: "website" },
-      { property: "og:site_name", content: "Showcase Studio" },
+      { property: "og:site_name", content: SITE.head.title },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [

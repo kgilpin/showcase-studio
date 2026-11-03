@@ -1,0 +1,203 @@
+# The Features page: the detail behind the home page's overview. This is a
+# sales page, so each item names one feature and says what the visitor
+# gets from it: a result, not a setting to manage, credited to the product
+# rather than to Claude. Check each claim against the studio before adding
+# it. The inline tags allowed in text are listed at the top of shared.yaml.
+
+head:
+  title: Features
+  description: >-
+    Everything Showcase Studio does: videos built from your code, your real
+    screens, custom graphics, your voice or an AI voice, captions made for
+    social, and one-click sharing.
+
+title: Features
+
+# One section per stage. Each has a title, three items (the feature, in
+# bold, then what it does for you) and a picture under the title, with a
+# numbered pin for each item: pin 1 marks where the first item shows.
+#
+# The pictures are drawn by the page (src/routes/features.tsx); the text
+# in each is here. Every picture has a label, which is what a screen
+# reader says it shows. type names the drawing:
+#
+#   window    a window with preformatted text: <dir> marks a folder,
+#             <note> an aside, <sha> a commit hash, <pin>1</pin> an item's pin
+#   fit       a wide screenshot cropped to the TikTok frame, over a clip's
+#             timeline
+#   graphics  a request in Claude Code (you, tool) and the graphic it made:
+#             a ring round the jump gate with a label (mark)
+#   voice     the phone teleprompter beside two tracks: your take, cut into
+#             scenes under its caption with one word lit (lit), and an AI
+#             voice. take and ai name the tracks.
+#   social    a TikTok frame with a word-by-word caption, the three caption
+#             styles (style is the one shown on), and an end card
+#   edit      a paused slide with its title being retyped, the style
+#             panel (caption, background) and the view switch (view is the
+#             one shown on)
+#   share     the exports in a row (in order: the tall video, the 4:3
+#             video, the App Store screenshots) above the Share window
+stages:
+  - id: code
+    title: Built on your code
+    items:
+      - feature: Knows how your app works.
+        text: >-
+          Showcase Studio reads your code and docs, so the script describes
+          your features correctly.
+      - feature: Keeps up with your app.
+        text: >-
+          When you ship something new, ask for a scene about it, and the video
+          changes to match. No starting over.
+      - feature: Every version saved.
+        text: Changes are saved to git as you go, so you can go back to any version.
+    art:
+      type: window
+      title: your-app
+      label: >-
+        Your app's repository: its code and docs, the video's script with a
+        new scene added, and the git history of the video
+      text: |-
+        <dir>your-app/</dir>
+        ├── <dir>src/</dir>                  <pin>1</pin>
+        ├── README.md
+        └── <dir>showcases/launch/</dir>
+            └── showcase.yaml     <pin>2</pin>
+                <note>+ scene: jump-gates</note>
+
+        <note>$ git log --oneline</note>
+        <sha>a41c9e2</sha> add jump gates    <pin>3</pin>
+        <sha>7d03b1f</sha> first cut
+
+  - id: screens
+    title: Your real app on screen
+    items:
+      - feature: Fit and placed for the output format.
+        text: >-
+          Each screenshot or clip matches TikTok, Instagram and YouTube formats exactly.
+      - feature: Visual effects applied to screenshots.
+        text: >-
+          A still screenshot gets a slow zoom or pan, so it plays like footage
+          instead of pausing the video.
+      - feature: Clips are auto-trimmed.
+        text: Each scene plays just the part of a recording that matches the captions.
+    art:
+      type: fit
+      label: >-
+        A wide screenshot of a star map, cropped to a tall TikTok frame around
+        the important part and slowly zooming, above a clip's timeline with
+        only the part that matters kept
+
+  - id: graphics
+    title: Custom graphics and animations
+    items:
+      - feature: Made to order.
+        text: Ask for a diagram, a chart or an animation, and it appears in the video.
+      - feature: In your style.
+        text: Graphics use the same colors and fonts as the rest of the video.
+      - feature: Integrated with your media.
+        text: >-
+          Custom graphics are overlaid on your screenshots and video, with perfect placement and timing.
+    art:
+      type: graphics
+      label: >-
+        A request in Claude Code to circle the jump gate and label it, and the
+        result: a star map screenshot with an animated ring round the jump
+        gate and a label, in the game's own colors
+      you: Circle the jump gate and label it.
+      tool: Wrote graphics/gate-marks.tsx
+      mark: Jump gate
+
+  - id: voice
+    title: You on camera, or an AI voice
+    items:
+      - feature: Built-in teleprompter.
+        text: The script scrolls at the pace the video plays, on your computer or your phone.
+      - feature: Integrated camera.
+        text: >-
+          The teleprompter films you with your camera while you read. The
+          finished take saves to your phone or computer.
+      - feature: No recording? Use an AI voice.
+        text: A natural-sounding voice reads your script, through your own AWS account.
+    art:
+      type: voice
+      label: >-
+        The script on a phone teleprompter, filming the narrator as they read.
+        Beside it, the recorded take cut into three scenes, the narrator, the
+        app, the narrator again, with one voice under all three and the
+        caption's spoken word lit; and an AI voice reading the same script
+      caption: A jump gate is a permanent high-speed lane.
+      lit: permanent
+      take: Your take
+      ai: AI voice
+
+  - id: captions
+    title: Made for social video
+    items:
+      - feature: Three caption styles.
+        text: >-
+          Chip fades each line in on a solid box. Karaoke lights up each word
+          as it's spoken. Reveal brings in one word at a time.
+      - feature: Clear of TikTok's buttons.
+        text: >-
+          Captions sit where TikTok's own buttons and text won't cover them.
+          Switch on the safe area to see for yourself.
+      - feature: An ending that sends viewers somewhere.
+        text: Close on an App Store badge, a GitHub badge or a button to your site.
+    art:
+      type: social
+      label: >-
+        A TikTok frame with the areas TikTok's buttons and text cover shaded,
+        and a karaoke caption just below the top band, lighting up word by
+        word. Under it, the three caption styles: chip, karaoke and reveal.
+        Beside it, an end card with a button
+      caption: Build highways between the stars.
+      styles: [Chip, Karaoke, Reveal]
+      style: Karaoke
+      end:
+        title: NOVA
+        line: No turns, ever.
+        button: Play now
+
+  - id: editing
+    title: Fine-tune it yourself
+    items:
+      - feature: Edit right on the slide.
+        text: >-
+          Pause, then click a title to retype it or a picture to swap it.
+          Cmd+Z undoes any edit.
+      - feature: Restyle in a few clicks.
+        text: Change the caption colors and the slide background for the whole video.
+      - feature: Preview every format.
+        text: Switch between the App Screens, TikTok and 4:3 views before you export.
+    art:
+      type: edit
+      label: >-
+        A paused slide in the studio with its title being retyped, a style
+        panel with caption and background colors beside it, and the switch
+        between the App Screens, TikTok and 4:3 views
+      title: Jump gates
+      caption: Caption
+      background: Background
+      views: [App Screens, TikTok, "4:3"]
+      view: TikTok
+
+  - id: share
+    title: Export and share
+    items:
+      - feature: Every size from one video.
+        text: >-
+          A full-quality TikTok video, a 4:3 version for YouTube and your
+          website, and a set of App Store screenshots.
+      - feature: Post in one click.
+        text: >-
+          Your caption is copied, the upload page opens and the video file is
+          ready to drop in. TikTok, Instagram and YouTube Shorts.
+      - feature: AirDrop to your phone.
+        text: On a Mac, send the video straight to your iPhone's Photos.
+    art:
+      type: share
+      label: >-
+        Three exports of one video: a tall TikTok video, a 4:3 video and a
+        set of App Store screenshots
+      exports: [TikTok, "4:3", App Store]

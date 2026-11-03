@@ -1,0 +1,182 @@
+# The home page. The inline tags allowed in text are listed at the top of
+# shared.yaml.
+
+hero:
+  eyebrow: A <strong>Claude Code</strong> plugin for app videos
+  # The headline, one line per entry. The highlight steps through the
+  # pieces the way captions play in a Showcase video, so each piece lights
+  # up on its own: "same day." is one piece.
+  headline:
+    - [Ship, a, feature.]
+    - [Show, it, off, the, same day.]
+  lede: >-
+    Most new features never get a video, because making one takes hours.
+    Showcase Studio is a plugin for the Claude Code you already use, so a polished video takes minutes.
+    No CapCut, no clipping by hand.
+  button: Install now
+  video:
+    # What a screen reader says the video is.
+    label: "Showcase Studio's own showcase: a one-minute video made with Showcase Studio"
+    # The line under it.
+    caption: This video was made with Showcase Studio.
+
+# The "how it works" rows: a title, the paragraphs, and a picture beside
+# them (the pictures alternate sides). The picture is one of:
+#
+#   type: window        a window with a title bar and preformatted text,
+#                       such as a folder tree or a terminal. In the text,
+#                       <dir> marks a folder name, <note> a soft aside and
+#                       <sha> a commit hash. label is what a screen reader
+#                       says it shows.
+#   type: chat          a short exchange in Claude Code (you ask, Claude
+#                       edits a file, Claude answers) over a frame of the
+#                       resulting video (frame: the picture and its alt
+#                       text).
+#   type: timeline      scenes in a row, each picture over its caption,
+#                       with a voice track under them all.
+#   type: image         a picture on its own.
+#   type: destinations  the Share window with the places a video can go.
+features:
+  - title: Start in your code repo
+    text:
+      - >-
+        Showcase Studio runs inside a Claude Code session.
+        This means it understands your project, and it can automatically capture screenshots and clips.
+      - The video lives right next to the code, in a <code>showcases</code> folder.
+    art:
+      type: window
+      title: your-app
+      label: >-
+        An app's repository: src and README.md, which Claude reads, and a
+        showcases folder that holds the video
+      text: |-
+        <dir>your-app/</dir>
+        ├── <dir>src/</dir>          <note>← Claude reads the code</note>
+        ├── README.md     <note>← and the docs</note>
+        └── <dir>showcases/</dir>    <note>← the video lives here</note>
+            └── <dir>launch/</dir>
+                ├── showcase.yaml   <note>the script</note>
+                └── <dir>assets/</dir>         <note>real screens</note>
+
+  - title: Be the director
+    text:
+      - Describe what you want to make.
+      - >-
+        Claude and Showcase Studio work with you to produce a script, scenes
+        with integrated video and custom graphics, and captions. You can watch
+        the video in Claude Code's preview.
+    art:
+      type: chat
+      you: >-
+        Make a TikTok for NOVA that shows off jump gates: players build their
+        own highways between the stars.
+      tool: Edited showcase.yaml
+      claude: Here's a first cut. It's playing in the studio.
+      frame:
+        src: /media/nova-gate.jpg
+        alt: >-
+          A frame of the NOVA video: a jump gate on the star map, captioned 'A
+          jump gate is a permanent high-speed lane'
+
+  - title: Drop in your own media
+    text:
+      - >-
+        Add your own screenshots, screen recordings and voice recordings. Showcase Studio weaves each one into the video with proper
+        clip boundaries and timing. It all stays in sync automatically.
+    art:
+      type: timeline
+      label: >-
+        Three NOVA scenes in a row, two screenshots and a clip, each over its
+        caption, with one voice recording running under all of them
+      # kind is Screenshot or Clip.
+      scenes:
+        - src: /media/nova-starmap.webp
+          kind: Screenshot
+          caption: No turns, ever.
+        - src: /media/nova-fleet.webp
+          kind: Clip
+          caption: Pick your force and launch.
+        - src: /media/nova-gate-shot.webp
+          kind: Screenshot
+          caption: Build highways between the stars.
+      voice: Your voice
+
+  - title: Enhance with custom graphics and animations
+    text:
+      - >-
+        Ask for a custom graphic or animation, and it generates one for you.
+        Use it as an overlay, or to demo a feature step by step.
+    art:
+      type: chat
+      you: >-
+        Animate the /showcase command: it types into the chat, and the studio
+        opens beside it.
+      tool: Wrote graphics/showcase-command.tsx
+      claude: Done. It plays in the plugin scene.
+      frame:
+        src: /media/showcase-command.jpg
+        alt: >-
+          A frame of the Showcase Studio video: an animated Claude Code window
+          where /showcase opens the studio beside the chat
+
+  - title: Revise by watching and chatting
+    text:
+      - >-
+        To refine the video, you can edit the script right in the studio;
+        or you can chat with Claude about the changes you want to make.
+    art:
+      type: chat
+      you: Add that you can capture an enemy's gate.
+      tool: Edited showcase.yaml
+      claude: Done. The jump gate scene has a second line now.
+      frame:
+        src: /media/nova-capture.jpg
+        alt: >-
+          The same NOVA scene after the note, captioned 'Capture one end of an
+          enemy gate and you inherit their highway'
+
+  - title: Step in front of the camera
+    text:
+      - >-
+        To record yourself speaking the script, use the built-in teleprompter,
+        on your computer or on your phone.
+      - >-
+        Your recording will be automatically woven into the video, with synced
+        captions. You don't have to line anything up by hand.
+    art:
+      type: image
+      src: /media/prompter.webp
+      alt: The NOVA script on a phone teleprompter, on the jump gate line
+      width: 520
+      height: 1130
+
+  - title: Publish it
+    text:
+      - >-
+        Export high-quality video and upload to destinations like TikTok, Instagram
+        and YouTube. On a Mac, you can AirDrop the video directly to your phone.
+    art:
+      type: destinations
+
+  - title: Update it when the app changes
+    text:
+      - >-
+        Your showcases are git-managed files. So when your app changes, Claude
+        can update your videos quickly and easily.
+    art:
+      type: window
+      title: your-app
+      label: "The git history of a showcase: each change to the video is a commit"
+      text: |-
+        <note>$</note> git log --oneline -- showcases/launch
+        <sha>a41c9e2</sha> launch: retake the settings screen
+        <sha>7d03b1f</sha> launch: add a line about jump gates
+        <sha>3e9f6a0</sha> launch: tighten the hook to 3 seconds
+        <sha>c18b7d4</sha> launch: first cut
+
+# The button under the rows, to the Features page.
+more: See every feature
+
+# The install section at the bottom (its two cards are in shared.yaml).
+download:
+  title: Get Showcase Studio

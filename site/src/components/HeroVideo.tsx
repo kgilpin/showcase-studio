@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import { HOME } from "../content";
+
 /* The hero video, with a small control bar: play/pause, a scrubber and
  * sound. The bar fades in on hover or tap and stays while the video is
  * paused. There is no full screen: browsers show it landscape, which
@@ -127,7 +129,7 @@ export function HeroVideo() {
           loop={muted}
           playsInline
           preload="metadata"
-          aria-label="Showcase Studio's own showcase: a one-minute video made with Showcase Studio"
+          aria-label={HOME.hero.video.label}
           onPlay={() => {
             setPlaying(true);
             setEnded(false);
@@ -182,7 +184,7 @@ export function HeroVideo() {
           </IconButton>
         </div>
       </div>
-      <figcaption>This video was made with Showcase Studio.</figcaption>
+      <figcaption>{HOME.hero.video.caption}</figcaption>
     </figure>
   );
 }
