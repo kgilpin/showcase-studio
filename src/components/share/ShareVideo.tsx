@@ -109,7 +109,7 @@ function ExportRow({
       ) : (
         !exports.current && (
           <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-xs text-support">
+            <p className="min-w-0 text-xs text-support">
               Takes {formatEstimate(exports.estimateMs)}
               {kind === "video-draft" ? " — good for trying the steps out" : ""}.
             </p>
@@ -118,6 +118,7 @@ function ExportRow({
               variant={chosen ? "default" : "outline"}
               disabled={busy}
               onClick={onExport}
+              className="shrink-0"
               aria-label={`Export the ${label.toLowerCase()} video`}
             >
               {exports.latest ? "Export again" : "Export"}
@@ -153,10 +154,15 @@ export function ShareVideo({
   const shown: ShareExport | null = chosen.current ?? chosen.latest;
 
   return (
-    <section aria-label="Video" className="rounded-2xl border border-border bg-card/40 p-5">
+    <section
+      aria-label="Video"
+      className="@container rounded-2xl border border-border bg-card/40 p-5"
+    >
       <p className="text-xs uppercase tracking-[0.3em] text-support">Video</p>
-      <div className="mt-4 flex flex-col gap-5 sm:flex-row">
-        <div className="mx-auto aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-xl bg-background/60 sm:mx-0">
+      {/* The preview beside the rows only when the card is wide enough for
+       * both (its own width, not the window's: see the share route). */}
+      <div className="mt-4 flex flex-col gap-5 @md:flex-row">
+        <div className="mx-auto aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-xl bg-background/60 @md:mx-0">
           {shown ? (
             <video
               key={shown.id}

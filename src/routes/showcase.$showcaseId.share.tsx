@@ -22,7 +22,13 @@ import { cn } from "@/lib/utils";
  * to showcase.yaml's publish: block). Everything comes
  * from the studio's share-status action (server/share.mjs), the same data
  * Claude's share_status tool returns. Studio only: sharing works on the
- * studio's exports. */
+ * studio's exports.
+ *
+ * The page lays itself out by the width it has, not the window's: with the
+ * studio agent's terminal docked beside it, the page is half the window.
+ * So the breakpoints are container queries on <main> (`@5xl:` — two
+ * columns, the video beside the steps, from 64rem of page), and each card
+ * is its own container for its inner layout. */
 export const Route = createFileRoute("/showcase/$showcaseId/share")({
   head: ({ params }) => ({
     meta: [
@@ -220,7 +226,10 @@ function ShareScreen() {
   };
 
   return (
-    <main className="min-h-dvh w-full pb-14" style={{ background: "var(--gradient-stage)" }}>
+    <main
+      className="@container min-h-dvh w-full pb-14"
+      style={{ background: "var(--gradient-stage)" }}
+    >
       <ShowcaseNav
         showcaseId={showcaseId}
         title={showcase.title}
@@ -265,7 +274,7 @@ function ShareScreen() {
         {loadError && <p className="mt-10 text-sm text-red-400">{loadError}</p>}
 
         {status && destination && full && draft && (
-          <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+          <div className="mt-8 grid gap-6 @5xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
             <div className="space-y-6">
               <ShareVideo
                 videoUrl={(id) => studio()!.share.videoUrl(showcaseId, id)}

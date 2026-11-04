@@ -105,7 +105,10 @@ export function ShareHandoff({
   };
 
   return (
-    <section aria-label="Hand-off" className="rounded-2xl border border-border bg-card/40 p-5">
+    <section
+      aria-label="Hand-off"
+      className="@container rounded-2xl border border-border bg-card/40 p-5"
+    >
       <p className="text-xs uppercase tracking-[0.3em] text-support">Post it</p>
 
       <ol className="mt-5 space-y-4">
@@ -135,7 +138,7 @@ export function ShareHandoff({
 
         <Step n={3} done={method != null}>
           <p>How will you post it?</p>
-          <div role="radiogroup" aria-label="How to post" className="grid gap-2 sm:grid-cols-2">
+          <div role="radiogroup" aria-label="How to post" className="grid gap-2 @md:grid-cols-2">
             {(
               [
                 [
