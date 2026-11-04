@@ -127,6 +127,8 @@ Claude works through the studio's MCP tools:
   structured edits (scene fields, captions, meta, insert/move/delete) as
   one write that keeps the file's formatting
 - `screenshot_slide` — render one slide and look at it
+- `screenshot_frame` — render the video's frame at a given moment (TikTok
+  or 4:3) and look at it, with TikTok's safe area shaded on request
 - `validate` — load the whole library and report errors and warnings
 - `transcribe` — whisper.cpp voice-to-text with per-word timestamps
 - `script` — the narration as plain text

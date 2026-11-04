@@ -389,14 +389,19 @@ npm run dev -- --new [<library folder>]
     server-side page render failed and none has rendered since — recorded by
     `src/start.ts`/`src/server.ts` in `src/lib/page-error.mjs`, a store on
     `globalThis` that both the page's server code and the studio read in the
-    same process; `validate` and `screenshot_slide` quote it, and the error
+    same process; `validate`, `screenshot_slide` and `screenshot_frame` quote it, and the error
     page shows it under Details only while a studio runs in the process and
     the request names a local host), `edit_showcase` through
     `scene-edit.mjs`, `add_asset` through `asset-files.mjs` (files on disk
     copied into a showcase's `assets/` — what an image dropped into the
     Claude chat or a screenshot Claude captured goes through; the page's
     drop target is the same module's base64 door), `commit_showcase` through
-    `showcase-history.mjs`, `screenshot_slide`, `validate`, `transcribe`
+    `showcase-history.mjs`, `screenshot_slide`, `screenshot_frame` (one or
+    more frames of the video at given times, through `screenshotFrame` in
+    `exporter.mjs`: the record page the video export records, in the
+    TikTok or 4:3 view, animations finished unless asked live, TikTok's
+    safe area shaded on request; the player's Frame button gets the same
+    frame from `GET /studio/api/frame`), `validate`, `transcribe`
     (with `save`, which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
     `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`,
@@ -732,7 +737,9 @@ npm run dev -- --new [<library folder>]
   the scene rail with the view switch and transport. The rows between
   the stage and the scene rail are the place for controls that change
   how the current view renders or plays: today the scrubber, the TikTok
-  view's Safe area switch and the current scene's picture fit (Fill /
+  view's Safe area switch, the Frame button (TikTok and 4:3 views: a PNG
+  of the video's frame at the scrubber's moment, rendered by the studio)
+  and the current scene's picture fit (Fill /
   Fit, focus, bands — `media.tiktok`). Future ones, such as playback
   speed, go there too, not in the bottom bar.
 - The TikTok view and the `video` / `video-draft` exports are TikTok's

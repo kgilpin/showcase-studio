@@ -489,6 +489,65 @@ scenes:
     expect(script.content[0].text).toContain("NOVA");
   });
 
+  it("screenshot_frame returns each frame as an image, with what the page showed", async () => {
+    /* A renderer that draws a PNG header of whatever size the page is
+     * opened at, and answers the record page's own questions. */
+    const png = (width, height) => {
+      const header = Buffer.alloc(24);
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(header);
+      header.write("IHDR", 12, "latin1");
+      header.writeUInt32BE(width, 16);
+      header.writeUInt32BE(height, 20);
+      return header;
+    };
+    const opened = [];
+    const renderer = {
+      openPage: async ({ width, height }) => ({
+        goto: async (url) => opened.push(url),
+        evaluate: async (script) =>
+          script.includes("__record?.at")
+            ? {
+                scene: { id: "intro", index: 0, count: 1, elapsedMs: 500, durationMs: 3500 },
+                caption: { index: 0, count: 1, text: "Hi there." },
+              }
+            : null,
+        capture: async () => png(width, height),
+        close: async () => {},
+      }),
+    };
+    const { studio, url } = await startStudio({ renderer });
+    const result = await studio.callTool({
+      name: "screenshot_frame",
+      arguments: { showcaseId: "nova", atMs: [500, 2000], safeArea: true },
+    });
+    expect(result.content.map((part) => part.type)).toEqual(["image", "text", "image", "text"]);
+    expect(result.content[0]).toMatchObject({
+      mimeType: "image/png",
+      data: png(540, 960).toString("base64"),
+    });
+    expect(result.content[1].text).toBe(
+      'Frame at 500 ms (0:00.5) — scene "intro" (1 of 1, 500 ms in), caption 1 of 1 ("Hi there."); ' +
+        "TikTok view, 540×960 (half size), animations finished, safe area shaded.",
+    );
+    expect(result.content[3].text).toMatch(/^Frame at 2000 ms \(0:02\.0\)/);
+    expect(opened).toEqual([`${url}/showcase/nova/record?controlled=1&safeArea=1`]);
+
+    /* The player's Frame button gets the same frame, full size, as a file. */
+    const saved = await fetch(`${url}/studio/api/frame?showcase=nova&at=500&view=tiktok`);
+    expect(saved.status).toBe(200);
+    expect(saved.headers.get("content-type")).toBe("image/png");
+    expect(saved.headers.get("content-disposition")).toBe(
+      'attachment; filename="nova-t000500.png"',
+    );
+    expect(Buffer.from(await saved.arrayBuffer())).toEqual(png(1080, 1920));
+    const late = await fetch(`${url}/studio/api/frame?showcase=nova&at=9000`);
+    expect(late.status).toBe(500);
+    expect(await late.json()).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("past the end"),
+    });
+  });
+
   /* An image the user drops into the Claude chat, or a screenshot Claude
    * captured, is a file somewhere else on disk. Without this tool the
    * user had to find that file and drag it onto the Assets page. */

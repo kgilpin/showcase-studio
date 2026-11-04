@@ -346,6 +346,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
         canEdit={canEdit}
         safeArea={safeArea}
         onToggleSafeArea={toggleSafeArea}
+        atMs={scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs}
       />
       <div
         className="z-20 flex shrink-0 flex-col items-center gap-4 px-6 py-7 sm:px-10"

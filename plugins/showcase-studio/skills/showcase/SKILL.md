@@ -176,7 +176,10 @@ from the app's source.
 1. Run `validate` after changing YAML.
 2. Look at the result. In the preview panel, read the page first: the
    user may have moved to another page or slide. Without a panel, use
-   `screenshot_slide`.
+   `screenshot_slide`. For anything about the video at a moment — a
+   caption over a face, a cut landing on a word, a graphic clear of
+   TikTok's interface — use `screenshot_frame` with the times to check
+   (`safeArea: true` shades TikTok's interface), not a draft export.
 3. Tell the user only what you have seen working. If a check failed, say
    which one and quote its error. Never describe a screenshot or a page
    you didn't get back.

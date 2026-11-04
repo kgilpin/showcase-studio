@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { createFileRoute } from "@tanstack/react-router";
-import { getShowcase, type Scene, type Showcase } from "@/content/showcases";
+import {
+  activeCaption,
+  captionTimeline,
+  getShowcase,
+  type Scene,
+  type Showcase,
+} from "@/content/showcases";
 import { embedCaptionsSetting } from "@/content/embed-captions";
 import { SceneView, TIKTOK_ASPECT } from "@/components/showcase/SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "@/components/showcase/EmbedSceneView";
@@ -19,19 +25,23 @@ import { collectSceneSources } from "@/components/showcase/useMediaPreload";
  *   seek(ms) jump to an exact moment — scenes, captions, and CSS animations
  *            all land on the frame for `ms` (approach B: frame-by-frame)
  *   done     true once playback (or a seek) reaches the end
+ *   at()     what the frame shows now: the scene and the caption on it
+ *            (the screenshot_frame tool names them under each image)
  *
  * `?controlled=1` disables the real-time clock so `seek` fully owns time.
  * `?canvas=embed` renders the 4:3 embed canvas (EmbedSceneView) instead
  * of the TikTok frame. (`?canvas=portrait`, from before the TikTok frame
- * was 9:16, means the TikTok frame too.)
+ * was 9:16, means the TikTok frame too.) `?safeArea=1` shades where
+ * TikTok's own interface covers the frame, as the player's Safe area
+ * switch does — for a frame someone checks, never for an export.
  */
 export const Route = createFileRoute("/showcase/$showcaseId/record")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { controlled: boolean; canvas: "tiktok" | "embed" } => ({
-    controlled:
-      search["controlled"] === 1 || search["controlled"] === "1" || search["controlled"] === true,
+  ): { controlled: boolean; canvas: "tiktok" | "embed"; safeArea: boolean } => ({
+    controlled: flag(search["controlled"]),
     canvas: search["canvas"] === "embed" ? "embed" : "tiktok",
+    safeArea: flag(search["safeArea"]),
   }),
   head: ({ params }) => ({
     meta: [{ title: `Record — ${params.showcaseId}` }],
@@ -39,12 +49,25 @@ export const Route = createFileRoute("/showcase/$showcaseId/record")({
   component: RecordPage,
 });
 
+/** A `?flag=1` search parameter. */
+const flag = (value: unknown) => value === 1 || value === "1" || value === true;
+
+/** What the frame shows at the current moment. */
+export type FrameInfo = {
+  scene: { id: string; index: number; count: number; elapsedMs: number; durationMs: number };
+  /** The caption on the frame, when the scene has captions. */
+  caption?: { index: number; count: number; text: string };
+};
+
 type RecordApi = {
   totalMs: number;
   ready: boolean;
   done: boolean;
   start: () => void;
   seek: (ms: number) => void;
+  /** The scene and caption on the frame now (this page only; the
+   *  teleprompter's recorder doesn't have it). */
+  at?: () => FrameInfo;
 };
 
 declare global {
@@ -101,22 +124,50 @@ function scrubToVirtualTime(nowMs: number) {
   }
 }
 
+/** The scene and caption a clock points at. */
+function frameInfo(scenes: Scene[], clock: Clock): FrameInfo {
+  const scene = scenes[clock.index] ?? scenes[0]!;
+  const info: FrameInfo = {
+    scene: {
+      id: scene.id,
+      index: clock.index,
+      count: scenes.length,
+      elapsedMs: Math.round(clock.elapsedMs),
+      durationMs: scene.durationMs,
+    },
+  };
+  const caption = activeCaption(scene, clock.elapsedMs);
+  if (caption) {
+    const timeline = captionTimeline(scene);
+    info.caption = {
+      index: timeline.findIndex((entry) => entry.startMs === caption.startMs),
+      count: timeline.length,
+      text: caption.text,
+    };
+  }
+  return info;
+}
+
 function RecordPage() {
   const { showcaseId } = Route.useParams();
-  const { controlled, canvas } = Route.useSearch();
+  const { controlled, canvas, safeArea } = Route.useSearch();
   const showcase = getShowcase(showcaseId);
   if (!showcase) return null; // the layout route renders the not-found message
-  return <Recorder showcase={showcase} controlled={controlled} canvas={canvas} />;
+  return (
+    <Recorder showcase={showcase} controlled={controlled} canvas={canvas} safeArea={safeArea} />
+  );
 }
 
 function Recorder({
   showcase,
   controlled,
   canvas,
+  safeArea,
 }: {
   showcase: Showcase;
   controlled: boolean;
   canvas: "tiktok" | "embed";
+  safeArea: boolean;
 }) {
   const scenes = showcase.scenes;
   const totalMs = scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
@@ -141,6 +192,7 @@ function Recorder({
         scrubToVirtualTime(ms);
         api.done = next.done;
       },
+      at: () => frameInfo(scenes, clockRef.current),
     };
     window.__record = api;
 
@@ -218,6 +270,7 @@ function Recorder({
             canvas="tiktok"
             frameless
             hideTitle
+            safeArea={safeArea}
           />
         )}
       </div>

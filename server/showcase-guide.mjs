@@ -252,7 +252,8 @@ ${
   belong in that repo, not in this folder.`
     : `- The studio's source isn't installed with the app, so don't look for
   it. This guide and the MCP tools' own descriptions are the reference;
-  check what you make with screenshot_slide and validate.`
+  check what you make with screenshot_slide, screenshot_frame and
+  validate.`
 }
 - Show the studio from the MCP tools: studio_start returns its URL as
   \`open\` — in Claude Code, open that URL in the preview panel
@@ -261,8 +262,8 @@ ${
   studio, separate from the one the MCP tools use.
 - When a studio page fails to render on the server, studio_start and
   studio_info report it as \`pageError\`: {message, stack, path, at}.
-  It stays until a page renders again. validate and screenshot_slide
-  quote it too ("The studio page failed to render: …") instead of
+  It stays until a page renders again. validate, screenshot_slide and
+  screenshot_frame quote it too ("The studio page failed to render: …") instead of
   saying the page didn't load. That error is the real cause: tell the
   user what it says.
 - ffmpeg is bundled with the studio at ${ffmpegPath ?? "(unavailable)"}
@@ -307,6 +308,14 @@ ${whisperAdvice(platform)}
   edit shapes); screenshot_slide
   {showcaseId, sceneId} returns a rendered image of one slide — use it
   after editing a slide, theme, or TSX diagram to see your work;
+  screenshot_frame {showcaseId, atMs, view?, safeArea?, animations?}
+  returns the video's frame at a time (or a list of times, one image
+  each) exactly as the export renders it — overlay captions, TikTok fit,
+  brand mark — with a line naming the scene and caption showing then;
+  view "tiktok" (default) or "43", safeArea: true shades TikTok's
+  interface, animations: "live" keeps them at that moment instead of
+  finished. Use it for every "at time T, is X right?" check instead of
+  a draft export;
   validate reports which showcases load and the error for any that
   don't — use it after YAML edits; script {showcaseId} returns the
   narration as share-ready plain text (scene headers + spoken lines).
