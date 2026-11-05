@@ -39,6 +39,8 @@ export const PUBLISH_FIELDS: readonly PublishField[];
 export const DESTINATIONS: Record<DestinationId, Destination>;
 export const DESTINATION_IDS: readonly DestinationId[];
 
+export function destinationForView(view: string | null | undefined): DestinationId | null;
+
 export function normalizeHashtag(value: unknown): string | null;
 export function normalizeHashtags(value: unknown): string[];
 export function publishText(

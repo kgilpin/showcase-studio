@@ -29,6 +29,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { CHANGE_LOG } from "./change-log.mjs";
 import { resolvePath, studioOptions } from "./launch-options.mjs";
+import { PLAYER_VIEWS, playerView } from "../src/lib/export-kinds.mjs";
 import { libraryInGit } from "./library-git.mjs";
 import { TOOLS, createMcpRpc } from "./mcp.mjs";
 import { runningStudio } from "./studio-presence.mjs";
@@ -93,6 +94,15 @@ function studioTools({ windows, sources, libraryHelp }) {
             description:
               "The showcase to show the user (its folder name in the library); the studio " +
               "locks to it. Pass it whenever the user wants to see or work on one showcase.",
+          },
+          view: {
+            type: "string",
+            enum: PLAYER_VIEWS,
+            description:
+              "With `showcase`: the player view `open` starts in (tiktok, screens — App " +
+              "Screens — or embed, the 4:3 canvas), as ?view= on the URL. It wins over the " +
+              "showcase's own meta.view for that page load only; leave it out to open the " +
+              "showcase the way it is made to open.",
           },
           new: {
             type: "boolean",
@@ -376,10 +386,13 @@ export function createStudioMcp({
       const [current, result] = await runTool({ name: "studio_info", arguments: {} });
       if (current.blocked) return json(current.blocked);
       const facts = JSON.parse(result.content[0].text);
+      /* A showcase page opens in the view asked for (?view=); the
+       * player reads it (src/routes/showcase.$showcaseId.index.tsx). */
+      const view = args.showcase !== undefined ? playerView(args.view) : null;
       return json({
         ...facts,
         ...(current.libraryReason ? { libraryReason: current.libraryReason } : {}),
-        open: current.landingUrl(facts),
+        open: current.landingUrl(facts) + (view ? `?view=${view}` : ""),
         guide: path.join(facts.library, ".studio", "GUIDE.md"),
         changes: path.join(facts.library, CHANGE_LOG),
       });

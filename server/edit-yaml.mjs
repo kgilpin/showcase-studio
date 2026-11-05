@@ -79,6 +79,7 @@ import {
 } from "../src/content/caption-position-rules.mjs";
 import { TIKTOK_FIELDS, tiktokFieldProblem } from "../src/content/tiktok-fit-rules.mjs";
 import { checkPublishEdit } from "../src/content/publish-rules.mjs";
+import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 /* The brand mark sits in a corner — there is no banner position, and no
@@ -118,6 +119,9 @@ const META_FIELDS = {
   /* Overlay captions on the 4:3 embed canvas; unset follows the voiceover
    * (src/content/embed-captions.ts). */
   embedCaptions: { kind: "boolean", removable: true },
+  /* The view the player opens this showcase in (tiktok, screens, embed);
+   * unset opens in TikTok view. The player's pin button writes it. */
+  view: { kind: "enum", values: PLAYER_VIEWS, removable: true },
   cover: { kind: "string", removable: true },
   soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
   notes: { kind: "string", removable: true },

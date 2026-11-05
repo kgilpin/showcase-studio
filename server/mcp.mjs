@@ -119,7 +119,9 @@ export const TOOLS = [
       '{field: "scene.delete", sceneId}, and {field: "scene.move", sceneId, index}\n' +
       '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
       "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
-      "default, which hides them when a synced voiceover is set), cover, notes " +
+      'default, which hides them when a synced voiceover is set), view ("tiktok", "screens" ' +
+      'or "embed" — the player view the showcase opens in, for a showcase made for one ' +
+      "destination; null returns to TikTok), cover, notes " +
       "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), tiktok ({fit?, " +
       "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), or watermark " +
       "({asset?, text?, position?, opacity?, scale?}) — the brand mark drawn in a corner of " +

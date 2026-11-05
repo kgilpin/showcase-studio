@@ -38,6 +38,36 @@ const warningsFor = (sceneId: string) =>
  * can't land on top of a test's load. */
 beforeAll(() => showcasesReady);
 
+/* meta.view: the player view a showcase opens in. One of the player's
+ * three names, or a warning and the built-in default. */
+describe("the view a showcase opens in", () => {
+  const yaml = (view: string) => `
+meta:
+  title: Explainer
+  description: Made for the 4:3 embed
+  view: ${view}
+scenes:
+  - id: one
+    theme: statement
+    captions:
+      - text: Hello.
+`;
+
+  it("is read from meta.view", async () => {
+    const showcase = await load("view-embed", yaml("embed"));
+    expect(showcase.view).toBe("embed");
+    expect(warningsFor("")).toEqual([]);
+  });
+
+  it("warns on a name the player doesn't have, and leaves it unset", async () => {
+    const showcase = await load("view-number", yaml("43"));
+    expect(showcase.view).toBeUndefined();
+    expect(warningsFor("")).toEqual([
+      'view must be one of tiktok, screens, embed — ignoring "43" (the player opens in TikTok view)',
+    ]);
+  });
+});
+
 describe("loading a showcase", () => {
   it("turns YAML into scenes with resolved media and timing", async () => {
     const showcase = await load(

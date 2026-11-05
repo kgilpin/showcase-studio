@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   captionWithHashtags,
   checkPublishEdit,
+  destinationForView,
   normalizeHashtags,
   publishProblems,
   publishText,
@@ -148,6 +149,13 @@ describe("YouTube (4:3)", () => {
     expect(checkPublishEdit({ destination: "youtube43", name: "title", value: "T" })).toEqual({
       value: "T",
     });
+  });
+
+  it("is where a showcase pinned to the 4:3 view shares to", () => {
+    expect(destinationForView("embed")).toBe("youtube43");
+    expect(destinationForView("tiktok")).toBe("tiktok");
+    expect(destinationForView("screens")).toBeNull();
+    expect(destinationForView(undefined)).toBeNull();
   });
 });
 

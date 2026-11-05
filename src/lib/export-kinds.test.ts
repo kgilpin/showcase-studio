@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { exportKindFor, exportLabel, exportPercent, fileManagerName } from "./export-kinds.mjs";
+import {
+  exportKindFor,
+  exportLabel,
+  exportPercent,
+  fileManagerName,
+  PLAYER_VIEWS,
+  playerView,
+} from "./export-kinds.mjs";
 
 describe("export kinds", () => {
+  it("reads a player view name from the outside, or nothing", () => {
+    expect(PLAYER_VIEWS).toEqual(["tiktok", "screens", "embed"]);
+    for (const view of PLAYER_VIEWS) expect(playerView(view)).toBe(view);
+    /* YAML reads `view: 43` as a number; the player's names are words. */
+    expect(playerView(43)).toBeNull();
+    expect(playerView("4:3")).toBeNull();
+    expect(playerView(undefined)).toBeNull();
+  });
+
   it("picks the export the player's view previews", () => {
     expect(exportKindFor("tiktok", "draft")).toBe("video-draft");
     expect(exportKindFor("tiktok", "full")).toBe("video");

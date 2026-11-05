@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Captions, CaptionsOff, Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
+import {
+  Captions,
+  CaptionsOff,
+  Pause,
+  Pin,
+  PinOff,
+  Play,
+  RotateCcw,
+  SkipBack,
+  SkipForward,
+} from "lucide-react";
 import { ShowcaseNav } from "./ShowcaseNav";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
@@ -11,6 +21,7 @@ import { MediaPicker } from "@/components/studio/MediaPicker";
 import { StylePanel } from "@/components/studio/StylePanel";
 import { captionTimeline, type Showcase } from "@/content/showcases";
 import { embedCaptionsSetting } from "@/content/embed-captions";
+import { playerView, VIEW_LABELS, type PlayerView } from "@/lib/export-kinds.mjs";
 import { FIXED_ASPECT, SceneView, TIKTOK_ASPECT } from "./SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
 import { ProgressRail } from "./ProgressRail";
@@ -19,7 +30,25 @@ import { Scrubber } from "./Scrubber";
 import { Soundtrack } from "./Soundtrack";
 import { useMediaPreload } from "./useMediaPreload";
 
-export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
+/** The view this browser last used, as a fallback for a showcase that
+ *  names none. */
+const rememberedView = (): PlayerView | null => {
+  try {
+    return typeof window === "undefined" ? null : playerView(localStorage.getItem("player-view"));
+  } catch {
+    return null;
+  }
+};
+
+export function ShowcasePlayer({
+  showcase,
+  initialView,
+}: {
+  showcase: Showcase;
+  /** The view the page's URL asks for (?view=), which wins over the
+   *  showcase's own meta.view. */
+  initialView?: PlayerView | undefined;
+}) {
   const scenes = showcase.scenes;
   useMediaPreload(scenes);
   /* Live reload (the studio watcher reloads the page on every file save)
@@ -51,10 +80,23 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
    * the default: it's the finished-video look), "screens" (App Screens —
    * the 1320×2868 App Store canvas, titles on the slide, captions
    * beside), and "embed" (the 4:3 canvas for YouTube/desktop, which
-   * composes its own captions). */
-  const [view, setView] = useState<"screens" | "tiktok" | "embed">(() =>
-    resume?.view === "screens" || resume?.view === "embed" ? resume.view : "tiktok",
+   * composes its own captions). The view to open in, first one wins: the
+   * place a live reload saved, the URL's ?view=, the showcase's own
+   * meta.view (the pin button beside the switch writes it), the view this
+   * browser last used, TikTok. */
+  const [view, setView] = useState<PlayerView>(
+    () => playerView(resume?.view) ?? initialView ?? showcase.view ?? rememberedView() ?? "tiktok",
   );
+  const pickView = (next: PlayerView) => {
+    setView(next);
+    try {
+      localStorage.setItem("player-view", next);
+    } catch {
+      /* storage unavailable — the switch still works for this page */
+    }
+  };
+  /* The pin: this view is the one the showcase opens in (meta.view). */
+  const pinned = showcase.view === view;
   const canvas = view === "embed" ? "embed" : view === "tiktok" ? "tiktok" : "portrait";
   /* TikTok view: shade where TikTok's own interface will sit. A viewer
    * preference, remembered in this browser only. */
@@ -372,7 +414,7 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
               <button
                 key={key}
                 type="button"
-                onClick={() => setView(key)}
+                onClick={() => pickView(key)}
                 aria-pressed={view === key}
                 className={cn(
                   "rounded-full px-3 py-1.5 transition-colors",
@@ -384,6 +426,39 @@ export function ShowcasePlayer({ showcase }: { showcase: Showcase }) {
                 {label}
               </button>
             ))}
+            {/* The pin: open this showcase in the current view from now
+             * on (meta.view in showcase.yaml, through the usual edit path,
+             * so the change log and git history see it); pinned, it
+             * unpins back to TikTok, the built-in default. */}
+            {canEdit && (
+              <button
+                type="button"
+                aria-pressed={pinned}
+                aria-label={
+                  pinned
+                    ? `${VIEW_LABELS[view]} is the view this showcase opens in. Click to go back to opening in TikTok view.`
+                    : `Open this showcase in the ${VIEW_LABELS[view]} view from now on`
+                }
+                title={
+                  pinned
+                    ? `This showcase opens in the ${VIEW_LABELS[view]} view (saved in showcase.yaml). Click to go back to the default, TikTok.`
+                    : `Open this showcase in the ${VIEW_LABELS[view]} view from now on (saved in showcase.yaml)`
+                }
+                onClick={() =>
+                  void commitEdit(showcase.id, "", {
+                    field: "meta.set",
+                    name: "view",
+                    value: pinned ? null : view,
+                  })
+                }
+                className={cn(
+                  "ml-1 rounded-full px-2 py-1.5 transition-colors",
+                  pinned ? "text-primary" : "text-support hover:text-foreground",
+                )}
+              >
+                {pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
+              </button>
+            )}
           </div>
           {/* 4:3 captions: whether the embed canvas overlays them. "auto"
            * follows the voiceover; picking a value writes meta.embedCaptions

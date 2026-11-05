@@ -106,6 +106,14 @@ describe("the studio's MCP server", () => {
       changes: path.join(lib, ".studio", "changes.jsonl"),
     });
     expect(started).toEqual([{ showcasesDir: lib, lock, window: true, closed: false }]);
+    /* `view` opens the page in that player view; a name the player
+     * doesn't have is left off, and so is a view with no showcase. */
+    expect(read(await call("studio_start", { showcase: "nova", view: "embed" })).open).toBe(
+      "http://localhost:1234/showcase/nova?view=embed",
+    );
+    expect(read(await call("studio_start", { showcase: "nova", view: "4:3" })).open).toBe(
+      "http://localhost:1234/showcase/nova",
+    );
   });
 
   it("adds the last page error to studio_start's result", async () => {

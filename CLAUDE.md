@@ -337,6 +337,9 @@ npm run dev -- --new [<library folder>]
   `/share` — posting the video to TikTok, Instagram, YouTube Shorts and
   YouTube (the 4:3 export), studio only, its parts in
   `src/components/share/`, `/export`, `/export/$sceneId`, `/record`).
+  The player page takes `?view=tiktok|screens|embed` to open in that
+  view; otherwise it opens in the showcase's `meta.view`, else the view
+  this browser last used, else TikTok.
 - `scripts/export-screens.mjs`: Playwright script that screenshots each
   export page at 1320×2868 (App Store 6.9"). Scenes with `export: false` are
   skipped.
@@ -827,7 +830,8 @@ npm run dev -- --new [<library folder>]
   edit path. Where it can go and the platforms' limits are in
   `src/content/publish-rules.mjs`, shared by the page, the edit tool and
   the share tools; a destination's `exportKind` says which video it
-  takes. The Share page has to work fully in
+  takes, and the Share page opens on the destination that matches the
+  showcase's `meta.view`. The Share page has to work fully in
   the web view (a browser, Claude Code's preview): anything it can't do
   from a page — opening the upload page, copying, AirDrop, revealing the
   file — goes through the studio server; only dragging the file out of

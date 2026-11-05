@@ -101,6 +101,15 @@ export const DESTINATIONS = {
 
 export const DESTINATION_IDS = Object.keys(DESTINATIONS);
 
+/** The destination a showcase's default player view (meta.view) points
+ *  at: the 4:3 view at YouTube, the TikTok view at TikTok. App Screens
+ *  is the screenshot set, which no destination posts, so null. */
+export function destinationForView(view) {
+  if (view === "embed") return "youtube43";
+  if (view === "tiktok") return "tiktok";
+  return null;
+}
+
 /* Letters, digits and underscores, in any script — what the platforms
  * turn into a tag. */
 const HASHTAG = /^[\p{L}\p{N}_]+$/u;
