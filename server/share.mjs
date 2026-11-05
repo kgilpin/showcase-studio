@@ -1,9 +1,12 @@
-/* Sharing a showcase's video to TikTok, Instagram and YouTube Shorts —
- * without the platforms' APIs. The studio gets everything ready and the
- * user posts on the platform's own upload page (or from their phone):
+/* Sharing a showcase's video to TikTok, Instagram, YouTube Shorts and
+ * YouTube — without the platforms' APIs. The studio gets everything ready
+ * and the user posts on the platform's own upload page (or from their
+ * phone):
  *
- *   share status ─► is there a current export? (full quality — or the
- *                   draft, to try the steps without a long render)
+ *   share status ─► is there a current export of the kind the destination
+ *                   takes (the 9:16 video, or the 4:3 one for a regular
+ *                   YouTube upload)? (full quality — or the draft, to try
+ *                   the steps without a long render)
  *                     no  ─► export it first (the export job lane)
  *                     yes ─► the destination's caption, hashtags and title
  *                            (showcase.yaml publish:, src/content/
@@ -64,6 +67,7 @@ const POST_HOSTS = {
   tiktok: ["tiktok.com"],
   instagram: ["instagram.com"],
   youtube: ["youtube.com", "youtu.be"],
+  youtube43: ["youtube.com", "youtu.be"],
 };
 
 const badId = (id) => !id || id !== path.basename(id) || id.startsWith(".");
@@ -138,15 +142,17 @@ function destinationStatus(id, publish, meta, { durationMs }) {
   return {
     id,
     label: spec.label,
+    app: spec.app,
     uploadUrl: spec.uploadUrl,
     uploadHint: spec.uploadHint,
     exportKind: spec.exportKind,
+    captionName: spec.captionName,
     fields: spec.fields,
     limits: {
       caption: spec.captionLimit,
       ...(spec.titleLimit ? { title: spec.titleLimit } : {}),
       ...(spec.maxHashtags ? { hashtags: spec.maxHashtags } : {}),
-      seconds: spec.maxSeconds,
+      ...(spec.maxSeconds ? { seconds: spec.maxSeconds } : {}),
     },
     text,
     /* The caption box's text for TikTok and Instagram, and the
@@ -208,9 +214,10 @@ export function createShare({ getLibrary, exportRecords }) {
   }
 
   /** Records a hand-off of a current export to `destination`: the full
-   *  quality video, or the draft when `quality` is "draft". Refuses when
-   *  that export isn't current — the video on disk would not be the
-   *  showcase as it is now. */
+   *  quality video of the kind the destination takes (9:16, or 4:3 for a
+   *  regular YouTube upload), or its draft when `quality` is "draft".
+   *  Refuses when that export isn't current — the video on disk would not
+   *  be the showcase as it is now. */
   function handOff({ showcaseId, destination, method, quality = "full", now = new Date() }) {
     if (!DESTINATIONS[destination]) throw new Error(`Unknown destination "${destination}"`);
     if (!HANDOFF_METHODS.includes(method)) {
@@ -227,8 +234,8 @@ export function createShare({ getLibrary, exportRecords }) {
       .find((record) => record.kind === kind && record.current);
     if (!video) {
       throw new Error(
-        `${showcaseId} has no current ${quality === "draft" ? "draft" : "full-quality"} video ` +
-          `— export it first (kind "${kind}")`,
+        `${showcaseId} has no current ${quality === "draft" ? "draft" : "full-quality"} ` +
+          `${spec.exportKind === "video-43" ? "4:3 " : ""}video — export it first (kind "${kind}")`,
       );
     }
     const text = publishText(doc.publish, destination, doc.meta ?? {});

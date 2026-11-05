@@ -11,13 +11,19 @@
  *     hashtags: [iphone, productivity]
  *     tiktok:    { hashtags: [iphone, techtok] }    # replaces the default list
  *     instagram: { caption: "… Link in bio." }
- *     youtube:   { title: Mirror your iPhone in 10 seconds }
+ *     youtube:   { title: Mirror your iPhone in 10 seconds }   # the Short
+ *     youtube43: { title: Mirror your iPhone — the full walkthrough }
  *
  *   field      default when nothing sets it
  *   --------   ------------------------------
  *   caption    meta.description
  *   hashtags   none
- *   title      meta.title (YouTube Shorts only)
+ *   title      meta.title (YouTube Shorts and YouTube)
+ *
+ * Each destination's override block stands on its own: `youtube43` (the
+ * regular YouTube video, from the 4:3 export) inherits from the default
+ * and from meta, never from `youtube` (the Short) — so the two can carry
+ * different titles without one leaking into the other.
  *
  * Hashtags are stored without the "#". The limits below are the
  * platforms' published ones; going over one is a problem the Share page
@@ -26,16 +32,23 @@
 
 export const PUBLISH_FIELDS = ["caption", "hashtags", "title"];
 
-/** Where a showcase can be posted. Every destination takes the 9:16
- *  full-quality video. `fields` are the ones the destination uses;
- *  `captionLimit` counts the caption and its hashtags together, the way
- *  the platform's own box does. */
+/** Where a showcase can be posted. `exportKind` is the full-quality
+ *  export the destination takes: the 9:16 video for TikTok, Instagram and
+ *  YouTube Shorts, the 4:3 video ("video-43") for a regular YouTube
+ *  upload; a dry run takes that kind's draft. `app` is the phone app a
+ *  post is made from, `captionName` what the platform calls the text
+ *  box, `fields` the ones the destination uses; `captionLimit` counts the
+ *  caption and its hashtags together, the way the platform's own box
+ *  does, and `maxSeconds` is the longest video it takes (unset: any
+ *  length). */
 export const DESTINATIONS = {
   tiktok: {
     label: "TikTok",
+    app: "TikTok",
     uploadUrl: "https://www.tiktok.com/tiktokstudio/upload",
     uploadHint: "TikTok Studio's upload page",
     exportKind: "video",
+    captionName: "caption",
     fields: ["caption", "hashtags"],
     /* TikTok's caption box drops blank lines from pasted text, and with
      * them whatever follows — so a paste for TikTok has none. */
@@ -45,9 +58,11 @@ export const DESTINATIONS = {
   },
   instagram: {
     label: "Instagram",
+    app: "Instagram",
     uploadUrl: "https://www.instagram.com/",
     uploadHint: "Instagram — click Create (+), then Post; a video posts as a Reel",
     exportKind: "video",
+    captionName: "caption",
     fields: ["caption", "hashtags"],
     captionLimit: 2200,
     maxHashtags: 30,
@@ -55,9 +70,11 @@ export const DESTINATIONS = {
   },
   youtube: {
     label: "YouTube Shorts",
+    app: "YouTube",
     uploadUrl: "https://www.youtube.com/upload",
     uploadHint: "YouTube Studio's upload dialog — a vertical video under 3 minutes is a Short",
     exportKind: "video",
+    captionName: "description",
     fields: ["title", "caption", "hashtags"],
     titleLimit: 100,
     captionLimit: 5000,
@@ -65,9 +82,33 @@ export const DESTINATIONS = {
     maxHashtags: 60,
     maxSeconds: 180,
   },
+  /* A regular YouTube video: the 4:3 export, for a showcase made for the
+   * embed canvas (an engineering explainer watched on a desktop). The same
+   * upload dialog and text rules as a Short, with no 3-minute cap. */
+  youtube43: {
+    label: "YouTube",
+    app: "YouTube",
+    uploadUrl: "https://www.youtube.com/upload",
+    uploadHint: "YouTube Studio's upload dialog — a 4:3 video posts as a regular video",
+    exportKind: "video-43",
+    captionName: "description",
+    fields: ["title", "caption", "hashtags"],
+    titleLimit: 100,
+    captionLimit: 5000,
+    maxHashtags: 60,
+  },
 };
 
 export const DESTINATION_IDS = Object.keys(DESTINATIONS);
+
+/** The destination a showcase's default player view (meta.view) points
+ *  at: the 4:3 view at YouTube, the TikTok view at TikTok. App Screens
+ *  is the screenshot set, which no destination posts, so null. */
+export function destinationForView(view) {
+  if (view === "embed") return "youtube43";
+  if (view === "tiktok") return "tiktok";
+  return null;
+}
 
 /* Letters, digits and underscores, in any script — what the platforms
  * turn into a tag. */
@@ -182,7 +223,7 @@ export function publishProblems(destination, posted, { durationMs } = {}) {
   if (spec.maxHashtags && posted.hashtags.length > spec.maxHashtags) {
     problems.push(
       `${posted.hashtags.length} hashtags — ${spec.label} allows ${spec.maxHashtags}` +
-        (destination === "youtube" ? " and ignores all of them past that." : "."),
+        (spec.app === "YouTube" ? " and ignores all of them past that." : "."),
     );
   }
   if (spec.fields.includes("title")) {
@@ -192,7 +233,7 @@ export function publishProblems(destination, posted, { durationMs } = {}) {
       problems.push(`The title is ${titleLength} characters — the limit is ${spec.titleLimit}.`);
     }
   }
-  if (durationMs != null && durationMs > spec.maxSeconds * 1000) {
+  if (spec.maxSeconds != null && durationMs != null && durationMs > spec.maxSeconds * 1000) {
     const minutes = (seconds) =>
       seconds % 60 === 0 ? `${seconds / 60} minutes` : `${Math.round(seconds)} seconds`;
     problems.push(

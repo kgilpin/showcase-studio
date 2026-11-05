@@ -1,5 +1,7 @@
-/* The Share page's video card: the two 9:16 exports a post can use, and
- * which one this post uses.
+/* The Share page's video card: the two exports a post can use — the
+ * full-quality video of the kind the destination takes (9:16 for TikTok,
+ * Instagram and YouTube Shorts; 4:3 for a regular YouTube upload) and
+ * its draft — and which one this post uses.
  *
  *   ◉ Full quality   1080×1920 · 30 fps   ✓ Up to date     about 4 min
  *   ○ Draft          540×960 · 12 fps     Out of date      about 2 min  [Export]
@@ -22,10 +24,10 @@ import { formatBytes, formatDuration, formatEstimate, formatWhen } from "./share
 
 export type Quality = "full" | "draft";
 
-const ROWS: { quality: Quality; kind: "video" | "video-draft"; label: string }[] = [
-  { quality: "full", kind: "video", label: "Full quality" },
-  { quality: "draft", kind: "video-draft", label: "Draft" },
-];
+/** The full-quality video a destination takes, and every kind the card
+ *  can show (either one or its draft). */
+export type FullKind = "video" | "video-43";
+type VideoKind = keyof typeof VIDEO_FORMATS;
 
 function ExportRow({
   label,
@@ -39,7 +41,7 @@ function ExportRow({
   onCancel,
 }: {
   label: string;
-  kind: "video" | "video-draft";
+  kind: VideoKind;
   exports: ShareExports;
   job: StudioExportJob | null;
   chosen: boolean;
@@ -111,7 +113,7 @@ function ExportRow({
           <div className="mt-2 flex items-center justify-between gap-2">
             <p className="min-w-0 text-xs text-support">
               Takes {formatEstimate(exports.estimateMs)}
-              {kind === "video-draft" ? " — good for trying the steps out" : ""}.
+              {kind.endsWith("-draft") ? " — good for trying the steps out" : ""}.
             </p>
             <Button
               size="sm"
@@ -132,6 +134,7 @@ function ExportRow({
 
 export function ShareVideo({
   videoUrl,
+  kind,
   full,
   draft,
   quality,
@@ -141,17 +144,27 @@ export function ShareVideo({
   onCancel,
 }: {
   videoUrl: (exportId: string) => string;
+  /** The full-quality export the destination takes; the draft row is
+   *  its draft. */
+  kind: FullKind;
   full: ShareExports;
   draft: ShareExports;
   quality: Quality;
   /** The running export of this showcase's video or draft, if any. */
   job: StudioExportJob | null;
   onQuality(quality: Quality): void;
-  onExport(kind: "video" | "video-draft"): void;
+  onExport(kind: VideoKind): void;
   onCancel(jobId: string): void;
 }) {
   const chosen = quality === "draft" ? draft : full;
   const shown: ShareExport | null = chosen.current ?? chosen.latest;
+  const rows: { quality: Quality; kind: VideoKind; label: string }[] = [
+    { quality: "full", kind, label: "Full quality" },
+    { quality: "draft", kind: `${kind}-draft`, label: "Draft" },
+  ];
+  /* The preview box has the video's own shape: a tall phone frame, or
+   * the 4:3 embed. */
+  const { width, height } = VIDEO_FORMATS[kind];
 
   return (
     <section
@@ -162,7 +175,13 @@ export function ShareVideo({
       {/* The preview beside the rows only when the card is wide enough for
        * both (its own width, not the window's: see the share route). */}
       <div className="mt-4 flex flex-col gap-5 @md:flex-row">
-        <div className="mx-auto aspect-[9/16] w-40 shrink-0 overflow-hidden rounded-xl bg-background/60 @md:mx-0">
+        <div
+          className={cn(
+            "mx-auto shrink-0 overflow-hidden rounded-xl bg-background/60 @md:mx-0",
+            width > height ? "w-56" : "w-40",
+          )}
+          style={{ aspectRatio: `${width} / ${height}` }}
+        >
           {shown ? (
             <video
               key={shown.id}
@@ -181,7 +200,7 @@ export function ShareVideo({
 
         <div className="min-w-0 flex-1 space-y-3">
           <div role="radiogroup" aria-label="Which video to post" className="space-y-2">
-            {ROWS.map((row) => (
+            {rows.map((row) => (
               <ExportRow
                 key={row.kind}
                 label={row.label}

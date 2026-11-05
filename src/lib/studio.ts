@@ -9,6 +9,7 @@
  * of a dropped file (window.showcaseStudioShell, electron/preload.cjs). */
 import { useMemo, useSyncExternalStore } from "react";
 import type { DestinationId, PostedText, PublishField } from "@/content/publish-rules.mjs";
+import type { PlayerView } from "./export-kinds.mjs";
 import { isCapturePage, type WindowLock } from "./window-lock.mjs";
 
 /** One export job, as the studio reports it (server/export-jobs.mjs). */
@@ -165,6 +166,9 @@ export type SceneEdit =
   /** Overlay captions on the 4:3 embed canvas (meta; sceneId is ignored —
    *  pass ""). null deletes, returning to the voiceover-based default. */
   | { field: "meta.set"; name: "embedCaptions"; value: boolean | null }
+  /** The view the player opens the showcase in (meta.view; sceneId is
+   *  ignored — pass ""). null deletes: the player opens in TikTok view. */
+  | { field: "meta.set"; name: "view"; value: PlayerView | null }
   /** The text the video is posted with (showcase.yaml's publish: block;
    *  sceneId is ignored — pass ""): the default, or one destination's
    *  override. null or "" removes it, so it inherits again. */
@@ -240,11 +244,17 @@ export type ShareHandoff = {
 export type ShareDestination = {
   id: DestinationId;
   label: string;
+  /** The phone app a post is made from ("YouTube" for a Short too). */
+  app: string;
   uploadUrl: string;
   uploadHint: string;
-  exportKind: string;
+  /** The full-quality export it takes: "video" (9:16) or "video-43". */
+  exportKind: "video" | "video-43";
+  /** What the platform calls the text box. */
+  captionName: "caption" | "description";
   fields: PublishField[];
-  limits: { caption: number; title?: number; hashtags?: number; seconds: number };
+  /** seconds is unset for a destination that takes any length. */
+  limits: { caption: number; title?: number; hashtags?: number; seconds?: number };
   text: PostedText;
   /** The caption box's text (the description on YouTube). */
   paste: string;

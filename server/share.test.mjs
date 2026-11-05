@@ -38,7 +38,9 @@ function setup() {
   const share = createShare({ getLibrary: () => library, exportRecords });
   const exportVideo = (kind = "video", extra = {}) => {
     const dir = tempDir("share-exports-");
-    const name = kind === "video" ? "nova.mp4" : "nova_draft.mp4";
+    /* Named the way the exporter names them: nova.mp4, nova_draft.mp4,
+     * nova_43.mp4, nova_43_draft.mp4. */
+    const name = `nova${kind.includes("-43") ? "_43" : ""}${kind.endsWith("-draft") ? "_draft" : ""}.mp4`;
     writeFileSync(path.join(dir, `.${name}.partial`), "video");
     const file = moveIntoPlace(path.join(dir, `.${name}.partial`), path.join(dir, name));
     return exportRecords.add({
@@ -175,6 +177,63 @@ describe("drafts", () => {
     /* 504 frames in 50.4 s: 100 ms a frame. */
     exportVideo("video-draft", { frames: 504, renderMs: 50_400 });
     expect(share.status("nova").exports["video-draft"].estimateMs).toBe(50_400);
+  });
+});
+
+/* A regular YouTube upload posts the 4:3 export, so the 9:16 video that
+ * serves the other destinations is no use to it, and the other way
+ * round. */
+describe("YouTube (4:3)", () => {
+  it("is reported beside YouTube Shorts, with its own export", () => {
+    const { share } = setup();
+    const status = share.status("nova");
+    const byId = Object.fromEntries(status.destinations.map((d) => [d.id, d]));
+    expect(status.destinations.map((d) => d.id)).toEqual([
+      "tiktok",
+      "instagram",
+      "youtube",
+      "youtube43",
+    ]);
+    expect(byId.youtube43).toMatchObject({
+      label: "YouTube",
+      app: "YouTube",
+      exportKind: "video-43",
+      captionName: "description",
+      text: { title: "Nova", caption: "Conquer the galaxy." },
+      problems: [],
+    });
+    expect(byId.youtube43.limits).toEqual({ caption: 5000, title: 100, hashtags: 60 });
+    expect(byId.youtube.limits.seconds).toBe(180);
+    expect(status.exports["video-43"]).toMatchObject({ current: null, latest: null });
+  });
+
+  it("hands off the 4:3 video, never the 9:16 one", () => {
+    const { share, exportVideo } = setup();
+    exportVideo("video");
+    expect(() =>
+      share.handOff({ showcaseId: "nova", destination: "youtube43", method: "computer" }),
+    ).toThrow('nova has no current full-quality 4:3 video — export it first (kind "video-43")');
+    const video = exportVideo("video-43");
+    expect(share.status("nova").exports["video-43"].current).toMatchObject({ id: video.id });
+    const { record, uploadUrl } = share.handOff({
+      showcaseId: "nova",
+      destination: "youtube43",
+      method: "computer",
+    });
+    expect(record).toMatchObject({
+      destination: "youtube43",
+      exportId: video.id,
+      quality: "full",
+      text: { title: "Nova" },
+    });
+    expect(uploadUrl).toBe("https://www.youtube.com/upload");
+    expect(
+      share.recordPostUrl({
+        showcaseId: "nova",
+        destination: "youtube43",
+        url: "https://www.youtube.com/watch?v=abc",
+      }),
+    ).toMatchObject({ id: record.id, postUrl: "https://www.youtube.com/watch?v=abc" });
   });
 });
 

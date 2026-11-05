@@ -25,10 +25,19 @@ import { Check, ExternalLink, FolderOpen, GripVertical, Monitor, Smartphone } fr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fileManagerName } from "@/lib/export-kinds.mjs";
+import type { DestinationId } from "@/content/publish-rules.mjs";
 import type { ShareDestination, ShareExport, ShareHandoff as Handoff } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
 export type HandoffMethod = "computer" | "phone";
+
+/* How a post's link starts on each platform, for the link box's hint. */
+const POST_LINK_EXAMPLE: Record<DestinationId, string> = {
+  tiktok: "tiktok.com",
+  instagram: "instagram.com",
+  youtube: "youtube.com/shorts",
+  youtube43: "youtube.com/watch",
+};
 
 function Step({ n, done, children }: { n: number; done: boolean; children: React.ReactNode }) {
   return (
@@ -95,8 +104,9 @@ export function ShareHandoff({
   const ready = video != null;
   const handedOff = pending != null;
   const label = destination.label;
-  /* The phone app's name: YouTube Shorts are posted from the YouTube app. */
-  const appName = destination.id === "youtube" ? "YouTube" : label;
+  /* The site and phone app's name: a Short is posted on YouTube. */
+  const appName = destination.app;
+  const fourThree = destination.exportKind === "video-43";
 
   const saveLink = async () => {
     const error = await onPostLink(link);
@@ -116,16 +126,16 @@ export function ShareHandoff({
           <p>
             {ready
               ? quality === "draft"
-                ? "The draft is up to date — fine for trying the steps."
-                : "The full-quality video is up to date."
-              : `Export the ${quality === "draft" ? "draft" : "full-quality video"} first (see Video).`}
+                ? `The ${fourThree ? "4:3 " : ""}draft is up to date — fine for trying the steps.`
+                : `The full-quality ${fourThree ? "4:3 " : ""}video is up to date.`
+              : `Export the ${fourThree ? "4:3 " : ""}${quality === "draft" ? "draft" : "full-quality video"} first (see Video).`}
           </p>
         </Step>
 
         <Step n={2} done={copied}>
           <p>
-            Write the {destination.id === "youtube" ? "title, description" : "caption"} and
-            hashtags, then copy them.
+            Write the {destination.captionName === "description" ? "title, description" : "caption"}{" "}
+            and hashtags, then copy them.
           </p>
           {text}
           {method === "phone" && (
@@ -144,7 +154,7 @@ export function ShareHandoff({
                 [
                   "computer",
                   "From this computer",
-                  `Upload it on ${label}'s website, in your browser.`,
+                  `Upload it on ${appName}'s website, in your browser.`,
                 ],
                 [
                   "phone",
@@ -275,7 +285,7 @@ export function ShareHandoff({
               <Input
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
-                placeholder={`https://${destination.id === "youtube" ? "youtube.com/shorts" : `${destination.id}.com`}/…`}
+                placeholder={`https://${POST_LINK_EXAMPLE[destination.id]}/…`}
                 aria-label="Post link"
                 aria-invalid={linkError != null}
               />
