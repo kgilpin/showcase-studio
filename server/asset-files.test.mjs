@@ -1,8 +1,17 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { addAssetData, addAssetPaths } from "./asset-files.mjs";
+import { addAssetData, addAssetPaths, encodeAsset } from "./asset-files.mjs";
 
 const cleanups = [];
 afterEach(() => {
@@ -129,5 +138,103 @@ describe("adding assets the page dropped", () => {
     expect(
       addAssetData(lib, { showcaseId: "nova", files: [{ name: "taken.png", data }] }),
     ).toMatchObject({ ok: true, names: ["taken-2.png"] });
+  });
+});
+
+/** A stand-in for ffmpeg: copies the `-i` input to the last argument,
+ *  the way ffmpeg writes its output last. An input called "boom" fails
+ *  the way a bad command does; "nothing" exits cleanly without writing. */
+function fakeFfmpeg() {
+  const dir = mkdtempSync(path.join(tmpdir(), "fake-ffmpeg-"));
+  cleanups.push(dir);
+  const file = path.join(dir, "ffmpeg");
+  writeFileSync(
+    file,
+    [
+      "#!/bin/sh",
+      'input=""; prev=""; out=""',
+      'for arg in "$@"; do',
+      '  if [ "$prev" = "-i" ]; then input="$arg"; fi',
+      '  prev="$arg"; out="$arg"',
+      "done",
+      'if [ "$input" = "boom" ]; then echo "boom: No such file or directory" >&2; exit 1; fi',
+      'if [ "$input" = "nothing" ]; then exit 0; fi',
+      'cat "$input" > "$out"',
+      "",
+    ].join("\n"),
+  );
+  chmodSync(file, 0o755);
+  return file;
+}
+
+describe("encoding an asset with ffmpeg", () => {
+  const encode = (lib, input, output = "clip-hook.mp4", showcaseId = "nova") =>
+    encodeAsset(
+      lib,
+      { showcaseId, output, args: ["-i", input, "-t", "6"] },
+      { ffmpeg: fakeFfmpeg() },
+    );
+
+  it("runs from the showcase folder and puts the output in assets/", async () => {
+    const lib = library("nova");
+    writeFileSync(assetsOf(lib, "nova", "master.mov"), "the recording");
+    const result = await encode(lib, "assets/master.mov");
+    expect(result).toMatchObject({
+      ok: true,
+      asset: { name: "clip-hook.mp4", key: "clip-hook" },
+      replaced: false,
+    });
+    expect(readFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "utf8")).toBe("the recording");
+  });
+
+  /* The point of the tool: a re-cut replaces the clip, and the final
+   * path is only ever touched by a rename of the finished file. */
+  it("replaces a clip of the same name and leaves no temporary file", async () => {
+    const lib = library("nova");
+    writeFileSync(assetsOf(lib, "nova", "master.mov"), "take two");
+    writeFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "take one");
+    const result = await encode(lib, "assets/master.mov");
+    expect(result).toMatchObject({ ok: true, replaced: true });
+    expect(readFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "utf8")).toBe("take two");
+    expect(readdirSync(path.join(lib, "nova", "assets")).sort()).toEqual([
+      "clip-hook.mp4",
+      "master.mov",
+    ]);
+    expect(existsSync(path.join(lib, ".studio", "ffmpeg", "nova", "clip-hook.mp4"))).toBe(false);
+  });
+
+  it("keeps the old clip when ffmpeg fails, and says what ffmpeg said", async () => {
+    const lib = library("nova");
+    writeFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "take one");
+    const result = await encode(lib, "boom");
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/boom: No such file/);
+    expect(readFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "utf8")).toBe("take one");
+  });
+
+  it("refuses an empty output rather than renaming nothing into place", async () => {
+    const lib = library("nova");
+    const result = await encode(lib, "nothing");
+    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/wrote nothing/) });
+    expect(existsSync(assetsOf(lib, "nova", "clip-hook.mp4"))).toBe(false);
+  });
+
+  it("checks the showcase, the output name and the arguments first", async () => {
+    const lib = library("nova");
+    expect(await encode(lib, "x", "clip.mp4", "ghost")).toMatchObject({
+      ok: false,
+      error: 'No showcase named "ghost"',
+    });
+    expect(await encode(lib, "x", "../clip.mp4")).toMatchObject({ ok: false });
+    expect(await encode(lib, "x", "notes.txt")).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/isn't a kind of media/),
+    });
+    expect(
+      await encodeAsset(lib, { showcaseId: "nova", output: "clip.mp4", args: [] }),
+    ).toMatchObject({ ok: false, error: expect.stringMatching(/args/) });
+    expect(
+      await encodeAsset(lib, { showcaseId: "nova", output: "clip.mp4", args: ["-i", 3] }),
+    ).toMatchObject({ ok: false, error: expect.stringMatching(/string/) });
   });
 });

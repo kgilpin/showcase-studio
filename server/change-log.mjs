@@ -15,7 +15,8 @@
  *   at          ISO timestamp
  *   source      "ui" | "mcp" | "studio" (the studio's own git commits)
  *   showcaseId  the showcase folder (null for a studio-wide "setting")
- *   kind        "edit" | "asset.add" | "asset.rename" | "asset.delete" | "showcase.create"
+ *   kind        "edit" | "asset.add" | "asset.encode" (the ffmpeg tool: name, replaced, args)
+ *               | "asset.rename" | "asset.delete" | "showcase.create"
  *               | "commit" (server/showcase-history.mjs: sha, message, files)
  *               | "setting" (the user changed a studio setting: name, value —
  *                 today only "autoCommit", the "Commit changes to git" switch)

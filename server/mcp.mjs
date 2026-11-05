@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pageErrorField } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
-import { addAssetPaths } from "./asset-files.mjs";
+import { addAssetPaths, encodeAsset } from "./asset-files.mjs";
 import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import {
   formatClock,
@@ -212,6 +212,44 @@ export const TOOLS = [
         },
       },
       required: ["showcaseId", "files"],
+    },
+  },
+  {
+    name: "ffmpeg",
+    description:
+      "Run the bundled ffmpeg and put its output in a showcase's assets/ folder. Use it for " +
+      "every clip, audio track or still that ffmpeg makes for a showcase — cutting a scene's " +
+      "clip from the master recording, extracting or retiming audio, transcoding — instead " +
+      "of running ffmpeg yourself with a path into assets/. `args` is ffmpeg's command line " +
+      "without the output path, as a list of strings (no shell); the studio runs it from the " +
+      "showcase folder, so inputs can be named as assets/master.mov. The studio writes the " +
+      "output to a temporary file and renames it into assets/ as `output` only when ffmpeg " +
+      "succeeds, so the player never sees a half-written file and re-cutting a clip that is " +
+      "on screen works. An `output` name already in assets/ is replaced — that is what a " +
+      "re-cut is. Returns the asset's key (the name without its extension), whether it " +
+      "replaced a file, and the output's duration in ms. On failure, the error carries " +
+      "ffmpeg's own message, and assets/ is left as it was. ffmpeg is still fine to run " +
+      "yourself for reading — probing a duration, grabbing a frame into a temporary folder.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        output: {
+          type: "string",
+          description:
+            "The file to make in assets/, e.g. clip-hook.mp4 — a name, no folder. Its " +
+            "extension picks the container. Name it for what it shows: the key comes from it.",
+        },
+        args: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            'ffmpeg\'s arguments, in order, without the output path: e.g. ["-ss", "12.4", ' +
+            '"-i", "assets/master.mov", "-t", "6", "-an", "-c:v", "libx264", "-pix_fmt", ' +
+            '"yuv420p"]. -y and -nostdin are added for you.',
+        },
+      },
+      required: ["showcaseId", "output", "args"],
     },
   },
   {
@@ -699,6 +737,25 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       names: result.assets.map((asset) => asset.name),
     });
     return json({ showcaseId, assets: result.assets });
+  }
+  if (name === "ffmpeg") {
+    const showcaseId = String(args.showcaseId ?? "");
+    const result = await encodeAsset(showcasesDir, {
+      showcaseId,
+      output: args.output,
+      args: args.args,
+    });
+    if (!result.ok) throw new Error(result.error);
+    context.changeLog?.append({
+      source: "mcp",
+      showcaseId,
+      kind: "asset.encode",
+      name: result.asset.name,
+      replaced: result.replaced,
+      args: args.args,
+    });
+    const { ok: _ok, ...rest } = result;
+    return json({ showcaseId, ...rest });
   }
   if (name === "edit_showcase") {
     const showcaseId = String(args.showcaseId ?? "");

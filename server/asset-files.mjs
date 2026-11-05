@@ -1,15 +1,29 @@
 /* Writing files into a showcase's assets/ folder — the one place that
- * decides where an asset lands and what it ends up called. Two callers:
- * the studio's "asset-add" action (the page, when someone drops files on
- * the Assets page) and the add_asset MCP tool (Claude, from files on
- * disk). Both log the write to the change log, so the history commits it
- * and the page reloads.
+ * decides where an asset lands and what it ends up called. Three
+ * callers: the studio's "asset-add" action (the page, when someone drops
+ * files on the Assets page), the add_asset MCP tool (Claude, from files
+ * on disk), and the ffmpeg MCP tool (Claude, encoding a clip or a track
+ * with the bundled ffmpeg). All log the write to the change log, so the
+ * history commits it and the page reloads.
  *
- * A name already taken is never overwritten: the new file becomes
- * shot-2.png beside shot.png, and the caller is told the name it got. */
-import { copyFileSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+ * A name already taken is never overwritten by a copy: the new file
+ * becomes shot-2.png beside shot.png, and the caller is told the name it
+ * got. An encode is different: re-cutting a clip is what it is for, so
+ * it replaces the file of that name — through a temporary file, renamed
+ * into place when ffmpeg is done, so the player never sees half a clip
+ * and the final path is only ever touched by the rename. */
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { ASSET_KINDS } from "../src/content/asset-kinds.mjs";
+import { mediaDuration, runFfmpeg } from "./ffmpeg.mjs";
 
 /** A name with no path in it: assets sit directly in assets/. */
 const badName = (s) => !s || s.includes("/") || s.includes("\\") || s.includes("..");
@@ -109,4 +123,60 @@ export function addAssetPaths(showcasesDir, { showcaseId, files } = {}) {
     });
   }
   return { ok: true, assets };
+}
+
+/** Where an encode writes before it is renamed into assets/: the
+ *  library's own .studio/ folder, which the studio never watches, on the
+ *  same volume as the showcase, so the rename is one atomic step. The
+ *  temporary file keeps the output's extension — that is how ffmpeg
+ *  picks the container. */
+const scratchFor = (showcasesDir, showcaseId, output) =>
+  path.join(showcasesDir, ".studio", "ffmpeg", showcaseId, output);
+
+/** Runs ffmpeg with `args` (everything but the output path), from the
+ *  showcase folder, and puts the result in assets/ as `output`. The
+ *  file is written somewhere else first and renamed in when ffmpeg
+ *  exits cleanly; a failure leaves whatever assets/ had. Returns
+ *  { ok: true, asset: { name, key }, replaced, durationMs? } or
+ *  { ok: false, error }. `ffmpeg` names another binary (tests). */
+export async function encodeAsset(
+  showcasesDir,
+  { showcaseId, output, args } = {},
+  { ffmpeg } = {},
+) {
+  const id = String(showcaseId ?? "");
+  const name = String(output ?? "").trim();
+  const { dir, error } = assetsDir(showcasesDir, id, [name]);
+  if (error) return { ok: false, error };
+  if (!Array.isArray(args) || args.length === 0) {
+    return { ok: false, error: "args must list ffmpeg's arguments, without the output path" };
+  }
+  if (!args.every((arg) => typeof arg === "string")) {
+    return { ok: false, error: "Every ffmpeg argument must be a string" };
+  }
+  const target = path.join(dir, name);
+  const scratch = scratchFor(showcasesDir, id, name);
+  mkdirSync(path.dirname(scratch), { recursive: true });
+  if (existsSync(scratch)) unlinkSync(scratch);
+  const options = { cwd: path.join(showcasesDir, id), ...(ffmpeg ? { ffmpeg } : {}) };
+  try {
+    await runFfmpeg(["-hide_banner", "-nostdin", "-y", ...args, scratch], options);
+    if (!existsSync(scratch) || statSync(scratch).size === 0) {
+      return { ok: false, error: `ffmpeg exited cleanly but wrote nothing to ${name}` };
+    }
+    const replaced = existsSync(target);
+    mkdirSync(dir, { recursive: true });
+    renameSync(scratch, target);
+    const seconds = await mediaDuration(target, options);
+    return {
+      ok: true,
+      asset: { name, key: name.slice(0, name.length - path.extname(name).length) },
+      replaced,
+      ...(seconds != null ? { durationMs: Math.round(seconds * 1000) } : {}),
+    };
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error) };
+  } finally {
+    if (existsSync(scratch)) unlinkSync(scratch);
+  }
 }

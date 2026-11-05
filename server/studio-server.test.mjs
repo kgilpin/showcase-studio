@@ -599,6 +599,52 @@ scenes:
     ).rejects.toThrow(/\/nope\/missing\.png/);
   });
 
+  /* The real ffmpeg, on a generated source: the tool is how every clip
+   * reaches assets/, so the bundled binary has to work through it. */
+  it("ffmpeg encodes into assets/ through a temporary file and logs the write", async () => {
+    const { studio, library } = await startStudio();
+    const landed = path.join(library, "nova", "assets", "clip-hook.mp4");
+    const encode = () =>
+      studio
+        .callTool({
+          name: "ffmpeg",
+          arguments: {
+            showcaseId: "nova",
+            output: "clip-hook.mp4",
+            args: ["-f", "lavfi", "-i", "color=c=black:s=16x16:r=10:d=0.5", "-pix_fmt", "yuv420p"],
+          },
+        })
+        .then((r) => JSON.parse(r.content[0].text));
+
+    expect(await encode()).toMatchObject({
+      showcaseId: "nova",
+      asset: { name: "clip-hook.mp4", key: "clip-hook" },
+      replaced: false,
+      durationMs: 500,
+    });
+    expect(readFileSync(landed).length).toBeGreaterThan(0);
+    expect(await encode()).toMatchObject({ replaced: true });
+
+    const log = readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(log.at(-1)).toMatchObject({
+      source: "mcp",
+      showcaseId: "nova",
+      kind: "asset.encode",
+      name: "clip-hook.mp4",
+      replaced: true,
+    });
+
+    await expect(
+      studio.callTool({
+        name: "ffmpeg",
+        arguments: { showcaseId: "nova", output: "clip-hook.mp4", args: ["-i", "assets/none.mov"] },
+      }),
+    ).rejects.toThrow(/none\.mov/);
+  });
+
   it("reports the last page error in studio_info until a page renders", async () => {
     const { studio } = await startStudio();
     const studioInfo = async () =>

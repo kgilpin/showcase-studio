@@ -267,14 +267,25 @@ ${
   saying the page didn't load. That error is the real cause: tell the
   user what it says.
 - ffmpeg is bundled with the studio at ${ffmpegPath ?? "(unavailable)"}
-  (also in $SHOWCASE_STUDIO_FFMPEG). Use it for audio and video work on
-  this folder's recordings: extracting audio, cutting clips, probing
-  durations, transcoding.
+  (also in $SHOWCASE_STUDIO_FFMPEG). Anything ffmpeg makes FOR a
+  showcase — a scene's clip cut from the master recording, an audio
+  track, a transcode — goes through the ffmpeg MCP tool: ffmpeg
+  {showcaseId, output, args}, where output is the file's name in
+  assets/ and args is ffmpeg's command line without the output path,
+  as a list (run from the showcase folder, so inputs are
+  assets/master.mov). The studio writes the output somewhere else and
+  renames it into assets/ when ffmpeg succeeds, so the player never
+  sees half a file, a clip that is on screen can be re-cut, and the
+  write works in a cloud-synced folder, where writing straight over a
+  file the studio is showing can fail with "Operation timed out".
+  Never point your own ffmpeg command at assets/. Running ffmpeg
+  yourself is fine for reading: probing a duration, grabbing a frame
+  into a temporary folder, silencedetect.
 - Voice-to-text: the transcribe MCP tool returns sentence segments with
   per-word timestamps for any recording. Use it whenever you need to
   know WHAT is said WHEN — aligning narration to scenes, splitting a
   voiceover into scene-scoped clips (transcribe, match the caption text
-  to the word timestamps, cut with ffmpeg at those boundaries), or
+  to the word timestamps, cut with the ffmpeg tool at those boundaries), or
   verifying spoken words. ffmpeg's silencedetect only finds pauses;
   prefer transcribe for anything word-aware.
 ${
@@ -301,7 +312,10 @@ ${whisperAdvice(platform)}
   asset's key — use it for an image or video the user dropped into the
   chat (Claude Code writes those to a file and gives you its path) and
   for screenshots you captured yourself, instead of asking the user to
-  move files by hand; edit_showcase {showcaseId, edits, ifVersion} applies a
+  move files by hand; ffmpeg {showcaseId, output, args} runs the bundled
+  ffmpeg and puts its output in assets/ as output, replacing a file of
+  that name — the way to make every clip or track (see "ffmpeg is
+  bundled" above); edit_showcase {showcaseId, edits, ifVersion} applies a
   list of structured showcase.yaml edits — scene fields, captions, meta,
   scene insert/move/delete — as one validated, comment-preserving write
   and returns the new version (see the tool's own description for the

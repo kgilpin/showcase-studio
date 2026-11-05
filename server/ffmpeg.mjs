@@ -13,10 +13,11 @@ export const ffmpegPath = require_("ffmpeg-static");
 
 /** Runs ffmpeg and resolves with its stderr (where it writes everything).
  *  A non-zero exit rejects with the tail of that output, which is where
- *  ffmpeg puts the actual complaint. `signal` kills the process. */
-export function runFfmpeg(args, { signal, ffmpeg = ffmpegPath } = {}) {
+ *  ffmpeg puts the actual complaint. `signal` kills the process; `cwd`
+ *  is where relative paths in `args` resolve. */
+export function runFfmpeg(args, { signal, cwd, ffmpeg = ffmpegPath } = {}) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpeg, args, { stdio: ["ignore", "ignore", "pipe"], signal });
+    const proc = spawn(ffmpeg, args, { stdio: ["ignore", "ignore", "pipe"], signal, cwd });
     let stderr = "";
     proc.stderr.on("data", (chunk) => (stderr += chunk));
     proc.on("error", reject);
