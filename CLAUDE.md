@@ -304,8 +304,8 @@ npm run dev -- --new [<library folder>]
 # (server/child-studio.mjs runs scripts/dev.mjs), so each studio_start
 # runs the code as it is then: after changing server code, studio_stop
 # then studio_start picks it up. Until then the page shows a banner
-# naming the changed files (server/code-changes.mjs), and studio_info
-# lists them as changedCode. To try a git worktree's changes, pass
+# saying to restart (server/code-changes.mjs), and studio_info lists
+# the changed files as changedCode. To try a git worktree's changes, pass
 # studio_start source: <worktree>; its showcases/ is the default library,
 # and it needs its own node_modules. (The tool list itself is read when
 # the session starts: a changed tool's inputs still need a reconnect.)
@@ -570,8 +570,9 @@ npm run dev -- --new [<library folder>]
     from the start is `changedCode` in the studio's info and `studio_info`,
     sent to pages as a `code` event, and shown as a banner on every page
     (`src/components/studio/CodeChangedBanner.tsx`) until the studio
-    restarts or the change is put back. The packaged app has no source
-    and shows nothing.
+    restarts or the change is put back. The banner only says to restart:
+    which files changed is for a Claude session, not the user. The
+    packaged app has no source and shows nothing.
   - `library-config.mjs`: a root-level `showcase_settings.yaml` in a
     showcases folder, which the studio writes, all comments, into every
     library it opens — so it also marks the folder as a library: library
