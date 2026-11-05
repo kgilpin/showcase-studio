@@ -3,7 +3,7 @@
 Status: built and running on dev (Stripe's sandbox) and prod (live). The service is in
 `cdk/lib/license-stack.ts` and `cdk/lambda-license/`; the studio side
 is `server/license.mjs` and the components in `src/components/studio/`
-(`LicensePill`, `SubscribeDialog`). The app and the site point at prod.
+(`LicensePanel`, `StudioSettings`, `SubscribeDialog`). The app and the site point at prod.
 
 ## The rules
 
@@ -156,13 +156,13 @@ aws dynamodb scan --profile siteforward --region us-east-1 --table-name <the Lic
 
 ## The studio
 
-| Where                       | What                                                                                                                                                                                            |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server/license.mjs`        | the computer's ID, the key in `settings.json`, the check before a full-quality video, the offline rule, the checkout and its waiting                                                            |
-| `server/studio-server.mjs`  | asks it before every export (`recordedExport`), so the Export button, the Share page, `--export` and Claude's `export` tool all meet the same rule; page actions `license-*`; a `license` event |
-| `LicensePill`               | the tab bar pill while there's something to do: **Trial · 2 videos left**, **Waiting for payment…**, **Payment issue** (amber). A subscription in good standing has no pill                     |
-| `StudioSettings` (the gear) | the Subscription section: **Subscribed · Active**, "Renews Nov 20", Manage subscription ↗, and the license key (Show, Copy), with **Use a different key** and **Remove from this computer**     |
-| `SubscribeDialog`           | opened by Full quality… (Showcase page) and Export (Share page) when no free videos are left                                                                                                    |
+| Where                       | What                                                                                                                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/license.mjs`        | the computer's ID, the key in `settings.json`, the check before a full-quality video, the offline rule, the checkout and its waiting                                                                     |
+| `server/studio-server.mjs`  | asks it before every export (`recordedExport`), so the Export button, the Share page, `--export` and Claude's `export` tool all meet the same rule; page actions `license-*`; a `license` event          |
+| `StudioSettings` (the gear) | a dot on the gear while there's something to do, named in its tooltip: **Trial · 2 videos left**, **Waiting for payment…**, **Payment issue** (amber). A subscription in good standing has no dot        |
+| `LicensePanel`              | the gear panel's Subscription section: **Subscribed · Active**, "Renews Nov 20", Manage subscription ↗, and the license key (Show, Copy), with **Use a different key** and **Remove from this computer** |
+| `SubscribeDialog`           | opened by Full quality… (Showcase page) and Export (Share page) when no free videos are left                                                                                                             |
 
 Saved in `settings.json`:
 

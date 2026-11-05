@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { studio, useLicense } from "@/lib/studio";
-import { KeyForm } from "./LicensePill";
+import { KeyForm } from "./LicensePanel";
 import { PRICE, subscribe } from "./license-actions";
 
 export function SubscribeDialog({

@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { StudioHistory } from "@/lib/studio";
+import type { StudioHistory, StudioLicense } from "@/lib/studio";
 import { AUTO_COMMIT_HELP, autoCommitExplanation } from "./auto-commit-text";
 import { AutoCommitSwitch } from "./StudioSettings";
+import { settingsNotice } from "./license-actions";
 
 const onMain: StudioHistory = {
   git: true,
@@ -78,5 +79,35 @@ describe("autoCommitExplanation", () => {
     expect(
       autoCommitExplanation({ ...onMain, reason: "Commits wait: a merge is in progress." }),
     ).toBe(`${AUTO_COMMIT_HELP} Commits wait: a merge is in progress.`);
+  });
+});
+
+const trial: StudioLicense = {
+  state: "trial",
+  freeLeft: 2,
+  freeLimit: 2,
+  hasKey: false,
+  ended: false,
+  validUntil: null,
+  renews: false,
+  checkedAt: null,
+};
+
+describe("settingsNotice", () => {
+  it("marks the gear while the subscription needs the user", () => {
+    expect(settingsNotice(trial)).toEqual({ label: "Trial · 2 videos left", tone: "note" });
+    expect(settingsNotice({ ...trial, state: "waiting" })).toEqual({
+      label: "Waiting for payment…",
+      tone: "note",
+    });
+    expect(settingsNotice({ ...trial, state: "payment", hasKey: true })).toEqual({
+      label: "Payment issue",
+      tone: "attention",
+    });
+  });
+
+  it("marks nothing in good standing, or before the studio has answered", () => {
+    expect(settingsNotice({ ...trial, state: "subscribed", hasKey: true })).toBeNull();
+    expect(settingsNotice(null)).toBeNull();
   });
 });
