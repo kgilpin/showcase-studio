@@ -363,6 +363,13 @@ export type ShowcaseStudio = {
   /** Getting the video onto TikTok, Instagram and YouTube Shorts (the
    *  Share page). */
   share: StudioShare;
+  /** One frame of the video at a time, as the export would render it,
+   *  to save as a PNG (the player's Frame button). `name` is the file
+   *  name the studio suggests. */
+  frame(
+    showcaseId: string,
+    options: { atMs: number; view: "tiktok" | "43"; safeArea: boolean },
+  ): Promise<{ ok: true; blob: Blob; name: string } | { ok: false; error: string }>;
   /** Asset-collection operations (the assets page). */
   assets: {
     /** Renames an asset file and updates the showcase.yaml references
@@ -645,6 +652,30 @@ function createShare(): StudioShare {
   };
 }
 
+/** GET /studio/api/frame: the PNG, or the studio's error. */
+async function fetchFrame(
+  showcaseId: string,
+  { atMs, view, safeArea }: { atMs: number; view: "tiktok" | "43"; safeArea: boolean },
+): Promise<{ ok: true; blob: Blob; name: string } | { ok: false; error: string }> {
+  try {
+    const query = new URLSearchParams({ showcase: showcaseId, at: String(Math.round(atMs)), view });
+    if (safeArea) query.set("safeArea", "1");
+    const response = await fetch(`${API}/frame?${query}`);
+    if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      return { ok: false, error: body?.error ?? `The studio answered ${response.status}` };
+    }
+    const suggested = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "");
+    return {
+      ok: true,
+      blob: await response.blob(),
+      name: suggested?.[1] ?? `${showcaseId}-t${String(Math.round(atMs)).padStart(6, "0")}.png`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 function createClient(first: StudioInfo): ShowcaseStudio {
   return {
     info: () => info ?? first,
@@ -657,6 +688,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
     scenes: { edit: (payload) => post("scene-edit", payload) },
     prompter: { publish: (showcaseId) => post("prompter-publish", { showcaseId }) },
     share: createShare(),
+    frame: fetchFrame,
     history: {
       status: () => get<StudioHistory>("history"),
       setAutoCommit: (on) => post("history-auto-commit", { on }),

@@ -13,7 +13,14 @@ import { pageErrorField } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { addAssetPaths } from "./asset-files.mjs";
 import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
-import { screenshotSlide, scriptText, validateShowcases } from "./exporter.mjs";
+import {
+  formatClock,
+  MAX_FRAMES_PER_CALL,
+  screenshotFrame,
+  screenshotSlide,
+  scriptText,
+  validateShowcases,
+} from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { transcribe } from "./transcribe.mjs";
 import { DESTINATION_IDS } from "../src/content/publish-rules.mjs";
@@ -47,6 +54,39 @@ export const TOOLS = [
         sceneId: { type: "string", description: "The scene id from showcase.yaml" },
       },
       required: ["showcaseId", "sceneId"],
+    },
+  },
+  {
+    name: "screenshot_frame",
+    description:
+      "Render one frame of the video at a given time and return it as an image: the page the " +
+      "video export records, so the frame shows what the exported video shows at that moment " +
+      "— overlay captions, the picture's TikTok fit, the brand mark. Use it to answer \"at " +
+      'time T, is X right?" (a caption over a face, a cut landing on a word, a graphic clear ' +
+      "of the caption rows) instead of rendering a draft and scrubbing it. Free, like " +
+      "screenshot_slide. atMs is a time in milliseconds from the start of the video, or a list " +
+      `of up to ${MAX_FRAMES_PER_CALL} (one image each, in that order); under each image a ` +
+      'line names the scene and the caption showing then. view: "tiktok" (default, the 9:16 ' +
+      'frame) or "43" (the 4:3 embed). Animations are moved to their end by default — the ' +
+      'still of the frame, as the screens export shows a slide; animations: "live" leaves ' +
+      "them where the clock has them at that moment, to check a mark's timing. safeArea: " +
+      "true shades where TikTok's tabs, buttons and description cover the frame (TikTok view), " +
+      "as the player's Safe area switch does. Frames come at half size (540×960, or 720×540 " +
+      'for 4:3); size: "full" renders them at 1080×1920 / 1440×1080.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        atMs: {
+          description: "A time in ms from the start of the video, or a list of them",
+          anyOf: [{ type: "number" }, { type: "array", items: { type: "number" }, minItems: 1 }],
+        },
+        view: { type: "string", enum: ["tiktok", "43"] },
+        animations: { type: "string", enum: ["finished", "live"] },
+        safeArea: { type: "boolean" },
+        size: { type: "string", enum: ["half", "full"] },
+      },
+      required: ["showcaseId", "atMs"],
     },
   },
   {
@@ -503,6 +543,36 @@ function staleEditMessage(changeLog, showcaseId, ifVersion, currentVersion) {
   return lines.join("\n");
 }
 
+/** The line under a frame: when it is, what the page showed there, and
+ *  how it was rendered — "Frame at 24500 ms (0:24.5) — scene
+ *  \"grand-finale\" (3 of 5, 1200 ms in), caption 1 of 1 (\"to a grand
+ *  finale…\"); TikTok view, 540×960 (half size), animations finished,
+ *  safe area shaded." */
+export function frameLine(frame, { view, width, height, size, animations, safeArea }) {
+  const parts = [`Frame at ${frame.atMs} ms (${formatClock(frame.atMs)})`];
+  const shows = [];
+  if (frame.scene) {
+    shows.push(
+      `scene "${frame.scene.id}" (${frame.scene.index + 1} of ${frame.scene.count}, ` +
+        `${frame.scene.elapsedMs} ms in)`,
+    );
+    const caption = frame.caption;
+    if (caption) {
+      const text = caption.text.length > 60 ? `${caption.text.slice(0, 59)}…` : caption.text;
+      shows.push(`caption ${caption.index + 1} of ${caption.count} ("${text}")`);
+    } else {
+      shows.push("no caption");
+    }
+  }
+  const how = [
+    view === "43" ? "4:3 view" : "TikTok view",
+    `${width}×${height}${size === "half" ? " (half size)" : ""}`,
+    animations === "live" ? "animations live" : "animations finished",
+    ...(safeArea ? ["safe area shaded"] : []),
+  ];
+  return `${parts.join("")}${shows.length ? ` — ${shows.join(", ")}` : ""}; ${how.join(", ")}.`;
+}
+
 /** Runs one tool against a studio. `context` is
  *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, buildJobs,
  *  changeLog, history, share, openUrl, copyText, reveal }. */
@@ -748,6 +818,15 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
         },
       ],
     };
+  }
+  if (name === "screenshot_frame") {
+    const result = await screenshotFrame(context.renderer, context.getUrl(), showcasesDir, args);
+    const content = [];
+    for (const frame of result.frames) {
+      content.push({ type: "image", data: frame.png, mimeType: "image/png" });
+      content.push({ type: "text", text: frameLine(frame, result) });
+    }
+    return { content };
   }
   if (name === "validate") {
     const report = await validateShowcases(context.renderer, context.getUrl());

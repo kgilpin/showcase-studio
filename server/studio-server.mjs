@@ -16,6 +16,11 @@
  *   GET  /studio/api/export-video?showcase=<id>&id=<record id>
  *                               a recorded export's video, for the Share
  *                               page's preview (byte ranges, so it seeks)
+ *   GET  /studio/api/frame?showcase=<id>&at=<ms>[&view=tiktok|43][&safeArea=1]
+ *                               one frame of the video at that time, as a
+ *                               PNG to save (the player's Frame button;
+ *                               the screenshot_frame MCP tool renders the
+ *                               same page)
  *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below)
  *   POST /mcp                   the MCP tools, for Claude (server/mcp.mjs)
  *
@@ -53,7 +58,7 @@ import { createChangeLog, editForLog } from "./change-log.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { DEFAULT_EXPORT_DIR, revealInFileManager } from "./export-output.mjs";
 import { createExportRecords, RECORDED_KINDS, showcaseDurationMs } from "./export-records.mjs";
-import { runExport, videoFps } from "./exporter.mjs";
+import { frameFileName, runExport, screenshotFrame, videoFps } from "./exporter.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { callTool, createMcpHandler } from "./mcp.mjs";
@@ -1199,6 +1204,27 @@ scenes:
           return;
         }
         sendVideo(req, res, record.file);
+        return;
+      }
+      if (req.method === "GET" && action === "frame") {
+        const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        const showcaseId = query.get("showcase") ?? "";
+        const view = query.get("view") === "43" ? "43" : "tiktok";
+        const atMs = Number(query.get("at"));
+        const result = await screenshotFrame(renderer, url, showcasesDir, {
+          showcaseId,
+          atMs: query.get("at") == null ? undefined : atMs,
+          view,
+          safeArea: query.get("safeArea") === "1",
+          size: "full",
+        });
+        const png = Buffer.from(result.frames[0].png, "base64");
+        res.writeHead(200, {
+          "Content-Type": "image/png",
+          "Content-Length": String(png.length),
+          "Content-Disposition": `attachment; filename="${frameFileName(showcaseId, view, atMs)}"`,
+        });
+        res.end(png);
         return;
       }
       if (req.method !== "POST" || !Object.hasOwn(ACTIONS, action)) {

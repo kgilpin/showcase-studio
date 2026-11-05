@@ -10,7 +10,7 @@
  *   page request ──► SSR throws ──► recordPageError()
  *                                        │
  *   studio_info / studio_start ◄── currentPageError()
- *   validate / screenshot_slide ◄── pageLoadFailureMessage()
+ *   validate / screenshot_slide / screenshot_frame ◄── pageLoadFailureMessage()
  *
  * A later page that renders clears it (clearPageError), so an old error
  * doesn't linger. Plain JS so server/ can import it; the package script

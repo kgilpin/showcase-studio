@@ -20,6 +20,10 @@
  *                    exactly.
  *   exportScript     the narration as plain text (instant).
  *   screenshotSlide  one slide at half size, for the MCP tool.
+ *   screenshotFrame  one frame of the video at a given time (the record
+ *                    page the video export records, in the TikTok 9:16
+ *                    or 4:3 embed view), for the screenshot_frame MCP
+ *                    tool and the player's Frame button.
  *   validateShowcases loads the library in a fresh page exactly as the app
  *                    does and reports what built and what failed.
  */
@@ -156,8 +160,55 @@ const seekScript = (ms) => `(async () => {
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 })()`;
 
+/* The record page says when its fonts are loaded and its images decoded.
+ * Waits up to 30 s, then answers with the page's own text instead of
+ * hanging: the page never becomes ready when the showcase fails to build
+ * or the studio shows a "No showcase named …" page. */
+const RECORD_PAGE_READY = `(async () => {
+  const deadline = Date.now() + 30000;
+  while (window.__record?.ready !== true && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  if (window.__record?.ready === true) return null;
+  return { notReady: true, text: (document.body?.innerText ?? "").trim().slice(0, 200) };
+})()`;
+
+/** Throws when RECORD_PAGE_READY answered that the page never got ready. */
+function requireRecordPage(answer, showcaseId) {
+  if (!answer?.notReady) return;
+  throw new Error(
+    `The video page for "${showcaseId}" never became ready (does the showcase load? run validate).` +
+      (answer.text ? ` The page says: ${answer.text}` : ""),
+  );
+}
+
+/* Every animation moved to its end, so marks and captions show in their
+ * fully revealed state — the still of a frame, the way the screens
+ * export shows a slide. Twice around a paint, like the export page's
+ * __still, so an animation an element started after the seek is moved
+ * too. An animation that never ends (a pulse) refuses finish() and
+ * stays where the seek put it. */
+const FINISH_ANIMATIONS = `(async () => {
+  const paint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const finish = () => {
+    for (const animation of document.getAnimations()) {
+      try { animation.finish(); } catch {}
+    }
+  };
+  finish();
+  await paint();
+  finish();
+  await paint();
+})()`;
+
+/* What the record page shows now: {scene: {id, index, count, elapsedMs,
+ * durationMs}, caption?: {index, count, text}}. */
+const FRAME_INFO = `window.__record?.at?.()`;
+
 function readDoc(showcasesDir, showcaseId) {
-  return parse(readFileSync(path.join(showcasesDir, showcaseId, "showcase.yaml"), "utf8"));
+  const file = path.join(showcasesDir, showcaseId, "showcase.yaml");
+  if (!existsSync(file)) throw new Error(`No showcase named "${showcaseId}" in the library`);
+  return parse(readFileSync(file, "utf8"));
 }
 
 /** The narration script as share-ready plain text, straight from the
@@ -291,9 +342,7 @@ export async function exportVideo({
       await page.goto(
         `${appUrl}/showcase/${showcaseId}/record?controlled=1${embed ? "&canvas=embed" : ""}`,
       );
-      await page.evaluate(`(async () => {
-        while (window.__record?.ready !== true) await new Promise((r) => setTimeout(r, 100));
-      })()`);
+      requireRecordPage(await page.evaluate(RECORD_PAGE_READY), showcaseId);
       for (let frame = 0; frame < frameCount; frame++) {
         checkAborted(signal);
         const ms = Math.min((frame / fps) * 1000, totalMs);
@@ -431,6 +480,114 @@ export function screenshotSlide(renderer, appUrl, { showcaseId, sceneId } = {}) 
       `("${sceneId}"), and whether the showcase loads at all (run validate).`,
     { path: pagePath },
   );
+}
+
+/** The most frames one screenshot_frame call renders: a review checks a
+ *  handful of moments, and each frame is an image in the reply. */
+export const MAX_FRAMES_PER_CALL = 10;
+
+/** One or more frames of the video at given times, as the video export
+ *  would render them: the record page at the TikTok 9:16 frame
+ *  (`view: "tiktok"`, 1080×1920) or the 4:3 embed (`view: "43"`,
+ *  1440×1080), rendered at half size unless `size: "full"`. Animations
+ *  are moved to their end (`animations: "finished"`, the screens
+ *  export's convention) so an overlay's resting state is what the still
+ *  shows; `"live"` leaves them where the clock has them at that moment.
+ *  `safeArea` shades where TikTok's own interface sits (TikTok view
+ *  only), like the player's switch. Returns the frames in the order
+ *  asked, each with its base64 PNG and what the page says it shows
+ *  (window.__record.at(): the scene and the caption on it). A check,
+ *  not a deliverable: no export record, no license. */
+export async function screenshotFrame(
+  renderer,
+  appUrl,
+  showcasesDir,
+  {
+    showcaseId,
+    atMs,
+    view = "tiktok",
+    animations = "finished",
+    safeArea = false,
+    size = "half",
+  } = {},
+) {
+  if (!showcaseId) throw new Error("showcaseId is required");
+  if (view !== "tiktok" && view !== "43") throw new Error('view must be "tiktok" or "43"');
+  if (animations !== "finished" && animations !== "live") {
+    throw new Error('animations must be "finished" or "live"');
+  }
+  if (size !== "half" && size !== "full") throw new Error('size must be "half" or "full"');
+  const times = (Array.isArray(atMs) ? atMs : [atMs]).map(Number);
+  if (times.length === 0 || atMs == null)
+    throw new Error("atMs is required: a time in ms, or a list of them");
+  if (times.some((ms) => !Number.isFinite(ms) || ms < 0)) {
+    throw new Error(
+      "atMs must be a time in milliseconds from the start of the video, or a list of them",
+    );
+  }
+  if (times.length > MAX_FRAMES_PER_CALL) {
+    throw new Error(`At most ${MAX_FRAMES_PER_CALL} frames per call (asked for ${times.length})`);
+  }
+  const doc = readDoc(showcasesDir, showcaseId);
+  if (!doc.scenes?.length) throw new Error(`"${showcaseId}" has no scenes`);
+  const totalMs = doc.scenes.reduce(
+    (sum, scene) => sum + resolveSceneTiming(scene, doc.meta?.pace).durationMs,
+    0,
+  );
+  const late = times.find((ms) => ms > totalMs);
+  if (late !== undefined) {
+    throw new Error(
+      `${late} ms is past the end of "${showcaseId}", which runs ${totalMs} ms (${formatClock(totalMs)})`,
+    );
+  }
+  const embed = view === "43";
+  const shaded = safeArea === true && !embed;
+  const { width, height } =
+    VIDEO_FORMATS[`${embed ? "video-43" : "video"}${size === "half" ? "-draft" : ""}`];
+  const pagePath = `/showcase/${showcaseId}/record`;
+  const query = new URLSearchParams({ controlled: "1" });
+  if (embed) query.set("canvas", "embed");
+  if (shaded) query.set("safeArea", "1");
+  return withTimeout(
+    withPage(renderer, { width, height }, async (page) => {
+      await page.goto(`${appUrl}${pagePath}?${query}`);
+      requireRecordPage(await page.evaluate(RECORD_PAGE_READY), showcaseId);
+      const frames = [];
+      for (const ms of times) {
+        await page.evaluate(seekScript(ms));
+        if (animations === "finished") await page.evaluate(FINISH_ANIMATIONS);
+        const shows = (await page.evaluate(FRAME_INFO)) ?? {};
+        frames.push({ atMs: ms, ...shows, png: (await page.capture()).toString("base64") });
+      }
+      return {
+        view,
+        width,
+        height,
+        size,
+        animations,
+        safeArea: shaded,
+        totalMs,
+        frames,
+      };
+    }),
+    `The video page did not render — check the showcase id ("${showcaseId}"), and whether the ` +
+      "showcase loads at all (run validate).",
+    { path: pagePath },
+  );
+}
+
+/** The file a saved frame gets: nova-t024500.png, nova-43-t024500.png
+ *  (the time zero-padded so the files sort by time). */
+export function frameFileName(showcaseId, view, ms) {
+  return `${showcaseId}-${view === "43" ? "43-" : ""}t${String(Math.round(ms)).padStart(6, "0")}.png`;
+}
+
+/** 24500 → "0:24.5": minutes, seconds and tenths, as the player's scrubber shows time. */
+export function formatClock(ms) {
+  const tenths = Math.max(0, Math.floor(ms / 100));
+  const minutes = Math.floor(tenths / 600);
+  const seconds = Math.floor((tenths % 600) / 10);
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths % 10}`;
 }
 
 /** Loads the library in a fresh page exactly as the app does and reports
