@@ -14,6 +14,7 @@ import { useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { showcasesReady } from "@/content/showcases";
 import { dataMode } from "@/content/source";
+import { CodeChangedBanner } from "@/components/studio/CodeChangedBanner";
 import { ExportNotices } from "@/components/studio/ExportNotices";
 import { StudioAgent } from "@/components/studio/StudioAgent";
 import { studioReady, useWindowLock, windowLock } from "@/lib/studio";
@@ -186,6 +187,8 @@ function RootComponent() {
         className="min-h-dvh transition-[padding-right] duration-200"
         style={{ paddingRight: dockWidth }}
       >
+        {/* From source only: the studio runs older code than its files. */}
+        {!capturing && <CodeChangedBanner />}
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
       </div>

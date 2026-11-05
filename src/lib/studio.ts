@@ -196,6 +196,10 @@ export type StudioInfo = {
   lock: WindowLock | null;
   /** airDrop: the studio can open macOS's AirDrop window (a Mac). */
   features: { terminal: boolean; airDrop?: boolean };
+  /** From source only: the studio's own code files that changed since
+   *  it started, which it keeps running until a restart
+   *  (server/code-changes.mjs). */
+  changedCode?: string[];
 };
 
 /** One recorded full-quality export (server/export-records.mjs). */
@@ -435,7 +439,16 @@ function dispatch(event: string, data: unknown) {
   for (const listener of [...(listeners.get(event) ?? [])]) listener(data);
 }
 
-const EVENTS = ["reload", "info", "export", "build", "license", "terminal-data", "terminal-exit"];
+const EVENTS = [
+  "reload",
+  "info",
+  "code",
+  "export",
+  "build",
+  "license",
+  "terminal-data",
+  "terminal-exit",
+];
 
 function followEvents() {
   const source = new EventSource(`${API}/events`);
@@ -458,10 +471,17 @@ on("reload", () => {
   }
 });
 /* Another library means the current page may not exist there: go home. */
+/* The studio's own code changed on disk (from source): the page shows a
+ * banner until the studio restarts (src/components/studio/CodeChangedBanner). */
+let changedCode: string[] = [];
+on("code", (data) => {
+  changedCode = (data as { changed: string[] }).changed;
+});
 on("info", (data) => {
   const next = data as StudioInfo;
   const libraryChanged = info != null && info.library !== next.library;
   info = next;
+  changedCode = next.changedCode ?? [];
   if (libraryChanged) window.location.assign("/");
 });
 
@@ -712,6 +732,7 @@ export const studioReady: Promise<void> =
         .then((body) => {
           if (!body?.version) return;
           info = body;
+          changedCode = body.changedCode ?? [];
           client = createClient(body);
           window.showcaseStudio = client;
           followEvents();
@@ -746,4 +767,27 @@ export function useWindowLock(): WindowLock | null {
     () => "null",
   );
   return useMemo(() => JSON.parse(json) as WindowLock | null, [json]);
+}
+
+const whenCodeMayChange = (onChange: () => void) => {
+  void studioReady.then(onChange);
+  const offInfo = on("info", onChange);
+  const offCode = on("code", onChange);
+  return () => {
+    offInfo();
+    offCode();
+  };
+};
+
+/** The studio's own code files that changed since it started, for
+ *  rendering: empty until the studio says otherwise, in the packaged
+ *  app, during SSR, and without a studio. Compared as JSON so an equal
+ *  list never re-renders. */
+export function useChangedCode(): string[] {
+  const json = useSyncExternalStore(
+    whenCodeMayChange,
+    () => JSON.stringify(changedCode),
+    () => "[]",
+  );
+  return useMemo(() => JSON.parse(json) as string[], [json]);
 }
