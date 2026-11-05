@@ -6,9 +6,11 @@
  *                             [Commit changes to git  (switch)]
  *                                on main
  *
- * The subscription section is the same panel as the tab bar's pill
- * (LicensePill), which shows only while there's something to do: the
- * trial, a checkout, a payment issue.
+ * While the subscription needs the user — the trial, a checkout, a
+ * payment issue — the gear carries a dot (amber for a payment issue)
+ * and its tooltip says so: "Studio settings · Trial · 2 videos left".
+ * That is the tab bar's only sign of it; the Subscription section here
+ * has what to do.
  *
  * The switch saves autoCommit in the studio's settings.json through the
  * studio server (history-auto-commit) and applies to every showcase at
@@ -25,9 +27,11 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { studio, useLicense, type StudioHistory } from "@/lib/studio";
-import { LicensePanel } from "./LicensePill";
+import { LicensePanel } from "./LicensePanel";
 import { autoCommitExplanation } from "./auto-commit-text";
+import { settingsNotice } from "./license-actions";
 
 /** The labeled switch on its own, so it can be drawn without a studio
  *  (and tested). `saving` disables it while a change is on its way. */
@@ -132,6 +136,9 @@ export function StudioSettings() {
 
   if (!inStudio) return null;
 
+  const notice = settingsNotice(license);
+  const gearLabel = notice ? `Studio settings · ${notice.label}` : "Studio settings";
+
   const change = async (on: boolean) => {
     setSaving(true);
     setError(null);
@@ -156,11 +163,20 @@ export function StudioSettings() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Studio settings"
-          title="Studio settings"
-          className="-mr-2 inline-flex shrink-0 rounded-full p-2 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground"
+          aria-label={gearLabel}
+          title={gearLabel}
+          className="relative -mr-2 inline-flex shrink-0 rounded-full p-2 text-foreground/70 transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground"
         >
           <Settings className="size-4" />
+          {notice && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute right-1.5 top-1.5 size-2 rounded-full ring-2 ring-background",
+                notice.tone === "attention" ? "bg-amber-500" : "bg-primary",
+              )}
+            />
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent

@@ -16,7 +16,7 @@
  *
  * One export runs at a time, whoever started it (Claude too), so the
  * button is disabled while one runs and its tooltip names it. Progress
- * shows in the tab bar (ExportStatus) and the result as a notice
+ * shows in the tab bar (StudioActivity) and the result as a notice
  * (ExportNotices). Renders nothing when no studio serves the page. */
 import { useEffect, useState } from "react";
 import { Share } from "lucide-react";

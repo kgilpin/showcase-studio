@@ -13,7 +13,7 @@ const running: StudioExportJob = {
 };
 
 const draw = (job: StudioExportJob | null) =>
-  renderToStaticMarkup(<BuildMediaControl job={job} onBuild={() => {}} onCancel={() => {}} />);
+  renderToStaticMarkup(<BuildMediaControl job={job} onBuild={() => {}} />);
 
 describe("BuildMediaControl", () => {
   it("offers the build when nothing is running", () => {
@@ -23,17 +23,9 @@ describe("BuildMediaControl", () => {
     expect(html).not.toContain('role="status"');
   });
 
-  it("shows the builder's own step while it runs, with a cancel", () => {
-    const html = draw(running);
-    expect(html).toContain('role="status"');
-    expect(html).toContain("clip-tinder.mp4 (3/8)");
-    expect(html).toContain('aria-label="Cancel the build"');
+  it("is gone while a build runs — the activity slot shows the build", () => {
     /* No second way to start one while a build is running. */
-    expect(html).not.toContain('aria-label="Build media"');
-  });
-
-  it("names the showcase being built, for a screen reader", () => {
-    expect(draw(running)).toContain("Building berlin:");
+    expect(draw(running)).toBe("");
   });
 
   it("offers the build again once it has finished", () => {

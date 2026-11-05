@@ -1,33 +1,31 @@
-/* The subscription's status, as a pill at the right of a showcase's tab
- * bar (ShowcaseNav), beside the gear. Clicking it opens a small panel
- * with what can be done from there:
+/* The subscription's status and what can be done about it, as the
+ * Subscription section of the gear button's settings panel
+ * (StudioSettings):
  *
- *   pill                      panel
+ *   state                     panel
  *   ------------------------  ------------------------------------------
  *   Trial · 2 videos left     Subscribe ↗ · I have a key
  *   Waiting for payment…      (checkout is open in the browser) · Cancel
- *   Payment issue  (amber)    Update card ↗
+ *   Payment issue             Update card ↗
+ *   Active · Renews Nov 20    Manage subscription ↗, and the license
+ *                             key (KeyLine), partly hidden, with Copy —
+ *                             for using the studio on another computer
  *
- * A subscription in good standing needs no space in the tab bar: then
- * the pill is gone, and the same panel (LicensePanel) is the
- * Subscription section of the gear button's settings (StudioSettings):
- * "Active · Renews Nov 20 · Manage subscription ↗", and the license key
- * (KeyLine), partly hidden, with Copy — for using the studio on another
- * computer.
+ * While there is something to do (the trial, a checkout, a payment
+ * issue) the gear carries a dot and names the state in its tooltip,
+ * so the tab bar itself holds no pill for it.
  *
  * ↗ marks what opens Stripe in the browser. Only full-quality videos
  * count; drafts, screenshots and the script are always free. The state
- * comes from the studio (server/license.mjs) through useLicense; renders
- * nothing when no studio serves the page. */
+ * comes from the studio (server/license.mjs) through useLicense. */
 import { useEffect, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { studio, useLicense, type StudioLicense } from "@/lib/studio";
-import { PRICE, pillLabel, subscribe } from "./license-actions";
+import { studio, type StudioLicense } from "@/lib/studio";
+import { PRICE, subscribe } from "./license-actions";
 
 const day = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
@@ -262,52 +260,5 @@ export function LicensePanel({ license, close }: { license: StudioLicense; close
         </button>
       )}
     </div>
-  );
-}
-
-export function LicensePill() {
-  const [inStudio, setInStudio] = useState(false);
-  useEffect(() => setInStudio(studio() != null), []);
-  const license = useLicense();
-  const [open, setOpen] = useState(false);
-
-  // In good standing it lives under the gear (StudioSettings) instead.
-  if (!inStudio || !license || license.state === "subscribed") return null;
-
-  const tone =
-    license.state === "payment"
-      ? "border-amber-500/60 bg-amber-500/15 text-amber-800 dark:text-amber-200"
-      : "border-border text-foreground/70";
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) void studio()!.license.refresh();
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title="Your subscription"
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors hover:bg-secondary data-[state=open]:bg-secondary",
-            tone,
-          )}
-        >
-          {license.state === "waiting" && <Loader2 className="size-3 animate-spin" />}
-          {pillLabel(license)}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-80"
-        /* Keys typed in the key field must not reach the player. */
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        <LicensePanel license={license} close={() => setOpen(false)} />
-      </PopoverContent>
-    </Popover>
   );
 }

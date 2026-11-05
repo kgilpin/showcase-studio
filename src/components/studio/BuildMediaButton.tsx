@@ -7,16 +7,19 @@
  * across by hand; the studio picks the build.
  *
  *   ⚒ Build media            nothing running
- *   ⟳ clip-tinder (3/8)  ✕   running, with the builder's own step
+ *
+ * While a build runs the button is gone, and the tab bar's activity
+ * slot (StudioActivity) shows the builder's own step, with a cancel.
  *
  * The build is idempotent: an output whose inputs haven't changed is left
  * alone, so pressing this again after one edit rebuilds only what that
  * edit touched. Hold Alt to force a full rebuild.
  *
  * It follows the studio's newest build, whoever started it — this button
- * or Claude — and renders nothing without a studio. */
+ * or Claude — and renders nothing without a studio. The label goes when
+ * the bar (a container, ShowcaseNav) is narrow. */
 import { useEffect, useState } from "react";
-import { Hammer, Loader2, X } from "lucide-react";
+import { Hammer } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { studio, useBuildJob, type StudioBuildReport, type StudioExportJob } from "@/lib/studio";
@@ -41,38 +44,17 @@ function notify(job: StudioExportJob) {
 const pillClass =
   "flex shrink-0 items-center gap-2 rounded-full border border-border bg-card/60 text-xs text-foreground";
 
-/** The button itself, or the running build's progress with a cancel.
- *  Separated from the studio wiring so it can be rendered on its own. */
+/** The button itself; nothing while a build runs (the activity slot has
+ *  it). Separated from the studio wiring so it can be rendered on its
+ *  own. */
 export function BuildMediaControl({
   job,
   onBuild,
-  onCancel,
 }: {
   job: StudioExportJob | null;
   onBuild: (force: boolean) => void;
-  onCancel: () => void;
 }) {
-  if (job?.status === "running") {
-    return (
-      <div
-        role="status"
-        aria-label={`Building ${job.showcaseId}: ${job.progress}`}
-        className={`${pillClass} py-1 pl-3 pr-1`}
-      >
-        <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" aria-hidden="true" />
-        <span className="max-w-48 truncate text-muted-foreground">{job.progress}</span>
-        <button
-          type="button"
-          aria-label="Cancel the build"
-          title="Cancel the build"
-          onClick={onCancel}
-          className="inline-flex shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-    );
-  }
+  if (job?.status === "running") return null;
   return (
     <TooltipProvider delayDuration={200}>
       <Tooltip>
@@ -84,7 +66,7 @@ export function BuildMediaControl({
             className={`${pillClass} px-3 py-1.5 transition-colors hover:bg-secondary hover:text-foreground`}
           >
             <Hammer className="size-3.5" aria-hidden="true" />
-            <span className="hidden sm:inline">Build media</span>
+            <span className="hidden @4xl:inline">Build media</span>
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" align="end">
@@ -122,7 +104,6 @@ export function BuildMediaButton({ showcaseId }: { showcaseId: string }) {
             if (!result.ok) toast.error("The build didn't start", { description: result.error });
           });
       }}
-      onCancel={() => void studio()?.builds.cancel(job!.jobId)}
     />
   );
 }
