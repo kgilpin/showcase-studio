@@ -63,6 +63,11 @@ entries:
     test_name: add_asset copies files in, names the key, and logs the write
     appmap_path: "vitest/add_asset_copies_files_in,_names_the_key,_and_logs_the_write.appmap.json"
     summary: A file on disk into a showcase's assets/ through the MCP tool — the checks, the copy, and the change-log line that makes the history commit it.
+  - feature: assets
+    test_file: server/studio-server.test.mjs
+    test_name: ffmpeg encodes into assets/ through a temporary file and logs the write
+    appmap_path: vitest/ffmpeg_encodes_into_assets-_through_a_temporary_file_and_logs_the_write.appmap.json
+    summary: A clip made by the bundled ffmpeg through the MCP tool — written under .studio/ffmpeg/, renamed into assets/ on success (replacing the clip of that name the second time), its duration read back, the write logged as asset.encode, and a failing command refused with ffmpeg's message.
   - feature: data-server
     test_file: server/showcase-data.test.mjs
     test_name: serves index.json with the folder's index
