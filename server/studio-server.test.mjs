@@ -1270,7 +1270,12 @@ describe("sharing", () => {
     const video = recordExport(library, exportDir);
     const { status } = await post("share-status", { showcaseId: "nova" });
     expect(status.exports.video.current).toMatchObject({ id: video.id, current: true });
-    expect(status.destinations.map((d) => d.id)).toEqual(["tiktok", "instagram", "youtube"]);
+    expect(status.destinations.map((d) => d.id)).toEqual([
+      "tiktok",
+      "instagram",
+      "youtube",
+      "youtube43",
+    ]);
 
     const edited = await post("scene-edit", {
       showcaseId: "nova",

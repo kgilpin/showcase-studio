@@ -127,15 +127,18 @@ After any caption edit, run build_voiceover again. It is quick: clips are cached
 
 The voice reads the caption exactly as written, so spell a caption the way it should sound. A showcase is either voiced (meta.voiceover) or cut from a recording (meta.source), never both. The profile and region are only how to reach Polly: leave them out of a showcase that ships to other people, so their own AWS settings apply. If the build says the aws command isn't signed in, tell the user the command it names (e.g. aws sso login --profile <name>) — it's theirs to run. Without whisper the words file still gets written, with word times spread by length, and the build's notes say so: tell the user, as with any estimated timing.
 
-## Sharing (TikTok, Instagram, YouTube Shorts)
+## Sharing (TikTok, Instagram, YouTube Shorts, YouTube)
 The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (a tab beside Script and Assets) walks through it; the share tools do the same from here.
 
-What each destination takes:
+What each destination takes (the id is what share, share_record and publish.set call it):
 
-    destination      video                     text                          limits the studio checks
-    TikTok           the full-quality 9:16     caption + hashtags            4000 characters together; 10 minutes
-    Instagram        export (kind "video")     caption + hashtags            2200 characters together; 30 hashtags; 3 minutes (posts as a Reel)
-    YouTube Shorts   — the same file for all   title, description, hashtags  title 100 characters; description 5000; 60 hashtags; 3 minutes
+    destination      id          video                              text                          limits the studio checks
+    TikTok           tiktok      the full-quality 9:16 export       caption + hashtags            4000 characters together; 10 minutes
+    Instagram        instagram   (kind "video") — the same file     caption + hashtags            2200 characters together; 30 hashtags; 3 minutes (posts as a Reel)
+    YouTube Shorts   youtube     for these three                    title, description, hashtags  title 100 characters; description 5000; 60 hashtags; 3 minutes
+    YouTube          youtube43   the 4:3 export (kind "video-43")   title, description, hashtags  title 100 characters; description 5000; 60 hashtags; any length
+
+YouTube (youtube43) is a regular video upload, for a showcase made for the 4:3 embed — an engineering explainer with console slides, watched on a desktop. The same upload dialog takes both: a vertical video under 3 minutes becomes a Short, a 4:3 video a regular video.
 
 The text lives in showcase.yaml's top-level publish: block. There is one default for every destination, and each destination can override any field:
 
@@ -144,9 +147,10 @@ The text lives in showcase.yaml's top-level publish: block. There is one default
       hashtags: [iphone, productivity]
       tiktok:    { hashtags: [iphone, techtok] }    # replaces the default list
       instagram: { caption: Mirror your iPhone to any screen. Link in bio. }
-      youtube:   { title: Mirror your iPhone in 10 seconds }
+      youtube:   { title: Mirror your iPhone in 10 seconds }        # the Short
+      youtube43: { title: Mirror your iPhone — the full walkthrough } # the regular video
 
-- A field nothing sets falls back: the caption to meta.description, the title (YouTube only) to meta.title.
+- A field nothing sets falls back: the caption to meta.description, the title (YouTube Shorts and YouTube) to meta.title. Each destination's block stands on its own: youtube43 never inherits from youtube, so the long video and the Short can carry different titles.
 - Hashtags are a list of words without the #. On YouTube, caption is the description.
 - Write it with edit_showcase: {field: "publish.set", destination?, name, value}, name caption | hashtags | title. Leave destination out for the default. null or "" removes a field, so it inherits again. The Share page's text fields make the same edit.
 - Then call share_status. It gives each destination's final text (\`from\` says where each field came from), the text to paste, and \`problems\` — anything over a limit, a missing title, a video too long. Fix every problem.
@@ -154,12 +158,12 @@ The text lives in showcase.yaml's top-level publish: block. There is one default
 
 Writing the text:
 - Start from the narration (the script tool). The first line is the hook: TikTok shows about the first 150 characters before "more", Instagram Reels about 55 to 125.
-- TikTok: a short caption and 3 to 5 hashtags. Instagram: a caption that ends with a call to action ("Link in bio" — Instagram captions have no clickable links). YouTube Shorts: a title under 100 characters; the description can be longer.
+- TikTok: a short caption and 3 to 5 hashtags. Instagram: a caption that ends with a call to action ("Link in bio" — Instagram captions have no clickable links). YouTube Shorts and YouTube: a title under 100 characters; the description can be longer, and a regular video's can say what the viewer will learn and link to the project.
 - Put no Showcase Studio branding in the text: TikTok's rules forbid a tool's branding on shared posts. The showcase's own brand mark is fine.
 
 Posting:
-- The video must be a current export: share_status shows exports.video.current (full quality) and exports["video-draft"].current (the draft), or null when there is none or the showcase changed since. Each has estimateMs, about how long a new one takes on this machine — roughly 5½ minutes for the full video of a one-minute showcase, and under 2 minutes for its draft. Confirm with the user before a full export {kind: "video"}.
-- The draft (540x960, 12 fps) is for trying the steps out without waiting for a full render: every step works the same with it. Post the full-quality video for real. share and the Share page take either one (quality: "draft").
+- The video must be a current export of the kind the destination takes (its exportKind in share_status): share_status shows exports.video.current (full quality) and exports["video-draft"].current (the draft) for TikTok, Instagram and YouTube Shorts, and exports["video-43"].current and exports["video-43-draft"].current for YouTube — or null when there is none or the showcase changed since. Each has estimateMs, about how long a new one takes on this machine — roughly 5½ minutes for the full video of a one-minute showcase, and under 2 minutes for its draft. Confirm with the user before a full export {kind: "video"} or {kind: "video-43"}.
+- The draft (half size, 12 fps) is for trying the steps out without waiting for a full render: every step works the same with it. Post the full-quality video for real. share and the Share page take either one (quality: "draft").
 - share {showcaseId, destination} hands the video off from this computer: it copies the caption to the clipboard, opens the upload page in the user's browser, and selects the video in Finder or Explorer. Tell the user to drag the file onto the page, paste, and post. Ask which destination if they didn't say.
 - To post from a phone, send the user to the Share page (share_status gives its URL as page): on a Mac it AirDrops the video, which lands in Photos, and the copied caption reaches an iPhone's clipboard too.
 - When the user has posted, ask for the post's link and keep it with share_record {showcaseId, destination, url}. The Share page lists every hand-off with its link.

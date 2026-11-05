@@ -13,16 +13,17 @@ import { needsSubscription } from "@/components/studio/license-actions";
 import { studio, useExportJob, useLicense, type ShareStatus } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
-/* The Share page: getting a showcase's video onto TikTok, Instagram and
- * YouTube Shorts, without the platforms' APIs. Pick a destination; the
- * page shows the video that destination takes (the full-quality 9:16
- * export or the draft, and whether each still matches the showcase), and
- * the steps to post it — from this computer or from the phone — with the
- * text it posts with edited right in the "copy the caption" step (saved
- * to showcase.yaml's publish: block). Everything comes
- * from the studio's share-status action (server/share.mjs), the same data
- * Claude's share_status tool returns. Studio only: sharing works on the
- * studio's exports.
+/* The Share page: getting a showcase's video onto TikTok, Instagram,
+ * YouTube Shorts and YouTube, without the platforms' APIs. Pick a
+ * destination; the page shows the video that destination takes (the
+ * full-quality export — 9:16, or 4:3 for a regular YouTube upload — or
+ * its draft, and whether each still matches the showcase), and the steps
+ * to post it — from this computer or from the phone — with the text it
+ * posts with edited right in the "copy the caption" step (saved to
+ * showcase.yaml's publish: block). Everything comes from the studio's
+ * share-status action (server/share.mjs), the same data Claude's
+ * share_status tool returns. Studio only: sharing works on the studio's
+ * exports.
  *
  * The page lays itself out by the width it has, not the window's: with the
  * studio agent's terminal docked beside it, the page is half the window.
@@ -278,6 +279,7 @@ function ShareScreen() {
             <div className="space-y-6">
               <ShareVideo
                 videoUrl={(id) => studio()!.share.videoUrl(showcaseId, id)}
+                kind={destination.exportKind}
                 full={full}
                 draft={draft}
                 quality={quality}

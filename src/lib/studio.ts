@@ -240,11 +240,17 @@ export type ShareHandoff = {
 export type ShareDestination = {
   id: DestinationId;
   label: string;
+  /** The phone app a post is made from ("YouTube" for a Short too). */
+  app: string;
   uploadUrl: string;
   uploadHint: string;
-  exportKind: string;
+  /** The full-quality export it takes: "video" (9:16) or "video-43". */
+  exportKind: "video" | "video-43";
+  /** What the platform calls the text box. */
+  captionName: "caption" | "description";
   fields: PublishField[];
-  limits: { caption: number; title?: number; hashtags?: number; seconds: number };
+  /** seconds is unset for a destination that takes any length. */
+  limits: { caption: number; title?: number; hashtags?: number; seconds?: number };
   text: PostedText;
   /** The caption box's text (the description on YouTube). */
   paste: string;

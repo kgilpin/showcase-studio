@@ -109,6 +109,48 @@ describe("publishProblems", () => {
   });
 });
 
+/* A regular YouTube video takes the 4:3 export and has no 3-minute cap;
+ * its text stands on its own, apart from the Short's. */
+describe("YouTube (4:3)", () => {
+  it("takes the 4:3 export and any length of video", () => {
+    expect(
+      publishProblems(
+        "youtube43",
+        { caption: "A walkthrough.", hashtags: ["tools"], title: "Setup" },
+        { durationMs: 20 * 60_000 },
+      ),
+    ).toEqual([]);
+    expect(
+      publishProblems(
+        "youtube",
+        { caption: "A walkthrough.", hashtags: ["tools"], title: "Setup" },
+        { durationMs: 20 * 60_000 },
+      ),
+    ).toEqual(["The video runs 1200 seconds — YouTube Shorts takes up to 3 minutes."]);
+  });
+
+  it("falls back to meta like the Short, but never to the Short's own text", () => {
+    expect(publishText({}, "youtube43", META)).toMatchObject({
+      title: "Mirror",
+      caption: "Mirror your phone.",
+      from: { title: "meta", caption: "meta" },
+    });
+    const publish = {
+      youtube: { title: "Mirror in 10 seconds" },
+      youtube43: { title: "Mirror: the full walkthrough" },
+    };
+    expect(publishText(publish, "youtube", META).title).toBe("Mirror in 10 seconds");
+    expect(publishText(publish, "youtube43", META).title).toBe("Mirror: the full walkthrough");
+    expect(publishText({ youtube: { title: "Short" } }, "youtube43", META)).toMatchObject({
+      title: "Mirror",
+      from: { title: "meta" },
+    });
+    expect(checkPublishEdit({ destination: "youtube43", name: "title", value: "T" })).toEqual({
+      value: "T",
+    });
+  });
+});
+
 describe("checkPublishEdit", () => {
   it("returns the value to write, or removal", () => {
     expect(checkPublishEdit({ name: "caption", value: " Hi " })).toEqual({ value: "Hi" });

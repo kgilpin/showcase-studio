@@ -334,9 +334,9 @@ npm run dev -- --new [<library folder>]
 - `src/routes/`: TanStack Router file routes: `/` (home), `/new` (the New
   Showcase page, studio only), `/showcase/$showcaseId` (+ `/script`,
   `/assets` — the media collection with usage and studio-side rename,
-  `/share` — posting the video to TikTok, Instagram and YouTube Shorts,
-  studio only, its parts in `src/components/share/`, `/export`,
-  `/export/$sceneId`, `/record`).
+  `/share` — posting the video to TikTok, Instagram, YouTube Shorts and
+  YouTube (the 4:3 export), studio only, its parts in
+  `src/components/share/`, `/export`, `/export/$sceneId`, `/record`).
 - `scripts/export-screens.mjs`: Playwright script that screenshots each
   export page at 1320×2868 (App Store 6.9"). Scenes with `export: false` are
   skipped.
@@ -821,10 +821,13 @@ npm run dev -- --new [<library folder>]
   and the text ready, and the user posts on the platform's own upload
   page or from their phone. The text a post uses lives in
   showcase.yaml's top-level `publish:` block (a default plus overrides
-  for `tiktok`, `instagram`, `youtube`), edited with `publish.set`
-  through the usual edit path. Where it can go and the platforms'
-  limits are in `src/content/publish-rules.mjs`, shared by the page, the
-  edit tool and the share tools. The Share page has to work fully in
+  for `tiktok`, `instagram`, `youtube` — the Short — and `youtube43` —
+  the regular YouTube video, which takes the 4:3 export; each override
+  block stands on its own), edited with `publish.set` through the usual
+  edit path. Where it can go and the platforms' limits are in
+  `src/content/publish-rules.mjs`, shared by the page, the edit tool and
+  the share tools; a destination's `exportKind` says which video it
+  takes. The Share page has to work fully in
   the web view (a browser, Claude Code's preview): anything it can't do
   from a page — opening the upload page, copying, AirDrop, revealing the
   file — goes through the studio server; only dragging the file out of
