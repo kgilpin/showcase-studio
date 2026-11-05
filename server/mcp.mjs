@@ -124,9 +124,12 @@ export const TOOLS = [
       "destination; null returns to TikTok), cover, notes " +
       "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), tiktok ({fit?, " +
       "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), or watermark " +
-      "({asset?, text?, position?, opacity?, scale?}) — the brand mark drawn in a corner of " +
-      "every slide, like a TV network's bug. position is one of the four corners " +
-      "(top-left default); opacity defaults to 0.85. Use an identity mark (a logo, a " +
+      "({asset?, text?, position?, inset?, shade?, opacity?, scale?}) — the brand mark drawn " +
+      "in a corner of every slide, like a TV network's bug. position is one of the four " +
+      "corners (top-left default); inset pushes the mark down from a top corner or up from " +
+      'a bottom one to that height, in percent of the frame ("13%", 0–50%, clears ' +
+      "TikTok's own interface); shade draws a dark panel behind the mark (true for a medium " +
+      "shade, or an opacity 0–1); opacity defaults to 0.85. Use an identity mark (a logo, a " +
       "wordmark), not the App Store badge — that is a call to action and belongs in a " +
       "scene's cta.\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +

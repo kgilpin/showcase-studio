@@ -303,7 +303,9 @@ npm run dev -- --new [<library folder>]
 # From source, the studio runs as a child process of the MCP server
 # (server/child-studio.mjs runs scripts/dev.mjs), so each studio_start
 # runs the code as it is then: after changing server code, studio_stop
-# then studio_start picks it up. To try a git worktree's changes, pass
+# then studio_start picks it up. Until then the page shows a banner
+# saying to restart (server/code-changes.mjs), and studio_info lists
+# the changed files as changedCode. To try a git worktree's changes, pass
 # studio_start source: <worktree>; its showcases/ is the default library,
 # and it needs its own node_modules. (The tool list itself is read when
 # the session starts: a changed tool's inputs still need a reconnect.)
@@ -563,6 +565,17 @@ npm run dev -- --new [<library folder>]
     there — so a note left by a crash never blocks, and anything that doubts
     it (a timeout, an answer that isn't a studio's) counts the library as
     free; the note is removed on close only if it is still this studio's.
+  - `code-changes.mjs`: the studio's own code, watched while it runs from
+    source. Node loads a module once, so a change to `server/*.mjs`, to a
+    plain `.mjs` rule file under `src/` the server shares with the page,
+    or to a start script reaches the page (Vite) but not the running
+    studio until it restarts. The list of files whose content differs
+    from the start is `changedCode` in the studio's info and `studio_info`,
+    sent to pages as a `code` event, and shown as a banner on every page
+    (`src/components/studio/CodeChangedBanner.tsx`) until the studio
+    restarts or the change is put back. The banner only says to restart:
+    which files changed is for a Claude session, not the user. The
+    packaged app has no source and shows nothing.
   - `library-config.mjs`: a root-level `showcase_settings.yaml` in a
     showcases folder, which the studio writes, all comments, into every
     library it opens — so it also marks the folder as a library: library
