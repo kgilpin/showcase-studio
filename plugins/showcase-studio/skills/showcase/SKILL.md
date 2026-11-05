@@ -171,6 +171,11 @@ from the app's source.
   One thing that is never source media: `screenshot_slide` captures a
   finished slide, not the product.
 
+- Footage of a person: a phone selfie puts the face where the bottom
+  captions go. `check_framing` finds every caption that sits over a face
+  and says how to move the picture or the caption. The guide's "Keep the
+  face clear of the captions" has the rule.
+
 ## 4. Check before you say it's done
 
 1. Run `validate` after changing YAML.

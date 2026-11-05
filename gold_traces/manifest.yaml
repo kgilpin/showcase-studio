@@ -12,7 +12,8 @@
 # and the traversal gate), and the media build (the whole pipeline plus
 # its two refusals), the synthesized voiceover (a rebuild plus its
 # stale-write refusal), a frame of the video captured from the record
-# page (screenshot_frame), and the studio's side of licensing: its
+# page (screenshot_frame), the caption-over-face check (check_framing)
+# on such frames, and the studio's side of licensing: its
 # checkout and its check before an export. (The license service's own traces are
 # cdk/gold_traces/, with cdk's own appmap.yml.) Record command and entry paths are derived; see the
 # skill's SKILL.md.
@@ -152,6 +153,11 @@ entries:
     test_name: renders the frames asked, in order, from the page the video export records
     appmap_path: vitest/renders_the_frames_asked,_in_order,_from_the_page_the_video_export_records.appmap.json
     summary: A frame of the video at given times (screenshot_frame) — the showcase read and its length checked, the record page opened at half size with the safe area, its ready gate passed, then for each time a seek, the animations finished, the page asked what it shows, and a capture checked for size.
+  - feature: face-check
+    test_file: server/face-check.test.mjs
+    test_name: "renders each caption's moment, finds the faces, and warns where they meet"
+    appmap_path: "vitest/renders_each_caption's_moment,_finds_the_faces,_and_warns_where_they_meet.appmap.json"
+    summary: The caption-over-face check behind check_framing — the showcase's fingerprint taken for the cache, the moments picked (the middle of each caption on a scene that can hold a face), the frames rendered through screenshotFrame, the face finder asked about each, the caption box and the face box compared, and a warning with the fix written for every overlap, then the result cached.
   - feature: page-error
     test_file: server/exporter.test.mjs
     test_name: validate fails at once with the captured page error
