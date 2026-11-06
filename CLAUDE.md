@@ -400,7 +400,13 @@ npm run dev -- --new [<library folder>]
     `scene-edit.mjs`, `add_asset` through `asset-files.mjs` (files on disk
     copied into a showcase's `assets/` — what an image dropped into the
     Claude chat or a screenshot Claude captured goes through; the page's
-    drop target is the same module's base64 door), `commit_showcase` through
+    drop target is the same module's base64 door), `ffmpeg` through the
+    same module's `encodeAsset` (the bundled ffmpeg run from the showcase
+    folder with Claude's raw arguments, its output written under the
+    library's `.studio/ffmpeg/` and renamed into `assets/` when ffmpeg
+    succeeds — so a clip on screen can be re-cut and the player never
+    sees half a file; it replaces a file of the same name, and is the one
+    way a clip or track ffmpeg makes should reach `assets/`), `commit_showcase` through
     `showcase-history.mjs`, `screenshot_slide`, `screenshot_frame` (one or
     more frames of the video at given times, through `screenshotFrame` in
     `exporter.mjs`: the record page the video export records, in the

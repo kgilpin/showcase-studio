@@ -212,6 +212,11 @@ function describeEntry(entry) {
       const files = (entry.names ?? []).map((n) => `assets/${n}`);
       return { phrases: [`add ${files.join(", ")}`], files, short: countPhrase("add", files) };
     }
+    case "asset.encode":
+      return {
+        phrases: [`${entry.replaced ? "re-encode" : "encode"} assets/${entry.name} with ffmpeg`],
+        files: [`assets/${entry.name}`],
+      };
     case "asset.rename":
       return {
         phrases: [`rename assets/${entry.from} to ${entry.to}`],
