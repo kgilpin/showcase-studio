@@ -9,7 +9,9 @@
  *   ⚒ Build media            nothing running
  *
  * While a build runs the button is gone, and the tab bar's activity
- * slot (StudioActivity) shows the builder's own step, with a cancel.
+ * slot (StudioActivity) shows the builder's own step, with a cancel; how
+ * the build ended — what it built, its notes, or its error with a Try
+ * again — is a record in the Actions list behind that slot.
  *
  * The build is idempotent: an output whose inputs haven't changed is left
  * alone, so pressing this again after one edit rebuilds only what that
@@ -22,24 +24,7 @@ import { useEffect, useState } from "react";
 import { Hammer } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { studio, useBuildJob, type StudioBuildReport, type StudioExportJob } from "@/lib/studio";
-import { buildSummary } from "./build-summary";
-
-function notify(job: StudioExportJob) {
-  if (job.status === "done") {
-    const report = job.out as unknown as StudioBuildReport | undefined;
-    const notes = report?.notes ?? [];
-    toast.success("Media built", {
-      id: job.jobId,
-      description: [buildSummary(report), ...notes].filter(Boolean).join("\n"),
-      duration: notes.length > 0 ? 30_000 : 10_000,
-    });
-  } else if (job.status === "failed") {
-    toast.error("The build failed", { id: job.jobId, description: job.error, duration: 30_000 });
-  } else if (job.status === "canceled") {
-    toast("Build canceled", { id: job.jobId });
-  }
-}
+import { studio, useBuildJob, type StudioExportJob } from "@/lib/studio";
 
 const pillClass =
   "flex shrink-0 items-center gap-2 rounded-full border border-border bg-card/60 text-xs text-foreground";
@@ -84,13 +69,6 @@ export function BuildMediaButton({ showcaseId }: { showcaseId: string }) {
   const [inStudio, setInStudio] = useState(false);
   useEffect(() => setInStudio(Boolean(studio()?.builds)), []);
   const job = useBuildJob();
-  /* Only builds that finish while this page is open make a notice. */
-  const [seen, setSeen] = useState<string>();
-  useEffect(() => {
-    if (!job || job.status === "running" || job.jobId === seen) return;
-    setSeen(job.jobId);
-    notify(job);
-  }, [job, seen]);
 
   if (!inStudio) return null;
 

@@ -99,6 +99,48 @@ export type StudioBuilds = {
   cancel(jobId: string): Promise<{ ok: boolean; job?: StudioExportJob; error?: string }>;
 };
 
+/** What the user can do with a record in the Actions list. */
+export type ActionOffer = "skip" | "cancel" | "retry" | "rebuild" | "reveal" | "dismiss";
+
+/** One record in the studio's Actions list (server/actions-log.mjs): an
+ *  export, a media build or a git commit, whoever started it. */
+export type StudioAction = {
+  id: string;
+  kind: "export" | "build" | "commit";
+  /** The export or build kind ("video-43-draft", "voiceover") for a job. */
+  jobKind?: string;
+  jobId?: string;
+  showcaseId: string;
+  /** Who started it. */
+  by: "user" | "claude" | "studio";
+  /** Why, in one sentence. */
+  why: string;
+  /** What it is, for people: "TikTok draft", "Build media", "Commit to git". */
+  label: string;
+  state: "pending" | "running" | "done" | "failed" | "canceled" | "dropped";
+  /** When a pending record is due to run. */
+  dueAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  /** The job's own step while it runs ("frame 13/26 (1s)"). */
+  progress?: string;
+  step?: number;
+  steps?: number;
+  /** What it made: an export's file, a build's report, a commit's
+   *  {sha, message, files}. */
+  result?: unknown;
+  error?: string;
+  /** A failure the user has put away: no mark in the slot. */
+  dismissed?: boolean;
+  /** What the user can do with it right now. */
+  offers: ActionOffer[];
+};
+
+export type StudioActions = {
+  /** Runs one of a record's offers. */
+  offer(id: string, offer: ActionOffer): Promise<{ ok: boolean; error?: string }>;
+};
+
 export type StudioTerminal = {
   /** The filesystem path of a dropped File (only the desktop window knows
    *  it; a browser gives the file name). */
@@ -344,6 +386,9 @@ export type ShowcaseStudio = {
   /** Media builds from a showcase's cut list: their own lane, so a
    *  build and an export don't block each other. */
   builds: StudioBuilds;
+  /** The Actions list: every export, build and commit, with what the
+   *  user can do about each (useActions has the list itself). */
+  actions: StudioActions;
   /** The subscription: status, checkout, a typed key, the portal. */
   license: StudioLicensing;
   /** Per-showcase terminals running the user's own Claude Code. */
@@ -455,6 +500,7 @@ const EVENTS = [
   "code",
   "export",
   "build",
+  "action",
   "license",
   "terminal-data",
   "terminal-exit",
@@ -644,6 +690,44 @@ export function useBuildJob(): StudioExportJob | null {
   );
 }
 
+/* ---------- the Actions list ---------- */
+
+/* Every record the studio holds, oldest first, read once on connect
+ * (GET actions) and kept current from the "action" events, each of
+ * which carries one changed record. A "dropped" record leaves the list. */
+let actionsList: StudioAction[] = [];
+
+function setActions(next: StudioAction[]) {
+  actionsList = next;
+  dispatch("actions-list", next);
+}
+
+/** The list with one record changed, added, or (dropped) removed. */
+export function mergeAction(list: StudioAction[], record: StudioAction): StudioAction[] {
+  const rest = list.filter((a) => a.id !== record.id);
+  return record.state === "dropped" ? rest : [...rest, record];
+}
+
+on("action", (data) => setActions(mergeAction(actionsList, data as StudioAction)));
+on("info", () => {
+  void get<{ ok: boolean; actions: StudioAction[] }>("actions").then((result) => {
+    if (result?.ok) setActions(result.actions);
+  });
+});
+
+function createActions(): StudioActions {
+  return { offer: (id, offer) => post("actions-offer", { id, offer }) };
+}
+
+/** The studio's Actions list, oldest first; empty without a studio. */
+export function useActions(): StudioAction[] {
+  return useSyncExternalStore(
+    (onChange) => on("actions-list", onChange),
+    () => actionsList,
+    () => actionsList,
+  );
+}
+
 function createTerminal(enabled: boolean): StudioTerminal {
   return {
     pathForFile: (file) => window.showcaseStudioShell?.pathForFile(file) ?? file.name,
@@ -712,6 +796,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
     windowLock: () => info?.lock ?? null,
     exports: createExports(),
     builds: createBuilds(),
+    actions: createActions(),
     license: createLicensing(),
     terminal: createTerminal(first.features.terminal),
     showcases: { create: (name) => post("showcase-create", { name }) },

@@ -44,7 +44,14 @@
  * checkout or revert, another program, a Claude session's own file
  * tools) belongs to whoever made it: it never starts a commit, and only
  * rides along, named as "files changed directly", in the next commit the
- * studio makes of that showcase. */
+ * studio makes of that showcase.
+ *
+ * Each commit is a record in the Actions list (server/actions-log.mjs)
+ * when the studio has one: the quiet period is a pending record with its
+ * due time and a Skip, the commit itself runs, and the record ends done
+ * (the sha and subject), failed (git's reason, with Retry), or is dropped
+ * when the folder turned out to be clean. commit_showcase's commits are
+ * records too, started by Claude. */
 import { execFile } from "node:child_process";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
@@ -335,6 +342,8 @@ export function commitMessage({ showcaseId, entries = [], files = [], message })
  *                       automatic commits for that showcase wait
  *   gitPath             the git program (default: its full path, found
  *                       once by git-program.mjs)
+ *   actions             the Actions list (actions-log.mjs) each commit
+ *                       is recorded in; none keeps no records
  */
 export function createShowcaseHistory({
   getLibrary,
@@ -343,9 +352,11 @@ export function createShowcaseHistory({
   delayMs = 5000,
   failureCooldownMs = 60_000,
   gitPath,
+  actions = null,
   log = (message) => console.log(message),
 }) {
   const pending = new Map(); // showcase folder → timer
+  const pendingActions = new Map(); // showcase folder → the pending record's id
   const failedAt = new Map(); // showcase folder → time of the last failed commit
   let gitMissing; // undefined until checked
 
@@ -541,7 +552,12 @@ export function createShowcaseHistory({
       verb: verbFor(code),
       file: file.startsWith(prefix) ? file.slice(prefix.length) : file,
     }));
-    if (files.length === 0) return skip("Nothing to commit: the showcase matches the last commit.");
+    if (files.length === 0) {
+      return {
+        ...skip("Nothing to commit: the showcase matches the last commit."),
+        clean: true,
+      };
+    }
 
     const changeLog = createChangeLog(() => library, { log });
     const lastCommit = await git(["log", "-1", "--format=%ct", "--", spec], root);
@@ -602,6 +618,49 @@ export function createShowcaseHistory({
     pending.delete(showcaseDir);
   };
 
+  /** Ends the showcase's pending record without a commit: `skipped` when
+   *  someone chose that, else quietly dropped. */
+  const forgetPending = (showcaseDir, { skipped = false } = {}) => {
+    const id = pendingActions.get(showcaseDir);
+    pendingActions.delete(showcaseDir);
+    if (!id || !actions) return;
+    if (skipped) actions.update(id, { state: "canceled" });
+    else actions.drop(id);
+  };
+
+  /** Runs one commit and keeps its record current. `id` is the pending
+   *  record to turn into the running one; without it a new running
+   *  record is added (by whom, and why). Resolves with commit()'s result. */
+  async function recordedCommit(showcaseDir, { id, by = "studio", why, message, auto } = {}) {
+    const showcaseId = path.basename(showcaseDir);
+    const retry = () =>
+      inTurn(() =>
+        recordedCommit(showcaseDir, { by: "user", why: "Tried again from the Actions list", auto }),
+      );
+    if (actions) {
+      if (id) actions.update(id, { state: "running" });
+      else {
+        ({ id } = actions.add(
+          { kind: "commit", showcaseId, by, why, label: "Commit to git", state: "running" },
+          { retry },
+        ));
+      }
+    }
+    const result = await commit(showcaseDir, { message, auto });
+    if (!actions || !id) return result;
+    if (result.committed) {
+      const { sha, message: subject, files } = result;
+      actions.update(id, { state: "done", result: { sha, message: subject, files } });
+    } else if (result.clean) {
+      /* Nothing to do after all (the change was undone within the quiet
+       * period): not a failure, and not a commit — skipped, saying why. */
+      actions.update(id, { state: "canceled", why: result.reason });
+    } else {
+      actions.update(id, { state: "failed", error: result.reason });
+    }
+    return result;
+  }
+
   return {
     status,
 
@@ -619,9 +678,51 @@ export function createShowcaseHistory({
         return;
       }
       cancel(showcaseDir);
+      const dueAt = new Date(Date.now() + delayMs).toISOString();
+      /* The quiet period, as a pending record — only while commits are
+       * on: a timer that will end in "commits are off" isn't worth a
+       * line in the list. Another change moves its due time. */
+      if (actions && enabled()) {
+        const id = pendingActions.get(showcaseDir);
+        if (id && actions.get(id)?.state === "pending") actions.update(id, { dueAt });
+        else {
+          const record = actions.add(
+            {
+              kind: "commit",
+              showcaseId: first,
+              by: "studio",
+              why: `${first} changed`,
+              label: "Commit to git",
+              state: "pending",
+              dueAt,
+            },
+            {
+              skip: () => {
+                cancel(showcaseDir);
+                forgetPending(showcaseDir, { skipped: true });
+              },
+              /* Once it has run and failed (or was skipped): commit now. */
+              retry: () =>
+                inTurn(() =>
+                  recordedCommit(showcaseDir, {
+                    by: "user",
+                    why: "Tried again from the Actions list",
+                    auto: true,
+                  }),
+                ),
+            },
+          );
+          pendingActions.set(showcaseDir, record.id);
+        }
+      }
       const timer = setTimeout(() => {
         pending.delete(showcaseDir);
-        void inTurn(() => commit(showcaseDir, { auto: true })).catch((error) =>
+        const id = pendingActions.get(showcaseDir);
+        pendingActions.delete(showcaseDir);
+        /* Commits off, and no record waiting: commit() would only answer
+         * "commits are off", which is no failure to put in the list. */
+        if (!id && !enabled()) return;
+        void inTurn(() => recordedCommit(showcaseDir, { id, auto: true })).catch((error) =>
           log(`studio: couldn't commit ${first} (${error?.message ?? error})`),
         );
       }, delayMs);
@@ -639,14 +740,19 @@ export function createShowcaseHistory({
     /** Drops every commit still waiting for its quiet period, without
      *  committing. The studio calls it when the user turns commits off. */
     cancelPending() {
-      [...pending.keys()].forEach(cancel);
+      for (const showcaseDir of [...pending.keys()]) {
+        cancel(showcaseDir);
+        forgetPending(showcaseDir, { skipped: true });
+      }
     },
 
-    /** commit_showcase: commits a showcase now with Claude's message. */
+    /** commit_showcase: commits a showcase now with Claude's message. A
+     *  commit still waiting for the same showcase is folded into it. */
     commitNow(showcaseId, message) {
       const showcaseDir = path.join(getLibrary(), showcaseId);
       cancel(showcaseDir);
-      return inTurn(() => commit(showcaseDir, { message }));
+      forgetPending(showcaseDir);
+      return inTurn(() => recordedCommit(showcaseDir, { by: "claude", why: message, message }));
     },
 
     /** Commits whatever is still waiting for its quiet period, then stops. */
@@ -654,7 +760,10 @@ export function createShowcaseHistory({
       const waiting = [...pending.keys()];
       waiting.forEach(cancel);
       for (const showcaseDir of waiting) {
-        await inTurn(() => commit(showcaseDir, { auto: true })).catch(() => {});
+        const id = pendingActions.get(showcaseDir);
+        pendingActions.delete(showcaseDir);
+        if (!id && !enabled()) continue;
+        await inTurn(() => recordedCommit(showcaseDir, { id, auto: true })).catch(() => {});
       }
       /* A commit already running (a git process holding the folder open)
        * finishes before close resolves, so the caller can remove the

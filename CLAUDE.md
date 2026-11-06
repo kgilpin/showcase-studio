@@ -376,8 +376,10 @@ npm run dev -- --new [<library folder>]
     dev server (`scripts/dev.mjs`) and the packaged app both mount —
     `/showcase-data` (the library's files), `GET /studio/api/info`,
     `GET /studio/api/history` (the git history status, for the "Commit
-    changes to git" switch), `GET /studio/api/events` (server-sent events:
-    reload, info, export progress, build progress, terminal output),
+    changes to git" switch), `GET /studio/api/actions` (the Actions list,
+    `actions-log.mjs`), `GET /studio/api/events` (server-sent events:
+    reload, info, export progress, build progress, each Actions list
+    change, terminal output),
     `GET /studio/api/export-video` (a recorded export's video for the Share
     page's preview, streamed in byte ranges), `POST /studio/api/<action>`
     (scene-edit, showcase-create, asset add/rename/delete, prompter-publish,
@@ -568,6 +570,30 @@ npm run dev -- --new [<library folder>]
     inside a lock — and which are capture pages that ignore it — is
     `src/lib/window-lock.mjs`, shared by the page, which hides Home and
     redirects, and the Electron window, which enforces it as a backstop.
+  - `actions-log.mjs`: the Actions list (issue #41): every export, media
+    build and git commit as one kind of record — kind, showcase, who
+    started it (`by`: user, claude, studio) and why in a sentence, state
+    (pending with a due time, running with the job's progress, done with
+    its result, failed with its error, canceled), and the offers the user
+    can take on it (skip, cancel, retry, rebuild, reveal, dismiss), which
+    run handlers whoever added the record passed in. The export and build
+    lanes report every job to it (`job()`), and `showcase-history.mjs`
+    records each commit's quiet period and outcome (a clean folder ends
+    the record as canceled; `commit_showcase` is Claude's own record).
+    Kept in memory and appended, one line per state change and never per
+    progress report, to `<library>/.studio/actions.jsonl` (rotating like
+    the change log), so a Claude session can `tail -F` it; a pending
+    record is never written, and a record left running when the studio
+    stopped loads as failed. Pages read it over `GET /studio/api/actions`,
+    hear each change as the `action` event, and run offers with the
+    `actions-offer` action; `studio_info` reports `actions`
+    (`summary()`). The tab bar's activity slot and the list behind it are
+    `src/components/studio/StudioActivity.tsx` (the words in
+    `activity-text.ts`): the slot shows the one record that matters most
+    — running, then pending, then an undismissed failure, then a result
+    for a few seconds — and clicking it opens the list in three groups:
+    Now, Needs you, Earlier. It replaced the export and build toasts;
+    `StudioToaster.tsx` only hosts the remaining short notices.
   - `change-log.mjs`: `<library>/.studio/changes.jsonl`: one JSON line per
     write the studio makes on someone's behalf — page edits, asset
     add/rename/delete, new showcases as `"source":"ui"`, `edit_showcase` as

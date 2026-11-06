@@ -1647,3 +1647,112 @@ describe("the studio's own code, from source", () => {
     expect((await info()).changedCode).toEqual(["server/edit-yaml.mjs"]);
   }, 10_000);
 });
+
+describe("the Actions list", () => {
+  const settled = async (post) => {
+    let { job } = await post("export-current");
+    for (let i = 0; job?.status === "running" && i < 100; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      ({ job } = await post("export-current"));
+    }
+    return job;
+  };
+
+  it("records each export with who started it, and runs a record's offers", async () => {
+    const revealed = [];
+    const { studio, url, library, post } = await startStudio({
+      reveal: (target) => revealed.push(target),
+    });
+    const actionsOf = async () => (await (await fetch(`${url}/studio/api/actions`)).json()).actions;
+    expect(await actionsOf()).toEqual([]);
+
+    await post("export", { kind: "script", showcaseId: "nova" });
+    const job = await settled(post);
+    expect(job.status).toBe("done");
+    let records = await actionsOf();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      kind: "export",
+      jobKind: "script",
+      jobId: job.jobId,
+      showcaseId: "nova",
+      by: "user",
+      why: "Started by you",
+      label: "Script",
+      state: "done",
+      result: job.out,
+      offers: ["reveal"],
+    });
+    expect(await post("actions-offer", { id: records[0].id, offer: "reveal" })).toEqual({
+      ok: true,
+    });
+    expect(revealed).toEqual([job.out]);
+    expect(await post("actions-offer", { id: records[0].id, offer: "retry" })).toMatchObject({
+      ok: false,
+    });
+
+    /* An export Claude starts is Claude's, and studio_info sums the list up. */
+    const started = await studio.callTool({
+      name: "export",
+      arguments: { kind: "script", showcaseId: "nova" },
+    });
+    expect(JSON.parse(started.content[0].text)).toMatchObject({ by: "claude" });
+    await settled(post);
+    records = await actionsOf();
+    expect(records[1]).toMatchObject({ by: "claude", why: "Started by Claude", state: "done" });
+    const info = JSON.parse(
+      (await studio.callTool({ name: "studio_info", arguments: {} })).content[0].text,
+    );
+    expect(info.actions).toEqual({
+      pending: 0,
+      running: 0,
+      failed: [],
+      path: path.join(library, ".studio", "actions.jsonl"),
+    });
+    const lines = readFileSync(path.join(library, ".studio", "actions.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(lines.map((l) => l.state)).toEqual(["running", "done", "running", "done"]);
+    expect(lines[0]).not.toHaveProperty("progress");
+  });
+
+  it("lists a failed export with Try again and Dismiss, and tries again", async () => {
+    const { studio, url, post } = await startStudio();
+    const actionsOf = async () => (await (await fetch(`${url}/studio/api/actions`)).json()).actions;
+    await post("export", { kind: "script", showcaseId: "ghost" });
+    await settled(post);
+    let [record] = await actionsOf();
+    expect(record).toMatchObject({ state: "failed", offers: ["retry", "dismiss"] });
+    expect(record.error).toBeTruthy();
+    const info = JSON.parse(
+      (await studio.callTool({ name: "studio_info", arguments: {} })).content[0].text,
+    );
+    expect(info.actions.failed).toEqual([
+      {
+        id: record.id,
+        kind: "export",
+        label: "Script",
+        showcaseId: "ghost",
+        by: "user",
+        error: record.error,
+      },
+    ]);
+
+    expect(await post("actions-offer", { id: record.id, offer: "dismiss" })).toEqual({ ok: true });
+    [record] = await actionsOf();
+    expect(record).toMatchObject({ dismissed: true, offers: ["retry"] });
+
+    expect(await post("actions-offer", { id: record.id, offer: "retry" })).toEqual({ ok: true });
+    await settled(post);
+    const records = await actionsOf();
+    expect(records).toHaveLength(2);
+    expect(records[1]).toMatchObject({
+      kind: "export",
+      showcaseId: "ghost",
+      by: "user",
+      why: "Tried again from the Actions list",
+      state: "failed",
+    });
+  });
+});

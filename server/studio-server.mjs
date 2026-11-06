@@ -11,8 +11,13 @@
  *   GET  /studio/api/info       the studio: URL, library folder, lock, features
  *   GET  /studio/api/history    the library's git history status, for the
  *                               "Commit changes to git" switch
+ *   GET  /studio/api/actions    the Actions list: every export, build and
+ *                               commit — pending, running, done, failed —
+ *                               for the tab bar's activity slot
+ *                               (server/actions-log.mjs)
  *   GET  /studio/api/events     live events (server-sent events): reload,
- *                               info, export, build, terminal-data, terminal-exit
+ *                               info, export, build, action, terminal-data,
+ *                               terminal-exit
  *   GET  /studio/api/export-video?showcase=<id>&id=<record id>
  *                               a recorded export's video, for the Share
  *                               page's preview (byte ranges, so it seeks)
@@ -54,12 +59,14 @@ import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { buildMedia } from "./build-media.mjs";
 import { buildVoiceover, hasVoiceover } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
+import { createActionsLog } from "./actions-log.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { watchStudioCode } from "./code-changes.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { DEFAULT_EXPORT_DIR, revealInFileManager } from "./export-output.mjs";
 import { createExportRecords, RECORDED_KINDS, showcaseDurationMs } from "./export-records.mjs";
 import { frameFileName, runExport, screenshotFrame, videoFps } from "./exporter.mjs";
+import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { SHOWCASE_SCHEMA } from "../src/content/showcase-schema.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
@@ -548,11 +555,39 @@ add notes specific to this library below, and the studio won't touch them.
     return out;
   }
 
+  /* ---------- the Actions list ---------- */
+
+  /* Every export, build and commit as one kind of record
+   * (server/actions-log.mjs): running, pending, done or failed, with who
+   * started it and why, and what the user can do about it. Pages hear
+   * each change as the "action" event and read the list over
+   * GET /studio/api/actions; the tab bar's activity slot shows it. */
+  const actions = createActionsLog(() => showcasesDir, {
+    log,
+    onChange: (record) => emit("action", record),
+  });
+
   /* Every job change goes to every page as the "export" event — the job's
    * status (export-jobs.mjs), whether the page, the MCP tools, or
-   * --export started it. */
+   * --export started it — and into the Actions list, where a failed
+   * export offers to run again and a finished one to be revealed. */
   const exportJobs = createExportJobs(recordedExport, {
-    onChange: (status) => emit("export", status),
+    onChange: (status) => {
+      emit("export", status);
+      actions.job(status, {
+        kind: "export",
+        label: exportLabel(status.kind),
+        handlers: {
+          cancel: () => exportJobs.cancel(status.jobId),
+          retry: () =>
+            exportJobs.start(status.kind, status.showcaseId, {
+              by: "user",
+              why: "Tried again from the Actions list",
+            }),
+          reveal: () => revealExport({ showcaseId: status.showcaseId, jobId: status.jobId }),
+        },
+      });
+    },
   });
 
   /* ---------- media builds ---------- */
@@ -594,7 +629,28 @@ add notes specific to this library below, and the studio won't touch them.
         });
         return result;
       }),
-    { onChange: (status) => emit("build", status), name: "build", poll: "build_status" },
+    {
+      onChange: (status) => {
+        emit("build", status);
+        const again = (force) => () =>
+          buildJobs.start(status.kind, status.showcaseId, {
+            force,
+            by: "user",
+            why: force ? "Rebuilt from the Actions list" : "Tried again from the Actions list",
+          });
+        actions.job(status, {
+          kind: "build",
+          label: status.kind === "voiceover" ? "Build voiceover" : "Build media",
+          handlers: {
+            cancel: () => buildJobs.cancel(status.jobId),
+            retry: again(false),
+            rebuild: again(true),
+          },
+        });
+      },
+      name: "build",
+      poll: "build_status",
+    },
   );
 
   /** Opens the file manager on a showcase's exports: the job's output
@@ -649,6 +705,7 @@ add notes specific to this library below, and the studio won't touch them.
     settings,
     autoCommitDefault: features.autoCommit !== false,
     delayMs: commitDelayMs,
+    actions,
     log,
   });
   const changeLog = createChangeLog(() => showcasesDir, {
@@ -666,6 +723,7 @@ add notes specific to this library below, and the studio won't touch them.
     exportJobs,
     buildJobs,
     changeLog,
+    actions,
     history,
     share,
     openUrl,
@@ -1146,6 +1204,9 @@ scenes:
       return job ? { ok: true, job } : { ok: false, error: `No build job named "${jobId}"` };
     },
     "build-current": () => ({ ok: true, job: buildJobs.current() ?? null }),
+    /* One of a record's offers in the Actions list: skip, cancel, retry,
+     * rebuild, reveal, dismiss. */
+    "actions-offer": ({ id, offer }) => actions.perform(String(id ?? ""), String(offer ?? "")),
     library: setLibrary,
     "terminal-available": () =>
       terminals ? terminals.available() : { ptyReady: false, claude: false },
@@ -1220,6 +1281,10 @@ scenes:
       }
       if (req.method === "GET" && action === "history") {
         sendJson(res, 200, await history.status());
+        return;
+      }
+      if (req.method === "GET" && action === "actions") {
+        sendJson(res, 200, { ok: true, actions: actions.list() });
         return;
       }
       if (req.method === "GET" && action === "events") {
