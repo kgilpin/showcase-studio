@@ -87,7 +87,7 @@ describe("the check_framing tool", () => {
     });
     expect(answer.overlaps).toHaveLength(1);
     expect(answer.overlaps[0]).toMatchObject({ sceneId: "hook", atMs: 1000 });
-    expect(answer.overlaps[0].message).toContain("area: {bottom: 7%}");
+    expect(answer.overlaps[0].message).toContain("area: {bottom: 10%}");
     /* Unchanged, so the second answer is the cached one. */
     expect((await call({ showcaseId: "nova" })).fromCache).toBe(true);
   });

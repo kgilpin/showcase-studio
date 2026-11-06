@@ -420,10 +420,16 @@ export const TOOLS = [
     description:
       "Check on a build_media or build_voiceover job: status (running | done | failed | canceled), what it is " +
       "doing now, and when it is done, what it built, what it left alone, the pins it wrote, " +
-      "and any notes worth telling the user.",
+      "and any notes worth telling the user. Pass waitMs to wait for the build inside the call (up to 120000 ms).",
     inputSchema: {
       type: "object",
-      properties: { jobId: { type: "string" } },
+      properties: {
+        jobId: { type: "string" },
+        waitMs: {
+          type: "number",
+          description: "How long to wait for the build before answering (0–120000 ms)",
+        },
+      },
       required: ["jobId"],
     },
   },
@@ -549,10 +555,19 @@ export const TOOLS = [
     name: "export_status",
     description:
       "Check on an export job: status (running | done | failed | canceled), the current " +
-      "progress label, and the output path once done.",
+      "progress label, and the output path once done. Pass waitMs to wait for the job " +
+      "inside the call (up to 120000 ms) and get its status when it finishes or the wait " +
+      "runs out — one call instead of polling; a full-quality video takes minutes, so " +
+      "wait in a few calls and tell the user between them.",
     inputSchema: {
       type: "object",
-      properties: { jobId: { type: "string" } },
+      properties: {
+        jobId: { type: "string" },
+        waitMs: {
+          type: "number",
+          description: "How long to wait for the job before answering (0–120000 ms)",
+        },
+      },
       required: ["jobId"],
     },
   },
@@ -646,6 +661,25 @@ export function frameLine(frame, { view, width, height, size, animations, safeAr
   ];
   return `${parts.join("")}${shows.length ? ` — ${shows.join(", ")}` : ""}; ${how.join(", ")}.`;
 }
+
+/** The most a status call waits for a job, and how often it looks. */
+export const MAX_WAIT_MS = 120_000;
+const WAIT_POLL_MS = 500;
+
+/** A job's status now — or, with `waitMs`, once it is no longer running
+ *  or that long has passed, whichever comes first. Null for no such job. */
+export async function jobStatus(jobs, jobId, waitMs, { sleep = delay, now = Date.now } = {}) {
+  const wait = Math.min(Math.max(Number(waitMs) || 0, 0), MAX_WAIT_MS);
+  const deadline = now() + wait;
+  let status = jobs.status(jobId);
+  while (status?.status === "running" && now() < deadline) {
+    await sleep(Math.min(WAIT_POLL_MS, Math.max(0, deadline - now())));
+    status = jobs.status(jobId);
+  }
+  return status;
+}
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Runs one tool against a studio. `context` is
  *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, buildJobs,
@@ -841,7 +875,9 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
   if (name === "build_status" || name === "build_cancel") {
     const jobId = String(args.jobId ?? "");
     const result =
-      name === "build_cancel" ? context.buildJobs.cancel(jobId) : context.buildJobs.status(jobId);
+      name === "build_cancel"
+        ? context.buildJobs.cancel(jobId)
+        : await jobStatus(context.buildJobs, jobId, args.waitMs);
     if (!result) throw new Error(`No build job named "${jobId}"`);
     return json(result);
   }
@@ -857,7 +893,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     const result =
       name === "export_cancel"
         ? context.exportJobs.cancel(jobId)
-        : context.exportJobs.status(jobId);
+        : await jobStatus(context.exportJobs, jobId, args.waitMs);
     if (!result) throw new Error(`No export job named "${jobId}"`);
     return json(result);
   }

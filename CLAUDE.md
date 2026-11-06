@@ -416,7 +416,9 @@ npm run dev -- --new [<library folder>]
     (captions over faces, through `face-check.mjs`), `transcribe`
     (with `save`, which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
-    `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`,
+    `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`
+    (the two status tools take `waitMs` and wait for the job inside the
+    call, up to two minutes, so a session needn't poll),
     `share_status`/`share`/`share_record` through `share.mjs`.
   - `faces.mjs`: the face finder: Apple's Vision framework, run from a
     JavaScript for Automation script with osascript the way `airdrop.mjs`
@@ -603,8 +605,11 @@ npm run dev -- --new [<library folder>]
   - `library-config.mjs`: a root-level `showcase_settings.yaml` in a
     showcases folder, which the studio writes, all comments, into every
     library it opens — so it also marks the folder as a library: library
-    settings, currently just `show_in_recent: false` to hide the folder from
-    File > Open Recent; an older library's root `showcase.yaml` with no
+    settings: `show_in_recent: false` to hide the folder from File > Open
+    Recent, and `export_dir` to put the library's exports in a folder of
+    its own (relative to the library or absolute, one subfolder per
+    showcase) instead of `~/Downloads/showcase-exports`; an older
+    library's root `showcase.yaml` with no
     `scenes` or `meta` is renamed to it when a studio opens the library, and
     read until then.
 - `electron/`: Packaging only. No studio feature lives here:

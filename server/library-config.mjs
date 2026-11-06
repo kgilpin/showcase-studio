@@ -1,9 +1,13 @@
 /* Library-level settings: a showcase_settings.yaml at the ROOT of a
  * showcases folder. The studio writes one (all comments) into every
  * library it opens, so the file also marks the folder as a library —
- * even before it holds any showcases. One setting so far:
+ * even before it holds any showcases. The settings:
  *
  *   show_in_recent: false    keep this folder out of File > Open Recent
+ *   export_dir: exports      where this library's exports land, instead of
+ *                            ~/Downloads/showcase-exports: a folder path,
+ *                            relative to the library root or absolute
+ *                            (<export_dir>/<showcase id>/ per showcase)
  *
  * Unknown keys are ignored.
  *
@@ -65,6 +69,8 @@ export const SETTINGS_TEMPLATE = `# Showcase Studio library settings.
 # remove the # to turn one on.
 #
 # show_in_recent: false   # keep this folder out of File > Open Recent
+# export_dir: exports      # put exports in this folder (relative to the
+#                          # library, or absolute) instead of ~/Downloads
 `;
 
 /** Gives the library its settings file: renames an older root
@@ -86,4 +92,13 @@ export function libraryConfig(dir) {
 /** False only when the folder's settings say show_in_recent: false. */
 export function showInRecent(dir) {
   return libraryConfig(dir).show_in_recent !== false;
+}
+
+/** The folder the library's exports go in, absolute, when its settings
+ *  name one (export_dir, relative to the library root or absolute);
+ *  undefined to use the studio's default. */
+export function libraryExportDir(dir) {
+  const value = libraryConfig(dir).export_dir;
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  return path.resolve(dir, value.trim());
 }

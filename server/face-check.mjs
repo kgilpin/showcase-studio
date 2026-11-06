@@ -30,8 +30,12 @@ import { formatClock, MAX_FRAMES_PER_CALL, screenshotFrame } from "./exporter.mj
 /** A caption covering less of a face's box than this is a touch, not a
  *  cover: Vision's box reaches a little past the chin. */
 export const COVERED_THRESHOLD = 0.05;
-/** How far the face should clear the caption, in percent of the frame. */
-export const CLEAR_MARGIN_PERCENT = 3;
+/** How far the face should clear the caption, in percent of the frame,
+ *  and the step the suggested lift is rounded up to: a round number with
+ *  room to spare, not the bare minimum. The first hand-made lift was
+ *  15% where the minimum was 8%. */
+export const CLEAR_MARGIN_PERCENT = 5;
+export const LIFT_STEP_PERCENT = 5;
 
 /** Whether a scene's picture can hold a face the captions could cover:
  *  image or video media that takes up the frame — the same scenes a
@@ -92,13 +96,15 @@ function percentOf(value) {
 export function overlapMessage({ caption, atMs, face, box, covered, lifted = 0 }) {
   const text = caption.text.length > 40 ? `${caption.text.slice(0, 39)}…` : caption.text;
   const faceBottom = face.top + face.height;
-  const lift = Math.ceil(faceBottom - box.top + CLEAR_MARGIN_PERCENT);
+  const lift =
+    Math.ceil((faceBottom - box.top + CLEAR_MARGIN_PERCENT) / LIFT_STEP_PERCENT) *
+    LIFT_STEP_PERCENT;
   const round = (n) => Math.round(n);
   return (
     `Caption ${caption.index + 1} of ${caption.count} ("${text}") sits over the speaker's face at ` +
     `${atMs} ms (${formatClock(atMs)}): the face spans ${round(face.top)}–${round(faceBottom)}% down ` +
     `the frame, the caption ${round(box.top)}–${round(box.top + box.height)}%, covering ` +
-    `${Math.round(covered * 100)}% of the face. Lift the picture ${lift}% — media.tiktok ` +
+    `${Math.round(covered * 100)}% of the face. Lift the picture ${lift}% or more — media.tiktok ` +
     `{fit: fill, focus: bottom, bands: blur, area: {bottom: ${lifted + lift}%}} — or move the ` +
     `caption off it (position: top). Then check with screenshot_frame {atMs: ${atMs}}.`
   );
