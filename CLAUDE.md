@@ -757,6 +757,22 @@ npm run dev -- --new [<library folder>]
   at **prod** (live Stripe, real money).
   There is no YouTube
   link yet: add one to the top bar and the footer when the channel exists.
+- `rehearsal/` and `scripts/rehearsal/`: the release rehearsal, a test of
+  the authoring process rather than of the code's output: a fresh Claude
+  session builds a showcase from raw inputs through the plugin, and the
+  transcript is graded for whether the capabilities added since the last
+  release got used and helped. `rehearsal/scenarios/<name>/` holds what a
+  run starts from (the brief in the user's words, naming no tool; the raw
+  files to copy in; the scratch library's settings; the rubric),
+  `scripts/rehearsal/` the runner (`run.sh`, `claude -p` with the plugin
+  on a scratch library, from a checkout or the packaged app), the follower,
+  the grader (timeline, counts, rubric, the real recap) and the outside
+  verifier, and `rehearsal/reports/` what each run found. Runs land
+  outside the repository (`$TMPDIR/showcase-rehearsal/`), so the scratch
+  library gets a history of its own and a session can't browse the
+  scenarios. The `rehearsal` skill
+  (`.claude/skills/rehearsal`) is the procedure; the release skill runs
+  it between the build and the tag.
 - `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
   its own `cdk/appmap.yml`): The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via

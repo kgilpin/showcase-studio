@@ -1,0 +1,31 @@
+# What a good run of this scenario looks like. grade.py checks each line
+# against the transcript and prints a yes/no table. The brief names no
+# tool, so a tool used here was found through the guide and the tool
+# descriptions.
+#
+# A phone selfie puts the face right where the bottom captions go, so
+# this scenario exercises the caption-over-face check, the frame tool,
+# and encoding through the ffmpeg tool (the end-card composite).
+
+tools_used:
+  - check_framing            # the face check, before reporting done
+  - screenshot_frame         # frames looked at instead of draft exports
+  - ffmpeg                   # the composite encoded into assets/ safely
+  - build_media              # the cut list built, not hand-cut clips
+  - transcribe               # the real words, for karaoke
+
+# A second check_framing after the fix, so the fix was confirmed.
+tools_used_at_least:
+  check_framing: 2
+
+# One draft, the one the brief asks for. More means checking by export.
+max_calls:
+  export: 1
+
+# No sleep loops: export_status takes waitMs.
+bash_must_not_match:
+  - "sleep [0-9]"
+
+# The result, checked from outside the session by scripts/rehearsal/verify.sh.
+outcome:
+  check_framing_overlaps: 0

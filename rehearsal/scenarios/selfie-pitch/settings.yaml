@@ -1,0 +1,5 @@
+# The scratch library's showcase_settings.yaml. It marks the folder as a
+# library, and keeps the run's exports inside the run folder instead of
+# the user's ~/Downloads/showcase-exports.
+export_dir: exports
+show_in_recent: false

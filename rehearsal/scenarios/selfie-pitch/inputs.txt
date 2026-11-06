@@ -1,0 +1,9 @@
+# The raw files the scenario starts from, copied from --inputs into the
+# scratch library's raw/ folder. Nothing derived: no showcase.yaml, no
+# transcript, no clips, no voiceover.
+nova-play-together-take-8.mp4
+cutaway-battle-replay.mp4
+cutaway-quick-tap.mp4
+cutaway-gentle-start.mp4
+cutaway-grand-finale.mp4
+nova app store image.png
