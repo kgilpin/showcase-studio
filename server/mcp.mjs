@@ -100,7 +100,13 @@ export const TOOLS = [
       "as ONE write; if any edit fails, nothing is written. Each edit is an object with " +
       "`field` plus its parameters:\n" +
       '- {field: "scene.set", sceneId, name, value} — one scene field: title, eyebrow, theme, ' +
-      "support, ctaNote, captionStyle, transition, durationMs, export, id, note (the scene's " +
+      "support, ctaNote, captionStyle, transition, durationMs (a new value re-scales the " +
+      "captions' own durationMs by the same ratio, so they still add up; scaleCaptions: " +
+      "false on the edit leaves them), maxMs (the longest this scene should run — overrides " +
+      "meta.sceneMaxMs), speed (a video clip's playing rate, 0.25–4, written to " +
+      "media.speed: the player and every export play the clip that fast, so a scene's " +
+      "natural length is clip length ÷ speed — the fix for a long screen recording), " +
+      "export, id, note (the scene's " +
       "authoring note — keep working context here, not in YAML comments), cta " +
       "({label, url, kind?}), or watermark (false opts this slide out of the showcase's brand " +
       "mark, true forces it on, a map overrides a field or two for this slide — an empty " +
@@ -117,7 +123,10 @@ export const TOOLS = [
       '{field: "caption.delete", sceneId, captionIndex}\n' +
       '- {field: "scene.insert", index, scene: {id, theme, captions, media, ...}}, ' +
       '{field: "scene.delete", sceneId}, and {field: "scene.move", sceneId, index}\n' +
-      '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
+      '- {field: "meta.set", name, value} — meta title, description, loop, pace, sceneMaxMs ' +
+      "(the longest any scene should run, in ms: validate and the player warn about each " +
+      "scene over it, saying why it is long), targetMs (what the whole video should add up " +
+      "to, in ms: a warning names the longest scenes when it runs over), captionStyle, " +
       "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
       'default, which hides them when a synced voiceover is set), view ("tiktok", "screens" ' +
       'or "embed" — the player view the showcase opens in, for a showcase made for one ' +
@@ -288,9 +297,12 @@ export const TOOLS = [
     name: "validate",
     description:
       "Parse and build every showcase in the library exactly as the app does. Returns the " +
-      "showcases that loaded (id, title, slides, runtime), theme-linter warnings (per scene), " +
-      "and, for any showcase that failed, the error message. Use it after YAML edits to " +
-      "confirm nothing broke.",
+      "showcases that loaded (id, title, slides, runtime, and the target runtime when " +
+      "meta.targetMs sets one), linter warnings (per scene: themes, media, and length — a " +
+      "scene over its maxMs or meta.sceneMaxMs says how far over and why, a showcase over " +
+      "meta.targetMs names its longest scenes), and, for any showcase that failed, the " +
+      "error message. Use it after YAML edits to confirm nothing broke, and read the length " +
+      "warnings before telling the user a showcase is done.",
     inputSchema: { type: "object", properties: {} },
   },
   {

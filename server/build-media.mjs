@@ -554,6 +554,8 @@ export async function buildMedia({
     sceneId: cut.id,
     name: "durationMs",
     value: cut.durationMs,
+    /* The cut decides the scene; its captions keep whatever they say. */
+    scaleCaptions: false,
   }));
   /* A clip scene whose media is still empty gets pointed at its clip;
    * one that already names something is left alone. */

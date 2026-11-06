@@ -405,6 +405,112 @@ atmosphere:
   });
 });
 
+/* The length limits: meta.sceneMaxMs, a scene's own maxMs, and
+ * meta.targetMs. They only warn — the timing is unchanged. */
+describe("scene and showcase length", () => {
+  const yaml = `
+meta:
+  title: Long
+  description: Runs long
+  sceneMaxMs: 4000
+  targetMs: 10000
+scenes:
+  - id: short
+    theme: statement
+    captions:
+      - text: Hello.
+  - id: pinned
+    theme: footage
+    durationMs: 9000
+    captions:
+      - text: A pinned clip.
+    media:
+      kind: video
+      asset: clip
+      alt: A clip
+      speed: 2
+  - id: allowed
+    theme: statement
+    maxMs: 12000
+    durationMs: 9000
+    captions:
+      - text: Allowed to run long.
+`;
+
+  it("warns about each scene over its maximum, with why, and marks it", async () => {
+    const showcase = await load("length", yaml, ["clip.mp4"]);
+    const [short, pinned, allowed] = showcase.scenes;
+    expect(short!.durationMs).toBe(3500);
+    expect(short!.maxMs).toBe(4000);
+    expect(short!.overMs).toBeUndefined();
+    expect(warningsFor("short")).toEqual([]);
+    expect(pinned!.overMs).toBe(5000);
+    expect(warningsFor("pinned")).toEqual([
+      "9 s long, 5 s over the 4 s maximum: pinned by durationMs (a video clip: media.speed " +
+        "plays it faster); 1 caption, 3 words",
+    ]);
+    /* The scene's own maxMs wins over the showcase's. */
+    expect(allowed!.maxMs).toBe(12000);
+    expect(allowed!.overMs).toBeUndefined();
+    expect(warningsFor("allowed")).toEqual([]);
+  });
+
+  it("warns once about the showcase over its target, naming the longest scenes", async () => {
+    const showcase = await load("length-target", yaml, ["clip.mp4"]);
+    expect(showcase.targetMs).toBe(10000);
+    expect(warningsFor("")).toEqual([
+      "runs 21.5 s, 11.5 s over the 10 s target — longest: pinned (9 s), allowed (9 s), short (3.5 s)",
+    ]);
+  });
+
+  it("reads a clip's speed, and drops one that is out of range or on an image", async () => {
+    const showcase = await load("length-speed", yaml, ["clip.mp4"]);
+    const media = showcase.scenes[1]!.media;
+    expect(media.kind === "video" && media.speed).toBe(2);
+
+    const bad = await load(
+      "length-bad-speed",
+      yaml.replace("speed: 2", "speed: 9").replace("maxMs: 12000", "maxMs: soon"),
+      ["clip.mp4"],
+    );
+    const badMedia = bad.scenes[1]!.media;
+    expect(badMedia.kind === "video" && badMedia.speed).toBeUndefined();
+    expect(warningsFor("pinned")[0]).toBe(
+      "media.speed must be between 0.25 and 4 — playing the clip at 1",
+    );
+    expect(warningsFor("allowed")[0]).toBe(
+      'maxMs must be a positive number of milliseconds — ignoring "soon"',
+    );
+  });
+
+  it("ignores a limit that isn't a number, with a warning, and warns about speed on an image", async () => {
+    const image = `
+meta:
+  title: Still
+  description: An image with a speed
+  sceneMaxMs: fast
+scenes:
+  - id: one
+    theme: feature
+    captions:
+      - text: Hello.
+    media:
+      kind: image
+      asset: shot
+      alt: A shot
+      speed: 2
+`;
+    const showcase = await load("length-image", image, ["shot.png"]);
+    expect(showcase.scenes[0]!.maxMs).toBeUndefined();
+    expect(warningsFor("")).toEqual([
+      'meta.sceneMaxMs must be a positive number of milliseconds — ignoring "fast"',
+    ]);
+    expect(warningsFor("one")).toEqual([
+      "media.speed only applies to a video — remove it from this image",
+    ]);
+  });
+});
+
 describe("library order", () => {
   const yaml = (title: string) => `
 meta:

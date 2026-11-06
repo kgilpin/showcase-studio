@@ -608,6 +608,7 @@ export function validateShowcases(renderer, appUrl) {
             title: s.title,
             slides: s.scenes.length,
             runtimeSeconds: Math.round(s.scenes.reduce((sum, x) => sum + x.durationMs, 0) / 1000),
+            ...(s.targetMs != null ? { targetSeconds: Math.round(s.targetMs / 1000) } : {}),
           })),
           errors,
           warnings,

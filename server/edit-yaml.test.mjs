@@ -239,6 +239,140 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     expect(out).toContain("A second line. # trailing comment");
   });
 
+  /* A pinned scene with pinned captions: a new scene length re-scales
+   * the captions by the same ratio, so they still add up (issue #21). */
+  const PINNED = `meta:
+  title: Pinned
+scenes:
+  - id: first-run
+    theme: footage
+    durationMs: 24400
+    captions:
+      - text: One
+        durationMs: 5000
+      - text: Two
+        durationMs: 7300 # keeps its comment
+      - text: Three
+        durationMs: 4100
+      - text: Four
+        durationMs: 8000
+    media:
+      kind: video
+      asset: clip-first-run
+      alt: The first run
+`;
+
+  it("re-scales pinned captions with a new scene durationMs, so they still add up", () => {
+    const out = applySceneEdit(PINNED, {
+      sceneId: "first-run",
+      field: "scene.set",
+      name: "durationMs",
+      value: 12200,
+    });
+    expect(out).toBe(
+      PINNED.replace("durationMs: 24400", "durationMs: 12200")
+        .replace("durationMs: 5000", "durationMs: 2500")
+        .replace("durationMs: 7300", "durationMs: 3650")
+        .replace("durationMs: 4100", "durationMs: 2050")
+        .replace("durationMs: 8000", "durationMs: 4000"),
+    );
+  });
+
+  it("lands rounding drift on the last pinned caption, and leaves untimed ones alone", () => {
+    const doc = PINNED.replace(
+      "      - text: Three\n        durationMs: 4100\n",
+      "      - text: Three\n",
+    );
+    const out = applySceneEdit(doc, {
+      sceneId: "first-run",
+      field: "scene.set",
+      name: "durationMs",
+      value: 10001,
+    });
+    /* 20300 pinned × 10001/24400 = 8320.6 → 8321 in all: 2049 + 2992 + 3280. */
+    expect(out).toContain("durationMs: 2049\n");
+    expect(out).toContain("durationMs: 2992 # keeps its comment\n");
+    expect(out).toContain("- text: Three\n      - text: Four\n        durationMs: 3280\n");
+    expect(out).toContain("durationMs: 10001\n");
+  });
+
+  it("scales from the pinned captions' sum when the scene had no pin of its own", () => {
+    const doc = PINNED.replace("    durationMs: 24400\n", "");
+    const out = applySceneEdit(doc, {
+      sceneId: "first-run",
+      field: "scene.set",
+      name: "durationMs",
+      value: 48800,
+    });
+    expect(out).toContain("durationMs: 10000\n");
+    expect(out).toContain("durationMs: 14600 # keeps its comment\n");
+    expect(out).toContain("durationMs: 8200\n");
+    expect(out).toContain("durationMs: 16000\n");
+  });
+
+  it("leaves the captions alone with scaleCaptions: false, or when nothing is pinned", () => {
+    const out = applySceneEdit(PINNED, {
+      sceneId: "first-run",
+      field: "scene.set",
+      name: "durationMs",
+      value: 12200,
+      scaleCaptions: false,
+    });
+    expect(out).toBe(PINNED.replace("durationMs: 24400", "durationMs: 12200"));
+    const plain = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "durationMs",
+      value: 4890,
+    });
+    expect(plain).toContain("durationMs: 4890");
+    expect(plain).not.toMatch(/- text: The opening line[^\n]*\n\s+durationMs/);
+  });
+
+  it("sets a scene's maxMs and the showcase's sceneMaxMs and targetMs", () => {
+    let out = applySceneEdit(DOC, {
+      sceneId: "intro",
+      field: "scene.set",
+      name: "maxMs",
+      value: 8000,
+    });
+    expect(out).toContain("    maxMs: 8000\n");
+    out = applySceneEdit(out, { field: "meta.set", name: "sceneMaxMs", value: 8000 });
+    out = applySceneEdit(out, { field: "meta.set", name: "targetMs", value: 60000 });
+    expect(out).toContain("  sceneMaxMs: 8000\n");
+    expect(out).toContain("  targetMs: 60000\n");
+    expect(() => applySceneEdit(DOC, { field: "meta.set", name: "targetMs", value: 1.5 })).toThrow(
+      "meta.targetMs must be a whole number of milliseconds",
+    );
+    expect(applySceneEdit(out, { field: "meta.set", name: "targetMs", value: null })).not.toContain(
+      "targetMs",
+    );
+  });
+
+  it("sets a clip's speed on video media only, within range", () => {
+    const out = applySceneEdit(PINNED, {
+      sceneId: "first-run",
+      field: "scene.set",
+      name: "speed",
+      value: 2,
+    });
+    expect(out).toContain("      alt: The first run\n      speed: 2\n");
+    expect(
+      applySceneEdit(out, { sceneId: "first-run", field: "scene.set", name: "speed", value: null }),
+    ).toBe(PINNED);
+    expect(() =>
+      applySceneEdit(PINNED, {
+        sceneId: "first-run",
+        field: "scene.set",
+        name: "speed",
+        value: 10,
+      }),
+    ).toThrow("scene.speed must be between 0.25 and 4");
+    expect(() =>
+      applySceneEdit(DOC, { sceneId: "intro", field: "scene.set", name: "speed", value: 2 }),
+    ).toThrow('Scene "intro" shows an image — speed applies to a video');
+  });
+
   it("removes an optional scene field on null and refuses removing a required one", () => {
     const withEyebrow = applySceneEdit(DOC, {
       sceneId: "intro",

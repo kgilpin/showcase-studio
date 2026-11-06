@@ -183,7 +183,8 @@ export function ShowcasePlayer({
       }
       for (const video of root.querySelectorAll("video")) {
         const place = () => {
-          const seconds = offset / 1000;
+          /* A clip with media.speed covers more of itself per second. */
+          const seconds = (offset / 1000) * (video.playbackRate || 1);
           video.currentTime = video.duration ? seconds % video.duration : seconds;
         };
         if (video.readyState >= 1) place();
@@ -395,10 +396,10 @@ export function ShowcasePlayer({
         onClick={(e) => e.stopPropagation()}
       >
         <ProgressRail
-          count={scenes.length}
+          scenes={scenes}
           index={index}
           progress={progress}
-          durations={scenes.map((s) => s.durationMs / 1000)}
+          targetMs={showcase.targetMs}
           onSelect={(i) => go(i)}
         />
         <div className="flex items-center gap-6 text-muted-foreground">

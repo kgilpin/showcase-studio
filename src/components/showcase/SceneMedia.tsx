@@ -36,6 +36,7 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const bandVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoSrc = media.kind === "video" ? media.src : undefined;
+  const videoSpeed = media.kind === "video" ? (media.speed ?? 1) : 1;
 
   /* The `paused` prop freezes CSS animations via animationPlayState, but a
    * <video> runs on its own clock — pause and resume it explicitly (the
@@ -47,6 +48,16 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
       else void video.play().catch(() => undefined);
     }
   }, [paused, videoSrc]);
+  /* media.speed: the clip plays that fast. The player's scrubber and the
+   * video recorder read playbackRate back when they seek, so a clip at
+   * speed 2 shows its 20 s mark 10 s into the scene in every view and
+   * export. The element remounts with its src, so a new clip starts at 1
+   * until this runs. */
+  useEffect(() => {
+    for (const video of [videoRef.current, bandVideoRef.current]) {
+      if (video) video.playbackRate = videoSpeed;
+    }
+  }, [videoSpeed, videoSrc]);
   /* A video must never run while the player is paused — autoplay can
    * start one after the effect above has paused it. */
   const pausedRef = useRef(paused);

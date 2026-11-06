@@ -15,7 +15,14 @@
 
 import { parse } from "yaml";
 import { useSyncExternalStore, type ComponentType } from "react";
-import { alignCaptionWords, resolveSceneTiming, type WordWindow } from "./timing.mjs";
+import {
+  alignCaptionWords,
+  resolveSceneTiming,
+  sceneLengthWarning,
+  showcaseLengthWarning,
+  videoSpeedProblem,
+  type WordWindow,
+} from "./timing.mjs";
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
@@ -90,6 +97,10 @@ export type SceneMedia =
       align?: MediaAlign;
       /** Crop to fill ("cover", default) or show the whole image ("contain"). */
       fit?: MediaFit;
+      /** A video clip's playing rate (media.speed, 0.25–4): the player
+       *  and every export play it that fast, so a long screen recording
+       *  can be shortened without re-encoding it. Unset plays at 1. */
+      speed?: number;
       /** How the picture goes into TikTok's 9:16 frame — resolved from
        *  `media.tiktok`, `meta.tiktok`, then fit/align (tiktok-fit.ts). */
       tiktok?: TikTokFit;
@@ -195,6 +206,13 @@ export type Scene = {
   media: SceneMedia;
   /** Resolved slide length — explicit in the YAML, or derived from the copy. */
   durationMs: number;
+  /** The longest this scene should run: its own `maxMs`, else
+   *  `meta.sceneMaxMs`. A linter warning (and `overMs`) when it runs
+   *  longer; the timing itself is unchanged. */
+  maxMs?: number;
+  /** How far past `maxMs` the scene runs, when it does — the scene rail
+   *  marks these. */
+  overMs?: number;
   /** Set false to leave this scene out of the exported screenshot set
    *  (footage scenes default out; `export: true` opts one back in). */
   export?: boolean;
@@ -275,6 +293,10 @@ export type Showcase = {
   scenes: Scene[];
   /** Scenes included in the App Store screenshot export (`export: false` opts out). */
   exportScenes: Scene[];
+  /** What the whole video should add up to (meta.targetMs), when the
+   *  author set one: the scene rail shows the total against it, and the
+   *  linter warns when the showcase runs over. */
+  targetMs?: number | undefined;
 };
 
 type RawMedia =
@@ -289,6 +311,8 @@ type RawMedia =
       fit?: MediaFit;
       /** As authored — checked and resolved in buildShowcase. */
       tiktok?: unknown;
+      /** A video's playing rate, as authored — checked in resolveMedia. */
+      speed?: unknown;
       /** Graphic key in graphics/, drawn over the picture. */
       overlay?: string;
       fadeTo?: { asset: string; alt: string; align?: MediaAlign };
@@ -313,6 +337,9 @@ type RawScene = Omit<
   media?: RawMedia;
   captions?: SceneCaption[];
   durationMs?: number;
+  /** The longest this scene should run, as authored — overrides
+   *  meta.sceneMaxMs; checked in buildShowcase. */
+  maxMs?: unknown;
   /** As authored — validated (with a linter warning) in buildShowcase. */
   captionStyle?: string;
   /** Obsolete (titles are no longer spoken) — linted. */
@@ -329,8 +356,14 @@ type RawDoc = {
     soundtrack?: { src: string; volume: number; sync?: boolean };
     cover?: string;
     notes?: string;
-    /** Reading speed in words per second for derived timing (default 3). */
+    /** Reading speed in words per second for derived timing (default 2.5). */
     pace?: number;
+    /** The longest any scene should run, in ms — a scene's own maxMs
+     *  overrides it; checked (with a linter warning) in buildShowcase. */
+    sceneMaxMs?: unknown;
+    /** What the whole video should add up to, in ms — checked (with a
+     *  linter warning) in buildShowcase. */
+    targetMs?: unknown;
     /** The master recording this showcase is cut from, when it is one.
      *  Read by the build (server/build-plan.mjs), ignored here: the build
      *  writes the durationMs pins the player actually follows. */
@@ -631,6 +664,19 @@ function resolveMedia(
       }
     }
   }
+  /* A clip's playing rate: out of range or on an image, it is dropped
+   * with a warning and the clip plays at 1. */
+  let speed: number | undefined;
+  if (media.speed !== undefined) {
+    const problem = videoSpeedProblem(media.speed);
+    if (media.kind !== "video") {
+      warn("media.speed only applies to a video — remove it from this image");
+    } else if (problem) {
+      warn(`media.speed ${problem} — playing the clip at 1`);
+    } else {
+      speed = media.speed as number;
+    }
+  }
   return {
     kind: media.kind,
     ...(overlay ? { overlay } : {}),
@@ -642,6 +688,7 @@ function resolveMedia(
     ...(media.frame ? { frame: media.frame } : {}),
     ...(media.align ? { align: media.align } : {}),
     ...(media.fit ? { fit: media.fit } : {}),
+    ...(speed != null && speed !== 1 ? { speed } : {}),
     fadeTo:
       media.fadeTo && fadeTo
         ? {
@@ -851,6 +898,20 @@ function resolveCaptionStyle(
   return undefined;
 }
 
+/** A length limit as authored (meta.sceneMaxMs, meta.targetMs, a scene's
+ *  maxMs): a positive number of milliseconds, else a warning and no
+ *  limit. */
+function readLimit(
+  value: unknown,
+  where: string,
+  warn: (message: string) => void,
+): number | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+  warn(`${where} must be a positive number of milliseconds — ignoring "${String(value)}"`);
+  return undefined;
+}
+
 function buildShowcase(
   showcaseId: string,
   doc: RawDoc,
@@ -864,11 +925,18 @@ function buildShowcase(
     warn("", message),
   );
   const baseTikTok = readTikTokFit(doc.meta.tiktok, "meta.tiktok", (message) => warn("", message));
+  /* The length limits (see LENGTH in timing.mjs): the longest any scene
+   * should run, and what the whole video should add up to. */
+  const sceneMaxMs = readLimit(doc.meta.sceneMaxMs, "meta.sceneMaxMs", (message) =>
+    warn("", message),
+  );
+  const targetMs = readLimit(doc.meta.targetMs, "meta.targetMs", (message) => warn("", message));
   const scenes: Scene[] = doc.scenes.map((raw) => {
     const {
       titleDurationMs: _titleDurationMs,
       captionsIn: _captionsIn,
       watermark: authoredWatermark,
+      maxMs: authoredMaxMs,
       ...scene
     } = raw;
     const { theme, warnings } = lintScene(raw);
@@ -919,6 +987,12 @@ function buildShowcase(
       return placed;
     });
     const timing = { ...resolved, captions };
+    /* The scene's own maxMs wins over the showcase's; a scene that runs
+     * longer is warned about, with why, and marked for the scene rail. */
+    const maxMs =
+      readLimit(authoredMaxMs, "maxMs", (message) => warnings.push(message)) ?? sceneMaxMs;
+    const lengthWarning = sceneLengthWarning(raw, timing.durationMs, maxMs);
+    if (lengthWarning) warnings.push(lengthWarning);
     warnings.forEach((message) => warn(raw.id, message));
     return {
       ...scene,
@@ -927,10 +1001,14 @@ function buildShowcase(
       body: timing.captions[0]?.text,
       media,
       captionStyle,
+      ...(maxMs != null ? { maxMs } : {}),
+      ...(lengthWarning ? { overMs: timing.durationMs - (maxMs as number) } : {}),
       ...(watermark ? { watermark } : {}),
       ...(warnings.length > 0 ? { warnings } : {}),
     };
   });
+  const lengthWarning = showcaseLengthWarning(scenes, targetMs);
+  if (lengthWarning) warn("", lengthWarning);
   /* Whisper-exact caption words: when the soundtrack has a
    * word-timestamp sidecar (assets/<src>.words.json — the transcribe
    * tool's output), align it to the narration so worded caption styles
@@ -979,6 +1057,7 @@ function buildShowcase(
     builtMedia: Boolean(doc.meta.source || doc.meta.voiceover),
     embedCaptions,
     view,
+    targetMs,
     watermark: resolveWatermarkAsset(
       showcaseId,
       resolveWatermark(baseWatermark, true, {}, () => {}),

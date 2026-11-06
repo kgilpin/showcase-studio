@@ -1,26 +1,43 @@
 import { cn } from "@/lib/utils";
+import type { Scene } from "@/content/showcases";
+import { captionCopySummary, formatSeconds } from "@/content/timing.mjs";
+
+/** What the rail reads from each scene: its length, its length limit, and
+ *  the copy it carries (shown on hover, so an author can see which slide
+ *  has too many words without opening the script). */
+export type RailScene = Pick<Scene, "durationMs" | "maxMs" | "overMs" | "captions">;
+
+/** The tooltip for one segment: the copy, and how far over the maximum
+ *  the scene runs when it does. */
+function sceneRailDetail(scene: RailScene): string {
+  const copy = captionCopySummary(scene);
+  if (scene.overMs == null || scene.maxMs == null) return copy;
+  return `${copy} — ${formatSeconds(scene.overMs)} over the ${formatSeconds(scene.maxMs)} maximum`;
+}
 
 export function ProgressRail({
-  count,
+  scenes,
   index,
   progress,
-  durations,
+  targetMs,
   onSelect,
 }: {
-  count: number;
+  scenes: RailScene[];
   index: number;
   progress: number;
-  /** Duration of each slide in seconds, shown under each segment. */
-  durations: number[];
+  /** meta.targetMs — the total is shown against it when set. */
+  targetMs?: number | undefined;
   onSelect: (i: number) => void;
 }) {
+  const totalMs = scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
+  const overTarget = targetMs != null && totalMs > targetMs;
   return (
     <div className="flex w-full max-w-md items-start gap-2">
-      {Array.from({ length: count }).map((_, i) => {
+      {scenes.map((scene, i) => {
         const isActive = i === index;
         const isCompleted = i < index;
         const fill = isCompleted ? "100%" : isActive ? `${progress * 100}%` : "0%";
-        const duration = durations[i] ?? 0;
+        const over = scene.overMs != null;
 
         return (
           <button
@@ -28,6 +45,7 @@ export function ProgressRail({
             type="button"
             aria-label={`Go to scene ${i + 1}`}
             aria-current={isActive ? "step" : undefined}
+            title={sceneRailDetail(scene)}
             onClick={(e) => {
               e.stopPropagation();
               onSelect(i);
@@ -39,6 +57,9 @@ export function ProgressRail({
                 "block h-2 w-full overflow-hidden rounded-full transition-colors",
                 isActive ? "bg-muted-foreground/25" : "bg-secondary",
                 "group-hover:bg-muted-foreground/35",
+                /* A scene over its maximum wears an amber ring, so the
+                 * long slides show at a glance (issue #21). */
+                over && "ring-1 ring-amber-400/80",
               )}
             >
               <span
@@ -52,14 +73,29 @@ export function ProgressRail({
             <span
               className={cn(
                 "text-[0.65rem] tabular-nums leading-none transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground/60",
+                over ? "text-amber-400/90" : isActive ? "text-primary" : "text-muted-foreground/60",
               )}
             >
-              {duration.toFixed(1)}s
+              {(scene.durationMs / 1000).toFixed(1)}s
             </span>
           </button>
         );
       })}
+      {targetMs != null && (
+        <span
+          title={
+            overTarget
+              ? `Runs ${formatSeconds(totalMs)}, ${formatSeconds(totalMs - targetMs)} over the ${formatSeconds(targetMs)} target`
+              : `Runs ${formatSeconds(totalMs)} of the ${formatSeconds(targetMs)} target`
+          }
+          className={cn(
+            "shrink-0 self-start pt-3 text-[0.65rem] tabular-nums leading-none",
+            overTarget ? "text-amber-400/90" : "text-muted-foreground/60",
+          )}
+        >
+          {formatSeconds(totalMs)} / {formatSeconds(targetMs)}
+        </span>
+      )}
     </div>
   );
 }
