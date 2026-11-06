@@ -1270,7 +1270,12 @@ describe("sharing", () => {
     const video = recordExport(library, exportDir);
     const { status } = await post("share-status", { showcaseId: "nova" });
     expect(status.exports.video.current).toMatchObject({ id: video.id, current: true });
-    expect(status.destinations.map((d) => d.id)).toEqual(["tiktok", "instagram", "youtube"]);
+    expect(status.destinations.map((d) => d.id)).toEqual([
+      "tiktok",
+      "instagram",
+      "youtube",
+      "youtube43",
+    ]);
 
     const edited = await post("scene-edit", {
       showcaseId: "nova",
@@ -1490,4 +1495,59 @@ describe("licensing", () => {
     await startStudio({ licensing: (deps) => ((given = deps), allowAll) });
     expect(Object.keys(given).sort()).toEqual(["onChange", "openUrl", "settings"]);
   });
+});
+
+describe("the studio's own code, from source", () => {
+  /** A checkout the studio takes for its source: src/components marks it. */
+  function checkout() {
+    const dir = tempDir("studio-src-");
+    mkdirSync(path.join(dir, "src", "components"), { recursive: true });
+    mkdirSync(path.join(dir, "server"), { recursive: true });
+    writeFileSync(path.join(dir, "server", "edit-yaml.mjs"), "export const a = 1;\n");
+    return dir;
+  }
+
+  it("is not reported by a studio with no source (the packaged app)", async () => {
+    const { info } = await startStudio({ features: { watch: true } });
+    expect(await info()).not.toHaveProperty("changedCode");
+  });
+
+  it("is reported as changedCode, and sent to pages, once a module changes on disk", async () => {
+    const srcDir = checkout();
+    const { url, info } = await startStudio({ srcDir, features: { watch: true } });
+    expect((await info()).changedCode).toEqual([]);
+
+    const controller = new AbortController();
+    cleanups.push(() => controller.abort());
+    const response = await fetch(`${url}/studio/api/events`, { signal: controller.signal });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let received = "";
+    void (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          received += decoder.decode(value, { stream: true });
+        }
+      } catch {
+        /* the stream was aborted in cleanup */
+      }
+    })();
+
+    /* Written again every half second until the studio has seen it: on
+     * macOS a change made in the first moments after a watcher starts
+     * can go unseen (the FSEvents stream is still being set up). */
+    const deadline = Date.now() + 5_000;
+    let nextWrite = 0;
+    while (!received.includes("event: code") && Date.now() < deadline) {
+      if (Date.now() >= nextWrite) {
+        writeFileSync(path.join(srcDir, "server", "edit-yaml.mjs"), "export const a = 2;\n");
+        nextWrite = Date.now() + 500;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(received).toContain('event: code\ndata: {"changed":["server/edit-yaml.mjs"]}');
+    expect((await info()).changedCode).toEqual(["server/edit-yaml.mjs"]);
+  }, 10_000);
 });

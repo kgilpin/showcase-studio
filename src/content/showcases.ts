@@ -26,6 +26,7 @@ import {
   type CaptionPreset,
 } from "./caption-position-rules.mjs";
 import { readWatermark, resolveWatermark, type Watermark, type WatermarkSpec } from "./watermark";
+import { PLAYER_VIEWS, playerView, type PlayerView } from "@/lib/export-kinds.mjs";
 import { readTikTokFit, resolveTikTokFit, type TikTokFit, type TikTokFitSpec } from "./tiktok-fit";
 import type { SceneEdit } from "@/lib/studio";
 
@@ -162,12 +163,14 @@ export type CaptionStyle = "chip" | "karaoke" | "reveal";
 /* The player previews the export destinations as three view modes: "App
  * Screens" (titles on the slide, captions beside — the screenshot export),
  * "TikTok" (portrait, captions overlaid, titles hidden — the video export),
- * and "4:3" (the embed canvas — the video-43 export). Two per-showcase
- * presentation choices carry across all three: `meta.embedCaptions`,
- * whether the 4:3 canvas overlays captions (unset follows the voiceover —
- * embed-captions.ts), and `meta.watermark`, the brand mark drawn in a
- * corner of every slide (watermark.ts). Caption text always uses the
- * large size. */
+ * and "4:3" (the embed canvas — the video-43 export). The player opens in
+ * TikTok view unless `meta.view` names another (tiktok | screens | embed —
+ * the names in src/lib/export-kinds.mjs), for a showcase made for one
+ * destination. Two per-showcase presentation choices carry across all
+ * three: `meta.embedCaptions`, whether the 4:3 canvas overlays captions
+ * (unset follows the voiceover — embed-captions.ts), and `meta.watermark`,
+ * the brand mark drawn in a corner of every slide (watermark.ts). Caption
+ * text always uses the large size. */
 
 export type Scene = {
   id: string;
@@ -242,6 +245,10 @@ export type Showcase = {
   /** Overlay captions on the 4:3 embed canvas, as authored (true/false);
    *  undefined follows the voiceover — see src/content/embed-captions.ts. */
   embedCaptions?: boolean | undefined;
+  /** The player view this showcase opens in (meta.view), for one made for
+   *  a single destination; undefined opens in TikTok view. The Share page
+   *  starts on the matching destination too. */
+  view?: PlayerView | undefined;
   /** The showcase-wide brand mark, resolved (see src/content/watermark.ts).
    *  Scenes carry their own copy — this is the setting, not what any one
    *  slide draws. */
@@ -336,6 +343,9 @@ type RawDoc = {
     /** Overlay captions on the 4:3 embed canvas — validated (with a linter
      *  warning) in buildShowcase; unset follows the voiceover. */
     embedCaptions?: unknown;
+    /** The player view the showcase opens in — validated (with a linter
+     *  warning) in buildShowcase; unset opens in TikTok view. */
+    view?: unknown;
     /** The showcase's persistent brand mark — validated (with linter
      *  warnings) in buildShowcase; see src/content/watermark.ts. */
     watermark?: unknown;
@@ -956,11 +966,19 @@ function buildShowcase(
       `embedCaptions must be true or false — ignoring "${String(authoredEmbedCaptions)}" (unset follows the voiceover)`,
     );
   }
+  const view = playerView(doc.meta.view) ?? undefined;
+  if (doc.meta.view != null && view === undefined) {
+    warn(
+      "",
+      `view must be one of ${PLAYER_VIEWS.join(", ")} — ignoring "${String(doc.meta.view)}" (the player opens in TikTok view)`,
+    );
+  }
   return {
     id: showcaseId,
     ...doc.meta,
     builtMedia: Boolean(doc.meta.source || doc.meta.voiceover),
     embedCaptions,
+    view,
     watermark: resolveWatermarkAsset(
       showcaseId,
       resolveWatermark(baseWatermark, true, {}, () => {}),
@@ -1201,19 +1219,21 @@ export function applySceneEditLocal(
     return undefined;
   }
   if (edit.field === "meta.set") {
-    const had = "embedCaptions" in doc.meta;
-    const previous = doc.meta.embedCaptions;
-    if (typeof edit.value === "boolean") doc.meta.embedCaptions = edit.value;
-    else delete doc.meta.embedCaptions;
+    /* The meta fields the page itself sets: embedCaptions (the 4:3
+     * captions toggle) and view (the pin beside the view switch). Each is
+     * written whole, and null removes it — the inverse is the old value,
+     * or null when there was none. */
+    const meta = doc.meta as Record<string, unknown>;
+    const { name } = edit;
+    const had = name in meta;
+    const previous = meta[name];
+    if (edit.value == null) delete meta[name];
+    else meta[name] = edit.value;
     if (rebuildShowcase(showcaseId)) {
-      return {
-        field: "meta.set",
-        name: "embedCaptions",
-        value: typeof previous === "boolean" ? previous : null,
-      };
+      return { field: "meta.set", name, value: had ? previous : null } as SceneEdit;
     }
-    if (had) doc.meta.embedCaptions = previous;
-    else delete doc.meta.embedCaptions;
+    if (had) meta[name] = previous;
+    else delete meta[name];
     return undefined;
   }
   /* Theme edits are routed to applyThemeEditLocal, never here. */

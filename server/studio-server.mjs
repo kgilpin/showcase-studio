@@ -55,6 +55,7 @@ import { buildMedia } from "./build-media.mjs";
 import { buildVoiceover, hasVoiceover } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
+import { watchStudioCode } from "./code-changes.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { DEFAULT_EXPORT_DIR, revealInFileManager } from "./export-output.mjs";
 import { createExportRecords, RECORDED_KINDS, showcaseDurationMs } from "./export-records.mjs";
@@ -241,7 +242,8 @@ function locateReferences(text, found) {
  *                 leaves the library unwatched, so pages don't reload on
  *                 outside changes (tests: the watcher's timer would
  *                 otherwise race each test's end, and gold traces would
- *                 record it only sometimes)
+ *                 record it only sometimes) — and the studio's own code
+ *                 unwatched too (server/code-changes.mjs)
  *   exportDir    where exports land (<exportDir>/<showcase id>)
  *   reveal        opens the file manager on a path (export-reveal)
  *   openUrl       opens a web page in the user's browser (a share
@@ -289,6 +291,7 @@ export function createStudio({
     for (const res of listeners) res.write(chunk);
   };
 
+  let codeWatch = null;
   const info = () => ({
     version,
     url,
@@ -297,6 +300,9 @@ export function createStudio({
     features: { terminal: terminalsOn, airDrop: sendToPhone != null },
     pid: process.pid,
     startedAt,
+    /* The studio's code files changed since it started, from source
+     * (server/code-changes.mjs): the page shows a banner until a restart. */
+    ...(codeWatch ? { changedCode: codeWatch.changed() } : {}),
   });
 
   /* The app's source, when it is really there. The studio run from source
@@ -304,6 +310,16 @@ export function createStudio({
    * and terminals mustn't send sessions looking for it. */
   const sourceDir =
     srcDir && existsSync(path.join(srcDir, "src", "components")) ? srcDir : undefined;
+
+  /* From source, Node keeps running the server code it loaded at the
+   * start while Vite serves the page every save (issue #18). Watch that
+   * code and tell the pages when it differs from what runs. */
+  if (sourceDir && features.watch !== false) {
+    codeWatch = watchStudioCode(sourceDir, {
+      onChange: (changed) => emit("code", { changed }),
+      onError: (message) => log(`studio: not watching its own code (${message})`),
+    });
+  }
 
   /* ---------- the library folder ---------- */
 
@@ -1281,6 +1297,7 @@ scenes:
       }
       /* A reload still waiting would fire after close. */
       clearTimeout(reloadTimer);
+      await codeWatch?.close();
       await history.close();
       terminals?.dispose();
       for (const res of listeners) res.end();

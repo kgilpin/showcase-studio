@@ -7,22 +7,31 @@ import { ShareText, type PublishEdit } from "@/components/share/ShareText";
 import { ShareVideo, type Quality } from "@/components/share/ShareVideo";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { getShowcase } from "@/content/showcases";
-import { DESTINATION_IDS, type DestinationId } from "@/content/publish-rules.mjs";
+import {
+  DESTINATION_IDS,
+  destinationForView,
+  type DestinationId,
+} from "@/content/publish-rules.mjs";
 import { SubscribeDialog } from "@/components/studio/SubscribeDialog";
 import { needsSubscription } from "@/components/studio/license-actions";
 import { studio, useExportJob, useLicense, type ShareStatus } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
-/* The Share page: getting a showcase's video onto TikTok, Instagram and
- * YouTube Shorts, without the platforms' APIs. Pick a destination; the
- * page shows the video that destination takes (the full-quality 9:16
- * export or the draft, and whether each still matches the showcase), and
- * the steps to post it — from this computer or from the phone — with the
- * text it posts with edited right in the "copy the caption" step (saved
- * to showcase.yaml's publish: block). Everything comes
- * from the studio's share-status action (server/share.mjs), the same data
- * Claude's share_status tool returns. Studio only: sharing works on the
- * studio's exports.
+/* The Share page: getting a showcase's video onto TikTok, Instagram,
+ * YouTube Shorts and YouTube, without the platforms' APIs. Pick a
+ * destination; the page shows the video that destination takes (the
+ * full-quality export — 9:16, or 4:3 for a regular YouTube upload — or
+ * its draft, and whether each still matches the showcase), and the steps
+ * to post it — from this computer or from the phone — with the text it
+ * posts with edited right in the "copy the caption" step (saved to
+ * showcase.yaml's publish: block). Everything comes from the studio's
+ * share-status action (server/share.mjs), the same data Claude's
+ * share_status tool returns. Studio only: sharing works on the studio's
+ * exports.
+ *
+ * The page opens on the destination the showcase is made for, when
+ * meta.view says so (the 4:3 view → YouTube, TikTok → TikTok); otherwise
+ * on the one picked last time in this browser, else TikTok.
  *
  * The page lays itself out by the width it has, not the window's: with the
  * studio agent's terminal docked beside it, the page is half the window.
@@ -92,11 +101,14 @@ function ShareScreen() {
     }
   }, [showcaseId]);
 
+  const pinnedView = showcase?.view;
   useEffect(() => {
     setInStudio(studio() != null);
+    const own = destinationForView(pinnedView);
     const saved = remembered("share-destination") as DestinationId | null;
-    if (saved && DESTINATION_IDS.includes(saved)) setDestinationId(saved);
-  }, []);
+    if (own) setDestinationId(own);
+    else if (saved && DESTINATION_IDS.includes(saved)) setDestinationId(saved);
+  }, [pinnedView]);
   useEffect(() => {
     const saved = remembered(`share-method:${destinationId}`);
     setMethod(saved === "phone" || saved === "computer" ? saved : null);
@@ -278,6 +290,7 @@ function ShareScreen() {
             <div className="space-y-6">
               <ShareVideo
                 videoUrl={(id) => studio()!.share.videoUrl(showcaseId, id)}
+                kind={destination.exportKind}
                 full={full}
                 draft={draft}
                 quality={quality}

@@ -25,7 +25,7 @@ import { showcaseIndex } from "./showcase-data.mjs";
 import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
-import { DESTINATION_IDS } from "../src/content/publish-rules.mjs";
+import { DESTINATION_IDS, DESTINATIONS } from "../src/content/publish-rules.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
 
@@ -121,20 +121,26 @@ export const TOOLS = [
       '{field: "scene.delete", sceneId}, and {field: "scene.move", sceneId, index}\n' +
       '- {field: "meta.set", name, value} — meta title, description, loop, pace, captionStyle, ' +
       "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
-      "default, which hides them when a synced voiceover is set), cover, notes " +
+      'default, which hides them when a synced voiceover is set), view ("tiktok", "screens" ' +
+      'or "embed" — the player view the showcase opens in, for a showcase made for one ' +
+      "destination; null returns to TikTok), cover, notes " +
       "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), tiktok ({fit?, " +
       "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), or watermark " +
-      "({asset?, text?, position?, opacity?, scale?}) — the brand mark drawn in a corner of " +
-      "every slide, like a TV network's bug. position is one of the four corners " +
-      "(top-left default); opacity defaults to 0.85. Use an identity mark (a logo, a " +
+      "({asset?, text?, position?, inset?, shade?, opacity?, scale?}) — the brand mark drawn " +
+      "in a corner of every slide, like a TV network's bug. position is one of the four " +
+      "corners (top-left default); inset pushes the mark down from a top corner or up from " +
+      'a bottom one to that height, in percent of the frame ("13%", 0–50%, clears ' +
+      "TikTok's own interface); shade draws a dark panel behind the mark (true for a medium " +
+      "shade, or an opacity 0–1); opacity defaults to 0.85. Use an identity mark (a logo, a " +
       "wordmark), not the App Store badge — that is a call to action and belongs in a " +
       "scene's cta.\n" +
       '- {field: "media.set", sceneId, media} — replace the scene\'s whole media mapping; ' +
       '{field: "media.asset", sceneId, value} just points it at another asset.\n' +
       '- {field: "publish.set", destination?, name, value} — the text the video is posted with ' +
       "(the top-level publish: block): name caption, hashtags (a list, no #) or title " +
-      "(YouTube Shorts only). Leave destination out to set the default for every destination, " +
-      'or name one — "tiktok", "instagram", "youtube" — to override it there. null or "" ' +
+      "(YouTube only). Leave destination out to set the default for every destination, " +
+      'or name one — "tiktok", "instagram", "youtube" (the Short), "youtube43" (the regular ' +
+      'YouTube video, from the 4:3 export) — to override it there. null or "" ' +
       "removes the field, so it inherits again. Check the result with share_status, which " +
       "reports each destination's final text and anything over a platform's limits.\n" +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +
@@ -409,14 +415,16 @@ export const TOOLS = [
   {
     name: "share_status",
     description:
-      "Where a showcase stands for posting to TikTok, Instagram and YouTube Shorts: for each " +
-      "destination, the text it would post with (caption, hashtags, title — the showcase's " +
-      "publish: block with that destination's overrides; `from` says where each came from), " +
-      "`paste` (the caption box's text), and `problems` (over a limit, too long a video, no " +
-      "title); the full-quality exports and whether each is `current` (it matches the " +
-      "showcase as it is now); and the hand-offs so far, with their post links. `page` is " +
-      "the Share page's URL — open it for the user. Write the text with edit_showcase " +
-      "(publish.set).",
+      "Where a showcase stands for posting to TikTok, Instagram, YouTube Shorts and YouTube " +
+      "(destinations tiktok, instagram, youtube, youtube43): for each destination, the text " +
+      "it would post with (caption, hashtags, title — the showcase's publish: block with " +
+      "that destination's overrides; `from` says where each came from), `paste` (the " +
+      'caption box\'s text), `exportKind` (the video it takes: the 9:16 "video" for the ' +
+      'first three, the 4:3 "video-43" for a regular YouTube upload), and `problems` (over ' +
+      "a limit, too long a video, no title); the full-quality exports by kind and whether " +
+      "each is `current` (it matches the showcase as it is now); and the hand-offs so far, " +
+      "with their post links. `page` is the Share page's URL — open it for the user. Write " +
+      "the text with edit_showcase (publish.set).",
     inputSchema: {
       type: "object",
       properties: {
@@ -432,9 +440,11 @@ export const TOOLS = [
       "copies the destination's caption to the clipboard, opens its upload page in the " +
       "user's browser, and shows the video file in Finder or Explorer. The user then drags " +
       "the file onto the page, pastes, and posts — nothing is posted for them. Needs a " +
-      'current export: the full-quality video (kind "video"), or with quality: "draft" the ' +
-      'quick draft (kind "video-draft", half size, 12 fps) — good for trying the steps out, ' +
-      "not for the real post. When there isn't one, nothing happens and the result says so " +
+      'current export of the kind the destination takes: the full-quality video ("video" ' +
+      'for tiktok, instagram and youtube; "video-43" for youtube43, the regular YouTube ' +
+      'upload), or with quality: "draft" that kind\'s quick draft (half size, 12 fps) — good ' +
+      "for trying the steps out, not for the real post. When there isn't one, nothing " +
+      "happens and the result says so " +
       "(with about how long an export takes) — confirm with the user, run export, wait for " +
       "export_status to say done, then call share again. Ask the user which destination if " +
       "they didn't say. To AirDrop the video to a phone instead, send the user to the Share " +
@@ -620,11 +630,14 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     try {
       handoff = context.share.handOff({ showcaseId, destination, method: "computer", quality });
     } catch (error) {
-      if (!/no current (draft|full-quality) video/.test(error.message)) throw error;
+      if (!/no current (draft|full-quality) (4:3 )?video/.test(error.message)) throw error;
       const { exports } = context.share.status(showcaseId);
-      const kind = quality === "draft" ? "video-draft" : "video";
+      /* The kind this destination takes: 9:16, or 4:3 for a regular
+       * YouTube upload. */
+      const base = DESTINATIONS[destination].exportKind;
+      const kind = quality === "draft" ? `${base}-draft` : base;
       const minutes = Math.max(1, Math.round(exports[kind].estimateMs / 60_000));
-      const draftReady = quality === "full" && exports["video-draft"].current;
+      const draftReady = quality === "full" && exports[`${base}-draft`].current;
       return json({
         handedOff: false,
         reason: error.message,

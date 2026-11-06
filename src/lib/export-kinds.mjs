@@ -7,7 +7,24 @@
  *   tiktok         video-draft       video
  *   embed (4:3)    video-43-draft    video-43
  *   screens        screens (one kind — no draft)
+ *
+ * The player's view names are also the values showcase.yaml's meta.view
+ * takes (the view a showcase opens in) and the page's ?view= parameter,
+ * so they live here, next to the exports each view previews.
  */
+
+/** The player's three views: TikTok (9:16), App Screens (the App Store
+ *  canvas) and the 4:3 embed. */
+export const PLAYER_VIEWS = ["tiktok", "screens", "embed"];
+
+/** The views as the switch labels them. */
+export const VIEW_LABELS = { tiktok: "TikTok", screens: "App Screens", embed: "4:3" };
+
+/** A view name read from the outside (meta.view, a URL): one of
+ *  PLAYER_VIEWS, or null for anything else. */
+export function playerView(value) {
+  return typeof value === "string" && PLAYER_VIEWS.includes(value) ? value : null;
+}
 
 /** What each video export renders: its frame size and frame rate. The
  *  exporter (server/exporter.mjs) renders by this table, and the Share

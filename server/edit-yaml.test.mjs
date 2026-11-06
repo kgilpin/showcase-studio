@@ -387,6 +387,18 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     ).toThrow("meta.embedCaptions must be true or false");
   });
 
+  it("sets and removes the view the player opens in", () => {
+    const embed = applySceneEdit(DOC, { field: "meta.set", name: "view", value: "embed" });
+    expect(embed).toContain("  view: embed\n");
+    const tiktok = applySceneEdit(embed, { field: "meta.set", name: "view", value: "tiktok" });
+    expect(tiktok).toContain("  view: tiktok\n");
+    expect(tiktok).not.toContain("view: embed");
+    expect(applySceneEdit(tiktok, { field: "meta.set", name: "view", value: null })).toBe(DOC);
+    expect(() => applySceneEdit(DOC, { field: "meta.set", name: "view", value: "4:3" })).toThrow(
+      "meta.view must be one of: tiktok, screens, embed",
+    );
+  });
+
   it("sets the TikTok fit for the showcase and for one scene's media", () => {
     const meta = applySceneEdit(DOC, {
       field: "meta.set",

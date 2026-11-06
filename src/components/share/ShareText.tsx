@@ -1,5 +1,5 @@
-/* The text one destination posts with — the title (YouTube Shorts),
- * caption and hashtags — editable in place, with counters against the
+/* The text one destination posts with — the title (YouTube Shorts and
+ * YouTube), caption and hashtags — editable in place, with counters against the
  * platform's limits and the copy button. It sits in the hand-off's "copy
  * the caption" step (ShareHandoff), where the text is used.
  *
@@ -103,6 +103,8 @@ export function ShareText({
   onCopy(text: string, what: string): void;
 }) {
   const { text, limits, fields, id } = destination;
+  /* "Description" on YouTube, "Caption" elsewhere. */
+  const captionLabel = destination.captionName === "description" ? "Description" : "Caption";
   const [title, setTitle] = useState(text.title ?? "");
   const [caption, setCaption] = useState(text.caption);
   const [tags, setTags] = useState(hashtagText(text.hashtags));
@@ -196,7 +198,7 @@ export function ShareText({
    * clipboard agree. */
   const copyAll = () => {
     for (const field of fields) saveIfChanged(field);
-    onCopy(paste, id === "youtube" ? "Description" : "Caption");
+    onCopy(paste, captionLabel);
   };
 
   return (
@@ -224,7 +226,7 @@ export function ShareText({
       <div className="space-y-1.5">
         <label className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
           <span className="flex flex-wrap items-baseline gap-2 text-foreground">
-            {id === "youtube" ? "Description" : "Caption"} {scope("caption")}
+            {captionLabel} {scope("caption")}
           </span>
           <Counter count={[...paste].length} limit={limits.caption} unit="with hashtags" />
         </label>
@@ -233,7 +235,7 @@ export function ShareText({
           onChange={(e) => setCaption(e.target.value)}
           onBlur={() => saveIfChanged("caption")}
           rows={5}
-          aria-label={id === "youtube" ? "Description" : "Caption"}
+          aria-label={captionLabel}
         />
         {fromMeta("caption")}
       </div>
@@ -258,7 +260,7 @@ export function ShareText({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={copyAll}>
-          <Copy /> Copy {id === "youtube" ? "description" : "caption"} and hashtags
+          <Copy /> Copy {captionLabel.toLowerCase()} and hashtags
         </Button>
         <span className="text-xs text-support">
           {saving ? "Saving…" : "Saved to showcase.yaml"}

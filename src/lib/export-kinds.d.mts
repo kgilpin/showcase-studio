@@ -1,5 +1,9 @@
 export type PlayerView = "tiktok" | "screens" | "embed";
 
+export const PLAYER_VIEWS: readonly PlayerView[];
+export const VIEW_LABELS: Record<PlayerView, string>;
+export function playerView(value: unknown): PlayerView | null;
+
 export type ExportQuality = "draft" | "full";
 
 export function exportKindFor(view: PlayerView, quality: ExportQuality): string;
