@@ -97,3 +97,21 @@ the no-junk scene reaches the collar. The end card is as described above.
 - A second scenario: a voiced showcase with a brand mark.
 - The grader could flag reads of the studio's source as a finding on its
   own, when `--source` is used.
+
+## Fixed in the same change as this report
+
+- Finding 1: `take` is an `edit_showcase` scene field now, checked with
+  the build's own reader (`takeProblem` in `build-plan.mjs`); the tool
+  description and the guide say to retime with it and then build.
+- Finding 3: a `create_showcase` tool, the studio's own + card scaffold,
+  logged to the change log; the skill and the guide say to start a
+  showcase with it. The rubric expects it.
+- Finding 5: the guide's caption-position rule says two lines at most in
+  the TikTok frame, and to split a long line at a clause.
+- Finding 6: the guide's recorded-pitch section has the end-card recipe:
+  the listing cropped to its icon and title, large, on a plain stage, the
+  speaker window bottom-right, the caption in the gap.
+- For the rehearsal: the grader lists every look at the studio's source
+  when a run is from source (`run.json` records where the studio came
+  from), so finding 2 shows up in the grade, not only in a reading of the
+  transcript.

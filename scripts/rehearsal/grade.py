@@ -123,6 +123,26 @@ print("== per tool")
 for name, n in counts.most_common():
     print(f"{n:4d} {name}")
 
+# A run from source: every look at the studio's code is a finding on its
+# own — a user's session has no source, so what it learned there, it
+# learned a way the user's session can't.
+try:
+    meta = json.loads((run / "run.json").read_text())
+except (OSError, json.JSONDecodeError):
+    meta = {}
+source = meta.get("source") or ""
+if source:
+    plugin = str(Path(source) / "plugins")
+    looks = []
+    for _, name, inp in calls:
+        text = inp.get("command", "") if name == "Bash" else str(inp.get("file_path", "")) if name in ("Read", "Edit") else ""
+        if source in text and plugin not in text and "/rehearsal" not in text.split(source, 1)[1][:30]:
+            looks.append((name, text[:90].replace("\n", " ")))
+    print()
+    print(f"== looks at the studio's source ({len(looks)}; the user's session can't do this)")
+    for name, text in looks:
+        print(f"  {name:5s} {text}")
+
 rubric = load_rubric()
 if rubric:
     print()

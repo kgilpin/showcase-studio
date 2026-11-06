@@ -53,6 +53,9 @@ while IFS= read -r file; do
   cp "$inputs/$file" "$run/library/raw/"
 done < "$dir/inputs.txt"
 cp "$dir/brief.md" "$run/brief.md"
+# What the run was, for the grader: the scenario and where the studio came from.
+printf '{"scenario": "%s", "name": "%s", "source": "%s", "app": "%s", "inputs": "%s"}\n' \
+  "$scenario" "$name" "$source" "$app" "$inputs" > "$run/run.json"
 
 cd "$run/library"
 echo "rehearsal $scenario/$name: library $run/library" >&2

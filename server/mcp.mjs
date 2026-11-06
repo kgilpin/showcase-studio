@@ -102,7 +102,10 @@ export const TOOLS = [
       "as ONE write; if any edit fails, nothing is written. Each edit is an object with " +
       "`field` plus its parameters:\n" +
       '- {field: "scene.set", sceneId, name, value} — one scene field: title, eyebrow, theme, ' +
-      "support, ctaNote, captionStyle, transition, durationMs, export, id, note (the scene's " +
+      "support, ctaNote, captionStyle, transition, durationMs, export, id, take (on a recorded " +
+      "pitch, the span of the recording the scene owns: {from, to} in seconds, a list of them, " +
+      "{silence: <seconds>}, or {audio: [...], video: [...]} lasting the same; plus clip: " +
+      "true|false — then run build_media), note (the scene's " +
       "authoring note — keep working context here, not in YAML comments), cta " +
       "({label, url, kind?}), or watermark (false opts this slide out of the showcase's brand " +
       "mark, true forces it on, a map overrides a field or two for this slide — an empty " +
@@ -171,6 +174,21 @@ export const TOOLS = [
         },
       },
       required: ["showcaseId", "edits"],
+    },
+  },
+  {
+    name: "create_showcase",
+    description:
+      "Make a new showcase folder in the library from a name — the same scaffold as the " +
+      "studio's + card: <id>/showcase.yaml with a one-scene starter script and an empty " +
+      "assets/ folder, the id made from the name (lower case, dashes). Returns {id, path}. " +
+      "Then write the script with edit_showcase, and add the recording and pictures with " +
+      "add_asset. Refused when a showcase of that id exists, or the studio is locked to one " +
+      "showcase.",
+    inputSchema: {
+      type: "object",
+      properties: { name: { type: "string", description: "The showcase's title" } },
+      required: ["name"],
     },
   },
   {
@@ -959,6 +977,20 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       content.push({ type: "text", text: frameLine(frame, result) });
     }
     return { content };
+  }
+  if (name === "create_showcase") {
+    if (!context.createShowcase) throw new Error("This studio can't create showcases");
+    const title = String(args.name ?? "").trim();
+    const result = context.createShowcase(title);
+    if (!result.ok) throw new Error(result.error);
+    context.changeLog?.append({
+      source: "mcp",
+      tool: "create_showcase",
+      showcaseId: result.id,
+      kind: "showcase.create",
+      title,
+    });
+    return json({ id: result.id, path: path.join(showcasesDir, result.id) });
   }
   if (name === "check_framing") {
     const showcaseId = String(args.showcaseId ?? "");

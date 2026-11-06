@@ -8,11 +8,12 @@
 # and encoding through the ffmpeg tool (the end-card composite).
 
 tools_used:
-  - check_framing            # the face check, before reporting done
-  - screenshot_frame         # frames looked at instead of draft exports
-  - ffmpeg                   # the composite encoded into assets/ safely
-  - build_media              # the cut list built, not hand-cut clips
-  - transcribe               # the real words, for karaoke
+  - create_showcase # the folder made by the tool, not by hand
+  - check_framing # the face check, before reporting done
+  - screenshot_frame # frames looked at instead of draft exports
+  - ffmpeg # the composite encoded into assets/ safely
+  - build_media # the cut list built, not hand-cut clips
+  - transcribe # the real words, for karaoke
 
 # A second check_framing after the fix, so the fix was confirmed.
 tools_used_at_least:

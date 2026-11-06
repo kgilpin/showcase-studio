@@ -652,6 +652,7 @@ add notes specific to this library below, and the studio won't touch them.
   const mcpContext = {
     info,
     license,
+    createShowcase,
     getUrl: () => url,
     getShowcasesDir: () => showcasesDir,
     renderer,

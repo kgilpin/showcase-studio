@@ -258,6 +258,42 @@ describe("scene.set / caption.set / meta.set / scene.move", () => {
     ).toThrow("needs a value");
   });
 
+  it("sets a scene's take in every shape the build reads, and refuses the rest", () => {
+    const set = (value) =>
+      applySceneEdit(DOC, { sceneId: "intro", field: "scene.set", name: "take", value });
+    expect(set({ from: 1.5, to: 4 })).toContain("    take:\n      from: 1.5\n      to: 4\n");
+    expect(
+      set([
+        { from: 0, to: 5.53 },
+        { from: 5.88, to: 10.16 },
+      ]),
+    ).toContain("take:");
+    expect(set({ silence: 2 })).toContain("silence: 2");
+    expect(set({ from: 1, to: 2, clip: false })).toContain("clip: false");
+    expect(
+      set({
+        audio: [{ from: 0, to: 5 }],
+        video: [
+          { from: 0, to: 4 },
+          { from: 4, to: 6, fit: 1 },
+        ],
+      }),
+    ).toContain("video:");
+    expect(() => set({ from: 4, to: 1.5 })).toThrow("to (1.5) must come after from (4)");
+    expect(() => set({ from: "1", to: 2 })).toThrow("from and to must be numbers of seconds");
+    expect(() => set({ silence: 0 })).toThrow("silence must be a number of seconds");
+    expect(() => set({ audio: [{ from: 0, to: 5 }], video: [{ from: 0, to: 4 }] })).toThrow(
+      "they must match, or the lips drift",
+    );
+    expect(() => set({ from: 1, to: 2, clip: "yes" })).toThrow("clip must be true or false");
+    expect(() => set("1-2")).toThrow("a take is {from, to} in seconds");
+    /* null removes it, so a scene can leave the cut list. */
+    const withTake = set({ from: 1, to: 2 });
+    expect(
+      applySceneEdit(withTake, { sceneId: "intro", field: "scene.set", name: "take", value: null }),
+    ).toBe(DOC);
+  });
+
   it("validates scene field values", () => {
     expect(() =>
       applySceneEdit(DOC, { sceneId: "intro", field: "scene.set", name: "wat", value: 1 }),

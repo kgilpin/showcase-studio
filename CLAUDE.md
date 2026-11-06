@@ -397,7 +397,10 @@ npm run dev -- --new [<library folder>]
     same process; `validate`, `screenshot_slide` and `screenshot_frame` quote it, and the error
     page shows it under Details only while a studio runs in the process and
     the request names a local host), `edit_showcase` through
-    `scene-edit.mjs`, `add_asset` through `asset-files.mjs` (files on disk
+    `scene-edit.mjs` (a recorded pitch's `take` is an editable scene field,
+    checked by `takeProblem` in `build-plan.mjs`), `create_showcase` (the
+    studio's own scaffold, the + card's, through the MCP context),
+    `add_asset` through `asset-files.mjs` (files on disk
     copied into a showcase's `assets/` — what an image dropped into the
     Claude chat or a screenshot Claude captured goes through; the page's
     drop target is the same module's base64 door), `ffmpeg` through the
