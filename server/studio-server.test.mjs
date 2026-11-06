@@ -682,6 +682,24 @@ scenes:
     });
   });
 
+  it("puts exports where the library's export_dir says", async () => {
+    const { post, library } = await startStudio({
+      before: (dir) =>
+        writeFileSync(path.join(dir, "showcase_settings.yaml"), "export_dir: renders\n"),
+    });
+    let { job } = await post("export", { kind: "script", showcaseId: "nova" });
+    for (let i = 0; job.status === "running" && i < 50; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      ({ job } = await post("export-status", { jobId: job.jobId }));
+    }
+    expect(job.status).toBe("done");
+    expect(path.dirname(job.out)).toBe(path.join(library, "renders", "nova"));
+    expect(await post("export-reveal", { showcaseId: "nova" })).toEqual({
+      ok: true,
+      path: path.join(library, "renders", "nova"),
+    });
+  });
+
   it("reports the current export and reveals exports in the file manager", async () => {
     const revealed = [];
     const { post } = await startStudio({ reveal: (target) => revealed.push(target) });

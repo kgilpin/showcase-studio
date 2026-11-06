@@ -195,7 +195,8 @@ from the app's source.
 
 ## 5. Finish
 
-- Exports: `export`, then `export_status` until it's done.
+- Exports: `export`, then `export_status` with `waitMs` (up to two minutes
+  a call) until it's done. Don't poll with sleeps.
 - Posting to TikTok, Instagram or YouTube Shorts: the guide's "Sharing"
   section has the steps. In short: write the caption and hashtags with
   `edit_showcase` (`publish.set`), check them with `share_status`, and

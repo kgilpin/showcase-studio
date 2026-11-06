@@ -155,8 +155,8 @@ describe("a caption over a face", () => {
     expect(message).toBe(
       'Caption 1 of 2 ("Are you looking for a casual mobile gam…") sits over the speaker\'s face ' +
         "at 1690 ms (0:01.6): the face spans 41–66% down the frame, the caption 62–75%, " +
-        "covering 18% of the face. Lift the picture 8% — media.tiktok {fit: fill, focus: " +
-        "bottom, bands: blur, area: {bottom: 8%}} — or move the caption off it (position: " +
+        "covering 18% of the face. Lift the picture 10% or more — media.tiktok {fit: fill, focus: " +
+        "bottom, bands: blur, area: {bottom: 10%}} — or move the caption off it (position: " +
         "top). Then check with screenshot_frame {atMs: 1690}.",
     );
     /* A picture already lifted keeps its lift and adds the rest. */
@@ -169,7 +169,7 @@ describe("a caption over a face", () => {
         covered: 0.2,
         lifted: 10,
       }),
-    ).toContain("area: {bottom: 17%}");
+    ).toContain("area: {bottom: 20%}");
   });
 });
 
@@ -206,9 +206,9 @@ describe("the check", () => {
       face: { top: 40, left: 35, width: 46, height: 26 },
       box: { top: 62, left: 6, width: 78, height: 13 },
     });
-    expect(result.overlaps[0].message).toContain("area: {bottom: 7%}");
+    expect(result.overlaps[0].message).toContain("area: {bottom: 10%}");
     /* The cutaway was lifted 10% already: the fix keeps that. */
-    expect(result.overlaps[2].message).toContain("area: {bottom: 17%}");
+    expect(result.overlaps[2].message).toContain("area: {bottom: 20%}");
     expect(facesSummary("nova", result)).toBe("nova: 3 captions on 2 scenes, 3 over a face");
     /* The scratch frames are gone; the result is kept. */
     expect(files.some((file) => existsSync(file))).toBe(false);
