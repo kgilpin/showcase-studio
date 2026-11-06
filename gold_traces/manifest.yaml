@@ -13,7 +13,8 @@
 # its two refusals), the synthesized voiceover (a rebuild plus its
 # stale-write refusal), a frame of the video captured from the record
 # page (screenshot_frame), the caption-over-face check (check_framing)
-# on such frames, and the studio's side of licensing: its
+# on such frames, the Actions list around a git commit (pending, skip,
+# try again, done), and the studio's side of licensing: its
 # checkout and its check before an export. (The license service's own traces are
 # cdk/gold_traces/, with cdk's own appmap.yml.) Record command and entry paths are derived; see the
 # skill's SKILL.md.
@@ -128,6 +129,11 @@ entries:
     test_name: "commits only the showcase folder: other staged work stays staged"
     appmap_path: vitest/commits_only_the_showcase_folder-_other_staged_work_stays_staged.appmap.json
     summary: An automatic commit in a real git repo — status, busy and branch checks, the message from the change log, and a commit scoped to the showcase folder so other staged work stays out.
+  - feature: actions
+    test_file: server/showcase-history.test.mjs
+    test_name: "shows the quiet period, then the commit; a skip stops it; Try again commits"
+    appmap_path: vitest/shows_the_quiet_period,_then_the_commit;_a_skip_stops_it;_Try_again_commits.appmap.json
+    summary: The Actions list around a commit (server/actions-log.mjs) — a pending record for the quiet period, read over GET /studio/api/actions, ended done with the sha; a Skip offer that stops the timer and marks it canceled; Try again committing as the user's own record; and commit_showcase folding the waiting one into Claude's.
   - feature: assets
     test_file: server/studio-server.test.mjs
     test_name: rewrites a shared bare name only when it means the renamed file

@@ -12,11 +12,16 @@
  *
  * onChange(status) runs on every step: start, each progress report, and
  * the end. The studio server sends it to its pages as the "export" or
- * "build" event. */
+ * "build" event, and records it in the Actions list (actions-log.mjs).
+ *
+ * A job remembers who started it — `by`: "user" (a button), "claude" (an
+ * MCP tool) or "studio" (on its own) — and `why`, one sentence, so the
+ * Actions list can say so. */
 
 /** `name` names the job kind in its ids and refusals ("export", "build"),
  *  and `poll` is the tool a caller should poll. Anything passed to
- *  start() after the showcase id reaches the runner unchanged. */
+ *  start() after the showcase id reaches the runner unchanged; `by` and
+ *  `why` are also kept on the job's status. */
 export function createExportJobs(
   runner,
   { onChange = () => {}, name = "export", poll = "export_status" } = {},
@@ -30,8 +35,8 @@ export function createExportJobs(
   const running = () => [...jobs.values()].find((job) => job.status === "running");
 
   const statusOf = (job) => {
-    const { kind, showcaseId, status, progress, step, steps, out, error } = job;
-    return { jobId: job.id, kind, showcaseId, status, progress, step, steps, out, error };
+    const { kind, showcaseId, status, progress, step, steps, out, error, by, why } = job;
+    return { jobId: job.id, kind, showcaseId, status, progress, step, steps, out, error, by, why };
   };
   const changed = (job) => onChange(statusOf(job));
 
@@ -51,6 +56,8 @@ export function createExportJobs(
         showcaseId,
         status: "running",
         progress: "starting",
+        by: options.by ?? "user",
+        why: options.why,
         controller,
       };
       jobs.set(job.id, job);

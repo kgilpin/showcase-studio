@@ -15,7 +15,7 @@ import appCss from "../styles.css?url";
 import { showcasesReady } from "@/content/showcases";
 import { dataMode } from "@/content/source";
 import { CodeChangedBanner } from "@/components/studio/CodeChangedBanner";
-import { ExportNotices } from "@/components/studio/ExportNotices";
+import { StudioToaster } from "@/components/studio/StudioToaster";
 import { StudioAgent } from "@/components/studio/StudioAgent";
 import { studioReady, useWindowLock, windowLock } from "@/lib/studio";
 import { isCapturePage, isPathInLock, lockLandingPath } from "@/lib/window-lock.mjs";
@@ -194,7 +194,7 @@ function RootComponent() {
       </div>
       {/* Desktop studio only — renders nothing in a plain browser. */}
       <StudioAgent onDock={setDockWidth} />
-      {!capturing && <ExportNotices />}
+      {!capturing && <StudioToaster />}
     </QueryClientProvider>
   );
 }

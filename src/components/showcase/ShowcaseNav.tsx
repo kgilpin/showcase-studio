@@ -17,8 +17,11 @@ import { cn } from "@/lib/utils";
  * is reserved for actions that start playback, so it never labels a
  * place. At the far right, in a studio: "Build media" on a showcase cut
  * from a recording (BuildMediaButton), one slot for what the studio is
- * doing — a running export or build, with its cancel (StudioActivity) —
- * then the gear button, which opens the studio-wide settings
+ * doing — a running export or build, a commit about to happen with its
+ * skip, a failure not yet dismissed — which opens the
+ * Actions list, every export, build and commit and what can be done
+ * about each (StudioActivity); then the gear button, which opens the
+ * studio-wide settings
  * (StudioSettings) and carries a dot while the subscription needs the
  * user. Status that needs nothing from the user stays out of the bar.
  *

@@ -659,3 +659,95 @@ describe("when git doesn't know who the user is", () => {
     expect(noIdentityReason("error: pathspec 'nova' did not match any file(s)")).toBeUndefined();
   });
 });
+
+describe("commits in the Actions list", GIT_TESTS, () => {
+  it("shows the quiet period, then the commit; a skip stops it; Try again commits", async () => {
+    const { dir, library } = await project();
+    const { call, post, get, committed } = await startStudio(library);
+
+    await call("edit_showcase", editTitle("Hello there"));
+    let { actions } = await get("actions");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      kind: "commit",
+      showcaseId: "nova",
+      by: "studio",
+      why: "nova changed",
+      label: "Commit to git",
+      state: "pending",
+      offers: ["skip"],
+    });
+    expect(Date.parse(actions[0].dueAt)).toBeGreaterThan(Date.now() - DELAY);
+
+    await committed(1);
+    ({ actions } = await get("actions"));
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      state: "done",
+      result: {
+        sha: git(dir, "rev-parse", "HEAD"),
+        message: "nova: edit intro title",
+        files: ["showcase.yaml"],
+      },
+      offers: [],
+    });
+
+    /* Skipping the quiet period makes no commit; the record says so. */
+    await call("edit_showcase", editTitle("Again"));
+    ({ actions } = await get("actions"));
+    const waiting = actions.find((a) => a.state === "pending");
+    expect(await post("actions-offer", { id: waiting.id, offer: "skip" })).toEqual({ ok: true });
+    await sleep(DELAY * 3);
+    expect(commits(dir)).toHaveLength(2);
+    ({ actions } = await get("actions"));
+    expect(actions.find((a) => a.id === waiting.id)).toMatchObject({
+      state: "canceled",
+      offers: ["retry"],
+    });
+
+    /* Try again commits now, as the user's own record. */
+    expect(await post("actions-offer", { id: waiting.id, offer: "retry" })).toEqual({ ok: true });
+    await committed(2);
+    ({ actions } = await get("actions"));
+    expect(actions.at(-1)).toMatchObject({
+      kind: "commit",
+      by: "user",
+      why: "Tried again from the Actions list",
+      state: "done",
+      result: { message: "nova: edit intro title" },
+    });
+    expect(commits(dir)).toHaveLength(3);
+
+    /* commit_showcase folds the waiting commit into Claude's own. */
+    await call("edit_showcase", editTitle("Third"));
+    await call("commit_showcase", { showcaseId: "nova", message: "third title" });
+    ({ actions } = await get("actions"));
+    expect(actions.filter((a) => a.state === "pending")).toEqual([]);
+    expect(actions.at(-1)).toMatchObject({
+      kind: "commit",
+      by: "claude",
+      why: "third title",
+      state: "done",
+      result: { message: "nova: third title" },
+    });
+  });
+
+  it("keeps no record while commits are off, and skips the waiting ones when turned off", async () => {
+    const { library } = await project();
+    const { call, post, get } = await startStudio(library, { features: { autoCommit: false } });
+    await call("edit_showcase", editTitle("Quiet"));
+    expect((await get("actions")).actions).toEqual([]);
+    /* Nor after the quiet period: the timer finds commits off and adds
+     * no failed "commits are turned off" record. */
+    await sleep(DELAY * 3);
+    expect((await get("actions")).actions).toEqual([]);
+
+    await post("history-auto-commit", { on: true });
+    await call("edit_showcase", editTitle("Louder"));
+    let { actions } = await get("actions");
+    expect(actions.map((a) => a.state)).toEqual(["pending"]);
+    await post("history-auto-commit", { on: false });
+    ({ actions } = await get("actions"));
+    expect(actions.map((a) => a.state)).toEqual(["canceled"]);
+  });
+});

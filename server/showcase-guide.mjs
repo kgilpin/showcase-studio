@@ -447,6 +447,21 @@ change the files, but nothing tells you. So:
 
   Take each edit into account before your next change. Don't redo work
   the user just changed by hand.
+- The studio also keeps an Actions list: every export, media build and
+  git commit, whoever started it — a button, you, or the studio itself —
+  as a record that is pending (a commit waiting out its quiet period),
+  running, done, failed or canceled, with who started it and why. The
+  user sees it behind the activity slot at the right of the showcase's
+  tab bar, where a failure stays marked until they dismiss it, and where
+  they can skip a waiting commit, cancel a running job, try a failure
+  again, or rebuild everything. Your own exports and builds show there
+  as "Started by Claude", so the user can follow what you do. studio_info
+  reports it as actions: {pending, running, failed: [...], path}; a
+  failure listed there is one the user has seen. One line per state
+  change goes to ${showcasesDir}/.studio/actions.jsonl (never a progress
+  report), so you can follow failures the same way:
+
+      tail -n 0 -F '${showcasesDir}/.studio/actions.jsonl' | grep --line-buffered '"state":"failed"'
 - Pass ifVersion to every edit_showcase call. Get the version from
   read_showcase, or use the version your last edit_showcase returned. If
   showcase.yaml changed since then, the edit is refused, nothing is

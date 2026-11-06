@@ -39,6 +39,11 @@ export const TOOLS = [
       "`history` says whether the studio keeps a git history of the library: " +
       "{git, autoCommit, enabled, available, branch, reason?} — reason explains why commits " +
       "are off or waiting. enabled is the user's own switch in the studio; don't change it. " +
+      "`actions` is the studio's Actions list — every export, media build and git commit, " +
+      "whoever started it: {pending, running, failed: [{id, kind, label, showcaseId, by, " +
+      "error}], path}. A failure listed there is one the user has seen in the studio and " +
+      "hasn't dismissed; `path` is the list's file (.studio/actions.jsonl, one line per " +
+      "state change) to follow with tail -F. " +
       "`pageError` {message, stack, path, at} appears when the last studio page failed to " +
       "render on the server and no page has rendered since: tell the user that error.",
     inputSchema: { type: "object", properties: {} },
@@ -869,6 +874,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
       changes: context.changeLog?.path(),
       ...(context.history ? { history: await context.history.status() } : {}),
+      ...(context.actions ? { actions: context.actions.summary() } : {}),
       ...(context.license ? { license: context.license.status() } : {}),
       ...pageErrorField(),
     });
@@ -966,6 +972,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       context.buildJobs.start("build", String(args.showcaseId ?? ""), {
         force: args.force === true,
         only: Array.isArray(args.only) ? args.only.map(String) : undefined,
+        by: "claude",
       }),
     );
   }
@@ -973,6 +980,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json(
       context.buildJobs.start("voiceover", String(args.showcaseId ?? ""), {
         force: args.force === true,
+        by: "claude",
       }),
     );
   }
@@ -990,7 +998,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     if (!EXPORT_KINDS.includes(kind)) {
       throw new Error(`Unknown export kind "${kind}" — use one of: ${EXPORT_KINDS.join(", ")}`);
     }
-    return json(context.exportJobs.start(kind, String(args.showcaseId ?? "")));
+    return json(context.exportJobs.start(kind, String(args.showcaseId ?? ""), { by: "claude" }));
   }
   if (name === "export_status" || name === "export_cancel") {
     const jobId = String(args.jobId ?? "");
