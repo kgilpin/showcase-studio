@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { FileText, Home, Images, Send, Smartphone } from "lucide-react";
-import { BuildMediaButton } from "@/components/studio/BuildMediaButton";
 import { StudioActivity } from "@/components/studio/StudioActivity";
 import { StudioSettings } from "@/components/studio/StudioSettings";
 import { studio, useWindowLock } from "@/lib/studio";
@@ -15,10 +14,11 @@ import { cn } from "@/lib/utils";
  * stay in the player's own bottom bar; going somewhere else lives up
  * here. Tab icons are nouns (what the screen shows) — the play triangle
  * is reserved for actions that start playback, so it never labels a
- * place. At the far right, in a studio: "Build media" on a showcase cut
- * from a recording (BuildMediaButton), one slot for what the studio is
- * doing — a running export or build, a commit about to happen with its
- * skip, a failure not yet dismissed — which opens the
+ * place. At the far right, in a studio: one slot for what the studio is
+ * doing — a running export or build (the studio builds a recorded or
+ * voiced showcase's media on its own when its inputs change, issue
+ * #37), a commit about to happen with its skip, a failure not yet
+ * dismissed — which opens the
  * Actions list, every export, build and commit and what can be done
  * about each (StudioActivity); then the gear button, which opens the
  * studio-wide settings
@@ -46,14 +46,10 @@ export function ShowcaseNav({
   showcaseId,
   title,
   current,
-  built = false,
 }: {
   showcaseId: string;
   title: string;
   current: (typeof TABS)[number]["key"];
-  /** The showcase is cut from a recording (meta.source) — it gets the
-   *  "Build media" button. */
-  built?: boolean;
 }) {
   const locked = useWindowLock() != null;
   const [inStudio, setInStudio] = useState(false);
@@ -101,7 +97,6 @@ export function ShowcaseNav({
           ),
         )}
       </nav>
-      {built && <BuildMediaButton showcaseId={showcaseId} />}
       <StudioActivity showcaseId={showcaseId} />
       <StudioSettings />
     </header>

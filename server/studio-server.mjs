@@ -57,6 +57,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { buildMedia } from "./build-media.mjs";
+import { createAutoBuild } from "./auto-build.mjs";
+import { mediaStatus, mediaSummary } from "./media-status.mjs";
 import { buildVoiceover, hasVoiceover } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
 import { createActionsLog } from "./actions-log.mjs";
@@ -283,6 +285,7 @@ export function createStudio({
   licensing = createLicense,
   log = (message) => console.log(message),
   commitDelayMs = 5000,
+  buildDelayMs = 3000,
 }) {
   let showcasesDir = path.resolve(initialDir);
   /* While this studio runs, the page's error page may show error details
@@ -308,6 +311,8 @@ export function createStudio({
     library: showcasesDir,
     lock,
     features: { terminal: terminalsOn, airDrop: sendToPhone != null },
+    /* The "Build media when it changes" switch (server/auto-build.mjs). */
+    autoBuild: settings.load()?.autoBuild !== false,
     pid: process.pid,
     startedAt,
     /* The studio's code files changed since it started, from source
@@ -455,6 +460,10 @@ add notes specific to this library below, and the studio won't touch them.
     }
   };
 
+  /* The automatic media build (below): the watcher and the change log
+   * both tell it about changes. */
+  let autoBuild = null;
+
   let watcher;
   let reloadTimer;
   function watchLibrary() {
@@ -475,6 +484,7 @@ add notes specific to this library below, and the studio won't touch them.
          * tools — is its author's to commit; it only rides along in the
          * studio's next commit of that showcase. */
         pending.add(filename == null ? null : path.join(showcasesDir, filename));
+        autoBuild?.noteChange(filename);
         clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => {
           const changed = [...pending];
@@ -517,12 +527,19 @@ add notes specific to this library below, and the studio won't touch them.
     return path.join(libraryExportDir(showcasesDir) ?? exportDir, showcaseId);
   }
 
-  async function recordedExport(kind, showcaseId, { onProgress, signal } = {}) {
+  async function recordedExport(kind, showcaseId, { onProgress, signal, by } = {}) {
     /* Full-quality videos need a license or a free export; the page asks
      * first, so this refusal is what Claude's export tool (and --export)
      * meet. */
     const verdict = await license.beforeExport(kind);
     if (!verdict.allowed) throw new LicenseRequired(verdict.message);
+    /* Stale clips or a stale voiceover would render into the video:
+     * build first, and wait (server/auto-build.mjs). */
+    await autoBuild.ensureBuilt(showcaseId, {
+      by: by ?? "user",
+      why: `${showcaseId}'s media was out of date before its ${exportLabel(kind)} export`,
+      onProgress: (label) => onProgress?.(label),
+    });
     const recorded = RECORDED_KINDS.includes(kind);
     const fingerprint = recorded ? exportRecords.fingerprint(showcaseId) : undefined;
     const durationMs = recorded ? showcaseDurationMs(showcasesDir, showcaseId) : undefined;
@@ -599,7 +616,8 @@ add notes specific to this library below, and the studio won't touch them.
    * pages as the "build" event. */
   /* A showcase voiced by Polly (meta.voiceover, server/voiceover.mjs)
    * builds in the same lane: "voiceover" asks for it by name, and a plain
-   * "build" of such a showcase — the Build media button — picks it. */
+   * "build" of such a showcase (the automatic build, a Try again) picks
+   * it. */
   const buildJobs = createExportJobs(
     (kind, showcaseId, { onProgress, signal, force, only }) =>
       (kind === "voiceover" || hasVoiceover(showcasesDir, showcaseId)
@@ -647,11 +665,26 @@ add notes specific to this library below, and the studio won't touch them.
             rebuild: again(true),
           },
         });
+        if (status.status !== "running") autoBuild?.jobEnded(status);
       },
       name: "build",
       poll: "build_status",
     },
   );
+
+  /* The build runs on its own when a built showcase's inputs change
+   * (issue #37, server/auto-build.mjs): the change log and the watcher
+   * tell it, it waits a quiet period, asks mediaStatus whether anything
+   * is out of date, and starts the job above as "studio". The switch
+   * under the gear button turns it off. */
+  autoBuild = createAutoBuild({
+    buildJobs,
+    actions,
+    status: (showcaseId) => mediaStatus({ showcasesDir, showcaseId }),
+    enabled: () => settings.load()?.autoBuild !== false,
+    delayMs: buildDelayMs,
+    log,
+  });
 
   /** Opens the file manager on a showcase's exports: the job's output
    *  when `jobId` names a finished job, else the showcase's export
@@ -710,7 +743,10 @@ add notes specific to this library below, and the studio won't touch them.
   });
   const changeLog = createChangeLog(() => showcasesDir, {
     log,
-    onAppend: (entry) => history.noteShowcase(entry.showcaseId, entry.kind),
+    onAppend: (entry) => {
+      history.noteShowcase(entry.showcaseId, entry.kind);
+      autoBuild.noteShowcase(entry.showcaseId, entry.kind);
+    },
   });
 
   const mcpContext = {
@@ -722,6 +758,9 @@ add notes specific to this library below, and the studio won't touch them.
     renderer,
     exportJobs,
     buildJobs,
+    autoBuild,
+    mediaStatus: (showcaseId) => mediaStatus({ showcasesDir, showcaseId }),
+    mediaSummary: () => mediaSummary(showcasesDir),
     changeLog,
     actions,
     history,
@@ -1057,6 +1096,25 @@ scenes:
     return { ok: true, history: await history.status() };
   }
 
+  /** The "Build media when it changes" switch, beside the commit one.
+   *  Studio-wide, in effect at once: off drops the builds still waiting
+   *  for their quiet period, and the build tools still run on request.
+   *  Logged as a "setting" change too. */
+  function setAutoBuild({ on } = {}) {
+    if (typeof on !== "boolean") return { ok: false, error: "Send on: true or on: false" };
+    settings.save({ autoBuild: on });
+    if (!on) autoBuild.cancelPending();
+    changeLog.append({
+      source: "ui",
+      showcaseId: null,
+      kind: "setting",
+      name: "autoBuild",
+      value: on,
+    });
+    emit("info", info());
+    return { ok: true, autoBuild: on };
+  }
+
   /* The actions that write a showcase's files log each successful write
    * as a "ui" change. */
   const logUi = (showcaseId, kind, details) =>
@@ -1104,6 +1162,12 @@ scenes:
     },
     "prompter-publish": publishPrompter,
     "history-auto-commit": setAutoCommit,
+    "media-auto-build": setAutoBuild,
+    /* Whether a showcase's built media is up to date (media-status.mjs). */
+    "media-status": ({ showcaseId }) => ({
+      ok: true,
+      status: mediaStatus({ showcasesDir, showcaseId: String(showcaseId ?? "") }),
+    }),
     export: ({ kind, showcaseId }) => exportJob(String(kind ?? ""), showcaseId),
     "export-status": ({ jobId }) => {
       const job = exportJobs.status(String(jobId ?? ""));
@@ -1379,6 +1443,7 @@ scenes:
       /* A reload still waiting would fire after close. */
       clearTimeout(reloadTimer);
       await codeWatch?.close();
+      autoBuild.close();
       await history.close();
       terminals?.dispose();
       for (const res of listeners) res.end();

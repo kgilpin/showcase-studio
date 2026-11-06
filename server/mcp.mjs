@@ -45,7 +45,11 @@ export const TOOLS = [
       "hasn't dismissed; `path` is the list's file (.studio/actions.jsonl, one line per " +
       "state change) to follow with tail -F. " +
       "`pageError` {message, stack, path, at} appears when the last studio page failed to " +
-      "render on the server and no page has rendered since: tell the user that error.",
+      "render on the server and no page has rendered since: tell the user that error. " +
+      "`media` lists every showcase whose media the studio builds (a recorded pitch, a " +
+      "voiced showcase) with whether it is up to date: {showcaseId, kind, upToDate, stale: " +
+      "[what a build would remake], problem?: why it can't be built yet}; `autoBuild` says " +
+      "whether the studio builds on its own when inputs change (the user's switch).",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -327,9 +331,10 @@ export const TOOLS = [
       "wrong place, against .studio/showcase.schema.json; a wrong value; themes and media; " +
       "length — a scene over its maxMs or meta.sceneMaxMs says how far over and why, a " +
       "showcase over meta.targetMs names its longest scenes), and, for any showcase that " +
-      "failed, the error message. Use it after YAML edits to confirm nothing broke, read the " +
-      "length warnings before telling the user a showcase is done, and never leave a warning " +
-      "unresolved.",
+      "failed, the error message; for a showcase whose media the studio builds, `media` " +
+      "{kind, upToDate, stale, problem?}. Use it after YAML edits to confirm nothing broke, " +
+      "read the length warnings before telling the user a showcase is done, and never leave " +
+      "a warning unresolved.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -407,8 +412,12 @@ export const TOOLS = [
     name: "build_media",
     description:
       "Build a recorded pitch's media from its cut list — the voiceover, one muted clip per " +
-      "footage scene, the karaoke words file, and every scene's durationMs. Returns a jobId " +
-      "immediately; poll build_status.\n" +
+      "footage scene, the karaoke words file, and every scene's durationMs. The studio does " +
+      "this on its own a few seconds after the cut list, the recording or the transcript " +
+      "changes, and before any export or screenshot, so you rarely need to ask; call it to " +
+      "force a rebuild, to build only some scenes, or to get a jobId to wait on with " +
+      "build_status {waitMs} before you look at the result. Returns the running build of " +
+      "the showcase when there is one, else starts one and returns its jobId.\n" +
       "The cut list lives in showcase.yaml: meta.source names the master recording " +
       "({video, speed}), and each scene's `take` names the span of it that scene owns " +
       "({from, to} in seconds; {silence: <seconds>} for a card with nothing spoken over it; a " +
@@ -417,7 +426,8 @@ export const TOOLS = [
       "and the voice cannot drift apart — never pin durationMs by hand on a built showcase, " +
       "and never cut clips with your own ffmpeg calls or a script.\n" +
       "Builds are idempotent: only outputs whose inputs changed are rebuilt. `force` rebuilds " +
-      "everything; `only` limits it to those scene ids.",
+      "everything; `only` limits it to those scene ids. studio_info's `media` says whether " +
+      "a showcase is up to date.",
     inputSchema: {
       type: "object",
       properties: {
@@ -440,14 +450,17 @@ export const TOOLS = [
     description:
       "Make a synthesized voiceover from a showcase's captions with AWS Polly, on the user's " +
       "own AWS account (through the aws command) — the track, the karaoke words file, and " +
-      "every caption's durationMs. Returns a jobId immediately; poll build_status.\n" +
+      "every caption's durationMs. The studio does this on its own a few seconds after a " +
+      "caption or the voice settings change, and before any export or screenshot; call it " +
+      "to force a rebuild or to get a jobId to wait on with build_status {waitMs}. Returns " +
+      "the running build of the showcase when there is one, else starts one.\n" +
       "The settings live in showcase.yaml's meta.voiceover: {voice (default Matthew), engine " +
       "(generative | neural | standard | long-form; default generative), profile and region " +
       "(optional: else the user's AWS defaults), track (the asset key, default voiceover)}. " +
       "Each caption gets one window: 250 ms lead + its spoken length + 450 ms tail, the last " +
       "one 1.5 s more for the end card (leadMs, tailMs, holdMs change those). The pins add up " +
-      "to the track, so after any caption edit run this again — never pin durationMs by hand " +
-      "on a voiced showcase, and never make the voice with your own Polly or ffmpeg calls.\n" +
+      "to the track, so never pin durationMs by hand on a voiced showcase, and never make " +
+      "the voice with your own Polly or ffmpeg calls.\n" +
       "Idempotent: clips are cached by voice, engine and text, so only changed captions call " +
       "Polly again. `force` makes every clip again. Needs the aws command signed in; without " +
       "whisper the words file falls back to estimated word times (the notes say so).",
@@ -575,7 +588,8 @@ export const TOOLS = [
     name: "export",
     description:
       "Start an export of a showcase as a background job — returns a jobId immediately; poll " +
-      'export_status (you can keep working meanwhile). Kinds: "video-draft" renders a fast, ' +
+      "export_status (you can keep working meanwhile). A recorded or voiced showcase whose " +
+      'media is out of date is built first, as part of the job. Kinds: "video-draft" renders a fast, ' +
       "small MP4 (12fps, half size) — use it freely to check your work while iterating; " +
       '"video" is the full-quality 1080×1920 (9:16) TikTok render and takes minutes — confirm with the user ' +
       'before starting one; "video-43" / "video-43-draft" render the 4:3 embed canvas ' +
@@ -711,6 +725,17 @@ export function resolveRecording(args, showcasesDir) {
 const TRANSCRIBE_TIMEOUT_MS = 300_000;
 
 const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
+
+/** Builds a showcase's media first when it is out of date, so a
+ *  screenshot or a check never shows stale clips (server/auto-build.mjs). */
+async function builtFirst(context, showcaseId, tool) {
+  const id = String(showcaseId ?? "");
+  if (!id || !context.autoBuild) return;
+  await context.autoBuild.ensureBuilt(id, {
+    by: "claude",
+    why: `${id}'s media was out of date before ${tool}`,
+  });
+}
 
 /** The refusal for an edit made against an old version: what the change
  *  log recorded since that version, one JSON line per write. */
@@ -879,6 +904,9 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
        * goes), both written into the library at every start. */
       guide: path.join(showcasesDir, ".studio", "GUIDE.md"),
       schema: path.join(showcasesDir, ".studio", "showcase.schema.json"),
+      /* Every showcase whose media the studio builds, and whether it is
+       * up to date (server/media-status.mjs). */
+      media: context.mediaSummary?.() ?? [],
       changes: context.changeLog?.path(),
       ...(context.history ? { history: await context.history.status() } : {}),
       ...(context.actions ? { actions: context.actions.summary() } : {}),
@@ -974,19 +1002,19 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       content: [{ type: "text", text: scriptText(showcasesDir, String(args.showcaseId ?? "")) }],
     };
   }
-  if (name === "build_media") {
+  if (name === "build_media" || name === "build_voiceover") {
+    const showcaseId = String(args.showcaseId ?? "");
+    /* The studio may already be building this showcase on its own: that
+     * build is the one to wait on, unless a rebuild was asked for. */
+    const running = context.buildJobs.current();
+    if (running?.status === "running" && running.showcaseId === showcaseId && !args.force) {
+      return json(running);
+    }
     return json(
-      context.buildJobs.start("build", String(args.showcaseId ?? ""), {
+      context.buildJobs.start(name === "build_media" ? "build" : "voiceover", showcaseId, {
         force: args.force === true,
-        only: Array.isArray(args.only) ? args.only.map(String) : undefined,
-        by: "claude",
-      }),
-    );
-  }
-  if (name === "build_voiceover") {
-    return json(
-      context.buildJobs.start("voiceover", String(args.showcaseId ?? ""), {
-        force: args.force === true,
+        only:
+          name === "build_media" && Array.isArray(args.only) ? args.only.map(String) : undefined,
         by: "claude",
       }),
     );
@@ -1052,6 +1080,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json({ file: audioPath, ...result });
   }
   if (name === "screenshot_slide") {
+    await builtFirst(context, args.showcaseId, name);
     const data = await screenshotSlide(context.renderer, context.getUrl(), args);
     return {
       content: [
@@ -1064,6 +1093,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     };
   }
   if (name === "screenshot_frame") {
+    await builtFirst(context, args.showcaseId, name);
     const result = await screenshotFrame(context.renderer, context.getUrl(), showcasesDir, args);
     const content = [];
     for (const frame of result.frames) {
@@ -1091,6 +1121,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     if (!showcaseId) throw new Error("showcaseId is required");
     const finder = context.faceFinder ?? createFaceFinder();
     if (!finder.available) return json({ available: false, showcaseId, reason: finder.reason });
+    await builtFirst(context, showcaseId, name);
     const result = await checkCaptionsOverFaces({
       renderer: context.renderer,
       appUrl: context.getUrl(),
@@ -1111,6 +1142,13 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
   }
   if (name === "validate") {
     const report = await validateShowcases(context.renderer, context.getUrl());
+    /* Whether each built showcase's media is up to date (media-status.mjs). */
+    for (const loaded of report.loaded ?? []) {
+      const media = context.mediaStatus?.(loaded.id);
+      if (!media?.built) continue;
+      const { kind, ok, stale, upToDate, problem } = media;
+      loaded.media = { kind, ...(ok ? { upToDate, stale } : { upToDate: false, problem }) };
+    }
     return { content: [{ type: "text", text: JSON.stringify(report, null, 2) }] };
   }
   throw new Error(`Unknown tool: ${name}`);

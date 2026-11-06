@@ -140,6 +140,12 @@ the full list.
 - A new showcase: `create_showcase` with its name. It makes the folder,
   a starter `showcase.yaml` and an empty `assets/`, and returns the id.
   Don't write the folder yourself.
+- A recorded or voiced showcase builds its media on its own a few
+  seconds after you change the cut list, the recording, the transcript
+  or the captions, and before any export or screenshot. `studio_info`'s
+  `media` says whether each one is up to date; `build_media` and
+  `build_voiceover` are for a forced rebuild, or for a jobId to wait on
+  with `build_status {waitMs}` before you look.
 - `showcase.yaml`: use `edit_showcase` for anything it can express. One
   call applies a whole batch — retiming every scene, say — as one write
   that keeps the file's formatting. For anything else, use your

@@ -440,7 +440,12 @@ npm run dev -- --new [<library folder>]
     (the recording by showcase and asset key, or by path; with `save`,
     which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
-    `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`
+    `build-media.mjs`, `build_voiceover` through `voiceover.mjs` (both
+    answer a build of the showcase already running, since the studio
+    builds on its own; `studio_info` lists every built showcase's
+    `media` status, and `validate` adds it to each loaded showcase;
+    `screenshot_slide`, `screenshot_frame` and `check_framing` build
+    first when the media is stale), `export`/`export_status`/`export_cancel`
     (the two status tools take `waitMs` and wait for the job inside the
     call, up to two minutes, so a session needn't poll),
     `share_status`/`share`/`share_record` through `share.mjs`.
@@ -497,7 +502,11 @@ npm run dev -- --new [<library folder>]
     words file, and every `durationMs` written back through `scene-edit.mjs`
     — so nothing is copied across by hand and the picture cannot drift from
     the voice; idempotent through a fingerprint of each output's inputs in
-    `<library>/.studio/build/<showcase>.json`.
+    `<library>/.studio/build/<showcase>.json`. `planRecording` is the
+    build's first half on its own — the cut list read, the recording
+    found, every output's name and print — and `recordingStatus` compares
+    it with the manifest to say what a build would remake, so the check
+    and the build can't disagree.
   - `voiceover.mjs`: a synthesized voiceover, for a showcase with no
     recording: `meta.voiceover` names the AWS Polly voice and engine (and,
     optionally, the AWS profile and region), and the build reads each
@@ -511,8 +520,32 @@ npm run dev -- --new [<library folder>]
     cached in `<library>/.studio/build/voiceover/<showcase>/` by voice,
     engine and text, so only a changed caption calls Polly again. It runs
     in the media-build lane: `build_voiceover`, the `voiceover` action,
-    and a plain `build` (the Build media button) of a showcase with
-    `meta.voiceover`.
+    and a plain `build` of a showcase with `meta.voiceover`.
+    `voiceoverStatus` says whether the track is up to date without
+    calling Polly or decoding a clip: the manifest keeps a print of every
+    input the build read (`voiceInputsPrint`) and the pins it wrote.
+  - `media-status.mjs`: one answer for both — `mediaStatus(showcaseId)`:
+    `{built: false}`, `{built: true, kind, ok: false, problem}` while the
+    cut list or the voice settings don't read, else `{stale, upToDate,
+print}` — what the automatic build asks before it starts, what an
+    export asks before it renders, and what `studio_info` (`media`, via
+    `mediaSummary`) and `validate` report.
+  - `auto-build.mjs`: the build runs on its own (issue #37). The change
+    log's writes and the watcher's file changes for a showcase start a
+    quiet period (`buildDelayMs`, 3 s), shown as a pending record in the
+    Actions list with Skip; when it ends, `mediaStatus` says whether
+    anything is out of date, and if so the build starts in the media-build
+    lane as "studio", its own record taking over. A build already running
+    is left to finish and the change goes again after it. A cut list that
+    doesn't read yet is reported once, as a failed record with Try again,
+    and not again until the inputs change; a build of the studio's own
+    that fails is likewise not retried on the same inputs. `ensureBuilt`
+    is the same check for an export, a screenshot or the face check:
+    build first when stale, and wait. The "Build media when it changes"
+    switch (`media-auto-build`, `autoBuild` in settings and in the
+    studio's info) turns the automatic part off; the tools and the
+    export-first build still run. There is no Build media button any
+    more.
   - `transcript.mjs`: the recording's editable transcript,
     `assets/<recording>.transcript.json`: whisper's sub-word tokens merged
     into whole words, and a `corrections` list — respell a word, fold two
@@ -873,8 +906,9 @@ npm run dev -- --new [<library folder>]
   master recording and the playback speed), and each scene names the
   span of it that scene owns in `take`. Everything else — the
   voiceover, the clips, the word timings, every `durationMs` — is
-  derived from that one list by `build_media`
-  (`server/build-plan.mjs`, `server/build-media.mjs`), so the picture
+  derived from that one list by the build, which the studio runs on its
+  own when the list changes
+  (`server/build-plan.mjs`, `server/build-media.mjs`, `server/auto-build.mjs`), so the picture
   and the voice cannot disagree. Nothing in the player knows about
   `take`: the build writes ordinary pins and assets. When a change
   adds something an author would otherwise have to work out by hand,

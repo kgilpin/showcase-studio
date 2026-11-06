@@ -5,6 +5,7 @@
  *                               Manage subscription ↗   (LicensePanel)
  *                             [Commit changes to git  (switch)]
  *                                on main
+ *                             [Build media when it changes  (switch)]
  *
  * While the subscription needs the user — the trial, a checkout, a
  * payment issue — the gear carries a dot (amber for a payment issue)
@@ -12,9 +13,11 @@
  * That is the tab bar's only sign of it; the Subscription section here
  * has what to do.
  *
- * The switch saves autoCommit in the studio's settings.json through the
- * studio server (history-auto-commit) and applies to every showcase at
- * once. When commits can't happen here at all — git isn't installed, the
+ * The commit switch saves autoCommit in the studio's settings.json
+ * through the studio server (history-auto-commit) and applies to every
+ * showcase at once; the build switch saves autoBuild the same way
+ * (media-auto-build, server/auto-build.mjs): off, a recorded or voiced
+ * showcase's media is built only before an export or on request. When commits can't happen here at all — git isn't installed, the
  * library isn't in a git repository, or .gitignore hides it — the switch
  * is disabled and its tooltip says why, in the studio's own words.
  *
@@ -28,8 +31,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { studio, useLicense, type StudioHistory } from "@/lib/studio";
+import { studio, useAutoBuild, useLicense, type StudioHistory } from "@/lib/studio";
 import { LicensePanel } from "./LicensePanel";
+import { autoBuildExplanation } from "./auto-build-text";
 import { autoCommitExplanation } from "./auto-commit-text";
 import { settingsNotice } from "./license-actions";
 
@@ -105,6 +109,55 @@ export function AutoCommitSwitch({
   );
 }
 
+/** The "Build media when it changes" switch on its own. `on` is null
+ *  until the studio has said. */
+export function AutoBuildSwitch({
+  on,
+  saving = false,
+  onChange,
+}: {
+  on: boolean | null;
+  saving?: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  const id = useId();
+  const switchId = `${id}-switch`;
+  const descriptionId = `${id}-description`;
+  const disabled = on === null || saving;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <Label htmlFor={switchId}>Build media when it changes</Label>
+          <p className="mt-1 truncate text-xs text-muted-foreground" aria-hidden="true">
+            {on === null ? "Checking…" : on ? "on" : "off"}
+          </p>
+          <p id={descriptionId} className="sr-only">
+            {autoBuildExplanation(on)}
+          </p>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex shrink-0 rounded-full">
+              <Switch
+                id={switchId}
+                checked={on === true}
+                disabled={disabled}
+                aria-disabled={disabled || undefined}
+                aria-describedby={descriptionId}
+                onCheckedChange={onChange}
+              />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-64">
+            {autoBuildExplanation(on)}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
+  );
+}
+
 export function StudioSettings() {
   const [inStudio, setInStudio] = useState(false);
   useEffect(() => setInStudio(Boolean(studio()?.history)), []);
@@ -113,6 +166,8 @@ export function StudioSettings() {
   const [status, setStatus] = useState<StudioHistory | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoBuild = useAutoBuild();
+  const [savingBuild, setSavingBuild] = useState(false);
 
   const refresh = useCallback(async () => {
     const client = studio();
@@ -147,6 +202,14 @@ export function StudioSettings() {
     if (result.history) setStatus(result.history);
     else await refresh();
     setSaving(false);
+  };
+
+  const changeBuild = async (on: boolean) => {
+    setSavingBuild(true);
+    setError(null);
+    const result = await studio()!.builds.setAuto(on);
+    if (!result.ok) setError(result.error ?? "The setting wasn't saved");
+    setSavingBuild(false);
   };
 
   return (
@@ -203,6 +266,13 @@ export function StudioSettings() {
           </div>
         )}
         <AutoCommitSwitch status={status} saving={saving} onChange={(on) => void change(on)} />
+        <div className="mt-4 border-t border-border pt-4">
+          <AutoBuildSwitch
+            on={autoBuild}
+            saving={savingBuild}
+            onChange={(on) => void changeBuild(on)}
+          />
+        </div>
         {error && (
           <p role="alert" className="mt-3 text-xs text-destructive">
             {error}

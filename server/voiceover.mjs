@@ -416,21 +416,140 @@ async function intoPlace(target, write) {
 const manifestFile = (showcasesDir, showcaseId) =>
   path.join(showcasesDir, MANIFEST_DIR, `${showcaseId}.voiceover.json`);
 
+/** What the last build recorded: each output's name with the print of
+ *  what made it, the print of every input the build read (`inputs`, see
+ *  voiceInputsPrint), and the caption pins it wrote. Empty for a
+ *  showcase never built, or built by an older recipe. */
 function readManifest(showcasesDir, showcaseId) {
   try {
     const doc = JSON.parse(readFileSync(manifestFile(showcasesDir, showcaseId), "utf8"));
-    return doc?.version === RECIPE_VERSION && doc.outputs ? doc.outputs : {};
+    return doc?.version === RECIPE_VERSION && doc.outputs
+      ? { outputs: doc.outputs, inputs: doc.inputs ?? null, pins: doc.pins ?? [] }
+      : { outputs: {}, inputs: null, pins: [] };
   } catch {
-    return {};
+    return { outputs: {}, inputs: null, pins: [] };
   }
 }
 
-function writeManifest(showcasesDir, showcaseId, outputs) {
+function writeManifest(showcasesDir, showcaseId, outputs, { inputs, pins }) {
   mkdirSync(path.join(showcasesDir, MANIFEST_DIR), { recursive: true });
   writeFileSync(
     manifestFile(showcasesDir, showcaseId),
-    `${JSON.stringify({ version: RECIPE_VERSION, showcaseId, outputs }, null, 1)}\n`,
+    `${JSON.stringify({ version: RECIPE_VERSION, showcaseId, outputs, inputs, pins }, null, 1)}\n`,
   );
+}
+
+/** A caption's clip in the cache: its key names the text, the voice and
+ *  the engine, so a changed caption is a new clip and the rest are
+ *  reused. */
+export function captionKey(settings, text) {
+  return fingerprint({
+    recipe: RECIPE_VERSION,
+    engine: settings.engine,
+    voice: settings.voice,
+    rate: SAMPLE_RATE,
+    text,
+  }).slice(0, 32);
+}
+
+/** The print of everything a voiceover build reads: the settings, and
+ *  the showcase in order — each caption's clip key, or the silence a
+ *  scene with nothing to read gets. The build records it in the
+ *  manifest; voiceoverStatus compares it, so an edit to any of them
+ *  shows as out of date without decoding a clip. */
+export function voiceInputsPrint(settings, scenes, pace) {
+  return fingerprint({
+    recipe: RECIPE_VERSION,
+    settings: {
+      voice: settings.voice,
+      engine: settings.engine,
+      track: settings.track,
+      leadMs: settings.leadMs,
+      tailMs: settings.tailMs,
+      holdMs: settings.holdMs,
+    },
+    items: scenes.map((scene) =>
+      scene.captions.length === 0
+        ? { id: scene.id, silenceMs: silentSceneMs(scene.scene, pace) }
+        : { id: scene.id, keys: scene.captions.map((c) => captionKey(settings, c.text)) },
+    ),
+  });
+}
+
+/** Whether a voiced showcase's track is up to date with its captions,
+ *  without calling Polly or decoding a clip: `{built: false}` for a
+ *  showcase with no meta.voiceover; `{built: true, kind: "voiceover",
+ *  ok: false, problem}` while the settings or the captions don't read;
+ *  else `stale` — the captions with no clip in the cache, the track
+ *  when any input changed since the last build or the file is gone, the
+ *  words file likewise, a caption whose durationMs isn't the pin the
+ *  build wrote, the soundtrack not set — and `upToDate`. `print`
+ *  fingerprints the whole comparison. */
+export function voiceoverStatus({ showcasesDir, showcaseId }) {
+  if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) {
+    return { built: true, kind: "voiceover", ok: false, problem: "Bad showcase id" };
+  }
+  const yamlPath = path.join(showcasesDir, showcaseId, "showcase.yaml");
+  if (!existsSync(yamlPath)) {
+    return {
+      built: true,
+      kind: "voiceover",
+      ok: false,
+      problem: `No showcase named "${showcaseId}"`,
+    };
+  }
+  let doc;
+  try {
+    doc = parse(readFileSync(yamlPath, "utf8"));
+  } catch (error) {
+    return {
+      built: true,
+      kind: "voiceover",
+      ok: false,
+      problem: `showcase.yaml doesn't parse: ${String(error?.message ?? error)}`,
+    };
+  }
+  const plan = readVoiceoverPlan(doc);
+  if (!plan.voiced) return { built: false };
+  if (!plan.ok)
+    return { built: true, kind: "voiceover", ok: false, problem: plan.errors.join("\n") };
+  const { settings, scenes } = plan;
+  const cacheDir = path.join(showcasesDir, CACHE_DIR, showcaseId);
+  const assetsDir = path.join(showcasesDir, showcaseId, "assets");
+  const manifest = readManifest(showcasesDir, showcaseId);
+  const stale = [];
+  const unvoiced = scenes
+    .flatMap((scene) => scene.captions.map((c) => ({ scene, caption: c })))
+    .filter(
+      ({ caption }) =>
+        !existsSync(path.join(cacheDir, `${captionKey(settings, caption.text)}.mp3`)),
+    );
+  if (unvoiced.length > 0) {
+    stale.push(
+      unvoiced.length === 1
+        ? `${unvoiced[0].scene.id} caption ${unvoiced[0].caption.index + 1} (to voice)`
+        : `${unvoiced.length} captions to voice`,
+    );
+  }
+  const inputs = voiceInputsPrint(settings, scenes, doc.meta?.pace);
+  const trackName = `${settings.track}.m4a`;
+  const wordsName = `${settings.track}.words.json`;
+  if (manifest.inputs !== inputs || !existsSync(path.join(assetsDir, trackName))) {
+    stale.push(trackName);
+  }
+  if (!manifest.outputs[wordsName] || !existsSync(path.join(assetsDir, wordsName))) {
+    stale.push(wordsName);
+  }
+  for (const pin of manifest.pins) {
+    const scene = scenes.find((s) => s.id === pin.sceneId);
+    const caption = scene?.scene?.captions?.[pin.captionIndex];
+    if (caption && caption.durationMs !== pin.durationMs) {
+      stale.push(`durationMs on ${pin.sceneId} caption ${pin.captionIndex + 1}`);
+    }
+  }
+  if (!doc.meta?.soundtrack) stale.push("meta.soundtrack");
+  const print = fingerprint({ inputs, pins: manifest.pins, stale });
+  return { built: true, kind: "voiceover", ok: true, stale, upToDate: stale.length === 0, print };
 }
 
 const checkAborted = (signal) => {
@@ -497,13 +616,7 @@ export async function buildVoiceover({
   const keep = new Set();
   for (const [n, caption] of captions.entries()) {
     checkAborted(signal);
-    const key = fingerprint({
-      recipe: RECIPE_VERSION,
-      engine: settings.engine,
-      voice: settings.voice,
-      rate: SAMPLE_RATE,
-      text: caption.text,
-    }).slice(0, 32);
+    const key = captionKey(settings, caption.text);
     caption.key = key;
     caption.clip = path.join(cacheDir, `${key}.mp3`);
     keep.add(`${key}.mp3`).add(`${key}.heard.json`);
@@ -551,12 +664,12 @@ export async function buildVoiceover({
   );
   const trackPrint = fingerprint({ recipe: RECIPE_VERSION, leadMs: settings.leadMs, layout });
   const manifest = readManifest(showcasesDir, showcaseId);
-  const next = { ...manifest };
+  const next = { ...manifest.outputs };
   const built = [];
   const unchanged = [];
 
   checkAborted(signal);
-  if (force || manifest[trackName] !== trackPrint || !existsSync(trackPath)) {
+  if (force || manifest.outputs[trackName] !== trackPrint || !existsSync(trackPath)) {
     onProgress("joining the voiceover…", { step: captions.length + 1, steps: captions.length + 2 });
     const raw = path.join(cacheDir, "track.pcm");
     try {
@@ -597,7 +710,7 @@ export async function buildVoiceover({
 
   /* 3. The words: each clip heard on its own, cached beside it. */
   const wordsPrint = fingerprint({ track: trackPrint, texts: captions.map((c) => c.text) });
-  if (force || manifest[wordsName] !== wordsPrint || !existsSync(wordsPath)) {
+  if (force || manifest.outputs[wordsName] !== wordsPrint || !existsSync(wordsPath)) {
     onProgress("timing the words…", { step: captions.length + 2, steps: captions.length + 2 });
     let heardAll = true;
     let noWhisper;
@@ -742,7 +855,10 @@ export async function buildVoiceover({
       built,
     };
   }
-  writeManifest(showcasesDir, showcaseId, next);
+  writeManifest(showcasesDir, showcaseId, next, {
+    inputs: voiceInputsPrint(settings, scenes, doc.meta?.pace),
+    pins,
+  });
 
   /* Clips no caption reads any more. */
   for (const file of readdirSync(cacheDir)) {
@@ -763,8 +879,7 @@ export async function buildVoiceover({
 }
 
 /** Whether a showcase is voiced by Polly (meta.voiceover) rather than cut
- *  from a recording — what the studio's one "Build media" button asks to
- *  pick the build. */
+ *  from a recording — how a plain "build" of a showcase picks its build. */
 export function hasVoiceover(showcasesDir, showcaseId) {
   if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) return false;
   try {

@@ -91,12 +91,17 @@ export type StudioBuildReport = {
 
 export type StudioBuilds = {
   /** Builds a showcase's media from its cut list; fails when one is
-   *  already running. */
+   *  already running. The studio does this on its own when the inputs
+   *  change (autoBuild); this is the way to ask for a rebuild. */
   start(
     showcaseId: string,
     options?: { force?: boolean },
   ): Promise<{ ok: boolean; job?: StudioExportJob; error?: string }>;
   cancel(jobId: string): Promise<{ ok: boolean; job?: StudioExportJob; error?: string }>;
+  /** Whether a showcase's built media is up to date. */
+  status(showcaseId: string): Promise<{ ok: boolean; status?: StudioMediaStatus }>;
+  /** The "Build media when it changes" switch, studio-wide. */
+  setAuto(on: boolean): Promise<{ ok: boolean; autoBuild?: boolean; error?: string }>;
 };
 
 /** What the user can do with a record in the Actions list. */
@@ -246,7 +251,24 @@ export type StudioInfo = {
    *  it started, which it keeps running until a restart
    *  (server/code-changes.mjs). */
   changedCode?: string[];
+  /** The "Build media when it changes" switch: the studio builds a
+   *  recorded or voiced showcase's media on its own a few seconds after
+   *  its inputs change (server/auto-build.mjs). */
+  autoBuild?: boolean;
 };
+
+/** Whether a showcase's built media is up to date (server/media-status.mjs). */
+export type StudioMediaStatus =
+  | { built: false }
+  | { built: true; kind: "recording" | "voiceover"; ok: false; problem: string }
+  | {
+      built: true;
+      kind: "recording" | "voiceover";
+      ok: true;
+      stale: string[];
+      upToDate: boolean;
+      print: string;
+    };
 
 /** One recorded full-quality export (server/export-records.mjs). */
 export type ShareExport = {
@@ -676,6 +698,8 @@ on("info", () => {
 
 function createBuilds(): StudioBuilds {
   return {
+    status: (showcaseId) => post("media-status", { showcaseId }),
+    setAuto: (on) => post("media-auto-build", { on }),
     start: (showcaseId, options) => post("build", { showcaseId, ...options }),
     cancel: (jobId) => post("build-cancel", { jobId }),
   };
@@ -862,6 +886,16 @@ export function useWindowLock(): WindowLock | null {
     () => "null",
   );
   return useMemo(() => JSON.parse(json) as WindowLock | null, [json]);
+}
+
+/** The "Build media when it changes" switch, for rendering: null until
+ *  the studio says, and without a studio. */
+export function useAutoBuild(): boolean | null {
+  return useSyncExternalStore(
+    whenLockMayChange,
+    () => info?.autoBuild ?? null,
+    () => null,
+  );
 }
 
 const whenCodeMayChange = (onChange: () => void) => {

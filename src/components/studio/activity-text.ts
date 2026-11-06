@@ -1,8 +1,18 @@
 /* What the Actions list says about a record, kept out of
  * StudioActivity.tsx so that file exports only its components. */
 import { exportPercent, fileManagerName } from "@/lib/export-kinds.mjs";
-import type { ActionOffer, StudioAction } from "@/lib/studio";
-import { buildSummary } from "./build-summary";
+import type { ActionOffer, StudioAction, StudioBuildReport } from "@/lib/studio";
+
+/** "Built 2 files · 1 left alone · 43.5s of showcase", or nothing when
+ *  there is no report to summarize. */
+export function buildSummary(report: StudioBuildReport | undefined): string | undefined {
+  if (!report) return undefined;
+  const { built = [], unchanged = [], totalMs } = report;
+  const parts = [built.length === 1 ? "Built 1 file" : `Built ${built.length} files`];
+  if (unchanged.length > 0) parts.push(`${unchanged.length} left alone`);
+  if (typeof totalMs === "number") parts.push(`${(totalMs / 1000).toFixed(1)}s of showcase`);
+  return parts.join(" · ");
+}
 
 /** How long a finished job holds the slot. */
 export const DONE_SHOWS_MS = 8_000;

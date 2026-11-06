@@ -75,7 +75,7 @@ A talking-head recording — a phone selfie video, an interview — becomes a sh
         theme: footage
         take: {from: 28.300, to: 35.600}   # seconds in the recording
 
-Then run build_media (or press "Build media" in the studio). It writes:
+The studio builds it a few seconds after the cut list, the recording or the transcript changes, and before any export or screenshot, so there is nothing to press: the Actions list (the slot in the tab bar) shows the build waiting, running and done, and studio_info's media says whether a showcase is up to date. build_media is the way to force a rebuild, to build only some scenes, or to get a jobId to wait on with build_status {waitMs} before you look at the result. The build writes:
 - assets/<voiceover>.mp3 — every scene's audio spans joined in order and retimed, which is the showcase's voice. It is set as meta.soundtrack {sync: true} on the first build.
 - assets/clip-<scene>.mp4 — one muted clip per footage scene, cut frame-accurately.
 - assets/<voiceover>.words.json — the recording's transcript remapped onto this cut, for karaoke and reveal captions.
@@ -101,7 +101,7 @@ More of meta.source, all optional: audio (a separate audio file, when the sound 
 
 A cut derived from another showcase's recording names it by path: video: ../interview-berlin/assets/Interview.MOV. It reads that recording's transcript too, so its karaoke captions come from the take that heard the whole thing.
 
-Builds are idempotent: only outputs whose inputs changed are rebuilt, so building again after one edit is quick. force rebuilds everything; only: [<scene ids>] limits it.
+Builds are idempotent: only outputs whose inputs changed are rebuilt, so a build after one edit is quick. force rebuilds everything; only: [<scene ids>] limits it. While the cut list is half written (a take missing), the studio reports that once in the Actions list and waits; it builds as soon as the list reads. The "Build media when it changes" switch under the gear button turns the automatic build off; the build still runs before an export, and on request.
 
 The transcript is the other half. Run transcribe {showcaseId, asset: <recording key>, save: true} (or {file: <path>, save: true}) and it writes assets/<recording>.transcript.json — whole words with their times, which is what build_media turns into the words file. Fix a mishearing there, in its corrections list: {at, text} respells the word starting at that millisecond, {at, text, through} folds the words up to through into one, {at, start, end} moves a word whisper placed early (it happens — whisper drifts through openings, and silencedetect will show you a word placed inside a silence). Corrections are re-applied after every re-transcribe, and so is a word you respell in the file itself, so transcribing again never loses your fixes. How caption words find their times: the captions are read as one continuous narration, so each caption's words are matched to the transcript's words in order, each looked for among the next eight transcript words, ignoring case and punctuation ("Kids?" matches "kids"). A caption word with no match takes a time between its matched neighbours; a caption with fewer than half its words matched keeps the estimated pacing instead. So keep a caption's word order as spoken, write words the way whisper hears them, and fix a mishearing in the transcript rather than bending the caption to it. The guide says this so you don't have to read the studio's source to learn it.
 
@@ -123,12 +123,12 @@ A showcase with no recording can be read aloud by a synthesized voice: AWS Polly
         region: us-east-1         # optional — else the profile's region
         track: voiceover          # the asset key (default voiceover)
 
-Then run build_voiceover (or press "Build media" in the studio). It writes:
+The studio builds it a few seconds after a caption or the voice settings change, and before any export or screenshot; build_voiceover forces a rebuild or gives you a jobId to wait on. The build writes:
 - assets/<track>.m4a — one Polly clip per caption, each in its own window: 250 ms of silence, the spoken clip, 450 ms of silence; the last caption holds 1.5 s more for the end card (leadMs, tailMs and holdMs change those). It is set as meta.soundtrack {sync: true} on the first build.
 - durationMs on every caption, pinned to its window, so the pins add up exactly to the track. A scene is pinned too when the player would otherwise time it differently (support text, or the floor for short slides). A scene with no captions is silence for as long as it shows.
 - assets/<track>.words.json — karaoke word times: one segment per caption window, the caption's own words, timed by whisper hearing that caption's clip and fitted to where the clip is voiced.
 
-After any caption edit, run build_voiceover again. It is quick: clips are cached by voice, engine and text, so only the captions that changed call Polly. force makes every clip again. Never pin durationMs by hand on a voiced showcase, and never make the voice with your own Polly or ffmpeg calls or a script — the pins would stop matching the track.
+A caption edit is rebuilt on its own, and it is quick: clips are cached by voice, engine and text, so only the captions that changed call Polly. force makes every clip again. Never pin durationMs by hand on a voiced showcase, and never make the voice with your own Polly or ffmpeg calls or a script — the pins would stop matching the track.
 
 The voice reads the caption exactly as written, so spell a caption the way it should sound. A showcase is either voiced (meta.voiceover) or cut from a recording (meta.source), never both. The profile and region are only how to reach Polly: leave them out of a showcase that ships to other people, so their own AWS settings apply. If the build says the aws command isn't signed in, tell the user the command it names (e.g. aws sso login --profile <name>) — it's theirs to run. Without whisper the words file still gets written, with word times spread by length, and the build's notes say so: tell the user, as with any estimated timing.
 
