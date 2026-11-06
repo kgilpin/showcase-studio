@@ -123,6 +123,7 @@ every reference to it.
 Claude works through the studio's MCP tools:
 
 - `studio_start` / `studio_info` — start the studio, or find the running one
+- `create_showcase` — a new showcase folder from a name
 - `read_showcase` / `edit_showcase` — read the script, and make
   structured edits (scene fields, captions, meta, insert/move/delete) as
   one write that keeps the file's formatting
@@ -130,6 +131,8 @@ Claude works through the studio's MCP tools:
 - `screenshot_frame` — render the video's frame at a given moment (TikTok
   or 4:3) and look at it, with TikTok's safe area shaded on request
 - `validate` — load the whole library and report errors and warnings
+- `check_framing` — find captions that sit over a face in the video
+  and say how to fix each one (the face finder is Mac-only)
 - `transcribe` — whisper.cpp voice-to-text with per-word timestamps
 - `script` — the narration as plain text
 - `commit_showcase` — commit a finished change with a clear message

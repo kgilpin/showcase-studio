@@ -7,6 +7,7 @@ import {
   ensureLibrarySettings,
   hasLibrarySettings,
   libraryConfig,
+  libraryExportDir,
   migrateLibrarySettings,
   showInRecent,
 } from "./library-config.mjs";
@@ -136,5 +137,25 @@ describe("ensureLibrarySettings", () => {
     ensureLibrarySettings(old);
     expect(showInRecent(old)).toBe(false);
     expect(existsSync(path.join(old, "showcase.yaml"))).toBe(false);
+  });
+});
+
+describe("libraryExportDir", () => {
+  it("is the export_dir setting, resolved against the library", () => {
+    const dir = folder("export_dir: exports\n");
+    expect(libraryExportDir(dir)).toBe(path.join(dir, "exports"));
+    expect(libraryExportDir(folder("export_dir: /tmp/showcase-exports\n"))).toBe(
+      "/tmp/showcase-exports",
+    );
+    const spaced = folder("export_dir: '  renders  '\n");
+    expect(libraryExportDir(spaced)).toBe(path.join(spaced, "renders"));
+  });
+
+  it("is unset without the setting, or with an empty or non-string one", () => {
+    expect(libraryExportDir(folder(null))).toBeUndefined();
+    expect(libraryExportDir(folder("show_in_recent: false\n"))).toBeUndefined();
+    expect(libraryExportDir(folder("export_dir: ''\n"))).toBeUndefined();
+    expect(libraryExportDir(folder("export_dir: 3\n"))).toBeUndefined();
+    expect(libraryExportDir(folder("export_dir: [a, b]\n"))).toBeUndefined();
   });
 });

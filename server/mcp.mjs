@@ -4,7 +4,7 @@
  * scripts/studio-mcp.mjs, the studio Claude Code starts for itself, which
  * runs them in-process through the studio's callTool.
  *
- * Page tools (screenshot_slide, validate, export) render through the
+ * Page tools (screenshot_slide, screenshot_frame, check_framing, validate, export) render through the
  * studio's page renderer, so they see the current files on disk — the
  * same files Claude just edited. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -23,6 +23,8 @@ import {
 } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { transcribe } from "./transcribe.mjs";
+import { createFaceFinder } from "./faces.mjs";
+import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
 import { DESTINATION_IDS, DESTINATIONS } from "../src/content/publish-rules.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
@@ -106,7 +108,10 @@ export const TOOLS = [
       "meta.sceneMaxMs), speed (a video clip's playing rate, 0.25–4, written to " +
       "media.speed: the player and every export play the clip that fast, so a scene's " +
       "natural length is clip length ÷ speed — the fix for a long screen recording), " +
-      "export, id, note (the scene's " +
+      "export, id, take (on a recorded " +
+      "pitch, the span of the recording the scene owns: {from, to} in seconds, a list of them, " +
+      "{silence: <seconds>}, or {audio: [...], video: [...]} lasting the same; plus clip: " +
+      "true|false — then run build_media), note (the scene's " +
       "authoring note — keep working context here, not in YAML comments), cta " +
       "({label, url, kind?}), or watermark (false opts this slide out of the showcase's brand " +
       "mark, true forces it on, a map overrides a field or two for this slide — an empty " +
@@ -178,6 +183,21 @@ export const TOOLS = [
         },
       },
       required: ["showcaseId", "edits"],
+    },
+  },
+  {
+    name: "create_showcase",
+    description:
+      "Make a new showcase folder in the library from a name — the same scaffold as the " +
+      "studio's + card: <id>/showcase.yaml with a one-scene starter script and an empty " +
+      "assets/ folder, the id made from the name (lower case, dashes). Returns {id, path}. " +
+      "Then write the script with edit_showcase, and add the recording and pictures with " +
+      "add_asset. Refused when a showcase of that id exists, or the studio is locked to one " +
+      "showcase.",
+    inputSchema: {
+      type: "object",
+      properties: { name: { type: "string", description: "The showcase's title" } },
+      required: ["name"],
     },
   },
   {
@@ -306,10 +326,36 @@ export const TOOLS = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "check_framing",
+    description:
+      "Find captions that sit over a face in the TikTok video of one showcase. For every " +
+      "caption on a scene whose picture fills the frame (footage, feature screenshots, a " +
+      "full-bleed statement), it renders the frame at the middle of that caption the way the " +
+      "export renders it, finds the faces in it, and reports each caption whose chip covers " +
+      "one: the scene, the time, where the face and the caption sit (percent of the frame, " +
+      "from the top), and the fix — lift the picture with media.tiktok {fit: fill, focus: " +
+      "bottom, bands: blur, area: {bottom: N%}}, or move the caption (position: top). Nothing " +
+      "is written: apply the fix with edit_showcase, then look with screenshot_frame at the " +
+      "time it names. Useful on a recorded pitch (a phone selfie puts the face right where " +
+      "the bottom captions go) after a build or after changing a footage scene's media, " +
+      "captions or TikTok fit. Takes a few seconds per showcase; a showcase unchanged since " +
+      "its last check answers at once. The face finder is Apple's Vision framework, so on " +
+      "Windows it answers {available: false, reason} — look at the frames yourself.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
     name: "transcribe",
     description:
-      "Voice-to-text with timestamps: transcribe an audio or video file (whisper.cpp, run " +
-      "locally). Returns sentence segments with per-word timestamps in milliseconds — whole " +
+      "Voice-to-text with timestamps: transcribe a recording (whisper.cpp, run locally). " +
+      "Name it as {showcaseId, asset} — the asset key, the way add_asset and screenshot_frame " +
+      "name files — or as {file}, a path. Returns sentence segments with per-word timestamps " +
+      "in milliseconds — whole " +
       "words, so they match caption words one for one. Use it to find what a recording says " +
       "and when: choosing cut points for a take, or checking a line — silencedetect only finds " +
       "pauses, this finds the words. First use downloads the speech model (~142MB), so the " +
@@ -324,12 +370,22 @@ export const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        showcaseId: {
+          type: "string",
+          description: "The showcase's folder name (with asset)",
+        },
+        asset: {
+          type: "string",
+          description:
+            "The recording in that showcase's assets/ folder, by key (take-8) or file name " +
+            "(take-8.mp4)",
+        },
         file: {
           type: "string",
           description:
-            "The recording: an absolute path, or a path relative to the showcases library " +
-            "root or to any showcase folder (e.g. nova/assets/voiceover.mp3 " +
-            "or assets/voiceover.mp3)",
+            "Instead of showcaseId and asset: the recording as a path — absolute, or " +
+            "relative to the showcases library root or to any showcase folder (e.g. " +
+            "nova/assets/voiceover.mp3 or assets/voiceover.mp3)",
         },
         save: {
           type: "boolean",
@@ -338,7 +394,6 @@ export const TOOLS = [
             "existing one carries",
         },
       },
-      required: ["file"],
     },
   },
   {
@@ -406,10 +461,16 @@ export const TOOLS = [
     description:
       "Check on a build_media or build_voiceover job: status (running | done | failed | canceled), what it is " +
       "doing now, and when it is done, what it built, what it left alone, the pins it wrote, " +
-      "and any notes worth telling the user.",
+      "and any notes worth telling the user. Pass waitMs to wait for the build inside the call (up to 120000 ms).",
     inputSchema: {
       type: "object",
-      properties: { jobId: { type: "string" } },
+      properties: {
+        jobId: { type: "string" },
+        waitMs: {
+          type: "number",
+          description: "How long to wait for the build before answering (0–120000 ms)",
+        },
+      },
       required: ["jobId"],
     },
   },
@@ -535,10 +596,19 @@ export const TOOLS = [
     name: "export_status",
     description:
       "Check on an export job: status (running | done | failed | canceled), the current " +
-      "progress label, and the output path once done.",
+      "progress label, and the output path once done. Pass waitMs to wait for the job " +
+      "inside the call (up to 120000 ms) and get its status when it finishes or the wait " +
+      "runs out — one call instead of polling; a full-quality video takes minutes, so " +
+      "wait in a few calls and tell the user between them.",
     inputSchema: {
       type: "object",
-      properties: { jobId: { type: "string" } },
+      properties: {
+        jobId: { type: "string" },
+        waitMs: {
+          type: "number",
+          description: "How long to wait for the job before answering (0–120000 ms)",
+        },
+      },
       required: ["jobId"],
     },
   },
@@ -564,6 +634,69 @@ function resolveAudio(file, showcasesDir) {
     if (existsSync(nested)) return nested;
   }
   return undefined;
+}
+
+/* What a recording's asset key can be the key of: the sound and video
+ * files whisper can read. A transcript or words file beside the
+ * recording shares its key and is never the recording. */
+const RECORDING_EXTENSIONS = new Set([
+  ".mp4",
+  ".mov",
+  ".m4v",
+  ".webm",
+  ".m4a",
+  ".mp3",
+  ".wav",
+  ".aac",
+  ".ogg",
+  ".flac",
+]);
+
+/** The recording a transcribe call names: {showcaseId, asset} — the
+ *  asset key or file name in that showcase's assets/ folder, the way
+ *  the other tools name files — or {file}, a path. Throws when it names
+ *  nothing, saying what was looked for and where. */
+export function resolveRecording(args, showcasesDir) {
+  const showcaseId = String(args.showcaseId ?? "");
+  const asset = String(args.asset ?? "");
+  const file = String(args.file ?? "");
+  if (asset || (showcaseId && !file)) {
+    if (!showcaseId || !asset) {
+      throw new Error(
+        "Name the recording as {showcaseId, asset} — the showcase's folder name and the " +
+          "recording's asset key (take-8) or file name (take-8.mp4) — or as {file}, a path.",
+      );
+    }
+    const assetsDir = path.join(showcasesDir, showcaseId, "assets");
+    if (!existsSync(assetsDir)) {
+      throw new Error(
+        `No showcase named "${showcaseId}" in the library (no ${showcaseId}/assets).`,
+      );
+    }
+    const names = readdirSync(assetsDir);
+    const found =
+      names.find((n) => n === asset && RECORDING_EXTENSIONS.has(path.extname(n).toLowerCase())) ??
+      names.find(
+        (n) =>
+          path.basename(n, path.extname(n)) === asset &&
+          RECORDING_EXTENSIONS.has(path.extname(n).toLowerCase()),
+      );
+    if (!found) {
+      throw new Error(
+        `No recording named "${asset}" in ${showcaseId}/assets (looked for a sound or video ` +
+          `file by that key or file name).`,
+      );
+    }
+    return path.join(assetsDir, found);
+  }
+  const audioPath = file && resolveAudio(file, showcasesDir);
+  if (!audioPath) {
+    throw new Error(
+      `No file named "${file}" found (looked in the library root and each showcase folder; ` +
+        `absolute paths work too). Or name it as {showcaseId, asset}.`,
+    );
+  }
+  return audioPath;
 }
 
 /* Transcription outlives the page-tool cap: a cold call downloads the
@@ -632,6 +765,25 @@ export function frameLine(frame, { view, width, height, size, animations, safeAr
   ];
   return `${parts.join("")}${shows.length ? ` — ${shows.join(", ")}` : ""}; ${how.join(", ")}.`;
 }
+
+/** The most a status call waits for a job, and how often it looks. */
+export const MAX_WAIT_MS = 120_000;
+const WAIT_POLL_MS = 500;
+
+/** A job's status now — or, with `waitMs`, once it is no longer running
+ *  or that long has passed, whichever comes first. Null for no such job. */
+export async function jobStatus(jobs, jobId, waitMs, { sleep = delay, now = Date.now } = {}) {
+  const wait = Math.min(Math.max(Number(waitMs) || 0, 0), MAX_WAIT_MS);
+  const deadline = now() + wait;
+  let status = jobs.status(jobId);
+  while (status?.status === "running" && now() < deadline) {
+    await sleep(Math.min(WAIT_POLL_MS, Math.max(0, deadline - now())));
+    status = jobs.status(jobId);
+  }
+  return status;
+}
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Runs one tool against a studio. `context` is
  *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, buildJobs,
@@ -827,7 +979,9 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
   if (name === "build_status" || name === "build_cancel") {
     const jobId = String(args.jobId ?? "");
     const result =
-      name === "build_cancel" ? context.buildJobs.cancel(jobId) : context.buildJobs.status(jobId);
+      name === "build_cancel"
+        ? context.buildJobs.cancel(jobId)
+        : await jobStatus(context.buildJobs, jobId, args.waitMs);
     if (!result) throw new Error(`No build job named "${jobId}"`);
     return json(result);
   }
@@ -843,19 +997,12 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     const result =
       name === "export_cancel"
         ? context.exportJobs.cancel(jobId)
-        : context.exportJobs.status(jobId);
+        : await jobStatus(context.exportJobs, jobId, args.waitMs);
     if (!result) throw new Error(`No export job named "${jobId}"`);
     return json(result);
   }
   if (name === "transcribe") {
-    const file = String(args.file ?? "");
-    const audioPath = file && resolveAudio(file, showcasesDir);
-    if (!audioPath) {
-      throw new Error(
-        `No file named "${file}" found (looked in the library root and each showcase folder; ` +
-          `absolute paths work too).`,
-      );
-    }
+    const audioPath = resolveRecording(args, showcasesDir);
     let timer;
     const result = await Promise.race([
       transcribe(audioPath, {
@@ -909,6 +1056,43 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       content.push({ type: "text", text: frameLine(frame, result) });
     }
     return { content };
+  }
+  if (name === "create_showcase") {
+    if (!context.createShowcase) throw new Error("This studio can't create showcases");
+    const title = String(args.name ?? "").trim();
+    const result = context.createShowcase(title);
+    if (!result.ok) throw new Error(result.error);
+    context.changeLog?.append({
+      source: "mcp",
+      tool: "create_showcase",
+      showcaseId: result.id,
+      kind: "showcase.create",
+      title,
+    });
+    return json({ id: result.id, path: path.join(showcasesDir, result.id) });
+  }
+  if (name === "check_framing") {
+    const showcaseId = String(args.showcaseId ?? "");
+    if (!showcaseId) throw new Error("showcaseId is required");
+    const finder = context.faceFinder ?? createFaceFinder();
+    if (!finder.available) return json({ available: false, showcaseId, reason: finder.reason });
+    const result = await checkCaptionsOverFaces({
+      renderer: context.renderer,
+      appUrl: context.getUrl(),
+      showcasesDir,
+      showcaseId,
+      finder,
+      cacheFile: path.join(showcasesDir, ".studio", "build", `${showcaseId}.faces.json`),
+      appVersion: context.info?.()?.version ?? null,
+    });
+    return json({
+      available: true,
+      showcaseId,
+      summary: facesSummary(showcaseId, result),
+      checked: result.checked,
+      overlaps: result.overlaps,
+      fromCache: result.fromCache,
+    });
   }
   if (name === "validate") {
     const report = await validateShowcases(context.renderer, context.getUrl());

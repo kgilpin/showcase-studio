@@ -36,15 +36,29 @@ const ffmpeg = require_("ffmpeg-static");
  * there, and scripts/package-desktop.mjs refuses to package without it. */
 const vendorBinary = vendoredWhisper(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 
+/* A miss is remembered this long, then looked for again: a user who
+ * installs whisper while the studio runs (brew install whisper-cpp) gets
+ * it on their next transcribe, without a restart; and the studio's info,
+ * which asks on every request, doesn't start a login shell each time. */
+export const MISS_TTL_MS = 15_000;
+
 let resolved;
+let missedAt = 0;
+
 /** The whisper binary, or undefined when neither the vendored build nor
- *  the user's PATH has one. Cached for the process's lifetime. */
-export function whisperPath() {
-  if (resolved !== undefined) return resolved || undefined;
-  if (existsSync(vendorBinary)) {
-    resolved = vendorBinary;
-    return resolved;
-  }
+ *  the user's PATH has one. A find is kept for the process's lifetime; a
+ *  miss for MISS_TTL_MS. `probe` and `now` are for the tests. */
+export function whisperPath({ probe = findWhisper, now = Date.now } = {}) {
+  if (resolved) return resolved;
+  if (resolved === "" && now() - missedAt < MISS_TTL_MS) return undefined;
+  resolved = probe() || "";
+  if (!resolved) missedAt = now();
+  return resolved || undefined;
+}
+
+/** The vendored copy, else `whisper-cli` on the user's PATH, else "". */
+function findWhisper() {
+  if (existsSync(vendorBinary)) return vendorBinary;
   const shell = process.env.SHELL || "/bin/zsh";
   const found = spawnSync(shell, ["-ilc", "command -v whisper-cli"], {
     encoding: "utf8",
@@ -59,8 +73,7 @@ export function whisperPath() {
           .replace(/\x1b\[[0-9;]*[A-Za-z]/g, "")
       : "";
   const match = clean.match(/^\/\S*\/whisper-cli$/m);
-  resolved = (match && match[0]) || "";
-  return resolved || undefined;
+  return (match && match[0]) || "";
 }
 
 const MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";

@@ -69,7 +69,7 @@ import { handleShowcaseRequest, showcaseIndex } from "./showcase-data.mjs";
 import { createShowcaseHistory } from "./showcase-history.mjs";
 import { alreadyOpen, clearPresence, runningStudio, writePresence } from "./studio-presence.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
-import { ensureLibrarySettings } from "./library-config.mjs";
+import { ensureLibrarySettings, libraryExportDir } from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { airDrop, canAirDrop } from "./airdrop.mjs";
 import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
@@ -244,7 +244,9 @@ function locateReferences(text, found) {
  *                 otherwise race each test's end, and gold traces would
  *                 record it only sometimes) — and the studio's own code
  *                 unwatched too (server/code-changes.mjs)
- *   exportDir    where exports land (<exportDir>/<showcase id>)
+ *   exportDir    where exports land (<exportDir>/<showcase id>), unless
+ *                 the library's showcase_settings.yaml names its own
+ *                 export_dir (server/library-config.mjs)
  *   reveal        opens the file manager on a path (export-reveal)
  *   openUrl       opens a web page in the user's browser (a share
  *                 hand-off's upload page)
@@ -495,6 +497,12 @@ add notes specific to this library below, and the studio won't touch them.
     onChange: (status) => emit("license", status),
   });
 
+  /** Where a showcase's exports go: the library's own export_dir when its
+   *  settings name one, else the studio's export folder. */
+  function exportFolder(showcaseId) {
+    return path.join(libraryExportDir(showcasesDir) ?? exportDir, showcaseId);
+  }
+
   async function recordedExport(kind, showcaseId, { onProgress, signal } = {}) {
     /* Full-quality videos need a license or a free export; the page asks
      * first, so this refusal is what Claude's export tool (and --export)
@@ -511,7 +519,7 @@ add notes specific to this library below, and the studio won't touch them.
       showcasesDir,
       kind,
       showcaseId,
-      outDir: path.join(exportDir, showcaseId),
+      outDir: exportFolder(showcaseId),
       onProgress,
       signal,
     });
@@ -595,7 +603,7 @@ add notes specific to this library below, and the studio won't touch them.
     if (!id || id !== path.basename(id) || id.startsWith(".")) {
       return { ok: false, error: `No showcase named "${id}"` };
     }
-    const dir = path.join(exportDir, id);
+    const dir = exportFolder(id);
     if (!existsSync(dir)) return { ok: false, error: `${id} has no exports yet` };
     reveal(dir);
     return { ok: true, path: dir };
@@ -644,6 +652,7 @@ add notes specific to this library below, and the studio won't touch them.
   const mcpContext = {
     info,
     license,
+    createShowcase,
     getUrl: () => url,
     getShowcasesDir: () => showcasesDir,
     renderer,

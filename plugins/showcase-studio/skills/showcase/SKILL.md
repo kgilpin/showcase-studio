@@ -130,6 +130,9 @@ from the app's source.
 
 ## 3. Make changes
 
+- A new showcase: `create_showcase` with its name. It makes the folder,
+  a starter `showcase.yaml` and an empty `assets/`, and returns the id.
+  Don't write the folder yourself.
 - `showcase.yaml`: use `edit_showcase` for anything it can express. One
   call applies a whole batch — retiming every scene, say — as one write
   that keeps the file's formatting. For anything else, use your
@@ -171,6 +174,11 @@ from the app's source.
   One thing that is never source media: `screenshot_slide` captures a
   finished slide, not the product.
 
+- Footage of a person: a phone selfie puts the face where the bottom
+  captions go. `check_framing` finds every caption that sits over a face
+  and says how to move the picture or the caption. The guide's "Keep the
+  face clear of the captions" has the rule.
+
 ## 4. Check before you say it's done
 
 1. Run `validate` after changing YAML.
@@ -190,7 +198,8 @@ from the app's source.
 
 ## 5. Finish
 
-- Exports: `export`, then `export_status` until it's done.
+- Exports: `export`, then `export_status` with `waitMs` (up to two minutes
+  a call) until it's done. Don't poll with sleeps.
 - Posting to TikTok, Instagram or YouTube Shorts: the guide's "Sharing"
   section has the steps. In short: write the caption and hashtags with
   `edit_showcase` (`publish.set`), check them with `share_status`, and

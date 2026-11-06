@@ -489,6 +489,30 @@ scenes:
     expect(script.content[0].text).toContain("NOVA");
   });
 
+  it("create_showcase scaffolds a showcase through the studio's own + card path", async () => {
+    const { studio, library } = await startStudio();
+    const made = await studio.callTool({
+      name: "create_showcase",
+      arguments: { name: "Play Together!" },
+    });
+    expect(JSON.parse(made.content[0].text)).toEqual({
+      id: "play-together",
+      path: path.join(library, "play-together"),
+    });
+    expect(existsSync(path.join(library, "play-together", "assets"))).toBe(true);
+    expect(readFileSync(path.join(library, "play-together", "showcase.yaml"), "utf8")).toContain(
+      "title: Play Together!",
+    );
+    const log = readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8");
+    expect(log).toContain('"tool":"create_showcase"');
+    await expect(
+      studio.callTool({ name: "create_showcase", arguments: { name: "Play Together" } }),
+    ).rejects.toThrow('A showcase named "play-together" already exists');
+    await expect(studio.callTool({ name: "create_showcase", arguments: {} })).rejects.toThrow(
+      "Give the showcase a name",
+    );
+  });
+
   it("screenshot_frame returns each frame as an image, with what the page showed", async () => {
     /* A renderer that draws a PNG header of whatever size the page is
      * opened at, and answers the record page's own questions. */
@@ -679,6 +703,24 @@ scenes:
     expect(readFileSync(job.out, "utf8")).toContain("NOVA");
     expect(await post("export", { kind: "gif", showcaseId: "nova" })).toMatchObject({
       ok: false,
+    });
+  });
+
+  it("puts exports where the library's export_dir says", async () => {
+    const { post, library } = await startStudio({
+      before: (dir) =>
+        writeFileSync(path.join(dir, "showcase_settings.yaml"), "export_dir: renders\n"),
+    });
+    let { job } = await post("export", { kind: "script", showcaseId: "nova" });
+    for (let i = 0; job.status === "running" && i < 50; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      ({ job } = await post("export-status", { jobId: job.jobId }));
+    }
+    expect(job.status).toBe("done");
+    expect(path.dirname(job.out)).toBe(path.join(library, "renders", "nova"));
+    expect(await post("export-reveal", { showcaseId: "nova" })).toEqual({
+      ok: true,
+      path: path.join(library, "renders", "nova"),
     });
   });
 

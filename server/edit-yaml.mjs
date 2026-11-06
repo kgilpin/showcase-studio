@@ -87,6 +87,7 @@ import { TIKTOK_FIELDS, tiktokFieldProblem } from "../src/content/tiktok-fit-rul
 import { checkPublishEdit } from "../src/content/publish-rules.mjs";
 import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
 import { videoSpeedProblem } from "../src/content/timing.mjs";
+import { takeProblem } from "./build-plan.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 /* The brand mark sits in a corner — there is no banner position, and no
@@ -121,6 +122,10 @@ const SCENE_FIELDS = {
   /* How this scene's picture goes into TikTok's 9:16 frame — written to
    * media.tiktok (src/content/tiktok-fit.ts). */
   tiktok: { kind: "tiktok", path: ["media", "tiktok"], removable: true },
+  /* The span of the master recording this scene owns, on a recorded
+   * pitch (server/build-plan.mjs): {from, to}, a list of them, {silence},
+   * or {audio, video}, plus clip: true|false. */
+  take: { kind: "take", removable: true },
 };
 
 const META_FIELDS = {
@@ -200,6 +205,14 @@ function checkFieldValue(fields, where, name, value) {
     case "captionPosition":
       if (!isCaptionPosition(value)) throw new Error(`${label} must be ${CAPTION_POSITION_HELP}`);
       return { value: value.trim() };
+    case "take": {
+      const problem = takeProblem(value);
+      if (problem) throw new Error(`${label}: ${problem.replace(/^scene "scene" take:? ?/, "")}`);
+      if (!Array.isArray(value) && value.clip != null && typeof value.clip !== "boolean") {
+        throw new Error(`${label}.clip must be true or false`);
+      }
+      return { value };
+    }
     case "duration":
       if (!Number.isInteger(value) || value <= 0) {
         throw new Error(`${label} must be a whole number of milliseconds`);

@@ -397,7 +397,10 @@ npm run dev -- --new [<library folder>]
     same process; `validate`, `screenshot_slide` and `screenshot_frame` quote it, and the error
     page shows it under Details only while a studio runs in the process and
     the request names a local host), `edit_showcase` through
-    `scene-edit.mjs`, `add_asset` through `asset-files.mjs` (files on disk
+    `scene-edit.mjs` (a recorded pitch's `take` is an editable scene field,
+    checked by `takeProblem` in `build-plan.mjs`), `create_showcase` (the
+    studio's own scaffold, the + card's, through the MCP context),
+    `add_asset` through `asset-files.mjs` (files on disk
     copied into a showcase's `assets/` — what an image dropped into the
     Claude chat or a screenshot Claude captured goes through; the page's
     drop target is the same module's base64 door), `ffmpeg` through the
@@ -412,11 +415,32 @@ npm run dev -- --new [<library folder>]
     `exporter.mjs`: the record page the video export records, in the
     TikTok or 4:3 view, animations finished unless asked live, TikTok's
     safe area shaded on request; the player's Frame button gets the same
-    frame from `GET /studio/api/frame`), `validate`, `transcribe`
-    (with `save`, which writes the recording's editable transcript),
+    frame from `GET /studio/api/frame`), `validate`, `check_framing`
+    (captions over faces, through `face-check.mjs`), `transcribe`
+    (the recording by showcase and asset key, or by path; with `save`,
+    which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
-    `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`,
+    `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`
+    (the two status tools take `waitMs` and wait for the job inside the
+    call, up to two minutes, so a session needn't poll),
     `share_status`/`share`/`share_record` through `share.mjs`.
+  - `faces.mjs`: the face finder: Apple's Vision framework, run from a
+    JavaScript for Automation script with osascript the way `airdrop.mjs`
+    reaches AirDrop, so a Mac needs nothing installed; every face's box as
+    fractions of the picture, faces too faint or too small to be the
+    speaker dropped. There is none on Windows yet: `createFaceFinder`
+    says so, and the check reports that instead of guessing.
+  - `face-check.mjs`: the caption-over-face check behind the `check_framing`
+    tool, one showcase at a time: for each caption on a scene whose picture fills the frame
+    (`facesPossible`, the same scenes a TikTok fit applies to), the TikTok
+    frame at the middle of that caption through `screenshotFrame`, the
+    caption chip's box from the page (`window.__record.at().caption.box`),
+    the faces from the finder, and one rectangle test between them, so it
+    can't disagree with the player. Each overlap is a warning naming where
+    both are and the fix (lift the picture with `media.tiktok`, or move
+    the caption), and the result is cached in
+    `<library>/.studio/build/<showcase>.faces.json` under the export
+    fingerprint, so only a changed showcase is re-rendered.
   - `export-records.mjs`: a record of each video export, full quality and
     draft, with how long it took to render (the next export's time
     estimate), one JSON file each in
@@ -585,8 +609,11 @@ npm run dev -- --new [<library folder>]
   - `library-config.mjs`: a root-level `showcase_settings.yaml` in a
     showcases folder, which the studio writes, all comments, into every
     library it opens — so it also marks the folder as a library: library
-    settings, currently just `show_in_recent: false` to hide the folder from
-    File > Open Recent; an older library's root `showcase.yaml` with no
+    settings: `show_in_recent: false` to hide the folder from File > Open
+    Recent, and `export_dir` to put the library's exports in a folder of
+    its own (relative to the library or absolute, one subfolder per
+    showcase) instead of `~/Downloads/showcase-exports`; an older
+    library's root `showcase.yaml` with no
     `scenes` or `meta` is renamed to it when a studio opens the library, and
     read until then.
 - `electron/`: Packaging only. No studio feature lives here:
@@ -734,6 +761,22 @@ npm run dev -- --new [<library folder>]
   at **prod** (live Stripe, real money).
   There is no YouTube
   link yet: add one to the top bar and the footer when the channel exists.
+- `rehearsal/` and `scripts/rehearsal/`: the release rehearsal, a test of
+  the authoring process rather than of the code's output: a fresh Claude
+  session builds a showcase from raw inputs through the plugin, and the
+  transcript is graded for whether the capabilities added since the last
+  release got used and helped. `rehearsal/scenarios/<name>/` holds what a
+  run starts from (the brief in the user's words, naming no tool; the raw
+  files to copy in; the scratch library's settings; the rubric),
+  `scripts/rehearsal/` the runner (`run.sh`, `claude -p` with the plugin
+  on a scratch library, from a checkout or the packaged app), the follower,
+  the grader (timeline, counts, rubric, the real recap) and the outside
+  verifier, and `rehearsal/reports/` what each run found. Runs land
+  outside the repository (`$TMPDIR/showcase-rehearsal/`), so the scratch
+  library gets a history of its own and a session can't browse the
+  scenarios. The `rehearsal` skill
+  (`.claude/skills/rehearsal`) is the procedure; the release skill runs
+  it between the build and the tag.
 - `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
   its own `cdk/appmap.yml`): The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via
