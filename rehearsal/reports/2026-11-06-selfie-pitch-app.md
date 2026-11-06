@@ -68,9 +68,10 @@ false}`, which is the shape the build reads. Fixed in the guide: both
 2. **`transcribe` was called with `{showcaseId, asset}`.** The tool takes
    `{file}`. Every other tool that names a recording takes a showcase id
    and an asset key, so the guess was reasonable; the error named the
-   right input and the second call worked. Fixed in the guide: the
-   transcript paragraph shows the call shape. Accepting a showcase id and
-   asset key too would remove the trap; not done here.
+   right input and the second call worked. Fixed both ways: the tool
+   takes a showcase id and asset key too, and its description names its
+   inputs up front, since that description is what a session calls from
+   (finding 3). The guide shows the call.
 3. **The tools' input schemas were not in the session's prompt.** Both
    errors above carried the note "This tool's input schema was not in
    your prompt when you called it", and the session loaded
@@ -127,5 +128,7 @@ frame is finding 5.
 
 - Finding 1: the guide says `clip` goes inside `take`, in the recorded
   pitch section and in the end-card recipe.
-- Finding 2: the guide shows `transcribe {file: ..., save: true}`.
+- Finding 2: `transcribe` takes `{showcaseId, asset}` too, the asset key the
+  way the other tools name files, with `{file}` still accepted; its
+  description names both up front, and the guide shows the call.
 - The rehearsal skill names the run folder as `run.sh` prints it.

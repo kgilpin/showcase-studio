@@ -340,8 +340,10 @@ export const TOOLS = [
   {
     name: "transcribe",
     description:
-      "Voice-to-text with timestamps: transcribe an audio or video file (whisper.cpp, run " +
-      "locally). Returns sentence segments with per-word timestamps in milliseconds — whole " +
+      "Voice-to-text with timestamps: transcribe a recording (whisper.cpp, run locally). " +
+      "Name it as {showcaseId, asset} — the asset key, the way add_asset and screenshot_frame " +
+      "name files — or as {file}, a path. Returns sentence segments with per-word timestamps " +
+      "in milliseconds — whole " +
       "words, so they match caption words one for one. Use it to find what a recording says " +
       "and when: choosing cut points for a take, or checking a line — silencedetect only finds " +
       "pauses, this finds the words. First use downloads the speech model (~142MB), so the " +
@@ -356,12 +358,22 @@ export const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        showcaseId: {
+          type: "string",
+          description: "The showcase's folder name (with asset)",
+        },
+        asset: {
+          type: "string",
+          description:
+            "The recording in that showcase's assets/ folder, by key (take-8) or file name " +
+            "(take-8.mp4)",
+        },
         file: {
           type: "string",
           description:
-            "The recording: an absolute path, or a path relative to the showcases library " +
-            "root or to any showcase folder (e.g. nova/assets/voiceover.mp3 " +
-            "or assets/voiceover.mp3)",
+            "Instead of showcaseId and asset: the recording as a path — absolute, or " +
+            "relative to the showcases library root or to any showcase folder (e.g. " +
+            "nova/assets/voiceover.mp3 or assets/voiceover.mp3)",
         },
         save: {
           type: "boolean",
@@ -370,7 +382,6 @@ export const TOOLS = [
             "existing one carries",
         },
       },
-      required: ["file"],
     },
   },
   {
@@ -611,6 +622,69 @@ function resolveAudio(file, showcasesDir) {
     if (existsSync(nested)) return nested;
   }
   return undefined;
+}
+
+/* What a recording's asset key can be the key of: the sound and video
+ * files whisper can read. A transcript or words file beside the
+ * recording shares its key and is never the recording. */
+const RECORDING_EXTENSIONS = new Set([
+  ".mp4",
+  ".mov",
+  ".m4v",
+  ".webm",
+  ".m4a",
+  ".mp3",
+  ".wav",
+  ".aac",
+  ".ogg",
+  ".flac",
+]);
+
+/** The recording a transcribe call names: {showcaseId, asset} — the
+ *  asset key or file name in that showcase's assets/ folder, the way
+ *  the other tools name files — or {file}, a path. Throws when it names
+ *  nothing, saying what was looked for and where. */
+export function resolveRecording(args, showcasesDir) {
+  const showcaseId = String(args.showcaseId ?? "");
+  const asset = String(args.asset ?? "");
+  const file = String(args.file ?? "");
+  if (asset || (showcaseId && !file)) {
+    if (!showcaseId || !asset) {
+      throw new Error(
+        "Name the recording as {showcaseId, asset} — the showcase's folder name and the " +
+          "recording's asset key (take-8) or file name (take-8.mp4) — or as {file}, a path.",
+      );
+    }
+    const assetsDir = path.join(showcasesDir, showcaseId, "assets");
+    if (!existsSync(assetsDir)) {
+      throw new Error(
+        `No showcase named "${showcaseId}" in the library (no ${showcaseId}/assets).`,
+      );
+    }
+    const names = readdirSync(assetsDir);
+    const found =
+      names.find((n) => n === asset && RECORDING_EXTENSIONS.has(path.extname(n).toLowerCase())) ??
+      names.find(
+        (n) =>
+          path.basename(n, path.extname(n)) === asset &&
+          RECORDING_EXTENSIONS.has(path.extname(n).toLowerCase()),
+      );
+    if (!found) {
+      throw new Error(
+        `No recording named "${asset}" in ${showcaseId}/assets (looked for a sound or video ` +
+          `file by that key or file name).`,
+      );
+    }
+    return path.join(assetsDir, found);
+  }
+  const audioPath = file && resolveAudio(file, showcasesDir);
+  if (!audioPath) {
+    throw new Error(
+      `No file named "${file}" found (looked in the library root and each showcase folder; ` +
+        `absolute paths work too). Or name it as {showcaseId, asset}.`,
+    );
+  }
+  return audioPath;
 }
 
 /* Transcription outlives the page-tool cap: a cold call downloads the
@@ -916,14 +990,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json(result);
   }
   if (name === "transcribe") {
-    const file = String(args.file ?? "");
-    const audioPath = file && resolveAudio(file, showcasesDir);
-    if (!audioPath) {
-      throw new Error(
-        `No file named "${file}" found (looked in the library root and each showcase folder; ` +
-          `absolute paths work too).`,
-      );
-    }
+    const audioPath = resolveRecording(args, showcasesDir);
     let timer;
     const result = await Promise.race([
       transcribe(audioPath, {

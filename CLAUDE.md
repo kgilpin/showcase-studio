@@ -417,7 +417,8 @@ npm run dev -- --new [<library folder>]
     safe area shaded on request; the player's Frame button gets the same
     frame from `GET /studio/api/frame`), `validate`, `check_framing`
     (captions over faces, through `face-check.mjs`), `transcribe`
-    (with `save`, which writes the recording's editable transcript),
+    (the recording by showcase and asset key, or by path; with `save`,
+    which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
     `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`
     (the two status tools take `waitMs` and wait for the job inside the
