@@ -5,11 +5,16 @@ import {
   captionTimeline,
   CLAUSE_BEAT_MS,
   DEFAULT_PACE_WPS,
+  formatSeconds,
   LINE_SETTLE_MS,
   MIN_SLIDE_MS,
   readingTime,
   resolveSceneTiming,
+  sceneLengthWarning,
   SENTENCE_BEAT_MS,
+  showcaseLengthWarning,
+  VIDEO_SPEED,
+  videoSpeedProblem,
   wordTimeline,
 } from "./timing.mjs";
 
@@ -246,5 +251,74 @@ describe("alignCaptionWords", () => {
       segments: [{ words: [{ text: "nope", startMs: 0, endMs: 100 }] }],
     });
     expect(scenes[0]!.captions[0]!.words).toBeUndefined();
+  });
+});
+
+/* The length limits: a maximum per scene and a target for the whole
+ * video, with warnings that say why a scene is long. */
+describe("length warnings", () => {
+  const fiveCaptions = {
+    captions: Array.from({ length: 5 }, (_, i) => ({ text: `Caption number ${i + 1} here` })),
+  };
+
+  it("formats seconds with one decimal, dropped when zero", () => {
+    expect(formatSeconds(24_400)).toBe("24.4 s");
+    expect(formatSeconds(12_000)).toBe("12 s");
+    expect(formatSeconds(12_040)).toBe("12 s");
+    expect(formatSeconds(12_050)).toBe("12.1 s");
+  });
+
+  it("says nothing for a scene within its maximum, or with no maximum", () => {
+    expect(sceneLengthWarning(fiveCaptions, 8000, 8000)).toBeUndefined();
+    expect(sceneLengthWarning(fiveCaptions, 80_000, undefined)).toBeUndefined();
+  });
+
+  it("names the copy when a derived scene runs over", () => {
+    expect(sceneLengthWarning(fiveCaptions, 18_000, 8000)).toBe(
+      "18 s long, 10 s over the 8 s maximum: 5 captions, 20 words",
+    );
+    expect(
+      sceneLengthWarning({ ...fiveCaptions, support: "A supporting line" }, 18_000, 8000),
+    ).toBe("18 s long, 10 s over the 8 s maximum: 5 captions, 20 words, plus the support text");
+  });
+
+  it("names the pin, and the speed fix for a clip, when a pinned scene runs over", () => {
+    expect(
+      sceneLengthWarning(
+        { ...fiveCaptions, durationMs: 24_400, media: { kind: "video" } },
+        24_400,
+        12_000,
+      ),
+    ).toBe(
+      "24.4 s long, 12.4 s over the 12 s maximum: pinned by durationMs (a video clip: " +
+        "media.speed plays it faster); 5 captions, 20 words",
+    );
+    expect(
+      sceneLengthWarning({ captions: [{ text: "One line" }], durationMs: 9000 }, 9000, 8000),
+    ).toBe("9 s long, 1 s over the 8 s maximum: pinned by durationMs; 1 caption, 2 words");
+  });
+
+  it("names the longest scenes when the showcase runs past its target", () => {
+    const scenes = [
+      { id: "intro", durationMs: 8800 },
+      { id: "first-run", durationMs: 24_400 },
+      { id: "second-run", durationMs: 18_300 },
+      { id: "troubleshoot", durationMs: 18_000 },
+      { id: "outro", durationMs: 4000 },
+    ];
+    expect(showcaseLengthWarning(scenes, 60_000)).toBe(
+      "runs 73.5 s, 13.5 s over the 60 s target — longest: first-run (24.4 s), " +
+        "second-run (18.3 s), troubleshoot (18 s)",
+    );
+    expect(showcaseLengthWarning(scenes, 80_000)).toBeUndefined();
+    expect(showcaseLengthWarning(scenes, undefined)).toBeUndefined();
+  });
+
+  it("keeps a clip's speed between a quarter and four times", () => {
+    expect(videoSpeedProblem(2)).toBeUndefined();
+    expect(videoSpeedProblem(VIDEO_SPEED.min)).toBeUndefined();
+    expect(videoSpeedProblem(0)).toBe("must be between 0.25 and 4");
+    expect(videoSpeedProblem(8)).toBe("must be between 0.25 and 4");
+    expect(videoSpeedProblem("2")).toBe("must be a number");
   });
 });

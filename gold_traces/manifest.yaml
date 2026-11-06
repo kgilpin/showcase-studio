@@ -59,6 +59,11 @@ entries:
     test_name: returns the edit error when the YAML rejects the edit, leaving the file untouched
     appmap_path: "vitest/returns_the_edit_error_when_the_YAML_rejects_the_edit,_leaving_the_file_untouched.appmap.json"
     summary: The whitelist gate's negative branch — the YAML edit throws and nothing is written.
+  - feature: scene-edit
+    test_file: server/edit-yaml.test.mjs
+    test_name: re-scales pinned captions with a new scene durationMs, so they still add up
+    appmap_path: "vitest/re-scales_pinned_captions_with_a_new_scene_durationMs,_so_they_still_add_up.appmap.json"
+    summary: A new scene length through scene.set durationMs re-scales the captions' own durationMs by the same ratio, so they still add up (issue #21).
   - feature: assets
     test_file: server/studio-server.test.mjs
     test_name: add_asset copies files in, names the key, and logs the write

@@ -59,3 +59,34 @@ export function alignCaptionWords(
   scenes: { durationMs: number; captions?: { text: string; words?: WordWindow[] }[] }[],
   transcript: unknown,
 ): void;
+
+/** The range `media.speed` (a video clip's playing rate) may take. */
+export const VIDEO_SPEED: { min: number; max: number };
+export function videoSpeedProblem(value: unknown): string | undefined;
+
+/** Milliseconds as "24.4 s". */
+export function formatSeconds(ms: number): string;
+
+export function captionWordCount(scene: { captions?: { text: string }[] | undefined }): number;
+/** "5 captions, 61 words". */
+export function captionCopySummary(scene: { captions?: { text: string }[] | undefined }): string;
+
+/** A scene as the length helpers read it: as authored (durationMs is the
+ *  pin, when there is one) with its media kind. */
+export interface LengthInput {
+  captions?: { text: string }[] | undefined;
+  support?: string | undefined;
+  durationMs?: number | undefined;
+  media?: { kind: string } | undefined;
+}
+
+export function sceneLengthReason(scene: LengthInput): string;
+export function sceneLengthWarning(
+  scene: LengthInput,
+  resolvedMs: number,
+  maxMs: number | undefined,
+): string | undefined;
+export function showcaseLengthWarning(
+  scenes: { id: string; durationMs: number }[],
+  targetMs: number | undefined,
+): string | undefined;

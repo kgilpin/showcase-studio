@@ -201,3 +201,93 @@ export function activeCaption(scene, elapsedMs) {
   if (timeline.length === 0) return undefined;
   return timeline.find((c) => elapsedMs < c.endMs) ?? timeline[timeline.length - 1];
 }
+
+/* =============================================================
+ * LENGTH — a maximum for a scene and a target for the whole video.
+ *
+ * A generated showcase can run far too long, and nothing said so until
+ * someone watched it (issue #21). `meta.sceneMaxMs` is the longest any
+ * scene should run, a scene's own `maxMs` overrides it, and
+ * `meta.targetMs` is what the whole video should add up to. None of
+ * them changes the timing: they give the linter, validate and the
+ * player's scene rail something to warn about, and the warning says
+ * why the scene is long so the author knows where to cut.
+ * ============================================================= */
+
+/** A video clip's playing speed (`media.speed`): the clip plays at that
+ *  rate in the player and in every export, so a scene's natural length
+ *  becomes the clip's length divided by the speed. The range keeps the
+ *  result watchable. */
+export const VIDEO_SPEED = { min: 0.25, max: 4 };
+
+/** Why `media.speed` can't take `value`, or undefined when it can. */
+export function videoSpeedProblem(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "must be a number";
+  if (value < VIDEO_SPEED.min || value > VIDEO_SPEED.max) {
+    return `must be between ${VIDEO_SPEED.min} and ${VIDEO_SPEED.max}`;
+  }
+  return undefined;
+}
+
+/** Milliseconds as "24.4 s" — one decimal, dropped when it is zero. */
+export function formatSeconds(ms) {
+  const seconds = Math.round(ms / 100) / 10;
+  return `${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)} s`;
+}
+
+/** How many words the scene's captions speak. */
+export function captionWordCount(scene) {
+  return (scene.captions ?? []).reduce(
+    (sum, caption) => sum + caption.text.trim().split(/\s+/).filter(Boolean).length,
+    0,
+  );
+}
+
+/** "5 captions, 61 words" — the copy a scene carries, for the scene rail
+ *  and the length warnings. */
+export function captionCopySummary(scene) {
+  const count = (scene.captions ?? []).length;
+  return `${count} caption${count === 1 ? "" : "s"}, ${captionWordCount(scene)} words`;
+}
+
+/** What makes the scene as long as it is — the part of a length warning
+ *  that says where to cut. A pinned scene names the pin (and, on a video
+ *  clip, that the clip can play faster); a derived one counts the copy. */
+export function sceneLengthReason(scene) {
+  const copy = captionCopySummary(scene);
+  if (scene.durationMs != null) {
+    const clip =
+      scene.media?.kind === "video" ? " (a video clip: media.speed plays it faster)" : "";
+    return `pinned by durationMs${clip}; ${copy}`;
+  }
+  return scene.support ? `${copy}, plus the support text` : copy;
+}
+
+/** The warning for a scene longer than its maximum, or undefined when it
+ *  fits. `scene` is the scene as authored; `resolvedMs` its resolved
+ *  length. */
+export function sceneLengthWarning(scene, resolvedMs, maxMs) {
+  if (maxMs == null || resolvedMs <= maxMs) return undefined;
+  return (
+    `${formatSeconds(resolvedMs)} long, ${formatSeconds(resolvedMs - maxMs)} over the ` +
+    `${formatSeconds(maxMs)} maximum: ${sceneLengthReason(scene)}`
+  );
+}
+
+/** The warning for a showcase that runs past `meta.targetMs`, naming the
+ *  longest scenes so the author knows where to cut; undefined when it
+ *  fits. `scenes` carry their resolved durationMs. */
+export function showcaseLengthWarning(scenes, targetMs) {
+  if (targetMs == null) return undefined;
+  const total = scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
+  if (total <= targetMs) return undefined;
+  const longest = [...scenes]
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .slice(0, 3)
+    .map((scene) => `${scene.id} (${formatSeconds(scene.durationMs)})`)
+    .join(", ");
+  return (
+    `runs ${formatSeconds(total)}, ${formatSeconds(total - targetMs)} over the ` +
+    `${formatSeconds(targetMs)} target — longest: ${longest}`
+  );
+}

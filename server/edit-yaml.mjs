@@ -40,7 +40,13 @@
  *   { field: "scene.set",   name, value }           one whitelisted scene
  *                                                   field (SCENE_FIELDS);
  *                                                   null/"" removes an
- *                                                   optional one
+ *                                                   optional one. A new
+ *                                                   durationMs re-scales
+ *                                                   the captions' own
+ *                                                   durationMs with it
+ *                                                   (scaleCaptions: false
+ *                                                   leaves them); speed is
+ *                                                   written to media.speed
  *   { field: "caption.set", captionIndex, name, value }
  *                                                   captions[i].text /
  *                                                   durationMs / position
@@ -80,6 +86,7 @@ import {
 import { TIKTOK_FIELDS, tiktokFieldProblem } from "../src/content/tiktok-fit-rules.mjs";
 import { checkPublishEdit } from "../src/content/publish-rules.mjs";
 import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
+import { videoSpeedProblem } from "../src/content/timing.mjs";
 import { takeProblem } from "./build-plan.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
@@ -100,6 +107,12 @@ const SCENE_FIELDS = {
   captionStyle: { kind: "enum", values: CAPTION_STYLES, removable: true },
   transition: { kind: "string", removable: true },
   durationMs: { kind: "duration", removable: true },
+  /* The longest this scene should run — overrides meta.sceneMaxMs (the
+   * LENGTH model in src/content/timing.mjs). */
+  maxMs: { kind: "duration", removable: true },
+  /* A video clip's playing rate — written to media.speed, on video media
+   * only. */
+  speed: { kind: "speed", path: ["media", "speed"], removable: true },
   export: { kind: "boolean", removable: true },
   cta: { kind: "map", map: { label: true, url: true, kind: false }, removable: true },
   note: { kind: "string", removable: true },
@@ -120,6 +133,11 @@ const META_FIELDS = {
   description: { kind: "string" },
   loop: { kind: "boolean", removable: true },
   pace: { kind: "number", removable: true },
+  /* The length limits (the LENGTH model in src/content/timing.mjs): the
+   * longest any scene should run, and what the whole video should add
+   * up to. The linter warns past either; neither changes the timing. */
+  sceneMaxMs: { kind: "duration", removable: true },
+  targetMs: { kind: "duration", removable: true },
   captionStyle: { kind: "enum", values: CAPTION_STYLES, removable: true },
   /* Overlay captions on the 4:3 embed canvas; unset follows the voiceover
    * (src/content/embed-captions.ts). */
@@ -205,6 +223,11 @@ function checkFieldValue(fields, where, name, value) {
         throw new Error(`${label} must be a positive number`);
       }
       return { value };
+    case "speed": {
+      const problem = videoSpeedProblem(value);
+      if (problem) throw new Error(`${label} ${problem}`);
+      return { value };
+    }
     case "boolean":
       if (typeof value !== "boolean") throw new Error(`${label} must be true or false`);
       return { value };
@@ -355,6 +378,40 @@ function setPublishField(text, { destination, name, value }) {
   return editedText(doc);
 }
 
+/** scene.set durationMs on a scene whose captions carry their own
+ *  durationMs: every pinned caption is scaled by the same ratio as the
+ *  scene, so they still add up (issue #21 — the arithmetic an author had
+ *  to do by hand after a clip got shorter). The old length is the
+ *  scene's own pin, or, when the scene had none and every caption is
+ *  pinned, their sum (which is what the scene ran for). Rounding drift
+ *  lands on the last pinned caption, so the pinned total scales exactly;
+ *  a scene with untimed captions leaves them to split the rest. */
+function rescalePinnedCaptions(doc, index, newMs) {
+  const sceneNode = doc.getIn(["scenes", index]);
+  const captions = sceneNode.get("captions");
+  if (!isSeq(captions)) return;
+  const pinned = captions.items
+    .map((item, i) => (isMap(item) && typeof item.get("durationMs") === "number" ? i : -1))
+    .filter((i) => i >= 0);
+  if (pinned.length === 0) return;
+  const sum = pinned.reduce((n, i) => n + captions.items[i].get("durationMs"), 0);
+  const own = sceneNode.get("durationMs");
+  const oldMs =
+    typeof own === "number" ? own : pinned.length === captions.items.length ? sum : undefined;
+  if (!oldMs || oldMs <= 0 || oldMs === newMs) return;
+  const ratio = newMs / oldMs;
+  let scaled = 0;
+  pinned.forEach((i, k) => {
+    const was = captions.items[i].get("durationMs");
+    const value = Math.max(
+      1,
+      k === pinned.length - 1 ? Math.round(sum * ratio) - scaled : Math.round(was * ratio),
+    );
+    scaled += value;
+    doc.setIn(["scenes", index, "captions", i, "durationMs"], value);
+  });
+}
+
 /** Applies one scene edit to showcase.yaml text and returns the new text.
  *  Throws with a plain message when the edit can't be applied. */
 export function applySceneEdit(
@@ -371,6 +428,7 @@ export function applySceneEdit(
     media,
     name,
     destination,
+    scaleCaptions,
   } = {},
 ) {
   const needsValue = ["title", "caption", "media.asset", "meta.captionStyle"].includes(field);
@@ -504,6 +562,20 @@ export function applySceneEdit(
     if (path.length > 1 && !isMap(doc.getIn(["scenes", index, ...path.slice(0, -1)]))) {
       if (checked.remove) return editedText(doc);
       throw new Error(`Scene "${sceneId}" has no ${path.slice(0, -1).join(".")} to set ${name} on`);
+    }
+    /* A playing rate only means something on a clip. */
+    if (name === "speed" && !checked.remove) {
+      const kind = doc.getIn(["scenes", index, "media", "kind"]);
+      if (kind !== "video") {
+        throw new Error(
+          `Scene "${sceneId}" shows ${kind === "none" || kind == null ? "no media" : `a${kind === "image" ? "n" : ""} ${kind}`} — speed applies to a video`,
+        );
+      }
+    }
+    /* A new scene length keeps the captions' own timings in step with it
+     * (unless a build, which writes every pin itself, says not to). */
+    if (name === "durationMs" && !checked.remove && scaleCaptions !== false) {
+      rescalePinnedCaptions(doc, index, checked.value);
     }
     setChecked(doc, ["scenes", index, ...path], checked);
   } else if (field === "caption.set") {

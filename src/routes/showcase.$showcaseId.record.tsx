@@ -112,7 +112,10 @@ function scrubToVirtualTime(nowMs: number) {
   for (const video of document.querySelectorAll("video")) {
     if (!videoStarts.has(video)) videoStarts.set(video, nowMs);
     video.pause();
-    const seconds = (nowMs - videoStarts.get(video)!) / 1000;
+    /* A clip with media.speed covers more of itself per second of the
+     * scene (SceneMedia sets playbackRate), so the export plays it as
+     * fast as the player does. */
+    const seconds = ((nowMs - videoStarts.get(video)!) / 1000) * (video.playbackRate || 1);
     const duration = video.duration;
     if (!duration) {
       video.currentTime = seconds;

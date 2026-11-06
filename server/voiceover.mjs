@@ -699,7 +699,15 @@ export async function buildVoiceover({
       doc.meta?.pace ?? undefined,
     ).durationMs;
     if (scene.scene.durationMs != null ? scene.scene.durationMs !== sum : derived !== sum) {
-      edits.push({ field: "scene.set", sceneId: scene.id, name: "durationMs", value: sum });
+      /* The caption pins above are already the track's windows: the
+       * scene's pin must not re-scale them. */
+      edits.push({
+        field: "scene.set",
+        sceneId: scene.id,
+        name: "durationMs",
+        value: sum,
+        scaleCaptions: false,
+      });
     }
   }
   const soundtrack = doc.meta?.soundtrack;
