@@ -123,6 +123,7 @@ every reference to it.
 Claude works through the studio's MCP tools:
 
 - `studio_start` / `studio_info` — start the studio, or find the running one
+- `create_showcase` — a new showcase folder from a name
 - `read_showcase` / `edit_showcase` — read the script, and make
   structured edits (scene fields, captions, meta, insert/move/delete) as
   one write that keeps the file's formatting

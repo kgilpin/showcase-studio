@@ -148,6 +148,30 @@ explains why; the submission id is in the build log. Fix, rebuild, and
 only then continue. Nothing has been pushed, so `git reset --hard origin/main`
 undoes the version commit if the release is abandoned.
 
+## 3b. Rehearse the candidate
+
+The built app, run the way a user runs it (the plugin, a fresh session,
+raw inputs), on the scenarios that exercise what changed since the last
+tag. The `rehearsal` skill has the steps; in short:
+
+```sh
+scripts/rehearsal/run.sh selfie-pitch vX.Y.Z \
+  --inputs <folder with the scenario's raw files> \
+  --app "dist-electron/dist/mac-arm64/Showcase Studio.app"
+python3 scripts/rehearsal/grade.py "$TMPDIR/showcase-rehearsal/selfie-pitch/vX.Y.Z"
+```
+
+Then `verify.sh` on the result, the frames looked at, and the report
+written to `rehearsal/reports/`. A run is 5 to 15 minutes and a few
+dollars; it needs the raw files, which are not in this repo (the first
+scenario's are a showcase's `assets/` in the NOVA library).
+
+| The report says | What to do |
+| --- | --- |
+| a capability from this release never used, or a thing the rubric forbids | stop: fix the guide, the tool description or the tool on `main`, rebuild, rehearse again |
+| used, but the result needed the user to step in | show it and ask whether it blocks the release |
+| every rubric row yes, the outside check clean | go on; commit the report with the release |
+
 ## 4. Tag and push
 
 ```sh

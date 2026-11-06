@@ -489,6 +489,30 @@ scenes:
     expect(script.content[0].text).toContain("NOVA");
   });
 
+  it("create_showcase scaffolds a showcase through the studio's own + card path", async () => {
+    const { studio, library } = await startStudio();
+    const made = await studio.callTool({
+      name: "create_showcase",
+      arguments: { name: "Play Together!" },
+    });
+    expect(JSON.parse(made.content[0].text)).toEqual({
+      id: "play-together",
+      path: path.join(library, "play-together"),
+    });
+    expect(existsSync(path.join(library, "play-together", "assets"))).toBe(true);
+    expect(readFileSync(path.join(library, "play-together", "showcase.yaml"), "utf8")).toContain(
+      "title: Play Together!",
+    );
+    const log = readFileSync(path.join(library, ".studio", "changes.jsonl"), "utf8");
+    expect(log).toContain('"tool":"create_showcase"');
+    await expect(
+      studio.callTool({ name: "create_showcase", arguments: { name: "Play Together" } }),
+    ).rejects.toThrow('A showcase named "play-together" already exists');
+    await expect(studio.callTool({ name: "create_showcase", arguments: {} })).rejects.toThrow(
+      "Give the showcase a name",
+    );
+  });
+
   it("screenshot_frame returns each frame as an image, with what the page showed", async () => {
     /* A renderer that draws a PNG header of whatever size the page is
      * opened at, and answers the record page's own questions. */

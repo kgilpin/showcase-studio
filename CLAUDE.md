@@ -397,7 +397,10 @@ npm run dev -- --new [<library folder>]
     same process; `validate`, `screenshot_slide` and `screenshot_frame` quote it, and the error
     page shows it under Details only while a studio runs in the process and
     the request names a local host), `edit_showcase` through
-    `scene-edit.mjs`, `add_asset` through `asset-files.mjs` (files on disk
+    `scene-edit.mjs` (a recorded pitch's `take` is an editable scene field,
+    checked by `takeProblem` in `build-plan.mjs`), `create_showcase` (the
+    studio's own scaffold, the + card's, through the MCP context),
+    `add_asset` through `asset-files.mjs` (files on disk
     copied into a showcase's `assets/` — what an image dropped into the
     Claude chat or a screenshot Claude captured goes through; the page's
     drop target is the same module's base64 door), `ffmpeg` through the
@@ -414,7 +417,8 @@ npm run dev -- --new [<library folder>]
     safe area shaded on request; the player's Frame button gets the same
     frame from `GET /studio/api/frame`), `validate`, `check_framing`
     (captions over faces, through `face-check.mjs`), `transcribe`
-    (with `save`, which writes the recording's editable transcript),
+    (the recording by showcase and asset key, or by path; with `save`,
+    which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
     `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`
     (the two status tools take `waitMs` and wait for the job inside the
@@ -757,6 +761,22 @@ npm run dev -- --new [<library folder>]
   at **prod** (live Stripe, real money).
   There is no YouTube
   link yet: add one to the top bar and the footer when the channel exists.
+- `rehearsal/` and `scripts/rehearsal/`: the release rehearsal, a test of
+  the authoring process rather than of the code's output: a fresh Claude
+  session builds a showcase from raw inputs through the plugin, and the
+  transcript is graded for whether the capabilities added since the last
+  release got used and helped. `rehearsal/scenarios/<name>/` holds what a
+  run starts from (the brief in the user's words, naming no tool; the raw
+  files to copy in; the scratch library's settings; the rubric),
+  `scripts/rehearsal/` the runner (`run.sh`, `claude -p` with the plugin
+  on a scratch library, from a checkout or the packaged app), the follower,
+  the grader (timeline, counts, rubric, the real recap) and the outside
+  verifier, and `rehearsal/reports/` what each run found. Runs land
+  outside the repository (`$TMPDIR/showcase-rehearsal/`), so the scratch
+  library gets a history of its own and a session can't browse the
+  scenarios. The `rehearsal` skill
+  (`.claude/skills/rehearsal`) is the procedure; the release skill runs
+  it between the build and the tag.
 - `gold_traces/` (and `cdk/gold_traces/`, the license service's, with
   its own `cdk/appmap.yml`): The AppMap gold-trace baseline: `manifest.yaml` curates
   one lean, deterministic trace per subsystem (recorded from the tests via

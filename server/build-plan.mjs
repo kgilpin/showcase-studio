@@ -137,6 +137,80 @@ function readSource(meta, showcaseId, errors) {
   };
 }
 
+/** Reads one scene's `take` into its cut: {id, spans, videoSpans, clip,
+ *  seconds} (or a silence), or undefined with the problems added to
+ *  `errors`. The shapes: {from, to}, a list of them, {silence}, and
+ *  {audio: [...], video: [...]} whose sides must last the same. */
+function readTake(take, { id, theme, speed = 1 }, errors) {
+  const where = `scene "${id}" take`;
+  if (!take || typeof take !== "object") {
+    errors.push(`${where}: a take is {from, to} in seconds, a list of them, or {silence}`);
+    return undefined;
+  }
+  if (isNumber(take.silence) || (!Array.isArray(take) && "silence" in take)) {
+    if (!isNumber(take.silence) || take.silence <= 0) {
+      errors.push(`${where}: silence must be a number of seconds`);
+      return undefined;
+    }
+    return {
+      id,
+      silence: take.silence,
+      spans: [],
+      videoSpans: [],
+      clip: false,
+      seconds: take.silence,
+    };
+  }
+  const hasSides = !Array.isArray(take) && (take.audio != null || take.video != null);
+  const audio = hasSides
+    ? take.audio != null
+      ? readSpans(take.audio, `${where}.audio`, errors)
+      : []
+    : readSpans(take, where, errors);
+  const video = hasSides
+    ? take.video != null
+      ? readSpans(take.video, `${where}.video`, errors)
+      : []
+    : audio;
+  if (!audio || !video) return undefined;
+  /* The invariant the hand-written scripts relied on and never
+   * checked: however the picture and the sound are cut, they must last
+   * the same, or the speaker's lips leave their voice behind. */
+  const audioSeconds = spanSeconds(audio, speed);
+  const videoSeconds = spanSeconds(video, speed);
+  if (video.length > 0 && audio.length > 0 && Math.abs(audioSeconds - videoSeconds) > 0.001) {
+    errors.push(
+      `${where}: the picture lasts ${videoSeconds.toFixed(3)}s but the sound lasts ` +
+        `${audioSeconds.toFixed(3)}s — they must match, or the lips drift`,
+    );
+    return undefined;
+  }
+  /* Footage scenes are on-camera and get a clip; every other theme
+   * shows its own media while the voice keeps talking. */
+  const clip = typeof take.clip === "boolean" ? take.clip : theme === "footage";
+  if (clip && video.length === 0) {
+    errors.push(`${where}: a clip needs video spans`);
+    return undefined;
+  }
+  return {
+    id,
+    spans: audio,
+    videoSpans: video,
+    clip,
+    seconds: audio.length > 0 ? audioSeconds : videoSeconds,
+  };
+}
+
+/** What is wrong with a scene's `take` as a value on its own (the edit
+ *  tool's check), or null when it reads. The whole-list checks — every
+ *  scene has one, the clip's spans exist in the recording — stay with
+ *  the build. */
+export function takeProblem(value, { id = "scene", theme } = {}) {
+  const errors = [];
+  readTake(value, { id, theme }, errors);
+  return errors[0] ?? null;
+}
+
 /** Pins every cut to a 10ms grid on the cumulative timeline, so the pins
  *  add up to exactly the length of the track built from the same spans.
  *  Rounding each cut on its own would let the error accumulate — which is
@@ -174,55 +248,8 @@ export function readBuildPlan(doc, { showcaseId }) {
       missing.push(id || "(a scene with no id)");
       continue;
     }
-    const where = `scene "${id}" take`;
-    if (isNumber(take.silence)) {
-      if (take.silence <= 0) errors.push(`${where}: silence must be a number of seconds`);
-      cuts.push({
-        id,
-        silence: take.silence,
-        spans: [],
-        videoSpans: [],
-        clip: false,
-        seconds: take.silence,
-      });
-      continue;
-    }
-    const hasSides = take.audio != null || take.video != null;
-    const audio = hasSides
-      ? take.audio != null
-        ? readSpans(take.audio, `${where}.audio`, errors)
-        : []
-      : readSpans(take, where, errors);
-    const video = hasSides
-      ? take.video != null
-        ? readSpans(take.video, `${where}.video`, errors)
-        : []
-      : audio;
-    if (!audio || !video) continue;
-    /* The invariant the hand-written scripts relied on and never
-     * checked: however the picture and the sound are cut, they must last
-     * the same, or the speaker's lips leave their voice behind. */
-    const audioSeconds = spanSeconds(audio, source.speed);
-    const videoSeconds = spanSeconds(video, source.speed);
-    if (video.length > 0 && audio.length > 0 && Math.abs(audioSeconds - videoSeconds) > 0.001) {
-      errors.push(
-        `${where}: the picture lasts ${videoSeconds.toFixed(3)}s but the sound lasts ` +
-          `${audioSeconds.toFixed(3)}s — they must match, or the lips drift`,
-      );
-    }
-    /* Footage scenes are on-camera and get a clip; every other theme
-     * shows its own media while the voice keeps talking. */
-    const clip = typeof take.clip === "boolean" ? take.clip : scene?.theme === "footage";
-    if (clip && video.length === 0) {
-      errors.push(`${where}: a clip needs video spans`);
-    }
-    cuts.push({
-      id,
-      spans: audio,
-      videoSpans: video,
-      clip,
-      seconds: audio.length > 0 ? audioSeconds : videoSeconds,
-    });
+    const cut = readTake(take, { id, theme: scene?.theme, speed: source.speed }, errors);
+    if (cut) cuts.push(cut);
   }
   if (missing.length > 0) {
     errors.push(

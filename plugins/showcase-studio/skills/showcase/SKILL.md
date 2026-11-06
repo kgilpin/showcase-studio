@@ -130,6 +130,9 @@ from the app's source.
 
 ## 3. Make changes
 
+- A new showcase: `create_showcase` with its name. It makes the folder,
+  a starter `showcase.yaml` and an empty `assets/`, and returns the id.
+  Don't write the folder yourself.
 - `showcase.yaml`: use `edit_showcase` for anything it can express. One
   call applies a whole batch — retiming every scene, say — as one write
   that keeps the file's formatting. For anything else, use your

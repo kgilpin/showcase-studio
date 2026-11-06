@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBuildPlan, spanSeconds } from "./build-plan.mjs";
+import { readBuildPlan, spanSeconds, takeProblem } from "./build-plan.mjs";
 
 const doc = (meta, scenes) => ({ meta: { title: "t", description: "d", ...meta }, scenes });
 const plan = (meta, scenes) => readBuildPlan(doc(meta, scenes), { showcaseId: "demo" });
@@ -140,5 +140,28 @@ describe("spanSeconds", () => {
   it("counts a fitted span as the time it plays in", () => {
     expect(spanSeconds([{ from: 0, to: 4, fit: 1 }], 1)).toBe(1);
     expect(spanSeconds([{ from: 0, to: 11 }], 1.1)).toBeCloseTo(10, 6);
+  });
+});
+
+describe("takeProblem", () => {
+  it("reads one take on its own, the way the build reads it", () => {
+    expect(takeProblem({ from: 1, to: 2 })).toBeNull();
+    expect(
+      takeProblem([
+        { from: 0, to: 1 },
+        { from: 2, to: 3 },
+      ]),
+    ).toBeNull();
+    expect(takeProblem({ silence: 1.5 })).toBeNull();
+    expect(takeProblem({ audio: [{ from: 0, to: 2 }], video: [{ from: 0, to: 2 }] })).toBeNull();
+    expect(takeProblem({ from: 2, to: 1 })).toContain("to (1) must come after from (2)");
+    expect(takeProblem({ silence: -1 })).toContain("silence must be a number of seconds");
+    expect(takeProblem({ audio: [{ from: 0, to: 2 }], video: [{ from: 0, to: 3 }] })).toContain(
+      "they must match",
+    );
+    expect(takeProblem({ from: 0, to: 1, clip: true, video: [] }, { theme: "footage" })).toContain(
+      "a clip needs video spans",
+    );
+    expect(takeProblem(null)).toContain("a take is {from, to}");
   });
 });
