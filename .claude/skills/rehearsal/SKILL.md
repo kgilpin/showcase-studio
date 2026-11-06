@@ -76,7 +76,9 @@ python3 scripts/rehearsal/follow.py "$TMPDIR/showcase-rehearsal/selfie-pitch/<ru
 ```
 
 One line per studio tool call and every error, then the final result
-line. The run folder is outside the repository on purpose: inside it, the
+line. Take the run folder from the first line `run.sh` prints: on a Mac
+`$TMPDIR` is a `/var/folders/...` path, so a `/tmp/showcase-rehearsal`
+path written by hand watches nothing. The run folder is outside the repository on purpose: inside it, the
 scratch library would sit in an ignored folder, so the studio could keep
 no history there, and a session run from source could browse the
 scenarios. (From source the session can read the studio's code and the
