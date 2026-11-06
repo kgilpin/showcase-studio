@@ -481,6 +481,18 @@ export function planRecording({ showcasesDir, showcaseId }) {
  *  `upToDate`. `print` fingerprints the whole comparison, so a caller
  *  can tell whether anything changed since it last looked. */
 export function recordingStatus({ showcasesDir, showcaseId }) {
+  /* A folder with no showcase.yaml — the library's exports/ or raw/, or
+   * a folder someone made by hand — derives nothing: it is not a cut
+   * list that doesn't read, so the automatic build has nothing to say
+   * about a change in it. (build_media on such a name is still refused
+   * by planRecording, with the name.) */
+  if (
+    !showcaseId ||
+    /[/\\]|\.\./.test(showcaseId) ||
+    !existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))
+  ) {
+    return { built: false };
+  }
   const planned = planRecording({ showcasesDir, showcaseId });
   if (!planned.built) return { built: false };
   if (!planned.ok) return { built: true, kind: "recording", ok: false, problem: planned.error };

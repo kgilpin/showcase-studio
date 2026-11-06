@@ -158,9 +158,14 @@ describe("mediaStatus", () => {
     });
   });
 
-  it("has nothing to say about a showcase that derives nothing", () => {
+  it("has nothing to say about a showcase that derives nothing, or a folder that isn't one", () => {
     expect(status("plain")).toEqual({ built: false });
-    expect(status("missing")).toMatchObject({ built: true, ok: false });
+    /* The library's exports/ or raw/ folder: a change in it must not put
+     * a failed "Build media" record in the Actions list. */
+    mkdirSync(path.join(library, "exports", "pitch"), { recursive: true });
+    writeFileSync(path.join(library, "exports", "pitch", "video.mp4"), "");
+    expect(status("exports")).toEqual({ built: false });
+    expect(status("missing")).toEqual({ built: false });
   });
 
   it("sums the library up for studio_info, built showcases only", () => {
