@@ -412,11 +412,29 @@ npm run dev -- --new [<library folder>]
     `exporter.mjs`: the record page the video export records, in the
     TikTok or 4:3 view, animations finished unless asked live, TikTok's
     safe area shaded on request; the player's Frame button gets the same
-    frame from `GET /studio/api/frame`), `validate`, `transcribe`
+    frame from `GET /studio/api/frame`), `validate`, `check_framing`
+    (captions over faces, through `face-check.mjs`), `transcribe`
     (with `save`, which writes the recording's editable transcript),
     `script`, `build_media`/`build_status`/`build_cancel` through
     `build-media.mjs`, `build_voiceover` through `voiceover.mjs`, `export`/`export_status`/`export_cancel`,
     `share_status`/`share`/`share_record` through `share.mjs`.
+  - `faces.mjs`: the face finder: Apple's Vision framework, run from a
+    JavaScript for Automation script with osascript the way `airdrop.mjs`
+    reaches AirDrop, so a Mac needs nothing installed; every face's box as
+    fractions of the picture, faces too faint or too small to be the
+    speaker dropped. There is none on Windows yet: `createFaceFinder`
+    says so, and the check reports that instead of guessing.
+  - `face-check.mjs`: the caption-over-face check behind the `check_framing`
+    tool, one showcase at a time: for each caption on a scene whose picture fills the frame
+    (`facesPossible`, the same scenes a TikTok fit applies to), the TikTok
+    frame at the middle of that caption through `screenshotFrame`, the
+    caption chip's box from the page (`window.__record.at().caption.box`),
+    the faces from the finder, and one rectangle test between them, so it
+    can't disagree with the player. Each overlap is a warning naming where
+    both are and the fix (lift the picture with `media.tiktok`, or move
+    the caption), and the result is cached in
+    `<library>/.studio/build/<showcase>.faces.json` under the export
+    fingerprint, so only a changed showcase is re-rendered.
   - `export-records.mjs`: a record of each video export, full quality and
     draft, with how long it took to render (the next export's time
     estimate), one JSON file each in

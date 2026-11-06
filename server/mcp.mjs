@@ -4,7 +4,7 @@
  * scripts/studio-mcp.mjs, the studio Claude Code starts for itself, which
  * runs them in-process through the studio's callTool.
  *
- * Page tools (screenshot_slide, validate, export) render through the
+ * Page tools (screenshot_slide, screenshot_frame, check_framing, validate, export) render through the
  * studio's page renderer, so they see the current files on disk — the
  * same files Claude just edited. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -23,6 +23,8 @@ import {
 } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { transcribe } from "./transcribe.mjs";
+import { createFaceFinder } from "./faces.mjs";
+import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
 import { DESTINATION_IDS, DESTINATIONS } from "../src/content/publish-rules.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
@@ -292,6 +294,30 @@ export const TOOLS = [
       "and, for any showcase that failed, the error message. Use it after YAML edits to " +
       "confirm nothing broke.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "check_framing",
+    description:
+      "Find captions that sit over a face in the TikTok video of one showcase. For every " +
+      "caption on a scene whose picture fills the frame (footage, feature screenshots, a " +
+      "full-bleed statement), it renders the frame at the middle of that caption the way the " +
+      "export renders it, finds the faces in it, and reports each caption whose chip covers " +
+      "one: the scene, the time, where the face and the caption sit (percent of the frame, " +
+      "from the top), and the fix — lift the picture with media.tiktok {fit: fill, focus: " +
+      "bottom, bands: blur, area: {bottom: N%}}, or move the caption (position: top). Nothing " +
+      "is written: apply the fix with edit_showcase, then look with screenshot_frame at the " +
+      "time it names. Useful on a recorded pitch (a phone selfie puts the face right where " +
+      "the bottom captions go) after a build or after changing a footage scene's media, " +
+      "captions or TikTok fit. Takes a few seconds per showcase; a showcase unchanged since " +
+      "its last check answers at once. The face finder is Apple's Vision framework, so on " +
+      "Windows it answers {available: false, reason} — look at the frames yourself.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
   },
   {
     name: "transcribe",
@@ -897,6 +923,29 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       content.push({ type: "text", text: frameLine(frame, result) });
     }
     return { content };
+  }
+  if (name === "check_framing") {
+    const showcaseId = String(args.showcaseId ?? "");
+    if (!showcaseId) throw new Error("showcaseId is required");
+    const finder = context.faceFinder ?? createFaceFinder();
+    if (!finder.available) return json({ available: false, showcaseId, reason: finder.reason });
+    const result = await checkCaptionsOverFaces({
+      renderer: context.renderer,
+      appUrl: context.getUrl(),
+      showcasesDir,
+      showcaseId,
+      finder,
+      cacheFile: path.join(showcasesDir, ".studio", "build", `${showcaseId}.faces.json`),
+      appVersion: context.info?.()?.version ?? null,
+    });
+    return json({
+      available: true,
+      showcaseId,
+      summary: facesSummary(showcaseId, result),
+      checked: result.checked,
+      overlaps: result.overlaps,
+      fromCache: result.fromCache,
+    });
   }
   if (name === "validate") {
     const report = await validateShowcases(context.renderer, context.getUrl());

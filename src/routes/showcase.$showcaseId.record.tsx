@@ -52,11 +52,16 @@ export const Route = createFileRoute("/showcase/$showcaseId/record")({
 /** A `?flag=1` search parameter. */
 const flag = (value: unknown) => value === 1 || value === "1" || value === true;
 
+/** A box in the frame, in percent of the frame from its top-left corner. */
+export type FrameBox = { top: number; left: number; width: number; height: number };
+
 /** What the frame shows at the current moment. */
 export type FrameInfo = {
   scene: { id: string; index: number; count: number; elapsedMs: number; durationMs: number };
-  /** The caption on the frame, when the scene has captions. */
-  caption?: { index: number; count: number; text: string };
+  /** The caption on the frame, when the scene has captions, with the box
+   *  its chip takes up when it is drawn on the frame (the caption-over-
+   *  face check compares it with the faces it finds). */
+  caption?: { index: number; count: number; text: string; box?: FrameBox };
 };
 
 type RecordApi = {
@@ -124,8 +129,22 @@ function scrubToVirtualTime(nowMs: number) {
   }
 }
 
+/** Where `element` sits in `frame`, in percent of the frame. */
+function boxIn(frame: HTMLElement, element: Element): FrameBox | undefined {
+  const outer = frame.getBoundingClientRect();
+  const inner = element.getBoundingClientRect();
+  if (!outer.width || !outer.height) return undefined;
+  const percent = (value: number, of: number) => Math.round((value / of) * 1000) / 10;
+  return {
+    top: percent(inner.top - outer.top, outer.height),
+    left: percent(inner.left - outer.left, outer.width),
+    width: percent(inner.width, outer.width),
+    height: percent(inner.height, outer.height),
+  };
+}
+
 /** The scene and caption a clock points at. */
-function frameInfo(scenes: Scene[], clock: Clock): FrameInfo {
+function frameInfo(scenes: Scene[], clock: Clock, frame: HTMLElement | null): FrameInfo {
   const scene = scenes[clock.index] ?? scenes[0]!;
   const info: FrameInfo = {
     scene: {
@@ -144,6 +163,9 @@ function frameInfo(scenes: Scene[], clock: Clock): FrameInfo {
       count: timeline.length,
       text: caption.text,
     };
+    const chip = frame?.querySelector(".caption-chip");
+    const box = frame && chip ? boxIn(frame, chip) : undefined;
+    if (box) info.caption.box = box;
   }
   return info;
 }
@@ -179,6 +201,7 @@ function Recorder({
   });
   const clockRef = useRef(clock);
   clockRef.current = clock;
+  const frameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const api: RecordApi = {
@@ -192,7 +215,7 @@ function Recorder({
         scrubToVirtualTime(ms);
         api.done = next.done;
       },
-      at: () => frameInfo(scenes, clockRef.current),
+      at: () => frameInfo(scenes, clockRef.current, frameRef.current),
     };
     window.__record = api;
 
@@ -250,6 +273,7 @@ function Recorder({
   return (
     <main className="flex h-dvh w-full items-center justify-center overflow-hidden bg-background">
       <div
+        ref={frameRef}
         className="relative h-full max-w-full"
         style={{ aspectRatio: canvas === "embed" ? EMBED_ASPECT : TIKTOK_ASPECT }}
       >

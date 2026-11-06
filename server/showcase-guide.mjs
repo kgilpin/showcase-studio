@@ -105,6 +105,7 @@ The transcript is the other half. Run transcribe with save: true on the recordin
 Two more things about footage:
 - Footage video always plays muted, in the player and in every export. The voice only ever comes from meta.soundtrack, which is why the build writes one.
 - The TikTok frame is 9:16 (1080x1920), the shape a phone selfie video already has, so a speaker clip fills it with nothing cropped. A clip cut to another shape goes in by its tiktok fit (see "TikTok fit"): fill crops it, fit shows it whole with bands. App Screens stays 1320x2868 (aspect ~0.46), where fit: cover crops about 18% of a 9:16 clip's width.
+- Keep the face clear of the captions. A selfie puts the face in the middle of the frame, and the bottom caption (the default) covers about the 62–75% band of the frame's height with two lines, so a chin below about 58% sits under the words. The check_framing tool looks for this: for every caption on a scene whose picture fills the frame it renders the frame at the middle of the caption, finds the faces, and reports each caption whose chip covers one, saying where both are and the fix. Prefer lifting the picture: media.tiktok {fit: fill, focus: bottom, bands: blur, area: {bottom: N%}} moves a 9:16 clip up N% of the frame and fills the strip below it with a blur, under TikTok's description where nothing is lost — the warning gives N. Moving the caption (position: top) is the fallback when the face is low or the sky is empty. Set it on each speaker scene (a cutaway or a composite frames itself), then check with screenshot_frame at the time the report names. On Windows the face finder isn't available and the tool says so: look at the frames yourself.
 - Footage scenes are left out of the App Store screenshot set by default; add statement or feature scenes if the showcase also needs screenshots.
 
 ## Synthesized voiceovers (AWS Polly)
@@ -337,7 +338,10 @@ ${whisperAdvice(platform)}
   finished. Use it for every "at time T, is X right?" check instead of
   a draft export;
   validate reports which showcases load and the error for any that
-  don't — use it after YAML edits; script {showcaseId} returns the
+  don't — use it after YAML edits; check_framing {showcaseId} finds
+  captions that sit over a face in the TikTok video and says where
+  both are and the fix (see "Keep the face clear of the captions"
+  under "Recorded pitches"); script {showcaseId} returns the
   narration as share-ready plain text (scene headers + spoken lines).
 - Exports run through the MCP export tools as background jobs: export
   {showcaseId, kind} starts one and returns a jobId immediately; poll
