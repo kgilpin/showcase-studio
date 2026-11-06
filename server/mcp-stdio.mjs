@@ -394,6 +394,7 @@ export function createStudioMcp({
         ...(current.libraryReason ? { libraryReason: current.libraryReason } : {}),
         open: current.landingUrl(facts) + (view ? `?view=${view}` : ""),
         guide: path.join(facts.library, ".studio", "GUIDE.md"),
+        schema: path.join(facts.library, ".studio", "showcase.schema.json"),
         changes: path.join(facts.library, CHANGE_LOG),
       });
     }

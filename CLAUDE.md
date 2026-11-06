@@ -407,7 +407,8 @@ npm run dev -- --new [<library folder>]
     child process, `child-studio.mjs` running
     `<source>/scripts/dev.mjs --no-terminal --no-auto-commit`, so every
     start runs current code — and by the packaged app's `--mcp`, in-process.
-  - `mcp.mjs`: the MCP tools: `studio_info` (with `pageError` when the last
+  - `mcp.mjs`: the MCP tools: `studio_info` (with the paths of the guide
+    and the schema a session reads before it writes, and `pageError` when the last
     server-side page render failed and none has rendered since — recorded by
     `src/start.ts`/`src/server.ts` in `src/lib/page-error.mjs`, a store on
     `globalThis` that both the page's server code and the studio read in the

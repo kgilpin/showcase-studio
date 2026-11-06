@@ -128,6 +128,13 @@ recipes for recorded pitches. The studio rewrites it on every start, so it
 matches the running app. Don't learn the format from other showcases or
 from the app's source.
 
+`studio_start` also returns `schema`: `.studio/showcase.schema.json`, the
+fields of `showcase.yaml`, their types, and where each one goes. Read it
+before you write a `showcase.yaml` by hand (a new showcase's first draft
+usually is), and when `validate` warns that a field isn't one or sits in
+the wrong place: the warning names where it belongs, and the schema is
+the full list.
+
 ## 3. Make changes
 
 - A new showcase: `create_showcase` with its name. It makes the folder,

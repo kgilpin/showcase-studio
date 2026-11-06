@@ -869,6 +869,11 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json({
       ...context.info(),
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
+      /* What a session reads before it writes: the guide, and the
+       * schema (the fields of showcase.yaml, their types, where each
+       * goes), both written into the library at every start. */
+      guide: path.join(showcasesDir, ".studio", "GUIDE.md"),
+      schema: path.join(showcasesDir, ".studio", "showcase.schema.json"),
       changes: context.changeLog?.path(),
       ...(context.history ? { history: await context.history.status() } : {}),
       ...(context.license ? { license: context.license.status() } : {}),
