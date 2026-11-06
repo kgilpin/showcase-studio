@@ -95,6 +95,10 @@ function buildLines(scenes: Scene[]): Line[] {
   return lines;
 }
 
+/** How long a camera take keeps rolling after the last line's window
+ *  closes, so the narrator can finish the sentence before the file is cut. */
+const TAKE_TAIL_MS = 3000;
+
 /** Pie-style countdown for the active line: the filled wedge is the time
  *  left in this line's window, beside the seconds remaining. */
 function LinePie({ remainingMs, allottedMs }: { remainingMs: number; allottedMs: number }) {
@@ -174,6 +178,8 @@ export function ScriptPlayer({
    * floats as a small picture-in-picture instead. */
   const previewPipRef = useRef<HTMLVideoElement>(null);
   const taking = recording || countdown?.action === "take";
+  // The script has ended but the camera is still rolling out its tail.
+  const finishingTake = recording && elapsed >= total;
   const takingRef = useRef(false);
   takingRef.current = taking;
 
@@ -319,9 +325,15 @@ export function ScriptPlayer({
     };
   }, [countdown, camera]);
 
-  // A take ends with the script: stop and save instead of looping.
+  /* A take ends with the script: stop and save instead of looping — but
+   * not on the very frame the last line's window closes. The narrator is
+   * still finishing the sentence, so the camera keeps rolling for a short
+   * tail first (the clock holds at the end meanwhile; Stop still cuts it
+   * at once). */
   useEffect(() => {
-    if (recording && elapsed >= total) stopTake();
+    if (!recording || elapsed < total) return undefined;
+    const timer = setTimeout(stopTake, TAKE_TAIL_MS);
+    return () => clearTimeout(timer);
   }, [recording, elapsed, total, stopTake]);
 
   /* If the OS interrupts the camera mid-take (lock, call, app switch),
@@ -510,7 +522,8 @@ export function ScriptPlayer({
                 />
                 {recording && (
                   <span className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-background/70 px-2.5 py-1 text-xs text-foreground">
-                    <span className="size-2 animate-pulse rounded-full bg-red-500" /> REC
+                    <span className="size-2 animate-pulse rounded-full bg-red-500" />{" "}
+                    {finishingTake ? "REC · finishing" : "REC"}
                   </span>
                 )}
               </div>
@@ -620,7 +633,8 @@ export function ScriptPlayer({
             <video ref={previewPipRef} autoPlay muted playsInline className="w-full -scale-x-100" />
             {recording && (
               <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[0.65rem] text-foreground">
-                <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> REC
+                <span className="size-1.5 animate-pulse rounded-full bg-red-500" />{" "}
+                {finishingTake ? "REC · finishing" : "REC"}
               </span>
             )}
           </div>
