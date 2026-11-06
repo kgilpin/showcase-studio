@@ -40,3 +40,14 @@ packages:
   - path: scripts
   - path: electron
   - path: src
+    exclude:
+      # The schema check's walk over the schema for a field's other
+      # homes, and its path spelling: a recursion over every node of the
+      # schema, hundreds of calls that say the same thing, for one
+      # warning. checkShowcase and check stay in the trace.
+      - homesOf
+      - joinPath
+      - spellPath
+      - matchesType
+      - typeOf
+      - distance

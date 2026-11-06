@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applySceneEdit } from "./edit-yaml.mjs";
+import { applySceneEdit, EDITABLE_FIELDS } from "./edit-yaml.mjs";
+import { SHOWCASE_SCHEMA } from "../src/content/showcase-schema.mjs";
 
 /* Comments, blank lines, flow maps, quotes, and a long authored line —
  * everything an edit must leave byte-for-byte alone. */
@@ -786,5 +787,38 @@ describe("publish.set", () => {
       `"two words" can't be a hashtag`,
     );
     expect(() => set(DOC, { name: "title", value: "a\nb" })).toThrow("A title is one line");
+  });
+});
+
+/* The edit tool's whitelists against the schema (src/content/showcase-schema.mjs):
+ * every field the tool sets is a field there, in the place it writes it,
+ * so the two can't drift — a field one knows and the other doesn't is
+ * the kind of gap a session falls into. */
+describe("the editable fields are schema fields", () => {
+  const scene = SHOWCASE_SCHEMA.properties.scenes.items.properties;
+  const meta = SHOWCASE_SCHEMA.properties.meta.properties;
+  const caption = scene.captions.items.properties;
+
+  it("for scenes, metas and captions", () => {
+    for (const [name, spec] of Object.entries(EDITABLE_FIELDS.scene)) {
+      /* A field written elsewhere (tiktok → media.tiktok) is checked there. */
+      const home = spec.path
+        ? spec.path.reduce((at, key) => at.properties[key], { properties: scene })
+        : scene[name];
+      expect(home, `scene.${name}`).toBeDefined();
+      if (spec.kind === "map") {
+        for (const key of Object.keys(spec.map))
+          expect(home.properties[key], `scene.${name}.${key}`).toBeDefined();
+      }
+    }
+    for (const [name, spec] of Object.entries(EDITABLE_FIELDS.meta)) {
+      expect(meta[name], `meta.${name}`).toBeDefined();
+      if (spec.kind === "map") {
+        for (const key of Object.keys(spec.map))
+          expect(meta[name].properties[key], `meta.${name}.${key}`).toBeDefined();
+      }
+    }
+    for (const name of Object.keys(EDITABLE_FIELDS.caption))
+      expect(caption[name], `caption.${name}`).toBeDefined();
   });
 });

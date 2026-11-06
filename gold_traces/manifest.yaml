@@ -168,6 +168,11 @@ entries:
     test_name: "renders each caption's moment, finds the faces, and warns where they meet"
     appmap_path: "vitest/renders_each_caption's_moment,_finds_the_faces,_and_warns_where_they_meet.appmap.json"
     summary: The caption-over-face check behind check_framing — the showcase's fingerprint taken for the cache, the moments picked (the middle of each caption on a scene that can hold a face), the frames rendered through screenshotFrame, the face finder asked about each, the caption box and the face box compared, and a warning with the fix written for every overlap, then the result cached.
+  - feature: showcase-schema
+    test_file: src/content/showcases.test.ts
+    test_name: warns about a field in the wrong place, on the scene it is in
+    appmap_path: vitest/warns_about_a_field_in_the_wrong_place,_on_the_scene_it_is_in.appmap.json
+    summary: The loader checking a document against the showcase.yaml schema — checkShowcase walking meta, the scenes and their fields, an unknown field on a scene turned into a warning that names where it belongs (scenes[].take.clip), and that warning landing on the scene it is in while the scene before it stays clean.
   - feature: page-error
     test_file: server/exporter.test.mjs
     test_name: validate fails at once with the captured page error

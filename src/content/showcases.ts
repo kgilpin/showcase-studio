@@ -35,6 +35,7 @@ import {
 import { readWatermark, resolveWatermark, type Watermark, type WatermarkSpec } from "./watermark";
 import { PLAYER_VIEWS, playerView, type PlayerView } from "@/lib/export-kinds.mjs";
 import { readTikTokFit, resolveTikTokFit, type TikTokFit, type TikTokFitSpec } from "./tiktok-fit";
+import { checkShowcase } from "./showcase-schema.mjs";
 import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
@@ -912,6 +913,33 @@ function readLimit(
   return undefined;
 }
 
+/* Fields whose values the readers below judge themselves, saying what
+ * the player falls back to: the theme linter, caption styles and
+ * positions, the view, the embed-captions switch, the length limits, a
+ * clip's speed, and everything under a TikTok fit or a brand mark. Their messages win; the schema check
+ * keeps only what they can't see — a field that isn't one, or one in
+ * the wrong place. */
+const VALUE_CHECKED_BY_READER =
+  /\.(theme|captionStyle|position|view|embedCaptions|sceneMaxMs|targetMs|maxMs|speed)$/;
+const CHECKED_WHOLE_BY_READER = /(^|\.)(tiktok|watermark)(\.|\[|$)/;
+
+/** The document's schema problems as warnings: the showcase's own, and
+ *  each scene's by index. */
+function schemaWarnings(doc: RawDoc): { showcase: string[]; scenes: Map<number, string[]> } {
+  const showcase: string[] = [];
+  const scenes = new Map<number, string[]>();
+  for (const problem of checkShowcase(doc)) {
+    if (CHECKED_WHOLE_BY_READER.test(problem.path)) continue;
+    if (problem.kind !== "unknown" && problem.kind !== "missing") {
+      if (VALUE_CHECKED_BY_READER.test(problem.path)) continue;
+    }
+    if (problem.sceneIndex == null) showcase.push(problem.message);
+    else
+      scenes.set(problem.sceneIndex, [...(scenes.get(problem.sceneIndex) ?? []), problem.message]);
+  }
+  return { showcase, scenes };
+}
+
 function buildShowcase(
   showcaseId: string,
   doc: RawDoc,
@@ -921,6 +949,11 @@ function buildShowcase(
    *  the showcase, not to whichever scene is drawn first). */
   const showcaseTheme = resolveTheme(showcaseId);
   for (const message of themeWarnings.get(showcaseId) ?? []) warn("", message);
+  /* What doesn't fit the schema (showcase-schema.mjs): a field that
+   * isn't one, or one in the wrong place, which would otherwise be
+   * ignored without a word. */
+  const schema = schemaWarnings(doc);
+  for (const message of schema.showcase) warn("", message);
   const baseWatermark = readWatermark(doc.meta.watermark, "meta.watermark", (message) =>
     warn("", message),
   );
@@ -931,7 +964,7 @@ function buildShowcase(
     warn("", message),
   );
   const targetMs = readLimit(doc.meta.targetMs, "meta.targetMs", (message) => warn("", message));
-  const scenes: Scene[] = doc.scenes.map((raw) => {
+  const scenes: Scene[] = doc.scenes.map((raw, index) => {
     const {
       titleDurationMs: _titleDurationMs,
       captionsIn: _captionsIn,
@@ -940,6 +973,7 @@ function buildShowcase(
       ...scene
     } = raw;
     const { theme, warnings } = lintScene(raw);
+    warnings.push(...(schema.scenes.get(index) ?? []));
     const resolvedMedia = resolveMedia(showcaseId, scene.media, (message) =>
       warnings.push(message),
     );

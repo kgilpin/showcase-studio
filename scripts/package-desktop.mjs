@@ -99,6 +99,7 @@ for (const shared of [
   "content/asset-kinds.mjs",
   "content/caption-position-rules.mjs",
   "content/publish-rules.mjs",
+  "content/showcase-schema.mjs",
   "content/tiktok-fit-rules.mjs",
   "content/timing.mjs",
   "content/watermark-rules.mjs",
