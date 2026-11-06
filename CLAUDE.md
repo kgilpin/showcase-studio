@@ -322,6 +322,23 @@ npm run dev -- --new [<library folder>]
   resolves asset keys (file name without extension) to URLs, and resolves
   each showcase's theme (whitelist, `extends`, font loads). Documents the
   scene/theme model.
+- `src/content/showcase-schema.mjs`: The shape of showcase.yaml as a
+  JSON Schema, kept as data so one copy serves the page, the studio and
+  a reader: every field, where it goes, what it holds, with the values
+  the rule files decide (caption positions, TikTok fits, the brand mark,
+  the publish block) imported from them. `checkShowcase(doc)` is what
+  the loader runs on every document: an unknown or misplaced field
+  ("clip" isn't a scene field — it belongs in scenes[].take), a typo
+  (did you mean "captions"?), a wrong type, each a warning on the scene
+  or the showcase, so a field in the wrong place is never silently
+  ignored. The readers that judge a field's value and apply a fallback
+  (the theme linter, the TikTok fit, the brand mark, caption positions)
+  keep their own messages; the loader drops the schema's duplicates for
+  those. The studio writes it into every library as
+  `.studio/showcase.schema.json`, the field reference the guide points
+  a session at, and `edit-yaml.test.mjs` holds the edit tool's
+  whitelists to it. When you add a field to showcase.yaml, add it here
+  first.
 - `src/content/source.ts`: Where the showcase data comes from: folders
   bundled at build time (default, SSR-safe), or the same files fetched over
   HTTP when `VITE_SHOWCASES_URL` is set (every studio mode sets it to
@@ -390,7 +407,8 @@ npm run dev -- --new [<library folder>]
     child process, `child-studio.mjs` running
     `<source>/scripts/dev.mjs --no-terminal --no-auto-commit`, so every
     start runs current code — and by the packaged app's `--mcp`, in-process.
-  - `mcp.mjs`: the MCP tools: `studio_info` (with `pageError` when the last
+  - `mcp.mjs`: the MCP tools: `studio_info` (with the paths of the guide
+    and the schema a session reads before it writes, and `pageError` when the last
     server-side page render failed and none has rendered since — recorded by
     `src/start.ts`/`src/server.ts` in `src/lib/page-error.mjs`, a store on
     `globalThis` that both the page's server code and the studio read in the
@@ -871,6 +889,13 @@ npm run dev -- --new [<library folder>]
   `SETTINGS_TEMPLATE` (new libraries show it) and describe it in the
   authoring guide (`server/showcase-guide.mjs`). Existing libraries keep
   the file they have, so the guide is how their sessions learn about it.
+- A field of showcase.yaml is declared in `src/content/showcase-schema.mjs`
+  before anything reads it: the loader warns about a field the schema
+  doesn't know, so a reader added without the schema entry makes every
+  showcase that uses the field warn. The schema is also the reader's
+  reference (`.studio/showcase.schema.json`), so a one-line
+  `description` there is where to say what a field is for; the guide
+  says when to use it.
 - The showcase-authoring knowledge a Claude Code session gets inside a
   showcases folder lives in `server/showcase-guide.mjs` (`SHOWCASE_GUIDE`,
   written to `<folder>/.studio/GUIDE.md` on every launch). When a change

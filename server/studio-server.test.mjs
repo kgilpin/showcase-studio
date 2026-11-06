@@ -157,6 +157,12 @@ describe("createStudio", () => {
     const { url, library } = await startStudio();
     expect(existsSync(path.join(library, "README.md"))).toBe(true);
     expect(existsSync(path.join(library, ".studio", "GUIDE.md"))).toBe(true);
+    /* The field reference beside the guide, as JSON a session can read. */
+    const schema = JSON.parse(
+      readFileSync(path.join(library, ".studio", "showcase.schema.json"), "utf8"),
+    );
+    expect(schema.title).toBe("showcase.yaml");
+    expect(Object.keys(schema.properties.scenes.items.properties)).toContain("take");
     const mcpConfig = JSON.parse(readFileSync(path.join(library, ".studio", "mcp.json"), "utf8"));
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
   });
@@ -463,7 +469,7 @@ scenes:
   }, 15_000);
 
   it("answers MCP over HTTP: the tool list and studio_info", async () => {
-    const { url } = await startStudio();
+    const { url, library } = await startStudio();
     const call = async (method, params) =>
       (
         await fetch(`${url}/mcp`, {
@@ -478,6 +484,8 @@ scenes:
     expect(JSON.parse(studioInfo.result.content[0].text)).toMatchObject({
       url,
       showcases: ["nova"],
+      guide: path.join(library, ".studio", "GUIDE.md"),
+      schema: path.join(library, ".studio", "showcase.schema.json"),
     });
   });
 

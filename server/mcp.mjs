@@ -318,11 +318,13 @@ export const TOOLS = [
     description:
       "Parse and build every showcase in the library exactly as the app does. Returns the " +
       "showcases that loaded (id, title, slides, runtime, and the target runtime when " +
-      "meta.targetMs sets one), linter warnings (per scene: themes, media, and length — a " +
-      "scene over its maxMs or meta.sceneMaxMs says how far over and why, a showcase over " +
-      "meta.targetMs names its longest scenes), and, for any showcase that failed, the " +
-      "error message. Use it after YAML edits to confirm nothing broke, and read the length " +
-      "warnings before telling the user a showcase is done.",
+      "meta.targetMs sets one), the warnings (per scene: a field that isn't one or is in the " +
+      "wrong place, against .studio/showcase.schema.json; a wrong value; themes and media; " +
+      "length — a scene over its maxMs or meta.sceneMaxMs says how far over and why, a " +
+      "showcase over meta.targetMs names its longest scenes), and, for any showcase that " +
+      "failed, the error message. Use it after YAML edits to confirm nothing broke, read the " +
+      "length warnings before telling the user a showcase is done, and never leave a warning " +
+      "unresolved.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -867,6 +869,11 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json({
       ...context.info(),
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
+      /* What a session reads before it writes: the guide, and the
+       * schema (the fields of showcase.yaml, their types, where each
+       * goes), both written into the library at every start. */
+      guide: path.join(showcasesDir, ".studio", "GUIDE.md"),
+      schema: path.join(showcasesDir, ".studio", "showcase.schema.json"),
       changes: context.changeLog?.path(),
       ...(context.history ? { history: await context.history.status() } : {}),
       ...(context.license ? { license: context.license.status() } : {}),

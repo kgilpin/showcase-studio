@@ -539,3 +539,54 @@ scenes:
     ]);
   });
 });
+
+describe("the schema check", () => {
+  it("warns about a field in the wrong place, on the scene it is in", async () => {
+    await load(
+      "misplaced",
+      `meta:
+  title: Misplaced
+  description: d
+  loop: false
+scenes:
+  - id: one
+    theme: footage
+    media: { kind: video, asset: clip, alt: a }
+    captions: [{ text: Hi }]
+  - id: two
+    theme: footage
+    clip: false
+    media: { kind: video, asset: clip, alt: a }
+    captions: [{ text: Hi }]
+`,
+      ["clip.mp4"],
+    );
+    expect(warningsFor("one")).toEqual([]);
+    expect(warningsFor("two")).toEqual([
+      'scenes[1]: "clip" isn\'t a scene field — it belongs in scenes[].take (scenes[].take.clip)',
+    ]);
+  });
+
+  it("leaves a field's value to the reader that owns it, so a mistake is said once", async () => {
+    await load(
+      "once",
+      `meta:
+  title: Once
+  description: d
+  loop: false
+  view: sideways
+scenes:
+  - id: one
+    theme: feature
+    media: { kind: image, asset: shot, alt: a, tiktok: { fit: sideways, bogus: 1 } }
+    captions: [{ text: Hi, position: high }]
+`,
+      ["shot.png"],
+    );
+    const sceneWarnings = warningsFor("one");
+    expect(sceneWarnings.filter((message) => message.includes("sideways"))).toHaveLength(1);
+    expect(sceneWarnings.filter((message) => message.includes("bogus"))).toHaveLength(1);
+    expect(sceneWarnings.filter((message) => message.includes("high"))).toHaveLength(1);
+    expect(warningsFor("").filter((message) => message.includes("sideways"))).toHaveLength(1);
+  });
+});

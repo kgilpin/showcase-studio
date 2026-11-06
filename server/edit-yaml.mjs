@@ -178,6 +178,11 @@ const CAPTION_FIELDS = {
   position: { kind: "captionPosition", removable: true },
 };
 
+/** The whitelists, for the test that holds them to the schema
+ *  (src/content/showcase-schema.mjs): every editable field is a field
+ *  there, so the two can't drift. */
+export const EDITABLE_FIELDS = { scene: SCENE_FIELDS, meta: META_FIELDS, caption: CAPTION_FIELDS };
+
 /** Validates one whitelisted-field value. Returns `{ remove: true }` for
  *  an empty value on a removable field, else `{ value }` ready for
  *  createNode. Throws with a plain message otherwise. */
