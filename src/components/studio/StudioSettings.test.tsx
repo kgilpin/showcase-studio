@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { StudioHistory, StudioLicense } from "@/lib/studio";
 import { AUTO_COMMIT_HELP, autoCommitExplanation } from "./auto-commit-text";
-import { AutoCommitSwitch } from "./StudioSettings";
+import { AutoBuildSwitch, AutoCommitSwitch } from "./StudioSettings";
+import { AUTO_BUILD_HELP } from "./auto-build-text";
 import { settingsNotice } from "./license-actions";
 
 const onMain: StudioHistory = {
@@ -109,5 +110,26 @@ describe("settingsNotice", () => {
   it("marks nothing in good standing, or before the studio has answered", () => {
     expect(settingsNotice({ ...trial, state: "subscribed", hasKey: true })).toBeNull();
     expect(settingsNotice(null)).toBeNull();
+  });
+});
+
+describe("AutoBuildSwitch", () => {
+  const drawBuild = (on: boolean | null, saving = false) =>
+    renderToStaticMarkup(<AutoBuildSwitch on={on} saving={saving} onChange={() => {}} />);
+
+  it("is a labeled switch that says what the automatic build does", () => {
+    const html = drawBuild(true);
+    const button = switchTag(html);
+    expect(html).toContain("Build media when it changes");
+    expect(button).toContain('aria-checked="true"');
+    expect(button).not.toContain('disabled=""');
+    expect(html).toContain(AUTO_BUILD_HELP);
+    expect(switchTag(drawBuild(false))).toContain('aria-checked="false"');
+  });
+
+  it("waits, disabled, until the studio has said, and while a change is saving", () => {
+    expect(switchTag(drawBuild(null))).toContain('disabled=""');
+    expect(drawBuild(null)).toContain("Checking…");
+    expect(switchTag(drawBuild(true, true))).toContain('disabled=""');
   });
 });

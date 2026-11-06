@@ -88,12 +88,7 @@ function ScriptScreen() {
 
   return (
     <main className="min-h-dvh w-full pb-14" style={{ background: "var(--gradient-stage)" }}>
-      <ShowcaseNav
-        showcaseId={showcaseId}
-        title={showcase.title}
-        current="script"
-        built={showcase.builtMedia}
-      />
+      <ShowcaseNav showcaseId={showcaseId} title={showcase.title} current="script" />
       <div className="mx-auto box-content max-w-4xl px-6 sm:px-10">
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Script</p>

@@ -257,12 +257,7 @@ export function ShowcasePlayer({
       style={{ background: "var(--gradient-stage)" }}
     >
       {/* The tab bar takes the first row; the stage fills the rest. */}
-      <ShowcaseNav
-        showcaseId={showcase.id}
-        title={showcase.title}
-        current="player"
-        built={showcase.builtMedia}
-      />
+      <ShowcaseNav showcaseId={showcase.id} title={showcase.title} current="player" />
       <div
         ref={stageRef}
         className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5"

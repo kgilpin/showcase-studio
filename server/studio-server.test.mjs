@@ -81,6 +81,7 @@ async function startStudio({
   renderer,
   settings = memorySettings(),
   licensing = () => allowAll,
+  buildDelayMs,
 } = {}) {
   const library = libraryWith(...ids);
   const exportDir = tempDir("studio-exports-");
@@ -98,6 +99,7 @@ async function startStudio({
     openUrl,
     copyText,
     sendToPhone,
+    ...(buildDelayMs != null ? { buildDelayMs } : {}),
     /* No file watcher unless a test asks for one: its 250 ms reload timer
      * would race each test's end, and the gold traces would record it only
      * sometimes (issue #12). */
@@ -852,6 +854,159 @@ scenes:
     const mcpVoiced = await call("build_voiceover", { showcaseId: "nova" });
     expect(mcpVoiced).toMatchObject({ kind: "voiceover", showcaseId: "nova" });
     await settled();
+  }, 30_000);
+});
+
+/* The build runs on its own (server/auto-build.mjs): an edit to a built
+ * showcase starts a quiet period, then a build as "studio". "talk" is
+ * voiced by Polly, and no aws is signed in here, so the build fails —
+ * which is the point: the failure arrives as the studio's own job, and
+ * an export of it fails the same way instead of rendering stale media. */
+const VOICED_YAML = `meta:
+  title: Talk
+  voiceover:
+    voice: Matthew
+scenes:
+  - id: intro
+    theme: statement
+    title: Hello
+    captions:
+      - text: Hi there.
+`;
+
+describe("the automatic build", () => {
+  const settledBuild = async (post) => {
+    for (let i = 0; i < 200; i += 1) {
+      const { job } = await post("build-current");
+      if (job && job.status !== "running") return job;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error("no build ended");
+  };
+
+  it("builds a voiced showcase a quiet period after an edit, as the studio, and says so", async () => {
+    const { studio, post, url } = await startStudio({
+      ids: ["nova", "talk"],
+      before: (lib) => writeFileSync(path.join(lib, "talk", "showcase.yaml"), VOICED_YAML),
+      buildDelayMs: 30,
+    });
+    const call = (name, args) =>
+      studio.callTool({ name, arguments: args }).then((r) => JSON.parse(r.content[0].text));
+    /* studio_info knows which showcases derive media, and that this one
+     * has everything to do. */
+    const info = await call("studio_info", {});
+    expect(info.autoBuild).toBe(true);
+    expect(info.media).toEqual([
+      {
+        showcaseId: "talk",
+        kind: "voiceover",
+        upToDate: false,
+        stale: [
+          "intro caption 1 (to voice)",
+          "voiceover.m4a",
+          "voiceover.words.json",
+          "meta.soundtrack",
+        ],
+      },
+    ]);
+
+    const hash = contentHash(VOICED_YAML);
+    const edited = await post("scene-edit", {
+      showcaseId: "talk",
+      baseHash: hash,
+      field: "caption.set",
+      sceneId: "intro",
+      captionIndex: 0,
+      name: "text",
+      value: "Hello there.",
+    });
+    expect(edited.ok).toBe(true);
+    /* The quiet period is a pending record (beside the commit's); then
+     * the build, by the studio. */
+    const listed = await (await fetch(`${url}/studio/api/actions`)).json();
+    expect(listed.actions ?? listed).toContainEqual(
+      expect.objectContaining({
+        kind: "build",
+        showcaseId: "talk",
+        by: "studio",
+        state: "pending",
+        label: "Build media",
+        offers: ["skip"],
+      }),
+    );
+    const job = await settledBuild(post);
+    expect(job).toMatchObject({ kind: "voiceover", showcaseId: "talk", by: "studio" });
+    expect(job.why).toContain("talk changed — ");
+    expect(job.status).toBe("failed");
+
+    /* An edit to a showcase that derives nothing starts nothing. */
+    const plain = await post("scene-edit", {
+      showcaseId: "nova",
+      baseHash: contentHash(SHOWCASE_YAML),
+      field: "scene.set",
+      sceneId: "intro",
+      name: "title",
+      value: "Hi",
+    });
+    expect(plain.ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect((await post("build-current")).job.jobId).toBe(job.jobId);
+  }, 30_000);
+
+  it("has a switch, studio-wide, logged like the commit one", async () => {
+    const { post, info, library } = await startStudio({
+      ids: ["talk"],
+      before: (lib) => writeFileSync(path.join(lib, "talk", "showcase.yaml"), VOICED_YAML),
+      buildDelayMs: 30,
+    });
+    expect((await info()).autoBuild).toBe(true);
+    expect(await post("media-auto-build", { on: false })).toEqual({ ok: true, autoBuild: false });
+    expect((await info()).autoBuild).toBe(false);
+    expect(await post("media-auto-build", { on: "yes" })).toMatchObject({ ok: false });
+    /* Off: an edit starts no quiet period and no build. */
+    await post("scene-edit", {
+      showcaseId: "talk",
+      baseHash: contentHash(VOICED_YAML),
+      field: "caption.set",
+      sceneId: "intro",
+      captionIndex: 0,
+      name: "text",
+      value: "Hello there.",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect((await post("build-current")).job).toBeNull();
+    const settingLines = changesIn(library).filter((line) => line.kind === "setting");
+    expect(settingLines).toEqual([
+      expect.objectContaining({ source: "ui", name: "autoBuild", value: false }),
+    ]);
+    /* The status on its own, for the page. */
+    expect(await post("media-status", { showcaseId: "talk" })).toMatchObject({
+      ok: true,
+      status: { built: true, kind: "voiceover", upToDate: false },
+    });
+  });
+
+  it("builds before an export, and a build that fails fails the export", async () => {
+    const { post, library } = await startStudio({
+      ids: ["talk"],
+      before: (lib) => writeFileSync(path.join(lib, "talk", "showcase.yaml"), VOICED_YAML),
+      renderer: { pageRenderer: () => ({}) },
+    });
+    const started = await post("export", { kind: "script", showcaseId: "talk" });
+    expect(started.ok).toBe(true);
+    let job;
+    for (let i = 0; i < 200; i += 1) {
+      ({ job } = await post("export-status", { jobId: started.job.jobId }));
+      if (job.status !== "running") break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(job.status).toBe("failed");
+    expect(job.error).toContain("The media build failed");
+    /* The build it ran is in the lane, marked as the export's starter. */
+    const { job: build } = await post("build-current");
+    expect(build).toMatchObject({ kind: "voiceover", showcaseId: "talk", by: "user" });
+    expect(build.why).toContain("before its");
+    void library;
   }, 30_000);
 });
 

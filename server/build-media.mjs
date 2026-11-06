@@ -90,22 +90,27 @@ function sourceFile(showcasesDir, folder, name) {
   return match ? path.join(assetsDir, match) : undefined;
 }
 
+/** What the last build recorded: each output's name with the print of
+ *  the inputs that made it, and the pins it wrote. Empty for a showcase
+ *  never built, or built by an older recipe. */
 function readManifest(showcasesDir, showcaseId) {
   const file = path.join(showcasesDir, MANIFEST_DIR, `${showcaseId}.json`);
   try {
     const doc = JSON.parse(readFileSync(file, "utf8"));
-    return doc?.version === RECIPE_VERSION && doc.outputs ? doc.outputs : {};
+    return doc?.version === RECIPE_VERSION && doc.outputs
+      ? { outputs: doc.outputs, pins: doc.pins ?? [] }
+      : { outputs: {}, pins: [] };
   } catch {
-    return {};
+    return { outputs: {}, pins: [] };
   }
 }
 
-function writeManifest(showcasesDir, showcaseId, outputs) {
+function writeManifest(showcasesDir, showcaseId, outputs, pins) {
   const dir = path.join(showcasesDir, MANIFEST_DIR);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     path.join(dir, `${showcaseId}.json`),
-    `${JSON.stringify({ version: RECIPE_VERSION, showcaseId, outputs }, null, 1)}\n`,
+    `${JSON.stringify({ version: RECIPE_VERSION, showcaseId, outputs, pins }, null, 1)}\n`,
   );
 }
 
@@ -355,6 +360,153 @@ const checkAborted = (signal) => {
  *
  *  Returns {ok, built, unchanged, pins, notes} — or {ok: false, error}
  *  when the cut list doesn't add up, with nothing written. */
+/** Everything a build of a recorded pitch would make, without making
+ *  it: the cut list read, the recording found, and each output's name
+ *  with the fingerprint of the inputs that decide it — the same prints
+ *  the build records in its manifest, so recordingStatus and the build
+ *  can't disagree about what is out of date. `{built: false}` for a
+ *  showcase with no meta.source; `{built: true, ok: false, error}` when
+ *  the cut list doesn't read or the recording isn't there. */
+export function planRecording({ showcasesDir, showcaseId }) {
+  const refuse = (error) => ({ built: true, ok: false, error });
+  if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) return refuse("Bad showcase id");
+  const folder = path.join(showcasesDir, showcaseId);
+  const yamlPath = path.join(folder, "showcase.yaml");
+  if (!existsSync(yamlPath)) return refuse(`No showcase named "${showcaseId}"`);
+
+  let doc;
+  try {
+    doc = parse(readFileSync(yamlPath, "utf8"));
+  } catch (error) {
+    return refuse(`showcase.yaml doesn't parse: ${String(error?.message ?? error)}`);
+  }
+  const plan = readBuildPlan(doc, { showcaseId });
+  if (!plan.built) {
+    return {
+      built: false,
+      error:
+        `"${showcaseId}" is not built from a recording — add meta.source (the master ` +
+        "recording) and a take to every scene first.",
+    };
+  }
+  if (!plan.ok) return refuse(plan.errors.join("\n"));
+
+  const { source, cuts } = plan;
+  const assetsDir = path.join(folder, "assets");
+  const videoInput = source.video ? sourceFile(showcasesDir, folder, source.video) : undefined;
+  const audioInput = source.audio ? sourceFile(showcasesDir, folder, source.audio) : videoInput;
+  if (source.video && !videoInput) {
+    return refuse(`The recording "${source.video}" is not in ${showcaseId}/assets`);
+  }
+  if (source.audio && !audioInput) {
+    return refuse(`The audio "${source.audio}" is not in ${showcaseId}/assets`);
+  }
+
+  const voiceoverName = `${source.voiceover}.mp3`;
+  const outputs = [
+    {
+      name: voiceoverName,
+      kind: "voiceover",
+      print: fingerprint({
+        recipe: RECIPE_VERSION,
+        input: stamp(audioInput),
+        source: { ...source, quality: undefined, fps: undefined, tonemap: undefined },
+        timeline: cuts.map((cut) => ({ id: cut.id, spans: cut.spans, silence: cut.silence })),
+      }),
+    },
+    ...cuts
+      .filter((cut) => cut.clip)
+      .map((cut) => ({
+        name: clipFileName(source, cut.id),
+        kind: "clip",
+        cut,
+        print: fingerprint({
+          recipe: RECIPE_VERSION,
+          input: stamp(videoInput),
+          spans: cut.videoSpans,
+          source: {
+            speed: source.speed,
+            tonemap: source.tonemap,
+            quality: source.quality,
+            fps: source.fps,
+          },
+        }),
+      })),
+  ];
+  /* The words file: the master recording's transcript, remapped onto
+   * this cut's timeline. No second transcription — the transcript that
+   * heard the whole take is the one that knows what was said, and it
+   * sits beside that recording, so a derived cut reads the master's. */
+  const wordsName = `${source.voiceover}.words.json`;
+  const recording = audioInput ?? videoInput;
+  const transcriptPath = recording
+    ? path.join(path.dirname(recording), transcriptFileName(path.basename(recording)))
+    : undefined;
+  if (transcriptPath && existsSync(transcriptPath)) {
+    outputs.push({
+      name: wordsName,
+      kind: "words",
+      print: fingerprint({
+        recipe: RECIPE_VERSION,
+        transcript: stamp(transcriptPath),
+        speed: source.speed,
+        timeline: cuts.map((cut) => ({ id: cut.id, spans: cut.spans, silence: cut.silence })),
+      }),
+    });
+  }
+  return {
+    built: true,
+    ok: true,
+    doc,
+    source,
+    cuts,
+    assetsDir,
+    videoInput,
+    audioInput,
+    outputs,
+    wordsName,
+    transcriptPath,
+    pins: cuts.map((cut) => ({ sceneId: cut.id, durationMs: cut.durationMs })),
+    totalMs: plan.totalMs,
+  };
+}
+
+/** Whether a recorded pitch's media is up to date with its cut list,
+ *  without building anything: `{built: false}` for a showcase with no
+ *  meta.source; `{built: true, kind: "recording", ok: false, problem}`
+ *  while the cut list doesn't read (a take missing, a recording not
+ *  there); else `stale`, the outputs a build would make or remake — an
+ *  asset whose print differs from the manifest's or that is gone, a
+ *  scene whose durationMs isn't the cut's, the soundtrack not set — and
+ *  `upToDate`. `print` fingerprints the whole comparison, so a caller
+ *  can tell whether anything changed since it last looked. */
+export function recordingStatus({ showcasesDir, showcaseId }) {
+  const planned = planRecording({ showcasesDir, showcaseId });
+  if (!planned.built) return { built: false };
+  if (!planned.ok) return { built: true, kind: "recording", ok: false, problem: planned.error };
+  const manifest = readManifest(showcasesDir, showcaseId);
+  const stale = [];
+  for (const output of planned.outputs) {
+    if (
+      manifest.outputs[output.name] !== output.print ||
+      !existsSync(path.join(planned.assetsDir, output.name))
+    ) {
+      stale.push(output.name);
+    }
+  }
+  const scenes = Array.isArray(planned.doc.scenes) ? planned.doc.scenes : [];
+  for (const pin of planned.pins) {
+    const scene = scenes.find((s) => s?.id === pin.sceneId);
+    if (scene?.durationMs !== pin.durationMs) stale.push(`durationMs on ${pin.sceneId}`);
+  }
+  if (!planned.doc.meta?.soundtrack) stale.push("meta.soundtrack");
+  const print = fingerprint({
+    outputs: planned.outputs.map((output) => [output.name, output.print]),
+    pins: planned.pins,
+  });
+  return { built: true, kind: "recording", ok: true, stale, upToDate: stale.length === 0, print };
+}
+
 export async function buildMedia({
   showcasesDir,
   showcaseId,
@@ -364,39 +516,10 @@ export async function buildMedia({
   signal,
   beforeWrite,
 }) {
-  if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) return { ok: false, error: "Bad showcase id" };
-  const folder = path.join(showcasesDir, showcaseId);
-  const yamlPath = path.join(folder, "showcase.yaml");
-  if (!existsSync(yamlPath)) return { ok: false, error: `No showcase named "${showcaseId}"` };
-
-  let doc;
-  try {
-    doc = parse(readFileSync(yamlPath, "utf8"));
-  } catch (error) {
-    return { ok: false, error: `showcase.yaml doesn't parse: ${String(error?.message ?? error)}` };
-  }
-  const plan = readBuildPlan(doc, { showcaseId });
-  if (!plan.built) {
-    return {
-      ok: false,
-      error:
-        `"${showcaseId}" is not built from a recording — add meta.source (the master ` +
-        "recording) and a take to every scene first.",
-    };
-  }
-  if (!plan.ok) return { ok: false, error: plan.errors.join("\n") };
-
-  const { source, cuts } = plan;
-  const assetsDir = path.join(folder, "assets");
+  const planned = planRecording({ showcasesDir, showcaseId });
+  if (!planned.built || !planned.ok) return { ok: false, error: planned.error };
+  const { doc, source, cuts, assetsDir, videoInput, audioInput, outputs, wordsName } = planned;
   mkdirSync(assetsDir, { recursive: true });
-  const videoInput = source.video ? sourceFile(showcasesDir, folder, source.video) : undefined;
-  const audioInput = source.audio ? sourceFile(showcasesDir, folder, source.audio) : videoInput;
-  if (source.video && !videoInput) {
-    return { ok: false, error: `The recording "${source.video}" is not in ${showcaseId}/assets` };
-  }
-  if (source.audio && !audioInput) {
-    return { ok: false, error: `The audio "${source.audio}" is not in ${showcaseId}/assets` };
-  }
 
   const notes = [];
   /* A span that runs past the end of the recording produces a short clip
@@ -417,43 +540,21 @@ export async function buildMedia({
 
   const wanted = only?.length ? new Set(only) : undefined;
   const manifest = readManifest(showcasesDir, showcaseId);
-  const next = { ...manifest };
+  const next = { ...manifest.outputs };
   const built = [];
   const unchanged = [];
+  const printOf = (name) => outputs.find((output) => output.name === name)?.print;
+  /* An output is made again when its inputs changed, or it is gone. */
+  const needs = (name) =>
+    force || manifest.outputs[name] !== printOf(name) || !existsSync(path.join(assetsDir, name));
 
   const clipCuts = cuts.filter((cut) => cut.clip && (!wanted || wanted.has(cut.id)));
   const voiceoverName = `${source.voiceover}.mp3`;
   const voiceoverPath = path.join(assetsDir, voiceoverName);
-  const voiceoverPrint = fingerprint({
-    recipe: RECIPE_VERSION,
-    input: stamp(audioInput),
-    source: { ...source, quality: undefined, fps: undefined, tonemap: undefined },
-    timeline: cuts.map((cut) => ({ id: cut.id, spans: cut.spans, silence: cut.silence })),
-  });
-  const buildVoice =
-    (!wanted || wanted.has(source.voiceover)) &&
-    (force || manifest[voiceoverName] !== voiceoverPrint || !existsSync(voiceoverPath));
+  const buildVoice = (!wanted || wanted.has(source.voiceover)) && needs(voiceoverName);
 
   const steps =
-    clipCuts.filter((cut) => {
-      const name = clipFileName(source, cut.id);
-      return (
-        force ||
-        manifest[name] !==
-          fingerprint({
-            recipe: RECIPE_VERSION,
-            input: stamp(videoInput),
-            spans: cut.videoSpans,
-            source: {
-              speed: source.speed,
-              tonemap: source.tonemap,
-              quality: source.quality,
-              fps: source.fps,
-            },
-          }) ||
-        !existsSync(path.join(assetsDir, name))
-      );
-    }).length + (buildVoice ? 1 : 0);
+    clipCuts.filter((cut) => needs(clipFileName(source, cut.id))).length + (buildVoice ? 1 : 0);
   let step = 0;
 
   if (buildVoice) {
@@ -468,7 +569,7 @@ export async function buildMedia({
       signal,
       onProgress: (label) => onProgress(label, { step, steps }),
     });
-    next[voiceoverName] = voiceoverPrint;
+    next[voiceoverName] = printOf(voiceoverName);
     built.push(voiceoverName);
   } else if (!wanted || wanted.has(source.voiceover)) {
     unchanged.push(voiceoverName);
@@ -478,18 +579,8 @@ export async function buildMedia({
     checkAborted(signal);
     const name = clipFileName(source, cut.id);
     const target = path.join(assetsDir, name);
-    const print = fingerprint({
-      recipe: RECIPE_VERSION,
-      input: stamp(videoInput),
-      spans: cut.videoSpans,
-      source: {
-        speed: source.speed,
-        tonemap: source.tonemap,
-        quality: source.quality,
-        fps: source.fps,
-      },
-    });
-    if (!force && manifest[name] === print && existsSync(target)) {
+    const print = printOf(name);
+    if (!needs(name)) {
       unchanged.push(name);
       next[name] = print;
       continue;
@@ -511,32 +602,30 @@ export async function buildMedia({
     built.push(name);
   }
 
-  /* The words file: the master recording's transcript, remapped onto
-   * this cut's timeline. No second transcription — the transcript that
-   * heard the whole take is the one that knows what was said, and it
-   * sits beside that recording, so a derived cut reads the master's. */
-  const wordsName = `${source.voiceover}.words.json`;
+  /* The words file, from the master's transcript (see planRecording). */
   const recording = audioInput ?? videoInput;
   if (recording && (!wanted || wanted.has(source.voiceover))) {
-    const transcriptPath = path.join(
-      path.dirname(recording),
-      transcriptFileName(path.basename(recording)),
-    );
-    if (existsSync(transcriptPath)) {
-      try {
-        const saved = JSON.parse(readFileSync(transcriptPath, "utf8"));
-        const { segments, missed } = applyCorrections(saved.segments, saved.corrections);
-        const words = sliceTranscript({ segments }, cuts, { speed: source.speed });
-        writeFileSync(path.join(assetsDir, wordsName), transcriptJson(words));
-        built.push(wordsName);
-        if (missed.length > 0) {
-          notes.push(
-            `${missed.length} correction(s) in ${path.basename(transcriptPath)} matched no word — ` +
-              "their start times no longer exist in the transcript",
-          );
+    const { transcriptPath } = planned;
+    if (transcriptPath && existsSync(transcriptPath)) {
+      if (needs(wordsName)) {
+        try {
+          const saved = JSON.parse(readFileSync(transcriptPath, "utf8"));
+          const { segments, missed } = applyCorrections(saved.segments, saved.corrections);
+          const words = sliceTranscript({ segments }, cuts, { speed: source.speed });
+          writeFileSync(path.join(assetsDir, wordsName), transcriptJson(words));
+          next[wordsName] = printOf(wordsName);
+          built.push(wordsName);
+          if (missed.length > 0) {
+            notes.push(
+              `${missed.length} correction(s) in ${path.basename(transcriptPath)} matched no word — ` +
+                "their start times no longer exist in the transcript",
+            );
+          }
+        } catch (error) {
+          notes.push(`${wordsName}: not written — ${String(error?.message ?? error)}`);
         }
-      } catch (error) {
-        notes.push(`${wordsName}: not written — ${String(error?.message ?? error)}`);
+      } else {
+        unchanged.push(wordsName);
       }
     } else {
       notes.push(
@@ -593,7 +682,7 @@ export async function buildMedia({
   if (!result.ok) {
     return { ok: false, error: `The media built, but the pins didn't: ${result.error}`, built };
   }
-  writeManifest(showcasesDir, showcaseId, next);
+  writeManifest(showcasesDir, showcaseId, next, planned.pins);
 
   return {
     ok: true,
@@ -601,7 +690,7 @@ export async function buildMedia({
     unchanged,
     notes,
     version: result.hash,
-    totalMs: plan.totalMs,
+    totalMs: planned.totalMs,
     pins: Object.fromEntries(cuts.map((cut) => [cut.id, cut.durationMs])),
   };
 }

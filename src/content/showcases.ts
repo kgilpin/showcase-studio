@@ -281,9 +281,9 @@ export type Showcase = {
    *  names a master recording (its voiceover, clips, word timings and
    *  scene durations come from its cut list, server/build-plan.mjs), or
    *  meta.voiceover has Polly read the captions (server/voiceover.mjs).
-   *  The studio offers a "Build media" button for these; the player
-   *  itself is unaffected, because the build writes ordinary durationMs
-   *  pins and assets. */
+   *  The studio builds these on its own when their inputs change
+   *  (server/auto-build.mjs); the player itself is unaffected, because
+   *  the build writes ordinary durationMs pins and assets. */
   builtMedia: boolean;
   /** Resolved styling: CSS-variable overrides (names without the leading
    *  `--`) plus font stylesheet URLs to load. Combined, in order: the

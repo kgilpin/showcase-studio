@@ -179,6 +179,16 @@ entries:
     test_name: warns about a field in the wrong place, on the scene it is in
     appmap_path: vitest/warns_about_a_field_in_the_wrong_place,_on_the_scene_it_is_in.appmap.json
     summary: The loader checking a document against the showcase.yaml schema — checkShowcase walking meta, the scenes and their fields, an unknown field on a scene turned into a warning that names where it belongs (scenes[].take.clip), and that warning landing on the scene it is in while the scene before it stays clean.
+  - feature: auto-build
+    test_file: server/auto-build.test.mjs
+    test_name: builds after a quiet period when something is out of date, as the studio
+    appmap_path: vitest/builds_after_a_quiet_period_when_something_is_out_of_date,_as_the_studio.appmap.json
+    summary: The automatic media build (issue #37) — a logged edit starting a showcase's quiet period as a pending record in the Actions list with Skip, a second change moving its due time, the period ending, the status asked, the build started in the media-build lane as "studio" with what was out of date in its reason, the pending record giving way to the job's own, and the job ending done.
+  - feature: media-status
+    test_file: server/media-status.test.mjs
+    test_name: says what a first build would make, then that nothing is left, then what an edit undid
+    appmap_path: vitest/says_what_a_first_build_would_make,_then_that_nothing_is_left,_then_what_an_edit_undid.appmap.json
+    summary: Whether a recorded pitch's media is up to date without building it — planRecording reading the cut list and printing every output, recordingStatus comparing the prints and the pins with the manifest before any build (everything to make), the build itself through the same plan, the status after it (nothing left), and after a retimed take (the clip, the pin and the voiceover stale again).
   - feature: page-error
     test_file: server/exporter.test.mjs
     test_name: validate fails at once with the captured page error
