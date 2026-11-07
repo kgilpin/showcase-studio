@@ -9,7 +9,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { showcasesReady } from "@/content/showcases";
@@ -175,7 +175,10 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   /* When the studio agent docks (integrated terminal), the app content
-   * pads over to the left — VS Code style — instead of being overlapped. */
+   * pads over to the left — VS Code style — instead of being overlapped.
+   * A fixed overlay (the script player) is positioned by the window, not
+   * by this padding, so the width is also set as --studio-dock for it to
+   * stop short of the panel. */
   const [dockWidth, setDockWidth] = useState(0);
   const location = useLocation();
   /* A page drawn for a screenshot or video must not show notices. */
@@ -185,7 +188,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <div
         className="min-h-dvh transition-[padding-right] duration-200"
-        style={{ paddingRight: dockWidth }}
+        style={{ paddingRight: dockWidth, "--studio-dock": `${dockWidth}px` } as CSSProperties}
       >
         {/* From source only: the studio runs older code than its files. */}
         {!capturing && <CodeChangedBanner />}

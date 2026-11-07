@@ -463,16 +463,24 @@ export function ScriptPlayer({
    * desktop prompter draws as a bounded modal — dimmed backdrop, tight
    * box, border — so it's obvious a panel opened rather than the page
    * mysteriously dimming. Phones and the standalone prompter page stay
-   * full-bleed. Clicking the backdrop exits, like any lightbox. */
+   * full-bleed. Clicking the backdrop exits, like any lightbox.
+   *
+   * It covers the window, so the root layout's padding for the studio
+   * agent's docked terminal doesn't reach it: its right edge is the
+   * dock's width (--studio-dock, __root.tsx), so the player keeps to the
+   * page beside the terminal instead of running underneath it. Outside
+   * the studio (the shared prompter site) the variable is unset and the
+   * player fills the window. */
   const modal = Boolean(onExit) && !record;
 
   return (
     <div
       className={cn(
-        "fixed inset-0 z-40",
+        "fixed inset-y-0 left-0 z-40 transition-[right] duration-200",
         modal &&
           "bg-background/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-8",
       )}
+      style={{ right: "var(--studio-dock, 0px)" }}
       onClick={modal ? onExit : undefined}
     >
       <div
