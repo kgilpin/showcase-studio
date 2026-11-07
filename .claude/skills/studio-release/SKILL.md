@@ -130,11 +130,19 @@ seconds.
 ## 3. Build the Mac app, signed and notarized
 
 ```sh
-APPLE_KEYCHAIN_PROFILE=showcase-studio npm run release:desktop
+APPLE_KEYCHAIN_PROFILE=showcase-studio caffeinate -dimsu npm run release:desktop
 ```
 
 Notarization takes a few minutes. Run it in the background and check the
-log. Done means all of:
+log. The Mac must stay unlocked until it is done: the notarization
+profile lives in the keychain that locks with the screen, and while it
+is locked notarytool says `No Keychain password item found for profile:
+showcase-studio` as if the profile were gone. It isn't — check again
+with the user at the keyboard before concluding anything. `caffeinate`
+keeps the idle timer from locking the screen during the build; ask the
+user to stay logged in.
+
+Done means all of:
 
 - the build log's `signing` line says `identityName=Developer ID Application: Kevin Gilpin`
   — `Apple Development` there means the Developer ID certificate wasn't found, and the build is not shippable;
@@ -251,12 +259,18 @@ and install to
 ```sh
 plutil -extract CFBundleShortVersionString raw ~/Applications/Showcase\ Studio.app/Contents/Info.plist   # X.Y.Z
 spctl -a -vv ~/Applications/Showcase\ Studio.app        # accepted, Notarized Developer ID
-ELECTRON_SMOKE=/tmp/smoke.png ~/Applications/Showcase\ Studio.app/Contents/MacOS/Showcase\ Studio   # prints "smoke: captured"
+ELECTRON_SMOKE=/tmp/smoke.png ~/Applications/Showcase\ Studio.app/Contents/MacOS/Showcase\ Studio --library "$(mktemp -d)"   # prints "smoke: captured"
 ```
 
 Run the installer with `sh`, not `bash`: on a Mac, `/bin/sh` is bash 3.2,
 which is what Claude Code uses to run it, and it has caught bugs the
 newer shells don't.
+
+The smoke check opens an empty library of its own. Without `--library`
+the app opens the folder it had open last, and if another studio still
+has that folder open (an app window left from testing a build, say) the
+app shows an error dialog that nothing can dismiss in a headless run,
+and the check hangs with no output (issue #56).
 
 ## 8. Report
 
