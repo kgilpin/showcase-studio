@@ -875,8 +875,12 @@ scenes:
 `;
 
 describe("the automatic build", () => {
+  /* The build ends when the aws command has failed, which takes a few
+   * seconds on Windows (it is installed there, signed in nowhere), so the
+   * wait is most of the test's own 30 s. */
   const settledBuild = async (post) => {
-    for (let i = 0; i < 200; i += 1) {
+    const deadline = Date.now() + 25_000;
+    while (Date.now() < deadline) {
       const { job } = await post("build-current");
       if (job && job.status !== "running") return job;
       await new Promise((resolve) => setTimeout(resolve, 20));

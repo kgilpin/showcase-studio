@@ -174,8 +174,13 @@ describe("encoding an asset with ffmpeg", () => {
       { showcaseId, output, args: ["-i", input, "-t", "6"] },
       { ffmpeg: fakeFfmpeg() },
     );
+  /* The stand-in is a shell script, which Windows can't start as a
+   * program: the real ffmpeg is tested there by "ffmpeg encodes into
+   * assets/ through a temporary file" in studio-server.test.mjs, and the
+   * failure paths here on Unix. */
+  const onUnix = it.skipIf(process.platform === "win32");
 
-  it("runs from the showcase folder and puts the output in assets/", async () => {
+  onUnix("runs from the showcase folder and puts the output in assets/", async () => {
     const lib = library("nova");
     writeFileSync(assetsOf(lib, "nova", "master.mov"), "the recording");
     const result = await encode(lib, "assets/master.mov");
@@ -189,7 +194,7 @@ describe("encoding an asset with ffmpeg", () => {
 
   /* The point of the tool: a re-cut replaces the clip, and the final
    * path is only ever touched by a rename of the finished file. */
-  it("replaces a clip of the same name and leaves no temporary file", async () => {
+  onUnix("replaces a clip of the same name and leaves no temporary file", async () => {
     const lib = library("nova");
     writeFileSync(assetsOf(lib, "nova", "master.mov"), "take two");
     writeFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "take one");
@@ -203,7 +208,7 @@ describe("encoding an asset with ffmpeg", () => {
     expect(existsSync(path.join(lib, ".studio", "ffmpeg", "nova", "clip-hook.mp4"))).toBe(false);
   });
 
-  it("keeps the old clip when ffmpeg fails, and says what ffmpeg said", async () => {
+  onUnix("keeps the old clip when ffmpeg fails, and says what ffmpeg said", async () => {
     const lib = library("nova");
     writeFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "take one");
     const result = await encode(lib, "boom");
@@ -212,7 +217,7 @@ describe("encoding an asset with ffmpeg", () => {
     expect(readFileSync(assetsOf(lib, "nova", "clip-hook.mp4"), "utf8")).toBe("take one");
   });
 
-  it("refuses an empty output rather than renaming nothing into place", async () => {
+  onUnix("refuses an empty output rather than renaming nothing into place", async () => {
     const lib = library("nova");
     const result = await encode(lib, "nothing");
     expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/wrote nothing/) });

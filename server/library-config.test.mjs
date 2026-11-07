@@ -144,8 +144,9 @@ describe("libraryExportDir", () => {
   it("is the export_dir setting, resolved against the library", () => {
     const dir = folder("export_dir: exports\n");
     expect(libraryExportDir(dir)).toBe(path.join(dir, "exports"));
+    /* An absolute path stays one (on Windows, on the current drive). */
     expect(libraryExportDir(folder("export_dir: /tmp/showcase-exports\n"))).toBe(
-      "/tmp/showcase-exports",
+      path.resolve("/tmp/showcase-exports"),
     );
     const spaced = folder("export_dir: '  renders  '\n");
     expect(libraryExportDir(spaced)).toBe(path.join(spaced, "renders"));
