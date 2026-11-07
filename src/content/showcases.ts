@@ -1257,10 +1257,31 @@ function subscribeShowcases(listener: () => void): () => void {
 
 const readEditRevision = () => editRevision;
 
-/** The showcase, re-read whenever an in-app edit rebuilds it. */
+/* Tells every subscribed component that the library changed: a showcase
+ * rebuilt, an error recorded or cleared. */
+function notifyShowcases(): void {
+  editRevision += 1;
+  for (const listener of editListeners) listener();
+}
+
+/** The showcase, re-read whenever it is rebuilt — by an in-app edit or
+ *  by a change on disk. */
 export function useShowcase(id: string): Showcase | undefined {
   useSyncExternalStore(subscribeShowcases, readEditRevision, readEditRevision);
   return getShowcase(id);
+}
+
+/** The whole library — every showcase, the ones that failed to load, and
+ *  the warnings — re-read whenever any of it changes. For the pages that
+ *  show the library rather than one showcase: the home page's cards and
+ *  the diagnostics tray. */
+export function useLibrary(): {
+  showcases: Showcase[];
+  errors: ShowcaseError[];
+  warnings: ShowcaseWarning[];
+} {
+  useSyncExternalStore(subscribeShowcases, readEditRevision, readEditRevision);
+  return { showcases, errors: showcaseErrors, warnings: showcaseWarnings };
 }
 
 function rebuildShowcase(showcaseId: string): boolean {
@@ -1273,8 +1294,7 @@ function rebuildShowcase(showcaseId: string): boolean {
     );
     showcases = showcases.map((showcase) => (showcase.id === showcaseId ? built : showcase));
     showcaseWarnings = warnings;
-    editRevision += 1;
-    for (const listener of editListeners) listener();
+    notifyShowcases();
     return true;
   } catch (error) {
     console.error(`Showcase "${showcaseId}" failed to rebuild after an edit:`, error);
@@ -1329,6 +1349,7 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
       ...showcaseErrors.filter((item) => item.id !== showcaseId),
       { id: showcaseId, message },
     ];
+    notifyShowcases();
     return "unchanged";
   }
   const before = {
@@ -1357,7 +1378,10 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
   wordTimingsByShowcase.set(showcaseId, entry.words);
   dataGraphicsByShowcase.set(showcaseId, entry.graphics);
   if (rebuildShowcase(showcaseId)) {
-    showcaseErrors = showcaseErrors.filter((item) => item.id !== showcaseId);
+    if (showcaseErrors.some((item) => item.id === showcaseId)) {
+      showcaseErrors = showcaseErrors.filter((item) => item.id !== showcaseId);
+      notifyShowcases();
+    }
     return "updated";
   }
   /* The new files don't build: put the old ones back, so the page keeps

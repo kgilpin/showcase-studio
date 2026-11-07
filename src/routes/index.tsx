@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { coverUrl, showcaseErrors, showcases } from "@/content/showcases";
+import { coverUrl, useLibrary } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { NewShowcaseForm } from "@/components/studio/NewShowcaseForm";
@@ -53,6 +53,9 @@ function NewShowcaseCard() {
 }
 
 function HomeScreen() {
+  /* Subscribed, not just read: a showcase renamed or fixed on disk
+   * re-renders its card and its fix-me card without a page reload. */
+  const { showcases, errors: showcaseErrors } = useLibrary();
   return (
     <main
       className="min-h-dvh w-full px-6 py-14 sm:px-10"

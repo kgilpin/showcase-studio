@@ -6,7 +6,7 @@ import { ShareHistory } from "@/components/share/ShareHistory";
 import { ShareText, type PublishEdit } from "@/components/share/ShareText";
 import { ShareVideo, type Quality } from "@/components/share/ShareVideo";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
-import { getShowcase } from "@/content/showcases";
+import { getShowcase, useShowcase } from "@/content/showcases";
 import {
   DESTINATION_IDS,
   destinationForView,
@@ -65,7 +65,8 @@ const remember = (key: string, value: string) => {
 
 function ShareScreen() {
   const { showcaseId } = Route.useParams();
-  const showcase = getShowcase(showcaseId);
+  /* Subscribed: the title follows a rename on disk. */
+  const showcase = useShowcase(showcaseId);
   const [inStudio, setInStudio] = useState<boolean | null>(null);
   const [status, setStatus] = useState<ShareStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

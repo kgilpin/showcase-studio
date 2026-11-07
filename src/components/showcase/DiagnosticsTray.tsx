@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, CircleX, TriangleAlert } from "lucide-react";
-import { showcaseErrors, showcaseWarnings } from "@/content/showcases";
+import { useLibrary } from "@/content/showcases";
 import { useEditFailures } from "@/lib/edits";
 
 /* The diagnostics tray: a status bar pinned to the bottom of the page
@@ -10,6 +10,9 @@ import { useEditFailures } from "@/lib/edits";
  * to load entirely; warnings come from the theme linter. */
 export function DiagnosticsTray() {
   const [open, setOpen] = useState(false);
+  /* Subscribed: the counts follow every rebuild, error and fix, on the
+   * home page as well as inside a showcase. */
+  const { errors: showcaseErrors, warnings: showcaseWarnings } = useLibrary();
   /* Failed in-app edits (rolled back on screen) count as errors here —
    * a later successful edit clears them. */
   const editFailures = useEditFailures();
