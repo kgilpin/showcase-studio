@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FileQuestion, Music, Plus, Trash2, TriangleAlert, Upload, X } from "lucide-react";
-import { getShowcase, showcaseAssets, type AssetInfo } from "@/content/showcases";
+import { showcaseAssets, useShowcase, type AssetInfo } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
 import { studio } from "@/lib/studio";
@@ -58,7 +58,10 @@ function toBase64(buffer: ArrayBuffer): string {
 
 function AssetsScreen() {
   const { showcaseId } = Route.useParams();
-  const showcase = getShowcase(showcaseId);
+  /* Subscribed, not just read: a file added, renamed or deleted here
+   * reaches the studio, which names the showcase as changed, and the
+   * showcase is re-read in place — this inventory must follow. */
+  const showcase = useShowcase(showcaseId);
   const [selectedName, setSelectedName] = useState<string | null>(() =>
     typeof window === "undefined" ? null : sessionStorage.getItem(`assets-selected:${showcaseId}`),
   );
@@ -71,8 +74,8 @@ function AssetsScreen() {
   useEffect(() => setInStudio(Boolean(studio()?.assets)), []);
 
   /* The one upload path: write the files into assets/ in one call. The
-   * studio watcher then reloads the page with the fresh inventory — that
-   * reload is the success path. */
+   * studio then names the showcase as changed and the inventory below
+   * re-renders with the new files; the dialog closes when they show. */
   const addFiles = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
@@ -82,10 +85,15 @@ function AssetsScreen() {
         payload.push({ name: file.name, data: toBase64(await file.arrayBuffer()) });
       }
       const result = await studio()!.assets.add({ showcaseId, files: payload });
-      setAddStatus(result.ok ? "Added — reloading…" : (result.error ?? "Adding failed"));
+      setAddStatus(result.ok ? "Added" : (result.error ?? "Adding failed"));
     },
     [showcaseId],
   );
+  useEffect(() => {
+    if (addStatus !== "Added") return;
+    setAddOpen(false);
+    setAddStatus(null);
+  }, [showcase, addStatus]);
 
   /* Paste an image anywhere on the page (not while typing in a field) to
    * add it. Clipboard images arrive as "image.png", so they get a name
@@ -433,8 +441,9 @@ function AssetDetails({
                 void studio()!
                   .assets.remove({ showcaseId, name: asset.name })
                   .then((result) => {
-                    /* On success the studio watcher reloads the page
-                     * with the file gone — nothing more to do. */
+                    /* On success the studio names the showcase as
+                     * changed and the inventory re-renders with the
+                     * file gone — nothing more to do. */
                     if (!result.ok) {
                       setStatus(result.error ?? "Delete failed");
                       setConfirmDelete(false);

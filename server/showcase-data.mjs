@@ -51,20 +51,46 @@ export function showcaseIndex(dir) {
     .map((entry) => entry.name)
     .sort()
     .filter((id) => existsSync(path.join(dir, id, "showcase.yaml")))
-    .map((id) => ({
-      id,
-      hasTheme: existsSync(path.join(dir, id, "theme.yaml")),
-      assets: existsSync(path.join(dir, id, "assets"))
+    .map((id) => {
+      const assets = existsSync(path.join(dir, id, "assets"))
         ? readdirSync(path.join(dir, id, "assets")).filter((f) => !f.startsWith("."))
-        : [],
-      graphics: existsSync(path.join(dir, id, "graphics"))
+        : [];
+      const graphics = existsSync(path.join(dir, id, "graphics"))
         ? readdirSync(path.join(dir, id, "graphics")).filter((f) =>
             GRAPHIC_EXTENSIONS.includes(path.extname(f)),
           )
-        : [],
-      modifiedMs: statSync(path.join(dir, id, "showcase.yaml")).mtimeMs,
-    }));
+        : [];
+      return {
+        id,
+        hasTheme: existsSync(path.join(dir, id, "theme.yaml")),
+        assets,
+        graphics,
+        modifiedMs: statSync(path.join(dir, id, "showcase.yaml")).mtimeMs,
+        versions: fileVersions(path.join(dir, id), [
+          ...assets.map((f) => `assets/${f}`),
+          ...graphics.map((f) => `graphics/${f}`),
+        ]),
+      };
+    });
   return { showcases };
+}
+
+/** Each file's modified time, keyed by its path inside the showcase
+ *  folder ("assets/voiceover.m4a"). The page puts it in the file's URL,
+ *  so a file the studio rebuilds — a voiceover, a clip, a graphic — gets
+ *  a new URL, and the media element or module cache holding the old one
+ *  loads the new file instead of keeping what it had. A file that
+ *  vanished between the listing and the stat is left out. */
+function fileVersions(folder, files) {
+  const versions = {};
+  for (const file of files) {
+    try {
+      versions[file] = Math.round(statSync(path.join(folder, file)).mtimeMs);
+    } catch {
+      /* gone already */
+    }
+  }
+  return versions;
 }
 
 /** Maps a data-shape URL path (no query) to a file under `dir`, or

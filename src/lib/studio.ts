@@ -517,6 +517,7 @@ function dispatch(event: string, data: unknown) {
 }
 
 const EVENTS = [
+  "showcase-changed",
   "reload",
   "info",
   "code",
@@ -540,14 +541,25 @@ function followEvents() {
 let info: StudioInfo | null = null;
 let client: ShowcaseStudio | undefined;
 
-/* Files changed outside the studio (Claude, an editor, git): show them —
- * except on a page being drawn for a screenshot or video, where a reload
- * would break the capture. */
+/* The library itself changed outside the studio (a showcase added or
+ * removed, a library setting): reload — except on a page being drawn for
+ * a screenshot or video, where a reload would break the capture. A
+ * change inside one showcase's folder comes as "showcase-changed"
+ * instead, and src/lib/live-updates.ts re-reads that showcase in place. */
 on("reload", () => {
   if (!isCapturePage(window.location.pathname, window.location.search)) {
     window.location.reload();
   }
 });
+
+/** One showcase's files changed on disk: which showcase, and the paths
+ *  inside its folder ("assets/voiceover.m4a", "showcase.yaml"). */
+export type ShowcaseChange = { showcaseId: string; files: string[] };
+
+/** Hears every "showcase-changed" event from the studio. */
+export function onShowcaseChanged(listener: (change: ShowcaseChange) => void): () => void {
+  return on("showcase-changed", (data) => listener(data as ShowcaseChange));
+}
 /* Another library means the current page may not exist there: go home. */
 /* The studio's own code changed on disk (from source): the page shows a
  * banner until the studio restarts (src/components/studio/CodeChangedBanner). */

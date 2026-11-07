@@ -378,8 +378,8 @@ npm run dev -- --new [<library folder>]
     `GET /studio/api/history` (the git history status, for the "Commit
     changes to git" switch), `GET /studio/api/actions` (the Actions list,
     `actions-log.mjs`), `GET /studio/api/events` (server-sent events:
-    reload, info, export progress, build progress, each Actions list
-    change, terminal output),
+    showcase-changed, reload, info, export progress, build progress, each
+    Actions list change, terminal output),
     `GET /studio/api/export-video` (a recorded export's video for the Share
     page's preview, streamed in byte ranges), `POST /studio/api/<action>`
     (scene-edit, showcase-create, asset add/rename/delete, prompter-publish,
@@ -388,11 +388,17 @@ npm run dev -- --new [<library folder>]
     `/mcp`; everything it serves — library files, API, events, MCP — only
     answers requests made on this machine, and the dev server listens on
     localhost only. It also scaffolds the library (README, CLAUDE.md,
-    `.studio/GUIDE.md`, `.studio/mcp.json`), watches it and tells pages to
-    reload on outside changes — its own in-app writes are recognized by
-    content hash and swallowed, so edits update the page in place — and runs
-    the MCP tools in-process through `callTool`, for the studio Claude Code
-    starts.
+    `.studio/GUIDE.md`, `.studio/mcp.json`), watches it, and tells pages
+    what changed outside the studio: a burst of changes inside one
+    showcase's folder (a build's new voiceover and durations, Claude's
+    edit, a hand edit) is sent as `showcase-changed` naming the showcase,
+    which the page re-reads in place (`src/lib/live-updates.ts`,
+    `refreshShowcase` in `src/content/showcases.ts`); only a change to the
+    library itself (a showcase folder added or removed, a file at the
+    library root) is sent as `reload`. Its own in-app writes are
+    recognized by content hash and swallowed, since the page already
+    applied them. It also runs the MCP tools in-process through
+    `callTool`, for the studio Claude Code starts.
   - `mcp-stdio.mjs`: the MCP server over stdio that Claude Code starts:
     `studio_start` (with a `window` choice where the program can show one,
     and a `source` choice from source) and `studio_stop`, one studio at a
@@ -936,8 +942,14 @@ print}` — what the automatic build asks before it starts, what an
   next one. The user turns that on and off with the "Commit changes to
   git" switch under the gear button in the showcase tab bar; it is
   studio-wide, and off by default in the studio Claude Code starts,
-  where the session commits with `commit_showcase`. External file
-  changes still reload the whole page.
+  where the session commits with `commit_showcase`. A change on disk to
+  one showcase — the build's new voiceover and durations, Claude's
+  `edit_showcase`, a hand edit — reaches the page as `showcase-changed`
+  and is re-read in place through the same `rebuildShowcase` path
+  (`refreshShowcase`, driven by `src/lib/live-updates.ts`), so the page
+  keeps its state; asset URLs carry the file's modified time (`?v=`), so
+  a rebuilt voiceover or clip is a new URL the media element loads. Only
+  a change to the library itself reloads the page.
 - A setting for a whole library — not one showcase — goes in the
   library's `showcase_settings.yaml` (the library root, beside the
   showcase folders), read through `server/library-config.mjs`. Don't add

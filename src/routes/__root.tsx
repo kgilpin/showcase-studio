@@ -17,6 +17,7 @@ import { dataMode } from "@/content/source";
 import { CodeChangedBanner } from "@/components/studio/CodeChangedBanner";
 import { StudioToaster } from "@/components/studio/StudioToaster";
 import { StudioAgent } from "@/components/studio/StudioAgent";
+import { followLiveUpdates } from "@/lib/live-updates";
 import { studioReady, useWindowLock, windowLock } from "@/lib/studio";
 import { isCapturePage, isPathInLock, lockLandingPath } from "@/lib/window-lock.mjs";
 
@@ -108,6 +109,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
    * enforces the same rule as a backstop (electron/main.mjs). */
   beforeLoad: async ({ location }) => {
     await studioReady;
+    /* Changes on disk update the page in place (src/lib/live-updates.ts). */
+    followLiveUpdates();
     const lock = windowLock();
     if (!lock || isPathInLock(lock, location.pathname)) return;
     /* The studio's page renderer draws any showcase's slides. */
