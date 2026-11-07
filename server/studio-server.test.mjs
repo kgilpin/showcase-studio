@@ -82,6 +82,9 @@ async function startStudio({
   settings = memorySettings(),
   licensing = () => allowAll,
   buildDelayMs,
+  /* The aws command's configuration: a default profile with a region, so
+   * a voiced showcase's build gets as far as calling aws. */
+  aws = { profiles: () => ["default"], regionOf: () => "us-east-1" },
 } = {}) {
   const library = libraryWith(...ids);
   const exportDir = tempDir("studio-exports-");
@@ -99,6 +102,7 @@ async function startStudio({
     openUrl,
     copyText,
     sendToPhone,
+    aws,
     ...(buildDelayMs != null ? { buildDelayMs } : {}),
     /* No file watcher unless a test asks for one: its 250 ms reload timer
      * would race each test's end, and the gold traces would record it only
@@ -995,6 +999,30 @@ describe("the automatic build", () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect((await post("build-current")).job.jobId).toBe(job.jobId);
   }, 30_000);
+
+  it("answers a voice build that can't start with the problem, and starts no job", async () => {
+    /* A machine with named profiles only, and nothing naming one: the
+     * user is to be asked, and the Actions list already says so once. */
+    const { studio, post } = await startStudio({
+      ids: ["talk"],
+      before: (lib) => writeFileSync(path.join(lib, "talk", "showcase.yaml"), VOICED_YAML),
+      aws: { profiles: () => ["work"], regionOf: () => undefined },
+    });
+    const refused = studio.callTool({ name: "build_voiceover", arguments: { showcaseId: "talk" } });
+    await expect(refused).rejects.toThrow(/^No AWS profile for Polly.*profiles: work\./);
+    expect((await post("build-current")).job).toBeNull();
+    const info = await studio
+      .callTool({ name: "studio_info", arguments: {} })
+      .then((r) => JSON.parse(r.content[0].text));
+    expect(info.media).toEqual([
+      {
+        showcaseId: "talk",
+        kind: "voiceover",
+        upToDate: false,
+        problem: expect.stringContaining("Ask the user which one"),
+      },
+    ]);
+  });
 
   it("has a switch, studio-wide, logged like the commit one", async () => {
     const { post, info, library } = await startStudio({

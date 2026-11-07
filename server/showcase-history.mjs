@@ -651,9 +651,11 @@ export function createShowcaseHistory({
     if (result.committed) {
       const { sha, message: subject, files } = result;
       actions.update(id, { state: "done", result: { sha, message: subject, files } });
-    } else if (result.clean) {
+    } else if (result.clean || result.reason === TURNED_OFF) {
       /* Nothing to do after all (the change was undone within the quiet
-       * period): not a failure, and not a commit — skipped, saying why. */
+       * period), or the user's switch is off and a commit_showcase asked
+       * anyway: not a failure, and nothing for the user to do — skipped,
+       * saying why. */
       actions.update(id, { state: "canceled", why: result.reason });
     } else {
       actions.update(id, { state: "failed", error: result.reason });

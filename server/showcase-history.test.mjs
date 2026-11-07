@@ -421,7 +421,7 @@ describe("showcase history", GIT_TESTS, () => {
 
   it("turns off with the autoCommit setting", async () => {
     const { dir, library } = await project();
-    const { call } = await startStudio(library, { autoCommit: false });
+    const { call, get } = await startStudio(library, { autoCommit: false });
     await call("edit_showcase", editTitle("Changed"));
     await sleep(DELAY * 4);
     expect(commits(dir)).toEqual(["start"]);
@@ -430,6 +430,18 @@ describe("showcase history", GIT_TESTS, () => {
       committed: false,
       reason: expect.stringContaining("turned off"),
     });
+    /* The refusal is the user's own setting at work, not a failure: the
+     * Actions list shows the attempt as skipped, saying why, so it never
+     * sits under "Needs you". */
+    const { actions } = await get("actions");
+    expect(actions.filter((a) => a.kind === "commit")).toEqual([
+      expect.objectContaining({
+        by: "claude",
+        state: "canceled",
+        why: expect.stringContaining("Commits are turned off"),
+      }),
+    ]);
+    expect((await call("studio_info", {})).actions.failed).toEqual([]);
   });
 });
 

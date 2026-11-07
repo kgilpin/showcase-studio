@@ -221,6 +221,29 @@ describe("createAutoBuild", () => {
     expect(lane.runs[1].why).toBe("pitch changed — 1 thing out of date: clip-a.mp4");
   });
 
+  it("after a build Claude ran fails, doesn't run the same build itself", async () => {
+    const runs = [];
+    const lane = fakeLane({ fail: () => "no AWS profile", runs });
+    const actions = createActionsLog(() => dir);
+    const auto = createAutoBuild({
+      buildJobs: lane.jobs,
+      actions,
+      status: () => ({ ...stale("voiceover.m4a"), kind: "voiceover" }),
+      delayMs: 10,
+    });
+    lane.wire(auto);
+    /* Claude's build_voiceover, on the inputs the edit just made. */
+    const job = lane.jobs.start("voiceover", "talk", { by: "claude", why: "Started by Claude" });
+    auto.noteShowcase("talk", "edit");
+    await settled(lane.jobs, job.jobId);
+    await tick(25);
+    /* Claude's run is the only one: no second build by the studio, which
+     * would fail with the same error and put a second record in the list. */
+    expect(runs).toHaveLength(1);
+    expect(runs[0].by).toBe("claude");
+    expect(auto.pending()).toEqual([]);
+  });
+
   it("after its own build fails, waits for the inputs to change before trying again", async () => {
     const runs = [];
     const lane = fakeLane({ fail: () => "aws isn't signed in", runs });

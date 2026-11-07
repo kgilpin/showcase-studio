@@ -312,6 +312,9 @@ export function createStudio({
   log = (message) => console.log(message),
   commitDelayMs = 5000,
   buildDelayMs = 3000,
+  /* The aws command's configuration (voiceover.mjs awsConfig), which the
+   * voice build and its status read; tests pass a stand-in. */
+  aws,
 }) {
   let showcasesDir = path.resolve(initialDir);
   /* While this studio runs, the page's error page may show error details
@@ -661,6 +664,7 @@ add notes specific to this library below, and the studio won't touch them.
             onProgress,
             signal,
             beforeWrite: recordSelfWrite,
+            aws,
           })
         : buildMedia({
             showcasesDir,
@@ -713,7 +717,7 @@ add notes specific to this library below, and the studio won't touch them.
   autoBuild = createAutoBuild({
     buildJobs,
     actions,
-    status: (showcaseId) => mediaStatus({ showcasesDir, showcaseId }),
+    status: (showcaseId) => mediaStatus({ showcasesDir, showcaseId, aws }),
     enabled: () => settings.load()?.autoBuild !== false,
     delayMs: buildDelayMs,
     log,
@@ -792,8 +796,8 @@ add notes specific to this library below, and the studio won't touch them.
     exportJobs,
     buildJobs,
     autoBuild,
-    mediaStatus: (showcaseId) => mediaStatus({ showcasesDir, showcaseId }),
-    mediaSummary: () => mediaSummary(showcasesDir),
+    mediaStatus: (showcaseId) => mediaStatus({ showcasesDir, showcaseId, aws }),
+    mediaSummary: () => mediaSummary(showcasesDir, { aws }),
     changeLog,
     actions,
     history,
@@ -1199,7 +1203,7 @@ scenes:
     /* Whether a showcase's built media is up to date (media-status.mjs). */
     "media-status": ({ showcaseId }) => ({
       ok: true,
-      status: mediaStatus({ showcasesDir, showcaseId: String(showcaseId ?? "") }),
+      status: mediaStatus({ showcasesDir, showcaseId: String(showcaseId ?? ""), aws }),
     }),
     export: ({ kind, showcaseId }) => exportJob(String(kind ?? ""), showcaseId),
     "export-status": ({ jobId }) => {

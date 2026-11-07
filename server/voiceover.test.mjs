@@ -15,15 +15,31 @@ import path from "node:path";
 import { parse } from "yaml";
 import { mediaDuration, runFfmpeg } from "./ffmpeg.mjs";
 import {
+  DEFAULT_REGION,
   buildVoiceover,
   captionSegment,
   captionWords,
   hasVoiceover,
   layOutWindows,
   readVoiceoverPlan,
+  resolveAws,
   splitHeardWords,
   voicedSpan,
+  voiceoverStatus,
 } from "./voiceover.mjs";
+
+/** The aws command's configuration, as a machine with a default profile
+ *  and a region would answer — the showcase names neither. */
+const AWS = {
+  profiles: () => ["default", "work"],
+  regionOf: (profile) => (profile === "work" ? "eu-west-1" : "us-west-2"),
+};
+/** This Mac: named profiles only, one of them with no region. */
+const NO_DEFAULT = {
+  profiles: () => ["personal", "work"],
+  regionOf: (profile) => (profile === "work" ? "eu-west-1" : undefined),
+};
+const NO_ENV = {};
 
 const toneSeconds = (text) => 0.4 + text.length * 0.02;
 
@@ -119,8 +135,12 @@ function build(options = {}) {
     synthesize: async (args) => {
       await synth(args);
       spoken.set(args.out.replace(/\.partial$/, ""), args.text);
+      calls[calls.length - 1].profile = args.profile;
+      calls[calls.length - 1].region = args.region;
     },
     transcribe: fakeWhisper((file) => spoken.get(file)),
+    aws: AWS,
+    env: NO_ENV,
     ...options,
   });
 }
@@ -289,6 +309,8 @@ describe("buildVoiceover", () => {
       showcasesDir: library,
       showcaseId: "voiced",
       transcribe: null,
+      aws: AWS,
+      env: NO_ENV,
       synthesize: async (args) => {
         await synth(args);
         if (args.text.startsWith("Make")) {
@@ -323,6 +345,143 @@ describe("buildVoiceover", () => {
     );
     const result = await build();
     expect(result.error).toMatch(/not both/);
+  });
+});
+
+/* Which AWS profile and region the voice is made with (resolveAws): the
+ * showcase, else the library's showcase_settings.yaml, else the
+ * environment, else the aws command's default profile — checked against
+ * the profiles the machine has before the first Polly call, so a missing
+ * profile is a question for the user rather than a failed build. */
+describe("the AWS setup", () => {
+  const settingsOf = (voiceover = {}) =>
+    readVoiceoverPlan({ meta: { voiceover }, scenes: [{ id: "a", captions: [{ text: "Hi" }] }] })
+      .settings;
+  const resolve = (voiceover, { aws = AWS, env = NO_ENV } = {}) =>
+    resolveAws({ settings: settingsOf(voiceover), showcasesDir: library, aws, env });
+  const librarySettings = (text) =>
+    writeFileSync(path.join(library, "showcase_settings.yaml"), text);
+
+  it("uses the default profile and its region when nothing names one", () => {
+    expect(resolve({})).toEqual({
+      ok: true,
+      profile: undefined,
+      region: "us-west-2",
+      note: undefined,
+    });
+    expect(resolve({ profile: "work" })).toMatchObject({ profile: "work", region: "eu-west-1" });
+    expect(resolve({ profile: "work", region: "ap-south-1" })).toMatchObject({
+      region: "ap-south-1",
+    });
+  });
+
+  it("asks for a profile, naming the machine's, when there is no default one", () => {
+    const result = resolve({}, { aws: NO_DEFAULT });
+    expect(result.ok).toBe(false);
+    expect(result.problem).toMatch(
+      /^No AWS profile for Polly: this machine has no default profile/,
+    );
+    expect(result.problem).toContain("profiles: personal, work.");
+    expect(result.problem).toContain("Ask the user which one");
+    expect(result.problem).toContain("aws_profile in showcase_settings.yaml");
+    /* The showcase's own, the library's, or the environment's profile
+     * settles it. */
+    expect(resolve({ profile: "work" }, { aws: NO_DEFAULT })).toMatchObject({ ok: true });
+    librarySettings("aws_profile: personal\n");
+    expect(resolve({}, { aws: NO_DEFAULT })).toMatchObject({ ok: true, profile: "personal" });
+    librarySettings("");
+    expect(resolve({}, { aws: NO_DEFAULT, env: { AWS_PROFILE: "work" } })).toMatchObject({
+      ok: true,
+      profile: "work",
+      region: "eu-west-1",
+    });
+  });
+
+  it("refuses a profile the machine doesn't have, saying where it came from", () => {
+    expect(resolve({ profile: "nobody" }).problem).toBe(
+      'No AWS profile named "nobody" on this machine (meta.voiceover.profile). ' +
+        "This machine's profiles: default, work.",
+    );
+    librarySettings("aws_profile: nobody\n");
+    expect(resolve({}).problem).toContain("(aws_profile in showcase_settings.yaml)");
+    librarySettings("");
+    expect(resolve({}, { env: { AWS_PROFILE: "nobody" } }).problem).toContain(
+      "(AWS_PROFILE in the environment)",
+    );
+  });
+
+  it("reads the library's setting with its variables expanded, and reports one that isn't set", () => {
+    librarySettings("aws_profile: ${LOGIN}\naws_region: ${PLACE}\n");
+    expect(
+      resolve({}, { aws: NO_DEFAULT, env: { LOGIN: "personal", PLACE: "ca-central-1" } }),
+    ).toEqual({ ok: true, profile: "personal", region: "ca-central-1", note: undefined });
+    const result = resolve({}, { aws: NO_DEFAULT, env: { LOGIN: "personal" } });
+    expect(result.ok).toBe(false);
+    expect(result.problem).toBe(
+      "showcase_settings.yaml aws_region: ${PLACE} — PLACE isn't set in the environment",
+    );
+  });
+
+  it("falls back to a region, and says so, when the profile has none", () => {
+    expect(resolve({ profile: "personal" }, { aws: NO_DEFAULT })).toEqual({
+      ok: true,
+      profile: "personal",
+      region: DEFAULT_REGION,
+      note: expect.stringMatching(
+        /profile "personal" has no region set, so Polly was called in us-east-1/,
+      ),
+    });
+    librarySettings("aws_region: eu-north-1\n");
+    expect(resolve({ profile: "personal" }, { aws: NO_DEFAULT })).toMatchObject({
+      region: "eu-north-1",
+      note: undefined,
+    });
+    librarySettings("");
+    expect(
+      resolve(
+        { profile: "personal" },
+        { aws: NO_DEFAULT, env: { AWS_DEFAULT_REGION: "sa-east-1" } },
+      ),
+    ).toMatchObject({ region: "sa-east-1" });
+  });
+
+  it("says the aws command isn't installed, or has no profiles at all", () => {
+    expect(
+      resolve({}, { aws: { profiles: () => undefined, regionOf: () => undefined } }).problem,
+    ).toMatch(/^The aws command isn't installed/);
+    const none = resolve({}, { aws: { profiles: () => [], regionOf: () => undefined } });
+    expect(none.problem).toContain("has no profiles yet");
+    expect(none.problem).not.toContain("Ask the user");
+  });
+
+  it("is what the status reports, before any build, and what the build refuses on", async () => {
+    const status = voiceoverStatus({
+      showcasesDir: library,
+      showcaseId: "voiced",
+      aws: NO_DEFAULT,
+      env: NO_ENV,
+    });
+    expect(status).toMatchObject({
+      built: true,
+      kind: "voiceover",
+      ok: false,
+      problem: expect.stringMatching(/^No AWS profile for Polly/),
+    });
+    expect(await build({ aws: NO_DEFAULT })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/^No AWS profile for Polly/),
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("hands the resolved profile and region to Polly, and notes a region it chose", async () => {
+    librarySettings("aws_profile: ${LOGIN}\n");
+    const result = await build({ aws: NO_DEFAULT, env: { LOGIN: "personal" } });
+    expect(result).toMatchObject({ ok: true, synthesized: 4 });
+    expect(calls[0]).toMatchObject({ profile: "personal", region: DEFAULT_REGION });
+    expect(result.notes.filter((note) => note.includes("no region set"))).toHaveLength(1);
+    /* Nothing to voice again: no Polly call, and no note about it. */
+    expect((await build({ aws: NO_DEFAULT, env: { LOGIN: "personal" } })).notes).toEqual([]);
   });
 });
 

@@ -164,6 +164,11 @@ entries:
     test_name: refuses to pin captions that changed while it was talking
     appmap_path: vitest/refuses_to_pin_captions_that_changed_while_it_was_talking.appmap.json
     summary: The stale-write gate, refused — showcase.yaml changes while the clips are being made, so the pins are checked against the text the build read and none are written.
+  - feature: voiceover
+    test_file: server/voiceover.test.mjs
+    test_name: is what the status reports, before any build, and what the build refuses on
+    appmap_path: vitest/is_what_the_status_reports,_before_any_build,_and_what_the_build_refuses_on.appmap.json
+    summary: The AWS setup gate, refused — a machine with named profiles only and nothing naming one; the status reports the problem (the machine's profiles, and that the user is to be asked) before any build, and the build refuses on the same check without calling Polly. The negative branch of resolveAws, which the build trace above only passes.
   - feature: exporter
     test_file: server/exporter.test.mjs
     test_name: renders the frames asked, in order, from the page the video export records

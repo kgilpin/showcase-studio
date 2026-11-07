@@ -36,9 +36,11 @@
  *     voiceover:
  *       voice: Matthew        # a Polly voice id
  *       engine: generative    # generative | neural | standard | long-form
- *       profile: kgilpin      # optional: the AWS profile (else AWS_PROFILE
- *                             #   or the default profile)
- *       region: us-east-1     # optional: else the profile's region
+ *       profile: my-profile   # optional: the AWS profile (else the
+ *                             #   library's aws_profile, else AWS_PROFILE,
+ *                             #   else the default profile)
+ *       region: us-east-1     # optional: else the library's aws_region,
+ *                             #   else the profile's region, else us-east-1
  *       track: voiceover-synth   # the asset key (default "voiceover")
  *
  * The voice and the engine are what the showcase sounds like, so they go
@@ -46,7 +48,7 @@
  * out of a showcase that ships to other people, and their own AWS
  * settings apply. */
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -61,6 +63,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { runFfmpeg } from "./ffmpeg.mjs";
+import { SETTINGS_FILE, libraryAwsSettings } from "./library-config.mjs";
 import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import { transcribe as whisperTranscribe } from "./transcribe.mjs";
 import { transcriptJson } from "./transcript.mjs";
@@ -328,17 +331,133 @@ export function awsPath() {
   return awsResolved || undefined;
 }
 
+const NO_AWS =
+  "The aws command isn't installed, and the voiceover is made with AWS Polly through it — " +
+  "install the AWS CLI (https://aws.amazon.com/cli/), sign in, and build again.";
+
+/** The region Polly is called in when nothing names one: every Polly
+ *  voice is there, and the price is the same everywhere. */
+export const DEFAULT_REGION = "us-east-1";
+
+/* The aws command's own configuration, asked rarely: the profiles it
+ * knows and a profile's region. Both come from ~/.aws, which changes
+ * about never, and each question starts the aws program (a few hundred
+ * ms), so the answers are kept for a while — the status is asked on
+ * every logged write. */
+const AWS_CONFIG_TTL_MS = 30_000;
+let awsConfigCache = { at: 0, profiles: undefined, regions: new Map() };
+
+/** What the aws command is configured with, read through the command
+ *  itself: `profiles()` is every profile it knows (undefined when it
+ *  isn't installed), `regionOf(profile)` a profile's region (the default
+ *  profile's for undefined), or undefined when it has none. Tests pass
+ *  an object of the same shape. */
+export function awsConfig({ aws = awsPath(), now = Date.now } = {}) {
+  const ask = (args) => {
+    const run = spawnSync(aws, args, { encoding: "utf8", timeout: 15_000 });
+    return run.status === 0 ? run.stdout : "";
+  };
+  const fresh = () => {
+    if (now() - awsConfigCache.at > AWS_CONFIG_TTL_MS) {
+      awsConfigCache = { at: now(), profiles: undefined, regions: new Map() };
+    }
+    return awsConfigCache;
+  };
+  return {
+    profiles() {
+      if (!aws) return undefined;
+      const cache = fresh();
+      if (!cache.profiles) {
+        cache.profiles = ask(["configure", "list-profiles"])
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+      }
+      return cache.profiles;
+    },
+    regionOf(profile) {
+      if (!aws) return undefined;
+      const cache = fresh();
+      const key = profile ?? "";
+      if (!cache.regions.has(key)) {
+        const args = ["configure", "get", "region", ...(profile ? ["--profile", profile] : [])];
+        cache.regions.set(key, ask(args).trim() || undefined);
+      }
+      return cache.regions.get(key);
+    },
+  };
+}
+
+/** The AWS profile and region a showcase's voice is made with, checked
+ *  against the aws command's configuration before the first Polly call:
+ *  the showcase's own meta.voiceover, else the library's aws_profile and
+ *  aws_region (showcase_settings.yaml), else the environment, else the
+ *  aws command's default profile and the profile's region. Resolves
+ *  `{ok: true, profile, region, note}` — `note` when the region had to be
+ *  the default — or `{ok: false, problem}`: the profile isn't one this
+ *  machine has, or there is no default profile and nothing names one.
+ *  The problem names the profiles there are, and what to ask the user,
+ *  so a session asks instead of guessing: which AWS account pays for the
+ *  voice is the user's choice. */
+export function resolveAws({ settings, showcasesDir, env = process.env, aws = awsConfig() }) {
+  const library = libraryAwsSettings(showcasesDir, env);
+  if (library.problem) return { ok: false, problem: library.problem };
+  const profile = settings.profile ?? library.profile ?? env.AWS_PROFILE?.trim() ?? undefined;
+  const from =
+    settings.profile != null
+      ? "meta.voiceover.profile"
+      : library.profile != null
+        ? `aws_profile in ${SETTINGS_FILE}`
+        : "AWS_PROFILE in the environment";
+  const profiles = aws.profiles();
+  if (profiles === undefined) return { ok: false, problem: NO_AWS };
+  const listed =
+    profiles.length === 0
+      ? "The aws command has no profiles yet: the user sets one up first (aws configure sso, " +
+        "or aws configure), and it's theirs to run."
+      : `This machine's profiles: ${profiles.join(", ")}.`;
+  if (profile && !profiles.includes(profile)) {
+    return {
+      ok: false,
+      problem: `No AWS profile named "${profile}" on this machine (${from}). ${listed}`,
+    };
+  }
+  if (!profile && !profiles.includes("default")) {
+    return {
+      ok: false,
+      problem:
+        "No AWS profile for Polly: this machine has no default profile, and nothing names one. " +
+        `${listed}${
+          profiles.length > 0
+            ? " Ask the user which one the voiceovers should use — never pick one yourself — " +
+              `and set aws_profile in ${SETTINGS_FILE} at the library root ` +
+              "(${USER} there names the profile called after the login name)."
+            : ""
+        }`,
+    };
+  }
+  let region =
+    settings.region ??
+    library.region ??
+    env.AWS_REGION?.trim() ??
+    env.AWS_DEFAULT_REGION?.trim() ??
+    aws.regionOf(profile);
+  let note;
+  if (!region) {
+    region = DEFAULT_REGION;
+    note =
+      `The AWS profile${profile ? ` "${profile}"` : ""} has no region set, so Polly was called in ` +
+      `${DEFAULT_REGION} (aws_region in ${SETTINGS_FILE} picks another)`;
+  }
+  return { ok: true, profile, region, note };
+}
+
 /** Synthesizes one clip with the aws command, which reads the user's own
  *  AWS settings: whatever their profile does to sign in (keys, SSO, a
  *  credential process) works here too. */
 export function pollySynthesizer({ aws = awsPath() } = {}) {
   return async function synthesize({ text, voice, engine, profile, region, out, signal }) {
-    if (!aws) {
-      throw new Error(
-        "The aws command isn't installed, and the voiceover is made with AWS Polly through it — " +
-          "install the AWS CLI (https://aws.amazon.com/cli/), sign in, and build again.",
-      );
-    }
+    if (!aws) throw new Error(NO_AWS);
     const args = ["polly", "synthesize-speech"];
     if (profile) args.push("--profile", profile);
     if (region) args.push("--region", region);
@@ -363,10 +482,14 @@ export function pollySynthesizer({ aws = awsPath() } = {}) {
       proc.on("exit", (code) => {
         if (code === 0) return resolve();
         const said = stderr.trim().slice(-500);
-        const signIn = /sso|token|credential|expired/i.test(said)
-          ? ` — sign in first (e.g. aws sso login${profile ? ` --profile ${profile}` : ""})`
-          : "";
-        reject(new Error(`aws polly exited ${code}: ${said}${signIn}`));
+        const fix = /must specify a region/i.test(said)
+          ? ` — set aws_region in ${SETTINGS_FILE} at the library root (or meta.voiceover.region)`
+          : /could not be found/i.test(said)
+            ? ` — set aws_profile in ${SETTINGS_FILE} at the library root to a profile this machine has`
+            : /sso|token|credential|expired/i.test(said)
+              ? ` — sign in first (e.g. aws sso login${profile ? ` --profile ${profile}` : ""})`
+              : "";
+        reject(new Error(`aws polly exited ${code}: ${said}${fix}`));
       });
     });
   };
@@ -485,7 +608,7 @@ export function voiceInputsPrint(settings, scenes, pace) {
  *  words file likewise, a caption whose durationMs isn't the pin the
  *  build wrote, the soundtrack not set — and `upToDate`. `print`
  *  fingerprints the whole comparison. */
-export function voiceoverStatus({ showcasesDir, showcaseId }) {
+export function voiceoverStatus({ showcasesDir, showcaseId, aws, env }) {
   if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) {
     return { built: true, kind: "voiceover", ok: false, problem: "Bad showcase id" };
   }
@@ -514,6 +637,10 @@ export function voiceoverStatus({ showcasesDir, showcaseId }) {
   if (!plan.ok)
     return { built: true, kind: "voiceover", ok: false, problem: plan.errors.join("\n") };
   const { settings, scenes } = plan;
+  /* The AWS setup, before any build is started for it: a missing
+   * profile is a question for the user, not a failed build. */
+  const setup = resolveAws({ settings, showcasesDir, env, ...(aws ? { aws } : {}) });
+  if (!setup.ok) return { built: true, kind: "voiceover", ok: false, problem: setup.problem };
   const cacheDir = path.join(showcasesDir, CACHE_DIR, showcaseId);
   const assetsDir = path.join(showcasesDir, showcaseId, "assets");
   const manifest = readManifest(showcasesDir, showcaseId);
@@ -575,6 +702,8 @@ export async function buildVoiceover({
   beforeWrite,
   synthesize = pollySynthesizer(),
   transcribe = (file) => whisperTranscribe(file),
+  aws,
+  env,
 }) {
   if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) return { ok: false, error: "Bad showcase id" };
   const folder = path.join(showcasesDir, showcaseId);
@@ -599,6 +728,8 @@ export async function buildVoiceover({
   }
   if (!plan.ok) return { ok: false, error: plan.errors.join("\n") };
   const { settings, scenes } = plan;
+  const setup = resolveAws({ settings, showcasesDir, env, ...(aws ? { aws } : {}) });
+  if (!setup.ok) return { ok: false, error: setup.problem };
 
   const cacheDir = path.join(showcasesDir, CACHE_DIR, showcaseId);
   mkdirSync(cacheDir, { recursive: true });
@@ -613,6 +744,7 @@ export async function buildVoiceover({
   const notes = [];
   let synthesized = 0;
   let reused = 0;
+  let calledPolly = false;
   const keep = new Set();
   for (const [n, caption] of captions.entries()) {
     checkAborted(signal);
@@ -627,13 +759,15 @@ export async function buildVoiceover({
         step: n + 1,
         steps: captions.length + 2,
       });
+      if (!calledPolly && setup.note) notes.push(setup.note);
+      calledPolly = true;
       await intoPlace(caption.clip, (partial) =>
         synthesize({
           text: caption.text,
           voice: settings.voice,
           engine: settings.engine,
-          profile: settings.profile,
-          region: settings.region,
+          profile: setup.profile,
+          region: setup.region,
           out: partial,
           signal,
         }),
