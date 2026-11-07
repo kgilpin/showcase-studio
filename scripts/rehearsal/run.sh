@@ -36,6 +36,14 @@ while [ $# -gt 0 ]; do
     *) echo "run.sh: unknown option $1" >&2; exit 2 ;;
   esac
 done
+# Absolute paths before the cd below: a relative --app would otherwise be
+# looked up from the scratch library, not found, and the plugin's launcher
+# would fall back to whatever app is installed in ~/Applications.
+absolute() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s/%s' "$(pwd)" "$1" ;; esac; }
+[ -n "$inputs" ] && inputs="$(absolute "$inputs")"
+[ -n "$source" ] && source="$(absolute "$source")"
+[ -n "$app" ] && app="$(absolute "$app")"
+[ -n "$app" ] && [ ! -x "$app/Contents/MacOS/Showcase Studio" ] && { echo "run.sh: no app at $app" >&2; exit 2; }
 dir="$here/rehearsal/scenarios/$scenario"
 [ -d "$dir" ] || { echo "run.sh: no scenario at $dir" >&2; exit 2; }
 [ -n "$inputs" ] || { echo "run.sh: --inputs <folder> is required (where the raw files are)" >&2; exit 2; }

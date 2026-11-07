@@ -12,16 +12,22 @@ tools_used:
   - check_framing # the face check, before reporting done
   - screenshot_frame # frames looked at instead of draft exports
   - ffmpeg # the composite encoded into assets/ safely
-  - build_media # the cut list built, not hand-cut clips
   - transcribe # the real words, for karaoke
+  - validate # the schema's warnings read before reporting done (0.8.0:
+    # a field in the wrong place is named, with where it belongs)
 
 # A second check_framing after the fix, so the fix was confirmed.
 tools_used_at_least:
   check_framing: 2
 
 # One draft, the one the brief asks for. More means checking by export.
+# Since 0.8.0 the studio builds the media itself a few seconds after the
+# cut list, the recording or the captions change, so build_media is for a
+# forced rebuild or a jobId to wait on: one or two calls is fine, more
+# means the session didn't trust the build to run on its own.
 max_calls:
   export: 1
+  build_media: 2
 
 # No sleep loops: export_status takes waitMs.
 bash_must_not_match:
