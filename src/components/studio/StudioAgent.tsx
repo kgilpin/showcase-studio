@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { ExternalLink, Minus, RotateCcw, Sparkles, TerminalSquare, X } from "lucide-react";
 import { studio } from "@/lib/studio";
@@ -8,6 +8,8 @@ import { dockWidth } from "./dock-width";
 import { TerminalPane } from "./TerminalPane";
 
 type TermView = "loading" | "chooser" | "integrated" | "external";
+
+const stopWheel = (e: WheelEvent) => e.preventDefault();
 
 /* The studio agent: each showcase has its own Claude Code session,
  * running in that showcase's folder on the user's subscription. Shown
@@ -82,6 +84,20 @@ export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
     return () => onDock?.(0);
   }, [docked, onDock]);
 
+  /* The panel sits beside the page, not on it. xterm consumes a wheel
+   * only when it scrolled the terminal, so at the bottom of the
+   * scrollback (where a live session always is) a scroll down would
+   * carry on to the page behind and move the showcase instead. The panel
+   * stops every wheel it gets: the terminal has already done its own
+   * scrolling by then. Added by hand because React registers wheel as
+   * passive, where preventDefault is ignored. */
+  const wheelPanel = useRef<HTMLDivElement | null>(null);
+  const keepWheel = useCallback((panel: HTMLDivElement | null) => {
+    wheelPanel.current?.removeEventListener("wheel", stopWheel);
+    wheelPanel.current = panel;
+    panel?.addEventListener("wheel", stopWheel, { passive: false });
+  }, []);
+
   /* The agent runs within a showcase — no button on the list pages. */
   if (!available || !showcaseId || capturing) return null;
 
@@ -122,7 +138,10 @@ export function StudioAgent({ onDock }: { onDock?: (px: number) => void }) {
   }
 
   return (
-    <div className="fixed bottom-0 right-0 top-0 z-50 flex w-[40rem] max-w-[100vw] flex-col border-l border-border bg-background">
+    <div
+      ref={keepWheel}
+      className="fixed bottom-0 right-0 top-0 z-50 flex w-[40rem] max-w-[100vw] flex-col border-l border-border bg-background"
+    >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <p className="flex items-center gap-2 text-sm text-foreground">
           <Sparkles className="size-4 text-primary" /> Studio agent

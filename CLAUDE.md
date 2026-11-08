@@ -573,6 +573,20 @@ print}` — what the automatic build asks before it starts, what an
     `SHOWCASE_STUDIO_SRC`/`ROOT`/`FFMPEG` env vars; off in the studio Claude
     Code starts; the npm `postinstall` restores node-pty's spawn-helper exec
     bit.
+  - `terminal-state.mjs`: what each session's terminal looks like right
+    now, kept on the server with a headless xterm that follows every byte
+    the PTY produces. When the panel reattaches (reopened, page reload,
+    another showcase), `start` answers with `snapshot()` — the screen, the
+    scrollback, the alternate screen if it is active, and every mode in
+    effect, including the mouse encoding and the cursor's visibility the
+    serialize addon leaves out — and the page writes it to a fresh xterm.
+    It replaced replaying the last 200 KB of raw output, which lost the
+    switches to the alternate screen and the mouse once they scrolled out
+    of the slice: Claude Code's full-screen mode makes both at start, and a
+    view rebuilt without them had no history to scroll and no reason to
+    pass the wheel on. The studio agent panel also stops every wheel event
+    that reaches it, so a scroll xterm doesn't use never moves the page
+    behind the panel.
   - `transcribe.mjs`: whisper.cpp voice-to-text: the binary ships with the
     app in `electron/vendor/whisper/` — `scripts/vendor-whisper.mjs` builds
     it on macOS and downloads a pinned, checksummed build on Windows,

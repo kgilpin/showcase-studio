@@ -7,9 +7,12 @@
  * CLAUDE.md files).
  *
  * Sessions outlive the panel: closing and reopening it reattaches to the
- * running PTY, replaying a bounded scrollback buffer. Output reaches the
- * page as studio events (terminal-data, terminal-exit); sessions end with
- * the studio or on stop.
+ * running PTY, and the page's terminal is recreated from a snapshot of
+ * the session's terminal state (`terminal-state.mjs`: screen,
+ * scrollback and every mode in effect, so a full-screen program that
+ * took the mouse is still full screen with the mouse). Output reaches
+ * the page as studio events (terminal-data, terminal-exit); sessions end
+ * with the studio or on stop.
  *
  * `claude` is resolved through the user's login shell (GUI apps get a
  * minimal PATH on macOS). When it's installed, each terminal launches
@@ -20,6 +23,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { createTerminalState } from "./terminal-state.mjs";
 
 const require_ = createRequire(import.meta.url);
 let pty;
@@ -43,14 +47,12 @@ function hasClaude() {
   return claudeFound;
 }
 
-const BUFFER_MAX = 200_000;
-
 const sq = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
 
 /** `getLibrary()` is the showcases folder; `emit(event, data)` sends a
  *  studio event to the pages; `settings` is { load, save }. */
 export function createTerminals({ getLibrary, getEnv, getMcpConfig, settings, emit }) {
-  /** showcase id → { proc, buffer, resumed, cwd } */
+  /** showcase id → { proc, state, resumed, cwd } */
   const sessions = new Map();
 
   /* A showcase whose terminal ran before resumes with `claude --continue`,
@@ -90,8 +92,9 @@ export function createTerminals({ getLibrary, getEnv, getMcpConfig, settings, em
     available: () => ({ ptyReady: Boolean(pty), claude: Boolean(pty) && hasClaude() }),
 
     /** Starts the showcase's session, or reattaches to a running one —
-     *  returning the scrollback so the panel can restore the view. */
-    start({ id, cols, rows } = {}) {
+     *  returning the terminal's state as `buffer`, which the panel writes
+     *  to a fresh xterm to restore the view. */
+    async start({ id, cols, rows } = {}) {
       if (!pty) return { ok: false, error: "The terminal host (node-pty) failed to load" };
       if (!id) return { ok: false, error: "No showcase selected" };
       const existing = sessions.get(id);
@@ -101,7 +104,13 @@ export function createTerminals({ getLibrary, getEnv, getMcpConfig, settings, em
         } catch {
           /* exited between messages */
         }
-        return { ok: true, attached: true, buffer: existing.buffer, claude: hasClaude() };
+        existing.state.resize(cols || 80, rows || 24);
+        return {
+          ok: true,
+          attached: true,
+          buffer: await existing.state.snapshot(),
+          claude: hasClaude(),
+        };
       }
       const cwd = folderFor(id);
       if (!cwd) return { ok: false, error: `No showcase folder named "${id}"` };
@@ -117,14 +126,16 @@ export function createTerminals({ getLibrary, getEnv, getMcpConfig, settings, em
          * the studio's dark panel. */
         env: { ...process.env, TERM: "xterm-256color", COLORFGBG: "15;0", ...getEnv?.() },
       });
-      const session = { proc, buffer: "", resumed, cwd };
+      const state = createTerminalState({ cols: cols || 80, rows: rows || 24 });
+      const session = { proc, state, resumed, cwd };
       sessions.set(id, session);
       proc.onData((data) => {
-        session.buffer = (session.buffer + data).slice(-BUFFER_MAX);
+        state.write(data);
         emit("terminal-data", { id, data });
       });
       proc.onExit(({ exitCode }) => {
         sessions.delete(id);
+        state.dispose();
         if (exitCode !== 0 && session.resumed) clearRan(cwd);
         emit("terminal-exit", { id, code: exitCode });
       });
@@ -160,11 +171,13 @@ export function createTerminals({ getLibrary, getEnv, getMcpConfig, settings, em
     },
 
     resize({ id, cols, rows } = {}) {
+      const session = sessions.get(id);
       try {
-        sessions.get(id)?.proc.resize(cols, rows);
+        session?.proc.resize(cols, rows);
       } catch {
         /* exited between messages */
       }
+      session?.state.resize(cols, rows);
       return { ok: true };
     },
 
