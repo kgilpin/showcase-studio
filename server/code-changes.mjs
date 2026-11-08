@@ -74,11 +74,23 @@ function listCodeFiles(srcDir) {
  * start changes — the files' paths under the checkout, sorted, empty
  * once every change is put back. Changes settle for `settleMs` before
  * they are compared, so one save is one call. Returns
- * `{ changed(), close() }`: the list now, and a close that resolves once
- * the watchers have let go of the folders. `onError(message)` hears
- * about a folder that can't be watched.
+ * `{ changed(), ready, close() }`: the list now, a promise for the
+ * moment nothing can be missed any more (below), and a close that
+ * resolves once the watchers have let go of the folders.
+ * `onError(message)` hears about a folder that can't be watched.
+ *
+ * A recursive watch starts listening a moment after it is made — on
+ * macOS, FSEvents comes up on its own thread — and an edit made inside
+ * that moment is never reported (issue #52): a save in the studio's
+ * first second went unnoticed, and the banner never came. So after
+ * `rescanMs` every file is compared with the start once more, and what
+ * differs is reported as if the watcher had seen it; `ready` resolves
+ * after that pass.
  */
-export function watchStudioCode(srcDir, { onChange, onError, settleMs = 250 } = {}) {
+export function watchStudioCode(
+  srcDir,
+  { onChange, onError, settleMs = 250, rescanMs = 1500 } = {},
+) {
   const startHashes = new Map();
   for (const relative of listCodeFiles(srcDir)) {
     startHashes.set(relative, hashOf(path.join(srcDir, relative)));
@@ -122,10 +134,27 @@ export function watchStudioCode(srcDir, { onChange, onError, settleMs = 250 } = 
     }
   }
 
+  /* The pass that catches an edit made before the watchers were live:
+   * every file known at the start, and every file there now, goes
+   * through the same comparison as a watched change. */
+  let rescanTimer;
+  const ready = new Promise((resolve) => {
+    rescanTimer = setTimeout(() => {
+      for (const relative of new Set([...startHashes.keys(), ...listCodeFiles(srcDir)])) {
+        pending.add(relative);
+      }
+      clearTimeout(timer);
+      settle();
+      resolve();
+    }, rescanMs);
+  });
+
   return {
     changed: list,
+    ready,
     async close() {
       clearTimeout(timer);
+      clearTimeout(rescanTimer);
       /* fs.watch's close() returns before the handle is released; the
        * "close" event follows (a folder removed right after would still
        * be open on Windows). */
