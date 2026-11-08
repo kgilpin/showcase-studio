@@ -463,7 +463,12 @@ export const TOOLS = [
       "the voice with your own Polly or ffmpeg calls.\n" +
       "Idempotent: clips are cached by voice, engine and text, so only changed captions call " +
       "Polly again. `force` makes every clip again. Needs the aws command signed in; without " +
-      "whisper the words file falls back to estimated word times (the notes say so).",
+      "whisper the words file falls back to estimated word times (the notes say so).\n" +
+      "To voice some scenes and not others — try a voice on one scene, or voice one scene of a " +
+      "showcase whose other scenes keep their own timing — pass `only`: it is written to " +
+      "meta.voiceover.scenes, so the automatic build keeps to those scenes too. The other " +
+      "scenes are silence on the track for as long as they show, and their durationMs is left " +
+      "alone. A showcase cut from a recording (meta.source) can't be voiced, in part or whole.",
     inputSchema: {
       type: "object",
       properties: {
@@ -471,6 +476,13 @@ export const TOOLS = [
         force: {
           type: "boolean",
           description: "Call Polly again for every caption, even the unchanged ones",
+        },
+        only: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Scene ids: read these scenes and no others, now and in every build after " +
+            "(written to meta.voiceover.scenes). Leave out to read what the showcase says.",
         },
       },
       required: ["showcaseId"],
@@ -1020,8 +1032,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json(
       context.buildJobs.start(name === "build_media" ? "build" : "voiceover", showcaseId, {
         force: args.force === true,
-        only:
-          name === "build_media" && Array.isArray(args.only) ? args.only.map(String) : undefined,
+        only: Array.isArray(args.only) ? args.only.map(String) : undefined,
         by: "claude",
       }),
     );

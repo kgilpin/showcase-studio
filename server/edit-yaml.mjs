@@ -161,6 +161,7 @@ const META_FIELDS = {
       leadMs: false,
       tailMs: false,
       holdMs: false,
+      scenes: false,
     },
     removable: true,
   },

@@ -42,6 +42,10 @@
  *       region: us-east-1     # optional: else the library's aws_region,
  *                             #   else the profile's region, else us-east-1
  *       track: voiceover-synth   # the asset key (default "voiceover")
+ *       scenes: [open, outro]    # optional: only these scenes are read
+ *                                #   (issue #48); the others keep their
+ *                                #   own timing and are silence on the
+ *                                #   track, so the pins still add up
  *
  * The voice and the engine are what the showcase sounds like, so they go
  * with it. The profile and region are only how to reach Polly; leave them
@@ -101,7 +105,9 @@ const fingerprint = (value) => createHash("sha256").update(JSON.stringify(value)
 
 /** Reads meta.voiceover and the captions it voices. Returns {ok,
  *  settings, scenes} or {ok: false, errors}; `voiced` is false when the
- *  showcase has no meta.voiceover at all. */
+ *  showcase has no meta.voiceover at all. Each scene carries `voiced`:
+ *  whether the voice reads it (every scene, unless meta.voiceover.scenes
+ *  names the ones it does). */
 export function readVoiceoverPlan(doc) {
   const raw = doc?.meta?.voiceover;
   if (raw == null) return { voiced: false, ok: false, errors: [] };
@@ -136,7 +142,22 @@ export function readVoiceoverPlan(doc) {
     }
     settings[key] = raw[key];
   }
-  const known = new Set([...Object.keys(VOICEOVER_DEFAULTS), "profile", "region"]);
+  /* The scenes the voice reads, when not all of them. */
+  let voicedIds;
+  if (raw.scenes != null) {
+    if (
+      !Array.isArray(raw.scenes) ||
+      raw.scenes.some((id) => typeof id !== "string" || !id.trim())
+    ) {
+      errors.push("meta.voiceover.scenes must be a list of scene ids — e.g. [open, outro]");
+    } else if (raw.scenes.length === 0) {
+      errors.push("meta.voiceover.scenes is empty — list the scenes to read, or leave it out");
+    } else {
+      voicedIds = new Set(raw.scenes.map((id) => id.trim()));
+      settings.scenes = [...voicedIds].sort();
+    }
+  }
+  const known = new Set([...Object.keys(VOICEOVER_DEFAULTS), "profile", "region", "scenes"]);
   for (const key of Object.keys(raw)) {
     if (!known.has(key)) {
       errors.push(`meta.voiceover.${key} is not a setting — use: ${[...known].join(", ")}`);
@@ -154,6 +175,7 @@ export function readVoiceoverPlan(doc) {
     id: scene?.id,
     sceneIndex,
     scene,
+    voiced: voicedIds ? voicedIds.has(scene?.id) : true,
     captions: (Array.isArray(scene?.captions) ? scene.captions : []).map((caption, index) => ({
       index,
       text: typeof caption?.text === "string" ? caption.text.trim() : "",
@@ -163,13 +185,23 @@ export function readVoiceoverPlan(doc) {
     if (typeof scene.id !== "string" || !scene.id) {
       errors.push(`Scene ${scene.sceneIndex + 1} has no id`);
     }
+    if (!scene.voiced) continue;
     for (const caption of scene.captions) {
       if (!caption.text)
         errors.push(`${scene.id} caption ${caption.index + 1} has no text to read`);
     }
   }
-  if (!scenes.some((scene) => scene.captions.length > 0)) {
-    errors.push("No captions to read — the voiceover is the captions, read aloud");
+  for (const id of voicedIds ?? []) {
+    if (!scenes.some((scene) => scene.id === id)) {
+      errors.push(`meta.voiceover.scenes names "${id}", and no scene has that id`);
+    }
+  }
+  if (!scenes.some((scene) => scene.voiced && scene.captions.length > 0)) {
+    errors.push(
+      voicedIds
+        ? "None of the scenes meta.voiceover.scenes names has a caption to read"
+        : "No captions to read — the voiceover is the captions, read aloud",
+    );
   }
   return errors.length > 0
     ? { voiced: true, ok: false, errors }
@@ -180,6 +212,18 @@ export function readVoiceoverPlan(doc) {
  *  player would derive for it. */
 const silentSceneMs = (scene, pace) =>
   resolveSceneTiming({ ...scene, captions: [] }, pace ?? undefined).durationMs;
+
+/** Whether the build has clips to lay down for a scene: the voice reads
+ *  it and it has captions. Otherwise the scene is silence on the track
+ *  for as long as it shows. */
+const spoken = (scene) => scene.voiced && scene.captions.length > 0;
+
+/** The silence a scene the voice doesn't read gets: how long the player
+ *  shows it, captions and all — its own pins, or the reading model. */
+const sceneSilenceMs = (scene, pace) =>
+  scene.voiced
+    ? silentSceneMs(scene.scene, pace)
+    : resolveSceneTiming(scene.scene, pace ?? undefined).durationMs;
 
 /* ---------- the windows ---------- */
 
@@ -590,11 +634,12 @@ export function voiceInputsPrint(settings, scenes, pace) {
       leadMs: settings.leadMs,
       tailMs: settings.tailMs,
       holdMs: settings.holdMs,
+      scenes: settings.scenes ?? null,
     },
     items: scenes.map((scene) =>
-      scene.captions.length === 0
-        ? { id: scene.id, silenceMs: silentSceneMs(scene.scene, pace) }
-        : { id: scene.id, keys: scene.captions.map((c) => captionKey(settings, c.text)) },
+      spoken(scene)
+        ? { id: scene.id, keys: scene.captions.map((c) => captionKey(settings, c.text)) }
+        : { id: scene.id, silenceMs: sceneSilenceMs(scene, pace) },
     ),
   });
 }
@@ -646,6 +691,7 @@ export function voiceoverStatus({ showcasesDir, showcaseId, aws, env }) {
   const manifest = readManifest(showcasesDir, showcaseId);
   const stale = [];
   const unvoiced = scenes
+    .filter(spoken)
     .flatMap((scene) => scene.captions.map((c) => ({ scene, caption: c })))
     .filter(
       ({ caption }) =>
@@ -689,7 +735,9 @@ const checkAborted = (signal) => {
  *  `synthesize` and `transcribe` are the Polly and whisper steps,
  *  replaceable for tests; `transcribe(file)` resolves {segments: [{words}]}
  *  or rejects when there is no whisper (null skips hearing altogether). `force` calls Polly again for
- *  every caption.
+ *  every caption. `only` names the scenes to read: it is written to
+ *  meta.voiceover.scenes first, so the automatic build keeps to the same
+ *  scenes afterwards instead of voicing the rest.
  *
  *  Returns {ok, built, unchanged, synthesized, reused, notes, pins,
  *  totalMs, version} — or {ok: false, error}, with nothing written. */
@@ -697,6 +745,7 @@ export async function buildVoiceover({
   showcasesDir,
   showcaseId,
   force = false,
+  only,
   onProgress = () => {},
   signal,
   beforeWrite,
@@ -710,12 +759,37 @@ export async function buildVoiceover({
   const yamlPath = path.join(folder, "showcase.yaml");
   if (!existsSync(yamlPath)) return { ok: false, error: `No showcase named "${showcaseId}"` };
 
-  const yamlText = readFileSync(yamlPath, "utf8");
+  let yamlText = readFileSync(yamlPath, "utf8");
   let doc;
   try {
     doc = parse(yamlText);
   } catch (error) {
     return { ok: false, error: `showcase.yaml doesn't parse: ${String(error?.message ?? error)}` };
+  }
+  if (Array.isArray(only) && only.length > 0 && doc?.meta?.voiceover != null) {
+    /* The scenes to read go into the showcase, through the ordinary
+     * edit path, before anything is built from them. */
+    const scenes = [...new Set(only.map((id) => String(id).trim()).filter(Boolean))];
+    if (JSON.stringify(doc.meta.voiceover.scenes ?? null) !== JSON.stringify(scenes)) {
+      const written = applySceneEditsToFolder(
+        showcasesDir,
+        {
+          showcaseId,
+          baseHash: contentHash(yamlText),
+          edits: [
+            {
+              field: "meta.set",
+              name: "voiceover",
+              value: { ...doc.meta.voiceover, scenes },
+            },
+          ],
+        },
+        { beforeWrite },
+      );
+      if (!written.ok) return { ok: false, error: written.error };
+      yamlText = readFileSync(yamlPath, "utf8");
+      doc = parse(yamlText);
+    }
   }
   const plan = readVoiceoverPlan(doc);
   if (!plan.voiced) {
@@ -736,11 +810,11 @@ export async function buildVoiceover({
   const assetsDir = path.join(folder, "assets");
   mkdirSync(assetsDir, { recursive: true });
 
-  /* 1. One clip per caption, from the cache when its text, voice and
-   *    engine are unchanged. */
-  const captions = scenes.flatMap((scene) =>
-    scene.captions.map((caption) => ({ sceneId: scene.id, ...caption })),
-  );
+  /* 1. One clip per caption the voice reads, from the cache when its
+   *    text, voice and engine are unchanged. */
+  const captions = scenes
+    .filter(spoken)
+    .flatMap((scene) => scene.captions.map((caption) => ({ sceneId: scene.id, ...caption })));
   const notes = [];
   let synthesized = 0;
   let reused = 0;
@@ -783,9 +857,9 @@ export async function buildVoiceover({
   /* 2. The windows, and the track built from them. */
   const byScene = new Map(captions.map((c) => [`${c.sceneId}#${c.index}`, c]));
   const items = scenes.flatMap((scene) =>
-    scene.captions.length === 0
-      ? [{ sceneId: scene.id, silenceMs: silentSceneMs(scene.scene, doc.meta?.pace) }]
-      : scene.captions.map((c) => byScene.get(`${scene.id}#${c.index}`)),
+    spoken(scene)
+      ? scene.captions.map((c) => byScene.get(`${scene.id}#${c.index}`))
+      : [{ sceneId: scene.id, silenceMs: sceneSilenceMs(scene, doc.meta?.pace) }],
   );
   const { windows, totalMs } = layOutWindows(items, settings);
 
@@ -920,10 +994,13 @@ export async function buildVoiceover({
 
   /* 4. The pins, through the ordinary edit path. A scene is pinned too
    *    when the player would otherwise time it differently from its
-   *    windows — support text, or the floor for short slides. */
+   *    windows — support text, or the floor for short slides. A scene
+   *    the voice doesn't read keeps whatever timing it has: its silence
+   *    on the track was measured from that. */
   const edits = [];
   const pins = [];
   for (const scene of scenes) {
+    if (!scene.voiced) continue;
     const own = windows.filter((w) => w.sceneId === scene.id);
     const sum = own.reduce((n, w) => n + w.durationMs, 0);
     for (const w of own) {
