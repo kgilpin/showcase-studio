@@ -19,7 +19,7 @@ import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { createExportRecords } from "./export-records.mjs";
 import { contentHash } from "./scene-edit.mjs";
-import { createStudio, isLocalRequest } from "./studio-server.mjs";
+import { changesByShowcase, createStudio, isLocalRequest } from "./studio-server.mjs";
 
 const cleanups = [];
 afterEach(async () => {
@@ -422,7 +422,34 @@ scenes:
     );
   });
 
-  it("sends info when a page connects, and reload when files change outside the studio", async () => {
+  describe("changesByShowcase", () => {
+    it("groups a burst of changed files by showcase folder, as paths inside it", () => {
+      expect(
+        changesByShowcase("/lib", [
+          "/lib/nova/assets/voiceover.m4a",
+          "/lib/nova/showcase.yaml",
+          "/lib/orion/theme.yaml",
+        ]),
+      ).toEqual(
+        new Map([
+          ["nova", ["assets/voiceover.m4a", "showcase.yaml"]],
+          ["orion", ["theme.yaml"]],
+        ]),
+      );
+    });
+
+    it("asks for a reload when the library itself changed", () => {
+      /* A showcase folder appearing or going. */
+      expect(changesByShowcase("/lib", ["/lib/nova"])).toBeNull();
+      /* A file at the library's root. */
+      expect(changesByShowcase("/lib", ["/lib/showcase_settings.yaml"])).toBeNull();
+      /* A change the watcher couldn't name, among others it could. */
+      expect(changesByShowcase("/lib", ["/lib/nova/showcase.yaml", null])).toBeNull();
+      expect(changesByShowcase("/lib", ["/elsewhere/x.yaml"])).toBeNull();
+    });
+  });
+
+  it("sends info when a page connects, names the showcase when its files change outside the studio, and reload when the library does", async () => {
     const { url, library } = await startStudio({ features: { watch: true } });
     const controller = new AbortController();
     cleanups.push(() => controller.abort());
@@ -461,14 +488,26 @@ scenes:
      * suite running, that moment can outlast the round trip above. It
      * costs a user nothing (a file changed in the studio's first
      * milliseconds), but a single write here is a race, so keep
-     * changing the file until a reload comes back. */
+     * changing the file until the event comes back. */
+    let changed = false;
+    for (let i = 0; !changed && i < 20; i++) {
+      writeFileSync(path.join(library, "nova", "showcase.yaml"), `${SHOWCASE_YAML}\n# ${i}\n`);
+      changed = await waitFor("event: showcase-changed", 500);
+    }
+    expect(changed).toBe(true);
+    /* The page re-reads that one showcase in place: no reload. */
+    const event = /event: showcase-changed\ndata: (.*)\n/.exec(received);
+    expect(JSON.parse(event[1])).toEqual({ showcaseId: "nova", files: ["showcase.yaml"] });
+    expect(received).not.toContain("event: reload");
+
+    /* A file at the library's root is the library changing: reload. */
     let reloaded = false;
     for (let i = 0; !reloaded && i < 20; i++) {
-      writeFileSync(path.join(library, "nova", "showcase.yaml"), `${SHOWCASE_YAML}\n# ${i}\n`);
+      writeFileSync(path.join(library, "notes.txt"), `note ${i}\n`);
       reloaded = await waitFor("event: reload", 500);
     }
     expect(reloaded).toBe(true);
-  }, 15_000);
+  }, 20_000);
 
   it("answers MCP over HTTP: the tool list and studio_info", async () => {
     const { url, library } = await startStudio();

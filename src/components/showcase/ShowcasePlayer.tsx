@@ -51,11 +51,12 @@ export function ShowcasePlayer({
 }) {
   const scenes = showcase.scenes;
   useMediaPreload(scenes);
-  /* Live reload (the studio watcher reloads the page on every file save)
-   * must not lose the viewer's place: the slide AND the view mode are
-   * saved in beforeunload — which only fires on real page reloads, never
-   * on in-app navigation — and consumed once here, so opening a showcase
-   * fresh still starts at the top in TikTok view. */
+  /* A change to one showcase updates this page in place
+   * (src/lib/live-updates.ts), but a change to the library still reloads
+   * it, and that must not lose the viewer's place: the slide AND the view
+   * mode are saved in beforeunload — which only fires on real page
+   * reloads, never on in-app navigation — and consumed once here, so
+   * opening a showcase fresh still starts at the top in TikTok view. */
   const [resume] = useState<{ id: string; index?: number; view?: string } | null>(() => {
     if (typeof window === "undefined") return null;
     const saved = sessionStorage.getItem("player-resume");

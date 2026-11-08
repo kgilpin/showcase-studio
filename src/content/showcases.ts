@@ -1108,11 +1108,16 @@ function buildShowcase(
   };
 }
 
+/* The source the library was loaded from, for re-reading one showcase
+ * (refreshShowcase, below). */
+let currentSource: ShowcaseSource | null = null;
+
 /** Loads a library from a source, replacing whatever was loaded before.
  *  The app calls it once, below; it is exported so tests can load a small
  *  library from a fake source. */
 export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]> {
   const data = await source.load();
+  currentSource = source;
   rawDocs.clear();
   rawTexts.clear();
   themeDocs.clear();
@@ -1220,15 +1225,26 @@ export function getShowcase(id: string): Showcase | undefined {
 }
 
 /* -------------------------------------------------------------
- * IN-APP EDITING — the surgical update path.
+ * UPDATING IN PLACE — the surgical update path.
  *
- * External file changes still arrive as a full page reload (the studio
- * watcher). In-app edits must not: they are known patches, so they are
- * applied straight to the model here — mutate the raw doc, rebuild just
- * that showcase, notify subscribers — while the desktop shell writes the
- * same edit to showcase.yaml and swallows the watcher echo. Mounted
- * components re-render through useShowcase; nothing reloads, nothing
- * flashes.
+ * Nothing that changes one showcase reloads the page. Two ways in, both
+ * ending in rebuildShowcase, which rebuilds just that showcase and
+ * notifies subscribers; mounted components re-render through
+ * useShowcase, and keep their state — the slide, the view, a caption
+ * being typed.
+ *
+ *   In-app edits        known patches, applied straight to the raw doc
+ *                       here (applySceneEditLocal) while the studio
+ *                       writes the same edit to showcase.yaml and
+ *                       swallows the watcher's echo.
+ *   Changes on disk     the studio's build (a new voiceover, new
+ *                       durations), Claude's edit, a hand edit: the
+ *                       studio names the showcase (the "showcase-changed"
+ *                       event) and refreshShowcase re-reads its files
+ *                       from the source and swaps them in.
+ *
+ * Only a change to the library itself — a showcase added or removed, a
+ * library setting — still reloads the page (src/lib/live-updates.ts).
  * ------------------------------------------------------------- */
 
 let editRevision = 0;
@@ -1241,10 +1257,31 @@ function subscribeShowcases(listener: () => void): () => void {
 
 const readEditRevision = () => editRevision;
 
-/** The showcase, re-read whenever an in-app edit rebuilds it. */
+/* Tells every subscribed component that the library changed: a showcase
+ * rebuilt, an error recorded or cleared. */
+function notifyShowcases(): void {
+  editRevision += 1;
+  for (const listener of editListeners) listener();
+}
+
+/** The showcase, re-read whenever it is rebuilt — by an in-app edit or
+ *  by a change on disk. */
 export function useShowcase(id: string): Showcase | undefined {
   useSyncExternalStore(subscribeShowcases, readEditRevision, readEditRevision);
   return getShowcase(id);
+}
+
+/** The whole library — every showcase, the ones that failed to load, and
+ *  the warnings — re-read whenever any of it changes. For the pages that
+ *  show the library rather than one showcase: the home page's cards and
+ *  the diagnostics tray. */
+export function useLibrary(): {
+  showcases: Showcase[];
+  errors: ShowcaseError[];
+  warnings: ShowcaseWarning[];
+} {
+  useSyncExternalStore(subscribeShowcases, readEditRevision, readEditRevision);
+  return { showcases, errors: showcaseErrors, warnings: showcaseWarnings };
 }
 
 function rebuildShowcase(showcaseId: string): boolean {
@@ -1257,13 +1294,127 @@ function rebuildShowcase(showcaseId: string): boolean {
     );
     showcases = showcases.map((showcase) => (showcase.id === showcaseId ? built : showcase));
     showcaseWarnings = warnings;
-    editRevision += 1;
-    for (const listener of editListeners) listener();
+    notifyShowcases();
     return true;
   } catch (error) {
     console.error(`Showcase "${showcaseId}" failed to rebuild after an edit:`, error);
     return false;
   }
+}
+
+/** What re-reading a showcase from its source came to:
+ *    updated      its files were read again and the model rebuilt in place
+ *    unchanged    the page already showed exactly these files
+ *    added        the library has a showcase this page never loaded
+ *    removed      the library no longer has a showcase this page shows
+ *    ignored      neither the library nor the page has it
+ *    unsupported  the source can't re-read one showcase (the bundle)
+ *  "added", "removed" and "unsupported" are for a page reload. */
+export type RefreshOutcome =
+  "updated" | "unchanged" | "added" | "removed" | "ignored" | "unsupported";
+
+/** Re-reads one showcase's files from the source — showcase.yaml, the
+ *  theme, the asset list, the word timings — and rebuilds it in place,
+ *  the way an in-app edit does, so the page keeps its state. The studio
+ *  calls for it whenever the showcase's folder changed on disk. A
+ *  showcase.yaml that no longer parses leaves the model as it was and
+ *  records the error: the page keeps showing the last good version. */
+export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcome> {
+  if (!currentSource?.loadOne) return "unsupported";
+  const had = rawDocs.has(showcaseId);
+  const entry = await currentSource.loadOne(showcaseId);
+  if (!entry) return had ? "removed" : "ignored";
+  if (!had) return "added";
+  if (
+    rawTexts.get(showcaseId) === entry.yaml &&
+    rawThemeTexts.get(showcaseId) === entry.themeYaml &&
+    sameUrls(assetsByShowcase.get(showcaseId), entry.assets) &&
+    sameUrls(dataGraphicsByShowcase.get(showcaseId), entry.graphics) &&
+    sameUrls(wordTimingsByShowcase.get(showcaseId), entry.words)
+  ) {
+    return "unchanged";
+  }
+  let doc: RawDoc;
+  let theme: RawTheme | undefined;
+  try {
+    doc = parse(entry.yaml) as RawDoc;
+    if (entry.themeYaml != null) {
+      theme = (parse(entry.themeYaml) ?? {}) as RawTheme;
+      validateThemeDoc(showcaseId, theme);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Showcase "${showcaseId}" changed on disk but failed to load:`, error);
+    showcaseErrors = [
+      ...showcaseErrors.filter((item) => item.id !== showcaseId),
+      { id: showcaseId, message },
+    ];
+    notifyShowcases();
+    return "unchanged";
+  }
+  const before = {
+    doc: rawDocs.get(showcaseId),
+    text: rawTexts.get(showcaseId),
+    theme: themeDocs.get(showcaseId),
+    themeText: rawThemeTexts.get(showcaseId),
+    assets: assetsByShowcase.get(showcaseId),
+    words: wordTimingsByShowcase.get(showcaseId),
+    graphics: dataGraphicsByShowcase.get(showcaseId),
+  };
+  rawDocs.set(showcaseId, doc);
+  rawTexts.set(showcaseId, entry.yaml);
+  if (theme) {
+    themeDocs.set(showcaseId, theme);
+    rawThemeTexts.set(showcaseId, entry.themeYaml!);
+  } else {
+    themeDocs.delete(showcaseId);
+    rawThemeTexts.delete(showcaseId);
+  }
+  /* Themes resolve through `extends`, so every cached one may depend on
+   * this one; they rebuild as their showcases do. */
+  resolvedThemes.clear();
+  themeWarnings.clear();
+  assetsByShowcase.set(showcaseId, entry.assets);
+  wordTimingsByShowcase.set(showcaseId, entry.words);
+  dataGraphicsByShowcase.set(showcaseId, entry.graphics);
+  if (rebuildShowcase(showcaseId)) {
+    if (showcaseErrors.some((item) => item.id === showcaseId)) {
+      showcaseErrors = showcaseErrors.filter((item) => item.id !== showcaseId);
+      notifyShowcases();
+    }
+    return "updated";
+  }
+  /* The new files don't build: put the old ones back, so the page keeps
+   * what it had and the next in-app edit is refused as stale rather
+   * than written onto a file this page never showed. */
+  if (before.doc) rawDocs.set(showcaseId, before.doc);
+  if (before.text != null) rawTexts.set(showcaseId, before.text);
+  if (before.theme) themeDocs.set(showcaseId, before.theme);
+  else themeDocs.delete(showcaseId);
+  if (before.themeText != null) rawThemeTexts.set(showcaseId, before.themeText);
+  else rawThemeTexts.delete(showcaseId);
+  if (before.assets) assetsByShowcase.set(showcaseId, before.assets);
+  if (before.words) wordTimingsByShowcase.set(showcaseId, before.words);
+  if (before.graphics) dataGraphicsByShowcase.set(showcaseId, before.graphics);
+  resolvedThemes.clear();
+  themeWarnings.clear();
+  return "unchanged";
+}
+
+/** Whether two maps hold the same keys with the same URL (or text). */
+function sameUrls(
+  a: Map<string, ShowcaseAsset | string> | undefined,
+  b: Map<string, ShowcaseAsset | string>,
+): boolean {
+  if (!a || a.size !== b.size) return false;
+  for (const [key, value] of a) {
+    const other = b.get(key);
+    if (other == null) return false;
+    const url = typeof value === "string" ? value : value.url;
+    const otherUrl = typeof other === "string" ? other : other.url;
+    if (url !== otherUrl) return false;
+  }
+  return true;
 }
 
 /** The YAML text this page loaded for a showcase — the base its first

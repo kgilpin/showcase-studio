@@ -60,6 +60,23 @@ describe("showcaseIndex", () => {
     expect(alpha.graphics.sort()).toEqual(["badge.tsx", "broken.tsx"]);
   });
 
+  it("gives every asset and graphic a version — its modified time — for the page's URLs", () => {
+    const alpha = showcaseIndex(dir).showcases[0];
+    expect(Object.keys(alpha.versions).sort()).toEqual([
+      "assets/notes.bin",
+      "assets/shot.png",
+      "assets/take.mov",
+      "assets/voice.m4a",
+      "assets/voice.words.json",
+      "assets/voiceover.mp3",
+      "graphics/badge.tsx",
+      "graphics/broken.tsx",
+    ]);
+    expect(alpha.versions["assets/voice.m4a"]).toBe(
+      Math.round(statSync(path.join(dir, "alpha", "assets", "voice.m4a")).mtimeMs),
+    );
+  });
+
   it("gives a bare showcase empty collections", () => {
     const beta = showcaseIndex(dir).showcases[1];
     expect(beta).toEqual({
@@ -68,6 +85,7 @@ describe("showcaseIndex", () => {
       assets: [],
       graphics: [],
       modifiedMs: statSync(path.join(dir, "beta", "showcase.yaml")).mtimeMs,
+      versions: {},
     });
   });
 });

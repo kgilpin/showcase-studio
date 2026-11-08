@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  getShowcase,
   loadFromSource,
+  refreshShowcase,
+  showcaseErrors,
+  showcaseYamlText,
   showcaseAssets,
   showcasesReady,
   showcaseWarnings,
@@ -588,5 +592,80 @@ scenes:
     expect(sceneWarnings.filter((message) => message.includes("bogus"))).toHaveLength(1);
     expect(sceneWarnings.filter((message) => message.includes("high"))).toHaveLength(1);
     expect(warningsFor("").filter((message) => message.includes("sideways"))).toHaveLength(1);
+  });
+});
+
+/* refreshShowcase: a showcase whose files changed on disk is re-read
+ * from the source and rebuilt in place (src/lib/live-updates.ts drives
+ * it from the studio's "showcase-changed" event). */
+describe("re-reading a showcase changed on disk", () => {
+  const yaml = (durationMs: number) => `
+meta:
+  title: Live
+  description: A voiced draft
+  soundtrack: { src: voiceover, volume: 1, sync: true }
+scenes:
+  - id: one
+    theme: statement
+    durationMs: ${durationMs}
+    captions:
+      - text: Hello.
+`;
+  const source = (entries: Map<string, ShowcaseData>) => ({
+    load: async () => [...entries.values()],
+    loadOne: async (id: string) => entries.get(id) ?? null,
+  });
+  const withVersion = (entry: ShowcaseData, v: number): ShowcaseData => ({
+    ...entry,
+    assets: new Map([...entry.assets].map(([key, a]) => [key, { ...a, url: `${a.url}?v=${v}` }])),
+  });
+
+  it("swaps in the new durations and media URLs — the build's output — in place", async () => {
+    const entries = new Map([["live", data("live", yaml(1000), ["voiceover.m4a"])]]);
+    const [before] = await loadFromSource(source(entries));
+    expect(before?.scenes[0]?.durationMs).toBe(1000);
+    /* The voiceover built again: new pins, the same file under a new URL. */
+    entries.set("live", withVersion(data("live", yaml(2500), ["voiceover.m4a"]), 2));
+    expect(await refreshShowcase("live")).toBe("updated");
+    const after = getShowcase("live");
+    expect(after?.scenes[0]?.durationMs).toBe(2500);
+    expect(after?.soundtrack?.src).toBe("/data/live/assets/voiceover.m4a?v=2");
+    /* The next in-app edit is made against the text just read. */
+    expect(showcaseYamlText("live")).toBe(yaml(2500));
+  });
+
+  it("reports the same files as unchanged", async () => {
+    const entries = new Map([["live", data("live", yaml(1000), ["voiceover.m4a"])]]);
+    await loadFromSource(source(entries));
+    entries.set("live", data("live", yaml(1000), ["voiceover.m4a"]));
+    expect(await refreshShowcase("live")).toBe("unchanged");
+  });
+
+  it("keeps the last good version when the new showcase.yaml doesn't parse", async () => {
+    const entries = new Map([["live", data("live", yaml(1000), ["voiceover.m4a"])]]);
+    await loadFromSource(source(entries));
+    entries.set("live", data("live", "meta: [unclosed", ["voiceover.m4a"]));
+    expect(await refreshShowcase("live")).toBe("unchanged");
+    expect(getShowcase("live")?.scenes[0]?.durationMs).toBe(1000);
+    expect(showcaseErrors.map((e) => e.id)).toContain("live");
+    /* And forgets the error once the file reads again. */
+    entries.set("live", data("live", yaml(1200), ["voiceover.m4a"]));
+    expect(await refreshShowcase("live")).toBe("updated");
+    expect(showcaseErrors.map((e) => e.id)).not.toContain("live");
+  });
+
+  it("says when the library gained or lost a showcase, or never had it", async () => {
+    const entries = new Map([["live", data("live", yaml(1000), [])]]);
+    await loadFromSource(source(entries));
+    entries.set("newcomer", data("newcomer", yaml(1000), []));
+    expect(await refreshShowcase("newcomer")).toBe("added");
+    entries.delete("live");
+    expect(await refreshShowcase("live")).toBe("removed");
+    expect(await refreshShowcase("nobody")).toBe("ignored");
+  });
+
+  it("is unsupported for a source that can't re-read one showcase", async () => {
+    await loadFromSource({ load: async () => [data("live", yaml(1000), [])] });
+    expect(await refreshShowcase("live")).toBe("unsupported");
   });
 });

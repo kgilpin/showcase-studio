@@ -15,9 +15,9 @@
  *                               commit — pending, running, done, failed —
  *                               for the tab bar's activity slot
  *                               (server/actions-log.mjs)
- *   GET  /studio/api/events     live events (server-sent events): reload,
- *                               info, export, build, action, terminal-data,
- *                               terminal-exit
+ *   GET  /studio/api/events     live events (server-sent events):
+ *                               showcase-changed, reload, info, export,
+ *                               build, action, terminal-data, terminal-exit
  *   GET  /studio/api/export-video?showcase=<id>&id=<record id>
  *                               a recorded export's video, for the Share
  *                               page's preview (byte ranges, so it seeks)
@@ -34,8 +34,10 @@
  * actions write files and start terminals.
  *
  * The studio also keeps its library folder scaffolded (README, CLAUDE.md,
- * .studio/GUIDE.md, .studio/mcp.json), and watches it and tells pages to
- * reload when files change outside the studio. callTool runs the MCP tools
+ * .studio/GUIDE.md, .studio/mcp.json), and watches it: when files change
+ * outside the studio — a build's new voiceover, Claude's edit, a hand
+ * edit — it names the showcase to the pages, which re-read it in place;
+ * only a change to the library itself reloads them. callTool runs the MCP tools
  * in-process, for the studio Claude Code starts over stdio
  * (scripts/studio-mcp.mjs). */
 import {
@@ -269,6 +271,30 @@ function locateReferences(text, found) {
  *   commitDelayMs how long a showcase must stay unchanged before the
  *                 studio commits it (server/showcase-history.mjs)
  */
+
+/** Groups a burst of changed files by the showcase folder each is in:
+ *  a Map of showcase id → the files' paths inside that folder. Pages
+ *  then re-read just those showcases in place (the "showcase-changed"
+ *  event) instead of reloading. Returns null when the burst holds
+ *  anything a page can't take in that way — a file at the library's
+ *  root (showcase_settings.yaml), a showcase folder itself appearing or
+ *  going, or a change the watcher couldn't name — which calls for a
+ *  reload. */
+export function changesByShowcase(showcasesDir, changed) {
+  const byShowcase = new Map();
+  for (const file of changed) {
+    if (file == null) return null;
+    const relative = path.relative(showcasesDir, file);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+    const [showcaseId, ...rest] = relative.split(path.sep);
+    if (!showcaseId || rest.length === 0 || showcaseId.startsWith(".")) return null;
+    const files = byShowcase.get(showcaseId) ?? [];
+    files.push(rest.join("/"));
+    byShowcase.set(showcaseId, files);
+  }
+  return byShowcase;
+}
+
 export function createStudio({
   showcasesDir: initialDir,
   lock: initialLock = null,
@@ -487,10 +513,17 @@ add notes specific to this library below, and the studio won't touch them.
         autoBuild?.noteChange(filename);
         clearTimeout(reloadTimer);
         reloadTimer = setTimeout(() => {
-          const changed = [...pending];
+          const changed = [...pending].filter((file) => !(file != null && isSelfWriteEcho(file)));
           pending.clear();
-          if (changed.every((file) => file != null && isSelfWriteEcho(file))) return;
-          emit("reload", {});
+          if (changed.length === 0) return;
+          const byShowcase = changesByShowcase(showcasesDir, changed);
+          if (!byShowcase) {
+            emit("reload", {});
+            return;
+          }
+          for (const [showcaseId, files] of byShowcase) {
+            emit("showcase-changed", { showcaseId, files });
+          }
         }, 250);
       });
     } catch (error) {

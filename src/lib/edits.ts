@@ -11,9 +11,11 @@
  *
  * Undo is per-showcase and session-scoped (Cmd/Ctrl+Z, Shift for redo)
  * — deliberately not git, so the user still chooses their own commit
- * points. External changes (the agent, an editor, git) reload the whole
- * page, which clears these stacks — undo honestly means "undo my in-app
- * edits since the last outside change". */
+ * points. A change on disk (the studio's build, the agent, an editor)
+ * re-reads the showcase in place (src/lib/live-updates.ts) and leaves
+ * these stacks alone: an undo after it patches the current model by
+ * scene and field, and an entry that no longer fits is refused like any
+ * edit that can't be applied. A page reload clears them. */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   applySceneEditLocal,
@@ -64,12 +66,32 @@ export function useEditFailures(): readonly EditFailure[] {
  * underneath the page (an agent or hand edit landing in the same
  * instant). The first edit to a file hashes the text the page loaded;
  * each successful write returns the new file's hash, which becomes the
- * next edit's base for that file. A page reload resets everything. */
+ * next edit's base for that file. A page reload resets everything; so
+ * does re-reading the showcase from disk (forgetEditBase), after which
+ * the first edit hashes the text just read. */
 const baseHashes = new Map<string, string>();
 
 /** Which file an edit patches — the key of its stale-write protection. */
 function editTarget(showcaseId: string, edit: SceneEdit): string {
   return `${showcaseId}/${edit.field === "theme" ? "theme" : "showcase"}`;
+}
+
+/** Drops what this page knows about a showcase's files — called when
+ *  they were re-read from disk, so the next edit is made against the
+ *  text the page now shows, not the hash of a write before it. */
+export function forgetEditBase(showcaseId: string): void {
+  baseHashes.delete(`${showcaseId}/showcase`);
+  baseHashes.delete(`${showcaseId}/theme`);
+}
+
+/* Edits in flight: applied to the model, not yet written. A re-read of
+ * the showcase from disk waits for them, or it could fetch a file the
+ * page's newest edit hasn't reached and rebuild the model without it. */
+const inFlight = new Set<Promise<unknown>>();
+
+/** Resolves once no edit started before the call is still being written. */
+export async function editsSettled(): Promise<void> {
+  while (inFlight.size > 0) await Promise.allSettled([...inFlight]);
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -116,7 +138,9 @@ async function apply(
     reportEditFailure({ showcaseId, sceneId, message: "the edit could not be applied" });
     return undefined;
   }
-  const result = await bridge.edit({ showcaseId, sceneId, baseHash, ...edit });
+  const write = bridge.edit({ showcaseId, sceneId, baseHash, ...edit });
+  inFlight.add(write);
+  const result = await write.finally(() => inFlight.delete(write));
   if (!result.ok) {
     const message = result.error ?? "unknown error";
     console.error(`Scene edit failed: ${message}`);

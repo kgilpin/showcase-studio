@@ -14,6 +14,9 @@
  *                  VITE_SHOWCASES_URL (the vite dev server serves
  *                  /showcase-data in this shape — see vite.config.ts); a
  *                  desktop shell can point it at a user folder instead.
+ *                  It can also re-read one showcase (loadOne), which is
+ *                  how a change on disk reaches the page without a
+ *                  reload (src/lib/live-updates.ts).
  *
  * TSX graphics travel both ways: the bundled source compiles repo
  * graphics into the app, and the HTTP source lists folder graphics that
@@ -47,7 +50,14 @@ export type ShowcaseData = {
   modifiedMs?: number | undefined;
 };
 
-export type ShowcaseSource = { load(): Promise<ShowcaseData[]> };
+export type ShowcaseSource = {
+  /** Every showcase in the library. */
+  load(): Promise<ShowcaseData[]>;
+  /** One showcase, re-read after its files changed on disk (the
+   *  studio's "showcase-changed" event); null when the library no longer
+   *  has it. Only the HTTP source has it: the bundle can't change. */
+  loadOne?(id: string): Promise<ShowcaseData | null>;
+};
 
 /** Builds the key→asset map. Every file is reachable by its full name;
  *  the bare name (without extension) is a convenience key. When two files
@@ -133,15 +143,18 @@ export const bundledSource: ShowcaseSource = {
   },
 };
 
-type ShowcaseIndex = {
-  showcases: {
-    id: string;
-    hasTheme: boolean;
-    assets: string[];
-    graphics?: string[];
-    modifiedMs?: number;
-  }[];
+type ShowcaseIndexEntry = {
+  id: string;
+  hasTheme: boolean;
+  assets: string[];
+  graphics?: string[];
+  modifiedMs?: number;
+  /** Each asset's and graphic's modified time, keyed by its path in the
+   *  showcase folder ("assets/voiceover.m4a"); see showcase-data.mjs. */
+  versions?: Record<string, number>;
 };
+
+type ShowcaseIndex = { showcases: ShowcaseIndexEntry[] };
 
 export function httpSource(base: string): ShowcaseSource {
   const text = async (url: string) => {
@@ -149,44 +162,61 @@ export function httpSource(base: string): ShowcaseSource {
     if (!response.ok) throw new Error(`Failed to load ${url} (${response.status})`);
     return response.text();
   };
+  /* A file's URL carries its modified time, so a file the studio
+   * rebuilds under the same name — the voiceover after a caption edit, a
+   * clip after a re-cut — is a new URL: the audio element and the
+   * graphics module cache fetch it instead of keeping the old one. The
+   * server ignores the query. */
+  const versioned = (url: string, versions: Record<string, number> | undefined, file: string) =>
+    versions?.[file] != null ? `${url}?v=${versions[file]}` : url;
+  const load = async ({
+    id,
+    hasTheme,
+    assets,
+    graphics,
+    modifiedMs,
+    versions,
+  }: ShowcaseIndexEntry): Promise<ShowcaseData> => ({
+    id,
+    modifiedMs,
+    yaml: await text(`${base}/${id}/showcase.yaml`),
+    themeYaml: hasTheme ? await text(`${base}/${id}/theme.yaml`) : undefined,
+    assets: assetMap(
+      id,
+      assets.map((name) => ({
+        name,
+        url: versioned(`${base}/${id}/assets/${name}`, versions, `assets/${name}`),
+        file: `${id}/assets/${name}`,
+      })),
+    ),
+    words: new Map(
+      await Promise.all(
+        assets
+          .filter((name) => name.endsWith(".words.json"))
+          .map(
+            async (name) =>
+              [
+                name.replace(/\.words\.json$/, ""),
+                await text(versioned(`${base}/${id}/assets/${name}`, versions, `assets/${name}`)),
+              ] as const,
+          ),
+      ),
+    ),
+    graphics: new Map(
+      (graphics ?? []).map((name) => {
+        const key = name.replace(/\.[^.]+$/, "");
+        return [key, versioned(`${base}/${id}/graphics/${key}.js`, versions, `graphics/${name}`)];
+      }),
+    ),
+  });
+  const index = async () => JSON.parse(await text(`${base}/index.json`)) as ShowcaseIndex;
   return {
     async load() {
-      const index = JSON.parse(await text(`${base}/index.json`)) as ShowcaseIndex;
-      return Promise.all(
-        index.showcases.map(async ({ id, hasTheme, assets, graphics, modifiedMs }) => ({
-          id,
-          modifiedMs,
-          yaml: await text(`${base}/${id}/showcase.yaml`),
-          themeYaml: hasTheme ? await text(`${base}/${id}/theme.yaml`) : undefined,
-          assets: assetMap(
-            id,
-            assets.map((name) => ({
-              name,
-              url: `${base}/${id}/assets/${name}`,
-              file: `${id}/assets/${name}`,
-            })),
-          ),
-          words: new Map(
-            await Promise.all(
-              assets
-                .filter((name) => name.endsWith(".words.json"))
-                .map(
-                  async (name) =>
-                    [
-                      name.replace(/\.words\.json$/, ""),
-                      await text(`${base}/${id}/assets/${name}`),
-                    ] as const,
-                ),
-            ),
-          ),
-          graphics: new Map(
-            (graphics ?? []).map((name) => {
-              const key = name.replace(/\.[^.]+$/, "");
-              return [key, `${base}/${id}/graphics/${key}.js`];
-            }),
-          ),
-        })),
-      );
+      return Promise.all((await index()).showcases.map(load));
+    },
+    async loadOne(id) {
+      const entry = (await index()).showcases.find((showcase) => showcase.id === id);
+      return entry ? load(entry) : null;
     },
   };
 }
