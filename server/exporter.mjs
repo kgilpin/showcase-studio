@@ -321,6 +321,10 @@ export async function exportVideo({
   draft = false,
   /** "embed" renders the 4:3 canvas (1440×1080) instead of TikTok's 9:16. */
   canvas = "tiktok",
+  /** The id of the snapshot `showcasesDir` is (server/export-snapshot.mjs):
+   *  the record page reads the showcase from it too, so an edit made
+   *  while the frames render changes nothing the video shows. */
+  snapshot,
   progress,
   signal,
 }) {
@@ -340,7 +344,8 @@ export async function exportVideo({
   try {
     await withPage(renderer, size, async (page) => {
       await page.goto(
-        `${appUrl}/showcase/${showcaseId}/record?controlled=1${embed ? "&canvas=embed" : ""}`,
+        `${appUrl}/showcase/${showcaseId}/record?controlled=1${embed ? "&canvas=embed" : ""}` +
+          (snapshot ? `&snapshot=${encodeURIComponent(snapshot)}` : ""),
       );
       requireRecordPage(await page.evaluate(RECORD_PAGE_READY), showcaseId);
       for (let frame = 0; frame < frameCount; frame++) {
@@ -444,6 +449,7 @@ export function runExport({
   kind,
   showcaseId,
   outDir,
+  snapshot,
   onProgress,
   signal,
 }) {
@@ -460,6 +466,7 @@ export function runExport({
   if (kind === "script") return exportScript(options);
   return exportVideo({
     ...options,
+    snapshot,
     draft: kind.endsWith("-draft"),
     canvas: kind.startsWith("video-43") ? "embed" : "tiktok",
     fps: videoFps(kind),

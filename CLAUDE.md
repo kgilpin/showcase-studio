@@ -472,6 +472,21 @@ npm run dev -- --new [<library folder>]
     the caption), and the result is cached in
     `<library>/.studio/build/<showcase>.faces.json` under the export
     fingerprint, so only a changed showcase is re-rendered.
+  - `export-snapshot.mjs`: the copy of a showcase a video export renders
+    from (issue #29): `<library>/.studio/snapshots/<pid>-<job>/`, a
+    library with that one showcase — showcase.yaml, the theme, every
+    asset and graphic, and the showcases its theme extends as text —
+    taken when the job starts and removed when it ends. The files are
+    copies that share the originals' blocks where the file system can
+    (`COPYFILE_FICLONE`), so they cost nothing and a later write to the
+    library, in place or by rename, never reaches them. The studio
+    serves it at `/showcase-data-snapshot/<id>/` with the library's own
+    data code, the record page opens with `?snapshot=<id>` and
+    `src/content/source.ts` reads from there, and the export's
+    fingerprint is the copy's, so the Share page still says when the
+    video is behind the showcase. On start a studio clears the snapshots
+    of studios no longer running. Screens and script exports and the
+    page tools render the live library.
   - `export-records.mjs`: a record of each video export, full quality and
     draft, with how long it took to render (the next export's time
     estimate), one JSON file each in

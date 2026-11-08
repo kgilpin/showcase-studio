@@ -197,6 +197,11 @@ export function createExportRecords({ getLibrary, appVersion }) {
     /** The fingerprint a new export of the showcase would get now. */
     fingerprint: (showcaseId) => exportFingerprint(getLibrary(), showcaseId, { appVersion }),
 
+    /** The same, of the showcase as a snapshot holds it
+     *  (server/export-snapshot.mjs): what an export rendered from one is
+     *  made from. */
+    fingerprintOf: (dir, showcaseId) => exportFingerprint(dir, showcaseId, { appVersion }),
+
     /** Records a finished export. `fingerprint` is the one taken when it
      *  started; `frames` and `renderMs` (how long it took) feed the next
      *  export's time estimate. */
