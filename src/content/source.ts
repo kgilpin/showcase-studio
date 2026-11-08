@@ -233,5 +233,21 @@ export function activeSource(): ShowcaseSource {
   if (base.startsWith("/") && typeof window === "undefined") {
     return { load: () => Promise.resolve([]) };
   }
-  return httpSource(base.replace(/\/$/, ""));
+  const root = base.replace(/\/$/, "");
+  /* A page opened with ?snapshot=<id> is an export's: it reads the copy
+   * of the showcase the studio took when the export started
+   * (server/export-snapshot.mjs), served beside the library at
+   * <base>-snapshot/<id>, so an edit made while the frames render never
+   * reaches it. A re-read of a showcase (the "showcase-changed" event)
+   * finds the copy unchanged. */
+  const snapshot = exportSnapshotId();
+  return httpSource(snapshot ? `${root}-snapshot/${snapshot}` : root);
+}
+
+/** The export snapshot this page reads from, from its URL; undefined on
+ *  every ordinary page. */
+export function exportSnapshotId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const id = new URLSearchParams(window.location.search).get("snapshot");
+  return id && /^[0-9]+-[A-Za-z0-9_-]+$/.test(id) ? id : undefined;
 }

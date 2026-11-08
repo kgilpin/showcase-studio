@@ -38,10 +38,18 @@ import { collectSceneSources } from "@/components/showcase/useMediaPreload";
 export const Route = createFileRoute("/showcase/$showcaseId/record")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { controlled: boolean; canvas: "tiktok" | "embed"; safeArea: boolean } => ({
+  ): {
+    controlled: boolean;
+    canvas: "tiktok" | "embed";
+    safeArea: boolean;
+    snapshot?: string;
+  } => ({
     controlled: flag(search["controlled"]),
     canvas: search["canvas"] === "embed" ? "embed" : "tiktok",
     safeArea: flag(search["safeArea"]),
+    /* The export's snapshot of the showcase (src/content/source.ts reads
+     * it from the URL); kept here so the router keeps it in the URL. */
+    ...(typeof search["snapshot"] === "string" ? { snapshot: search["snapshot"] } : {}),
   }),
   head: ({ params }) => ({
     meta: [{ title: `Record — ${params.showcaseId}` }],

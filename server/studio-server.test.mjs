@@ -1777,6 +1777,86 @@ describe("recording exports", () => {
     expect(renderMs).toBeGreaterThan(0);
     expect(share.exports.video.estimateMs).toBe(Math.round(frames * (renderMs / frames)));
   }, 30_000);
+
+  /* A video renders for minutes; the showcase can change meanwhile
+   * (issue #29). The export reads from a snapshot taken when it started,
+   * served beside the library, and the Share page then says the video is
+   * behind the showcase. */
+  it("renders from a snapshot of the showcase, untouched by an edit made meanwhile", async () => {
+    const ffmpeg = createRequire(import.meta.url)("ffmpeg-static");
+    const { width, height } = VIDEO_FORMATS["video-draft"];
+    const png = path.join(tempDir("studio-frame-"), "frame.png");
+    execFileSync(
+      ffmpeg,
+      ["-f", "lavfi", "-i", `color=c=red:s=${width}x${height}`, "-frames:v", "1", png],
+      { stdio: "ignore" },
+    );
+    const frame = readFileSync(png);
+    let post;
+    let url;
+    const opened = [];
+    const seen = {};
+    let edited = false;
+    const renderer = {
+      openPage: async () => ({
+        goto: async (pageUrl) => opened.push(pageUrl),
+        evaluate: async (script) => {
+          if (!script.includes("__record.seek(") || edited) return undefined;
+          edited = true;
+          /* The first frame is on screen: the user retitles the scene,
+           * and the page the export drives would re-read the showcase. */
+          const snapshot = new URL(opened[0]).searchParams.get("snapshot");
+          const text = async (p) => (await fetch(`${url}${p}`)).text();
+          expect(
+            (
+              await post("scene-edit", {
+                showcaseId: "nova",
+                baseHash: contentHash(SHOWCASE_YAML),
+                field: "scene.set",
+                sceneId: "intro",
+                name: "title",
+                value: "Hello again",
+              })
+            ).ok,
+          ).toBe(true);
+          seen.live = await text("/showcase-data/nova/showcase.yaml");
+          seen.snapshot = await text(`/showcase-data-snapshot/${snapshot}/nova/showcase.yaml`);
+          seen.index = JSON.parse(await text(`/showcase-data-snapshot/${snapshot}/index.json`));
+          return undefined;
+        },
+        capture: async () => frame,
+        close: async () => {},
+      }),
+    };
+    ({ post, url } = await startStudio({ renderer }));
+    const { job } = await post("export", { kind: "video-draft", showcaseId: "nova" });
+    let status = job;
+    for (let i = 0; i < 200 && status.status === "running"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      status = (await post("export-status", { jobId: job.jobId })).job;
+    }
+    expect(status).toMatchObject({ status: "done" });
+    expect(edited).toBe(true);
+    /* The page was opened on the snapshot, named for this studio and the job. */
+    expect(opened).toEqual([
+      `${url}/showcase/nova/record?controlled=1&snapshot=${process.pid}-${job.jobId}`,
+    ]);
+    /* While it rendered: the library had the edit, the snapshot did not. */
+    expect(seen.live).toContain("Hello again");
+    expect(seen.snapshot).toBe(SHOWCASE_YAML);
+    expect(seen.index.showcases.map((s) => s.id)).toEqual(["nova"]);
+    /* The snapshot went with the job. */
+    const gone = await fetch(
+      `${url}/showcase-data-snapshot/${process.pid}-${job.jobId}/nova/showcase.yaml`,
+    );
+    expect(gone.status).toBe(404);
+    /* The video is of the showcase as it was, and the Share page says so. */
+    const share = (await post("share-status", { showcaseId: "nova" })).status;
+    expect(share.exports["video-draft"]).toMatchObject({
+      current: null,
+      latest: { file: status.out, current: false },
+    });
+  }, 30_000);
 });
 
 describe("licensing", () => {

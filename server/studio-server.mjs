@@ -8,6 +8,9 @@
  *
  *   GET  /showcase-data/…       the library's files, for the page
  *                               (server/showcase-data.mjs)
+ *   GET  /showcase-data-snapshot/<id>/…
+ *                               the same shape, from the snapshot a video
+ *                               export renders (server/export-snapshot.mjs)
  *   GET  /studio/api/info       the studio: URL, library folder, lock, features
  *   GET  /studio/api/history    the library's git history status, for the
  *                               "Commit changes to git" switch
@@ -70,6 +73,7 @@ import { createExportJobs } from "./export-jobs.mjs";
 import { DEFAULT_EXPORT_DIR, revealInFileManager } from "./export-output.mjs";
 import { createExportRecords, RECORDED_KINDS, showcaseDurationMs } from "./export-records.mjs";
 import { frameFileName, runExport, screenshotFrame, videoFps } from "./exporter.mjs";
+import { clearSnapshots, snapshotDir, snapshotId, takeSnapshot } from "./export-snapshot.mjs";
 import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { SHOWCASE_SCHEMA } from "../src/content/showcase-schema.mjs";
@@ -369,6 +373,8 @@ export function createStudio({
 
   function scaffold() {
     mkdirSync(path.join(showcasesDir, ".studio"), { recursive: true });
+    /* Snapshots a studio that stopped mid-export left behind. */
+    clearSnapshots(showcasesDir);
     const claudeMdPath = path.join(showcasesDir, "CLAUDE.md");
     const claudeMd = existsSync(claudeMdPath) ? readFileSync(claudeMdPath, "utf8") : null;
     writeFileSync(
@@ -563,7 +569,7 @@ add notes specific to this library below, and the studio won't touch them.
     return path.join(libraryExportDir(showcasesDir) ?? exportDir, showcaseId);
   }
 
-  async function recordedExport(kind, showcaseId, { onProgress, signal, by } = {}) {
+  async function recordedExport(kind, showcaseId, { onProgress, signal, by, jobId } = {}) {
     /* Full-quality videos need a license or a free export; the page asks
      * first, so this refusal is what Claude's export tool (and --export)
      * meet. */
@@ -577,35 +583,48 @@ add notes specific to this library below, and the studio won't touch them.
       onProgress: (label) => onProgress?.(label),
     });
     const recorded = RECORDED_KINDS.includes(kind);
-    const fingerprint = recorded ? exportRecords.fingerprint(showcaseId) : undefined;
-    const durationMs = recorded ? showcaseDurationMs(showcasesDir, showcaseId) : undefined;
-    const started = Date.now();
-    const out = await runExport({
-      renderer,
-      appUrl: url,
-      showcasesDir,
-      kind,
-      showcaseId,
-      outDir: exportFolder(showcaseId),
-      onProgress,
-      signal,
-    });
-    if (recorded) {
-      try {
-        exportRecords.add({
-          showcaseId,
-          kind,
-          file: out,
-          fingerprint,
-          durationMs,
-          frames: Math.round((durationMs / 1000) * videoFps(kind)),
-          renderMs: Date.now() - started,
-        });
-      } catch (error) {
-        log(`studio: couldn't record the export of ${showcaseId} (${error.message})`);
+    /* A video renders for minutes, from a copy of the showcase taken now
+     * (server/export-snapshot.mjs): an edit or a build meanwhile changes
+     * the library, not the video. The fingerprint is the copy's, so the
+     * Share page still says when the video no longer matches. */
+    const snapshot = recorded
+      ? takeSnapshot(showcasesDir, showcaseId, snapshotId(jobId ?? `export-${Date.now()}`))
+      : null;
+    try {
+      const from = snapshot?.dir ?? showcasesDir;
+      const fingerprint = recorded ? exportRecords.fingerprintOf(from, showcaseId) : undefined;
+      const durationMs = recorded ? showcaseDurationMs(from, showcaseId) : undefined;
+      const started = Date.now();
+      const out = await runExport({
+        renderer,
+        appUrl: url,
+        showcasesDir: from,
+        kind,
+        showcaseId,
+        outDir: exportFolder(showcaseId),
+        snapshot: snapshot?.id,
+        onProgress,
+        signal,
+      });
+      if (recorded) {
+        try {
+          exportRecords.add({
+            showcaseId,
+            kind,
+            file: out,
+            fingerprint,
+            durationMs,
+            frames: Math.round((durationMs / 1000) * videoFps(kind)),
+            renderMs: Date.now() - started,
+          });
+        } catch (error) {
+          log(`studio: couldn't record the export of ${showcaseId} (${error.message})`);
+        }
       }
+      return out;
+    } finally {
+      snapshot?.remove();
     }
-    return out;
   }
 
   /* ---------- the Actions list ---------- */
@@ -1348,8 +1367,9 @@ scenes:
     const pathname = (req.url ?? "").split("?")[0] ?? "";
     try {
       const isData = pathname === "/showcase-data" || pathname.startsWith("/showcase-data/");
+      const snapshotMatch = /^\/showcase-data-snapshot\/([^/]+)(\/.*)?$/.exec(pathname);
       const isApi = pathname.startsWith("/studio/api/");
-      if (!isData && !isApi && pathname !== "/mcp") {
+      if (!isData && !snapshotMatch && !isApi && pathname !== "/mcp") {
         next();
         return;
       }
@@ -1360,12 +1380,17 @@ scenes:
         });
         return;
       }
-      if (isData) {
-        const result = await handleShowcaseRequest(
-          showcasesDir,
-          pathname.slice("/showcase-data".length) || "/",
-          { range: req.headers.range },
-        );
+      if (isData || snapshotMatch) {
+        /* A snapshot is served exactly like the library; one that is gone
+         * (its export ended) is a 404 like any missing file. */
+        const dir = snapshotMatch ? snapshotDir(showcasesDir, snapshotMatch[1]) : showcasesDir;
+        const result = dir
+          ? await handleShowcaseRequest(
+              dir,
+              (snapshotMatch ? snapshotMatch[2] : pathname.slice("/showcase-data".length)) || "/",
+              { range: req.headers.range },
+            )
+          : null;
         if (!result) {
           res.statusCode = 404;
           res.end("not found");
