@@ -568,8 +568,14 @@ app.whenReady().then(async () => {
     app.dock?.setIcon(nativeImage.createFromPath(path.join(repoRoot, "build", "icon.png")));
   }
   const fail = (message) => {
-    if (options.window) dialog.showErrorBox("Showcase Studio", message);
-    else console.error(message);
+    /* Under ELECTRON_SMOKE a dialog would wait for a click nobody can
+     * give, and the smoke run would hang with no output (issue #56): the
+     * message goes to stderr and the run fails. */
+    if (options.window && !process.env.ELECTRON_SMOKE) {
+      dialog.showErrorBox("Showcase Studio", message);
+    } else {
+      console.error(message);
+    }
     app.exit(1);
   };
   if (launchError) {
