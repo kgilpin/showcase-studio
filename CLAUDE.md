@@ -584,7 +584,9 @@ print}` — what the automatic build asks before it starts, what an
   - `terminals.mjs`: per-showcase Claude Code terminals: one persistent
     node-pty per showcase with its folder as cwd, `claude --continue`
     resume, integrated xterm panel or external Terminal.app,
-    `SHOWCASE_STUDIO_SRC`/`ROOT`/`FFMPEG` env vars; off in the studio Claude
+    `SHOWCASE_STUDIO_SRC`/`NODE`/`ROOT`/`FFMPEG` env vars (`NODE` is the
+    Node the studio runs on, so the plugin's launcher in that terminal
+    doesn't pick an old one off PATH); off in the studio Claude
     Code starts; the npm `postinstall` restores node-pty's spawn-helper exec
     bit.
   - `transcribe.mjs`: whisper.cpp voice-to-text: the binary ships with the

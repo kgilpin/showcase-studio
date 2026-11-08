@@ -752,7 +752,15 @@ add notes specific to this library below, and the studio won't touch them.
          * explains each one. */
         getEnv: () => ({
           SHOWCASE_STUDIO_ROOT: showcasesDir,
-          ...(sourceDir ? { SHOWCASE_STUDIO_SRC: sourceDir } : {}),
+          /* With SHOWCASE_STUDIO_SRC set, the plugin's launcher runs the
+           * checkout's MCP script with SHOWCASE_STUDIO_NODE, else the node
+           * on PATH, which in a terminal here can be an ancient one (a
+           * Node 12 shim made the plugin's server exit, and the session
+           * started with "Connection closed", issue #58). The Node this
+           * studio runs on is 22 or later, so it is the one to name. */
+          ...(sourceDir
+            ? { SHOWCASE_STUDIO_SRC: sourceDir, SHOWCASE_STUDIO_NODE: process.execPath }
+            : {}),
           ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
           ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
         }),
