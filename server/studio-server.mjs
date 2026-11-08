@@ -85,7 +85,7 @@ import { handleShowcaseRequest, showcaseIndex } from "./showcase-data.mjs";
 import { createShowcaseHistory } from "./showcase-history.mjs";
 import { alreadyOpen, clearPresence, runningStudio, writePresence } from "./studio-presence.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
-import { ensureLibrarySettings, libraryExportDir } from "./library-config.mjs";
+import { ensureLibrarySettings, libraryExportDir, SETTINGS_FILE } from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { airDrop, canAirDrop } from "./airdrop.mjs";
 import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
@@ -372,6 +372,20 @@ export function createStudio({
   /* ---------- the library folder ---------- */
 
   function scaffold() {
+    /* The files written at the library's root here are the studio's
+     * own, recorded like its other writes so the watcher drops their
+     * echo. On macOS it reports them a moment after the start, and an
+     * unrecorded one looks like the library changing: every page
+     * reloads once for nothing (issue #64). Writes under .studio/ need
+     * no record; the watcher never reports that folder. */
+    const writeOwn = (file, content) => {
+      writeFileSync(file, content);
+      recordSelfWrite(file, content);
+    };
+    const appendOwn = (file, content) => {
+      appendFileSync(file, content);
+      recordSelfWrite(file, readFileSync(file));
+    };
     mkdirSync(path.join(showcasesDir, ".studio"), { recursive: true });
     /* Snapshots a studio that stopped mid-export left behind. */
     clearSnapshots(showcasesDir);
@@ -399,27 +413,29 @@ export function createStudio({
      * library's had the same name as a showcase's script; rename it. */
     try {
       ensureLibrarySettings(showcasesDir);
+      const settingsPath = path.join(showcasesDir, SETTINGS_FILE);
+      if (existsSync(settingsPath)) recordSelfWrite(settingsPath, readFileSync(settingsPath));
     } catch (error) {
       console.warn(`[studio] couldn't set up showcase_settings.yaml: ${error.message}`);
     }
     const readmePath = path.join(showcasesDir, "README.md");
     if (!existsSync(readmePath)) {
-      writeFileSync(readmePath, FOLDER_README);
+      writeOwn(readmePath, FOLDER_README);
     } else {
       const readme = readFileSync(readmePath, "utf8");
       if (readme.includes(OLD_README_SETTINGS)) {
-        writeFileSync(readmePath, readme.replace(OLD_README_SETTINGS, README_SETTINGS));
+        writeOwn(readmePath, readme.replace(OLD_README_SETTINGS, README_SETTINGS));
       }
     }
     const gitignorePath = path.join(showcasesDir, ".gitignore");
     if (!existsSync(gitignorePath)) {
-      writeFileSync(gitignorePath, `.DS_Store\n.studio/\n`);
+      writeOwn(gitignorePath, `.DS_Store\n.studio/\n`);
     } else if (!readFileSync(gitignorePath, "utf8").includes(".studio/")) {
-      appendFileSync(gitignorePath, `.studio/\n`);
+      appendOwn(gitignorePath, `.studio/\n`);
     }
     removeLaunchConfigs();
     if (claudeMd == null) {
-      writeFileSync(
+      writeOwn(
         claudeMdPath,
         `# Showcases folder
 
@@ -431,7 +447,7 @@ add notes specific to this library below, and the studio won't touch them.
 `,
       );
     } else if (!claudeMd.includes(GUIDE_IMPORT)) {
-      appendFileSync(
+      appendOwn(
         claudeMdPath,
         `\n${GUIDE_IMPORT}\n<!-- The studio's always-current instructions (regenerated every launch) — keep this import. -->\n`,
       );
