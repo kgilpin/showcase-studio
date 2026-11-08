@@ -329,6 +329,13 @@ const META = object(
       leadMs: number("Silence before each caption's words."),
       tailMs: number("Silence after."),
       holdMs: number("Extra hold on the last caption."),
+      scenes: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "The scenes the voice reads, by id; the others keep their own timing and are silence " +
+          "on the track. Unset: every scene.",
+      },
     }),
     watermark: WATERMARK,
     tiktok: TIKTOK_FIT,

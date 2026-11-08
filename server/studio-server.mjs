@@ -696,6 +696,7 @@ add notes specific to this library below, and the studio won't touch them.
             showcasesDir,
             showcaseId,
             force,
+            only,
             onProgress,
             signal,
             beforeWrite: recordSelfWrite,

@@ -545,6 +545,11 @@ npm run dev -- --new [<library folder>]
     `voiceoverStatus` says whether the track is up to date without
     calling Polly or decoding a clip: the manifest keeps a print of every
     input the build read (`voiceInputsPrint`) and the pins it wrote.
+    `meta.voiceover.scenes` names the scenes the voice reads when not all
+    of them (issue #48): the others keep their own timing and are silence
+    on the track for as long as they show, so the pins still add up;
+    `build_voiceover {only}` writes that list, so the automatic build
+    keeps to the same scenes.
     Which profile and region Polly is called with is `resolveAws`: the
     showcase's `meta.voiceover`, else the library's `aws_profile` and
     `aws_region` (`library-config.mjs`), else the environment, else the

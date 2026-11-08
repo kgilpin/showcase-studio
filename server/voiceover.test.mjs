@@ -13,6 +13,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
+import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { mediaDuration, runFfmpeg } from "./ffmpeg.mjs";
 import {
   DEFAULT_REGION,
@@ -326,6 +327,85 @@ describe("buildVoiceover", () => {
     expect(captionPins(docOf()).every((pin) => pin == null)).toBe(true);
   });
 
+  /* Some scenes read, the rest left alone (issue #48). */
+  it("reads only the scenes meta.voiceover.scenes names, and leaves the others their own timing", async () => {
+    const yaml = SHOWCASE.replace(
+      "track: voiceover-synth }",
+      "track: voiceover-synth, scenes: [plugin] }",
+    );
+    writeFileSync(path.join(library, "voiced", "showcase.yaml"), yaml);
+    const before = voiceoverStatus({
+      showcasesDir: library,
+      showcaseId: "voiced",
+      aws: AWS,
+      env: NO_ENV,
+    });
+    expect(before.stale[0]).toBe("2 captions to voice");
+
+    const result = await build();
+    expect(result).toMatchObject({ ok: true, synthesized: 2, reused: 0 });
+    expect(calls.map((c) => c.text)).toEqual([
+      "Type /showcase, and the studio opens.",
+      'Export in "shorts" format.',
+    ]);
+    const doc = docOf();
+    const [open, plugin, card, outro] = doc.scenes;
+    /* The scenes the voice doesn't read: no pins written, theirs to time. */
+    expect(open.captions[0].durationMs).toBeUndefined();
+    expect(open.durationMs).toBeUndefined();
+    expect(outro.captions[0].durationMs).toBeUndefined();
+    expect(card.durationMs).toBe(2000);
+    expect(plugin.captions.map((c) => c.durationMs).every((ms) => ms > 0)).toBe(true);
+    /* On the track they are silence for as long as the player shows
+     * them, so the plugin's words start after the open scene's time and
+     * the track ends after the outro's. */
+    const openMs = resolveSceneTiming(open).durationMs;
+    const outroMs = resolveSceneTiming(outro).durationMs;
+    const pluginMs = plugin.captions[0].durationMs + plugin.captions[1].durationMs;
+    expect(result.totalMs).toBe(openMs + pluginMs + 2000 + outroMs);
+    const words = JSON.parse(
+      readFileSync(path.join(library, "voiced", "assets", "voiceover-synth.words.json"), "utf8"),
+    );
+    expect(words.segments).toHaveLength(2);
+    expect(words.segments[0].startMs).toBe(openMs);
+    expect(words.segments[1].endMs).toBe(openMs + pluginMs);
+    expect(
+      voiceoverStatus({ showcasesDir: library, showcaseId: "voiced", aws: AWS, env: NO_ENV }),
+    ).toMatchObject({ upToDate: true });
+    /* The whole list is in the print: reading another scene is a rebuild. */
+    writeFileSync(
+      path.join(library, "voiced", "showcase.yaml"),
+      yamlOf().replace("scenes: [ plugin ]", "scenes: [ plugin, outro ]"),
+    );
+    const after = voiceoverStatus({
+      showcasesDir: library,
+      showcaseId: "voiced",
+      aws: AWS,
+      env: NO_ENV,
+    });
+    expect(after.upToDate).toBe(false);
+    expect(after.stale).toContain("outro caption 1 (to voice)");
+  });
+
+  it("writes the scenes `only` names into the showcase, so the next build keeps to them", async () => {
+    const result = await build({ only: ["outro"] });
+    expect(result).toMatchObject({ ok: true, synthesized: 1 });
+    expect(calls.map((c) => c.text)).toEqual(["Make your first video today."]);
+    expect(docOf().meta.voiceover).toEqual({
+      voice: "Matthew",
+      engine: "generative",
+      track: "voiceover-synth",
+      scenes: ["outro"],
+    });
+    expect(yamlOf()).toContain("# the opening line");
+    expect(docOf().scenes[0].captions[0].durationMs).toBeUndefined();
+    /* A plain build afterwards — the automatic one — reads the same scene
+     * and no other, and has nothing to do. */
+    const again = await build();
+    expect(again).toMatchObject({ ok: true, synthesized: 0, built: [] });
+    expect(calls).toHaveLength(1);
+  });
+
   it("says what to do on a showcase with no meta.voiceover", async () => {
     writeFileSync(
       path.join(library, "voiced", "showcase.yaml"),
@@ -521,6 +601,28 @@ describe("readVoiceoverPlan", () => {
 
   it("drops an extension from the track name", () => {
     expect(plan({ track: "voice.m4a" }).settings.track).toBe("voice");
+  });
+
+  it("checks the scenes the voice reads against the showcase", () => {
+    const scenes = [
+      { id: "a", captions: [{ text: "Hi" }] },
+      { id: "b", captions: [{ text: "There" }] },
+      { id: "card" },
+    ];
+    const read = (voiceover) => readVoiceoverPlan({ meta: { voiceover }, scenes });
+    expect(read({}).scenes.map((s) => s.voiced)).toEqual([true, true, true]);
+    const some = read({ scenes: ["b"] });
+    expect(some.ok).toBe(true);
+    expect(some.scenes.map((s) => s.voiced)).toEqual([false, true, false]);
+    expect(some.settings.scenes).toEqual(["b"]);
+    expect(read({ scenes: "b" }).errors.join()).toMatch(/scenes must be a list of scene ids/);
+    expect(read({ scenes: [] }).errors.join()).toMatch(/scenes is empty/);
+    expect(read({ scenes: ["ghost"] }).errors.join()).toMatch(
+      /names "ghost", and no scene has that id/,
+    );
+    expect(read({ scenes: ["card"] }).errors.join()).toMatch(
+      /None of the scenes .* has a caption to read/,
+    );
   });
 });
 
