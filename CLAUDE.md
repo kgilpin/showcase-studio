@@ -754,7 +754,9 @@ print}` — what the automatic build asks before it starts, what an
   `.claude-plugin/marketplace.json`: `.mcp.json` runs `bin/studio-mcp`, a
   plain `sh` launcher (Claude Code doesn't need Node, so it can't either)
   that finds `Showcase Studio.app` (`SHOWCASE_STUDIO_APP`,
-  `SHOWCASE_STUDIO_INSTALL_DIR`, `~/Applications`, `/Applications`), prefers
+  `SHOWCASE_STUDIO_INSTALL_DIR`, `~/Applications`, `/Applications`; a
+  `SHOWCASE_STUDIO_APP` that names nothing is an error, never a fallback
+  to the installed app), prefers
   the version in `app-version` — pinned separately from the plugin's own
   version, so the plugin can change without a new app release — and runs it
   with `--mcp`; `bin/install-app` installs that version from

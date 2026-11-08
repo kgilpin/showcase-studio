@@ -35,6 +35,12 @@ if defined SHOWCASE_STUDIO_APP (
     set "exe=%SHOWCASE_STUDIO_APP%"
   )
 )
+rem A SHOWCASE_STUDIO_APP that names nothing is an error, not a fallback
+rem to the installed app: the variable is how a local build is tried.
+if defined SHOWCASE_STUDIO_APP if not defined exe (
+  echo showcase-studio: SHOWCASE_STUDIO_APP is set, but there is no Showcase Studio.exe at "%SHOWCASE_STUDIO_APP%". Unset it to use the installed app. 1>&2
+  exit /b 1
+)
 if not defined exe if defined SHOWCASE_STUDIO_INSTALL_DIR (
   if exist "%SHOWCASE_STUDIO_INSTALL_DIR%\Showcase Studio\Showcase Studio.exe" (
     set "exe=%SHOWCASE_STUDIO_INSTALL_DIR%\Showcase Studio\Showcase Studio.exe"
