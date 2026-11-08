@@ -26,8 +26,9 @@
  * one more quiet period after. A build that fails, or a cut list that
  * doesn't read yet (a take missing while the author is still writing
  * the list), is reported once: not again until the inputs change, so a
- * half-written showcase doesn't fail the list on every keystroke. The
- * "Build media when it changes" switch turns the whole thing off; the
+ * half-written showcase doesn't fail the list on every keystroke, and a
+ * build that failed (whoever started it) isn't run again until they do.
+ * The "Build media when it changes" switch turns the whole thing off; the
  * build_media and build_voiceover tools still run on request.
  *
  * ensureBuilt() is the same check for an export or a screenshot: build
@@ -257,8 +258,10 @@ export function createAutoBuild({
         if (id && actions && actions.get(id)?.state === "failed") {
           actions.update(id, { dismissed: true });
         }
-      } else if (job.status === "failed" && job.by === "studio") {
-        /* Not again on the same inputs: the job's own record says why. */
+      } else if (job.status === "failed") {
+        /* Not again on the same inputs, whoever started it: a build Claude
+         * ran fails for the same reason the studio's would, and the job's
+         * own record says why already. */
         try {
           const current = status(showcaseId);
           if (current.built && current.ok) failures.set(showcaseId, current.print);

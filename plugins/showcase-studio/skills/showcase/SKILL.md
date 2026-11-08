@@ -146,6 +146,12 @@ the full list.
   `media` says whether each one is up to date; `build_media` and
   `build_voiceover` are for a forced rebuild, or for a jobId to wait on
   with `build_status {waitMs}` before you look.
+- A voiced showcase is made on the user's own AWS account. Which profile
+  pays is their choice: before the first voiced build in a library, ask
+  them which AWS profile to use, and put it in `showcase_settings.yaml`
+  at the library root as `aws_profile`. When none is set up the media
+  status lists this machine's profiles; never pick one yourself, and
+  never write a profile into the showcase to get past the question.
 - `showcase.yaml`: use `edit_showcase` for anything it can express. One
   call applies a whole batch — retiming every scene, say — as one write
   that keeps the file's formatting. For anything else, use your

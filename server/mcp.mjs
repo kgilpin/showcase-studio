@@ -1010,6 +1010,13 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     if (running?.status === "running" && running.showcaseId === showcaseId && !args.force) {
       return json(running);
     }
+    /* A build that can't start — the cut list doesn't read, or no AWS
+     * profile is set up for the voice — is answered here, as the problem,
+     * rather than run to fail: the Actions list already says so once,
+     * from the automatic build, and a second failed record would only
+     * repeat it. */
+    const status = context.mediaStatus?.(showcaseId);
+    if (status?.built && status.ok === false) throw new Error(status.problem);
     return json(
       context.buildJobs.start(name === "build_media" ? "build" : "voiceover", showcaseId, {
         force: args.force === true,

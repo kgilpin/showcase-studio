@@ -94,7 +94,10 @@ afterAll(async () => {
   if (library) await rm(library, { recursive: true, force: true });
 });
 
-const status = (showcaseId) => mediaStatus({ showcasesDir: library, showcaseId });
+/** The aws command's configuration on a machine with a default profile
+ *  and a region, so the voiced showcase's setup never asks for one. */
+const AWS = { profiles: () => ["default"], regionOf: () => "us-east-1" };
+const status = (showcaseId) => mediaStatus({ showcasesDir: library, showcaseId, aws: AWS });
 
 describe("mediaStatus", () => {
   it("says what a first build would make, then that nothing is left, then what an edit undid", async () => {
@@ -158,6 +161,25 @@ describe("mediaStatus", () => {
     });
   });
 
+  it("reports a voiced showcase's AWS setup as its problem, before any build", () => {
+    const noDefault = { profiles: () => ["work"], regionOf: () => undefined };
+    expect(
+      mediaStatus({ showcasesDir: library, showcaseId: "talk", aws: noDefault }),
+    ).toMatchObject({
+      built: true,
+      kind: "voiceover",
+      ok: false,
+      problem: expect.stringContaining("Ask the user which one"),
+    });
+    expect(
+      mediaSummary(library, { aws: noDefault }).find((s) => s.showcaseId === "talk"),
+    ).toMatchObject({
+      kind: "voiceover",
+      upToDate: false,
+      problem: expect.stringContaining("profiles: work."),
+    });
+  });
+
   it("has nothing to say about a showcase that derives nothing, or a folder that isn't one", () => {
     expect(status("plain")).toEqual({ built: false });
     /* The library's exports/ or raw/ folder: a change in it must not put
@@ -169,7 +191,7 @@ describe("mediaStatus", () => {
   });
 
   it("sums the library up for studio_info, built showcases only", () => {
-    const summary = mediaSummary(library);
+    const summary = mediaSummary(library, { aws: AWS });
     expect(summary.map((s) => s.showcaseId).sort()).toEqual(["pitch", "talk"]);
     expect(summary.find((s) => s.showcaseId === "talk")).toMatchObject({
       kind: "voiceover",

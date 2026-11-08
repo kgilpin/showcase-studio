@@ -321,8 +321,10 @@ const META = object(
     voiceover: object("voiceover", "A synthesized voice that reads the captions (AWS Polly).", {
       voice: string("The Polly voice (default Matthew)."),
       engine: oneOf(VOICEOVER_ENGINES),
-      profile: string("The AWS profile to use."),
-      region: string("The AWS region."),
+      profile: string(
+        "The AWS profile, when not the library's aws_profile in showcase_settings.yaml.",
+      ),
+      region: string("The AWS region, when not the library's aws_region or the profile's own."),
       track: string("The track's asset key (default voiceover)."),
       leadMs: number("Silence before each caption's words."),
       tailMs: number("Silence after."),

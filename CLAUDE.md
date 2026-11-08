@@ -530,6 +530,18 @@ npm run dev -- --new [<library folder>]
     `voiceoverStatus` says whether the track is up to date without
     calling Polly or decoding a clip: the manifest keeps a print of every
     input the build read (`voiceInputsPrint`) and the pins it wrote.
+    Which profile and region Polly is called with is `resolveAws`: the
+    showcase's `meta.voiceover`, else the library's `aws_profile` and
+    `aws_region` (`library-config.mjs`), else the environment, else the
+    aws command's default profile and the profile's region (read through
+    `aws configure`, `awsConfig`, cached for 30 s), else us-east-1 with
+    a note in the build's result. It is checked before any build, in the
+    status too: a profile this machine doesn't have, or no default
+    profile and nothing naming one, is the status's `problem`, listing
+    the machine's profiles and telling a session to ask the user — which
+    account pays for the voice is the user's choice — so the automatic
+    build reports it once instead of failing, and `validate` and
+    `studio_info` say it before a build is tried.
   - `media-status.mjs`: one answer for both — `mediaStatus(showcaseId)`:
     `{built: false}`, `{built: true, kind, ok: false, problem}` while the
     cut list or the voice settings don't read, else `{stale, upToDate,
@@ -544,8 +556,10 @@ print}` — what the automatic build asks before it starts, what an
     lane as "studio", its own record taking over. A build already running
     is left to finish and the change goes again after it. A cut list that
     doesn't read yet is reported once, as a failed record with Try again,
-    and not again until the inputs change; a build of the studio's own
-    that fails is likewise not retried on the same inputs. `ensureBuilt`
+    and not again until the inputs change; a build that fails, whoever
+    started it, is likewise not run again by the studio on the same
+    inputs (a `build_voiceover` Claude ran and the studio's would fail
+    alike, and one record says why). `ensureBuilt`
     is the same check for an export, a screenshot or the face check:
     build first when stale, and wait. The "Build media when it changes"
     switch (`media-auto-build`, `autoBuild` in settings and in the
@@ -618,7 +632,10 @@ print}` — what the automatic build asks before it starts, what an
     run handlers whoever added the record passed in. The export and build
     lanes report every job to it (`job()`), and `showcase-history.mjs`
     records each commit's quiet period and outcome (a clean folder ends
-    the record as canceled; `commit_showcase` is Claude's own record).
+    the record as canceled, and so does a `commit_showcase` the user's
+    "Commit changes to git" switch refuses — the user's own setting at
+    work, nothing for them to do; `commit_showcase` is Claude's own
+    record).
     Kept in memory and appended, one line per state change and never per
     progress report, to `<library>/.studio/actions.jsonl` (rotating like
     the change log), so a Claude session can `tail -F` it; a pending
@@ -695,7 +712,13 @@ print}` — what the automatic build asks before it starts, what an
     settings: `show_in_recent: false` to hide the folder from File > Open
     Recent, and `export_dir` to put the library's exports in a folder of
     its own (relative to the library or absolute, one subfolder per
-    showcase) instead of `~/Downloads/showcase-exports`; an older
+    showcase) instead of `~/Downloads/showcase-exports`, and
+    `aws_profile` and `aws_region` for the synthesized voiceovers
+    (`libraryAwsSettings`). A setting's text may name an environment
+    variable as `${NAME}` (`expandVariables`), so a committed
+    `aws_profile: ${USER}` serves a team whose profiles are named after
+    their logins; one that isn't set is a problem `readLibraryConfig`
+    reports, never used as written. An older
     library's root `showcase.yaml` with no
     `scenes` or `meta` is renamed to it when a studio opens the library, and
     read until then.

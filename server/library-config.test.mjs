@@ -5,10 +5,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   SETTINGS_TEMPLATE,
   ensureLibrarySettings,
+  expandVariables,
   hasLibrarySettings,
+  libraryAwsSettings,
   libraryConfig,
   libraryExportDir,
   migrateLibrarySettings,
+  readLibraryConfig,
   showInRecent,
 } from "./library-config.mjs";
 
@@ -116,6 +119,65 @@ describe("migrateLibrarySettings", () => {
     });
     expect(migrateLibrarySettings(both)).toBe(false);
     expect(read(both, "showcase.yaml")).toBe("show_in_recent: false\n");
+  });
+});
+
+describe("a setting that names an environment variable", () => {
+  it("is read with ${NAME} replaced, and reported when NAME isn't set", () => {
+    expect(expandVariables("${USER}-${HOME}", { USER: "pat", HOME: "/h" })).toEqual({
+      value: "pat-/h",
+      missing: [],
+    });
+    expect(expandVariables("${USER}", {})).toEqual({ value: "${USER}", missing: ["USER"] });
+    /* $USER alone, or a lone brace, is plain text. */
+    expect(expandVariables("$USER {x}", { USER: "pat" })).toEqual({
+      value: "$USER {x}",
+      missing: [],
+    });
+  });
+
+  it("applies to every setting in the file", () => {
+    const dir = folder("export_dir: ${OUT}/exports\naws_profile: ${USER}\nshow_in_recent: false\n");
+    expect(readLibraryConfig(dir, { OUT: "/tmp/out", USER: "pat" })).toEqual({
+      settings: { export_dir: "/tmp/out/exports", aws_profile: "pat", show_in_recent: false },
+      problems: [],
+    });
+    expect(readLibraryConfig(dir, {})).toEqual({
+      settings: { export_dir: "${OUT}/exports", aws_profile: "${USER}", show_in_recent: false },
+      problems: [
+        "showcase_settings.yaml export_dir: ${OUT}/exports — OUT isn't set in the environment",
+        "showcase_settings.yaml aws_profile: ${USER} — USER isn't set in the environment",
+      ],
+    });
+  });
+});
+
+describe("libraryAwsSettings", () => {
+  it("is the aws_profile and aws_region, expanded, or nothing", () => {
+    expect(libraryAwsSettings(folder(null))).toEqual({});
+    expect(libraryAwsSettings(folder("aws_profile: work\n"), {})).toEqual({ profile: "work" });
+    expect(
+      libraryAwsSettings(folder("aws_profile: ${USER}\naws_region: eu-west-1\n"), { USER: "pat" }),
+    ).toEqual({ profile: "pat", region: "eu-west-1" });
+  });
+
+  it("reports a variable that isn't set, or a value that isn't text, as its problem", () => {
+    expect(libraryAwsSettings(folder("aws_profile: ${USER}\n"), {})).toEqual({
+      problem: "showcase_settings.yaml aws_profile: ${USER} — USER isn't set in the environment",
+    });
+    expect(libraryAwsSettings(folder("aws_profile: 12\naws_region: ''\n"), {})).toEqual({
+      problem:
+        "showcase_settings.yaml aws_profile must be text\nshowcase_settings.yaml aws_region must be text",
+    });
+    /* Another setting's unset variable is not this one's problem. */
+    expect(libraryAwsSettings(folder("export_dir: ${OUT}\naws_profile: work\n"), {})).toEqual({
+      profile: "work",
+    });
+  });
+
+  it("is in the template, commented out, with the variable left unexpanded", () => {
+    expect(SETTINGS_TEMPLATE).toContain("# aws_profile: ${USER}");
+    expect(SETTINGS_TEMPLATE).toContain("# aws_region: us-east-1");
   });
 });
 
