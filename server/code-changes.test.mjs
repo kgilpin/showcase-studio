@@ -26,10 +26,16 @@ function checkout() {
   return dir;
 }
 
-/** Watches `dir` and records every list `onChange` reports. */
+/** Watches `dir` and records every list `onChange` reports. The rescan
+ *  comes soon, so a write made before the watcher is live (a Mac with
+ *  the whole suite running) is still counted. */
 function watching(dir) {
   const reports = [];
-  const watcher = watchStudioCode(dir, { onChange: (files) => reports.push(files), settleMs: 50 });
+  const watcher = watchStudioCode(dir, {
+    onChange: (files) => reports.push(files),
+    settleMs: 50,
+    rescanMs: 300,
+  });
   cleanups.push(() => watcher.close());
   /* Waits until the latest report is `expected`; fs.watch takes a moment
    * to notice a write. */
@@ -106,6 +112,31 @@ describe("watchStudioCode", () => {
     await expectReport(["server/new-thing.mjs"]);
     unlinkSync(path.join(dir, "scripts", "dev.mjs"));
     await expectReport(["scripts/dev.mjs", "server/new-thing.mjs"]);
+  });
+
+  it("counts an edit made before the watcher was live, once it has looked again", async () => {
+    const dir = checkout();
+    const reports = [];
+    /* A watcher whose live watch sees nothing: the rescan alone must find
+     * the edit. (fs.watch has no "ready" signal to wait for, so the test
+     * makes the edit first and the watcher a moment later, the other way
+     * round from the race, with the same result: the watch never reports
+     * it.) */
+    writeFileSync(path.join(dir, "server", "edit-yaml.mjs"), "export const a = 1;\n");
+    const watcher = watchStudioCode(dir, {
+      onChange: (files) => reports.push(files),
+      settleMs: 50,
+      rescanMs: 200,
+    });
+    cleanups.push(() => watcher.close());
+    /* Written right away, in the moment before the watch is live on a
+     * busy Mac; on Linux the watch may see it too, which is fine. */
+    writeFileSync(path.join(dir, "server", "edit-yaml.mjs"), "export const a = 3;\n");
+    await watcher.ready;
+    expect(watcher.changed()).toEqual(["server/edit-yaml.mjs"]);
+    expect(reports.at(-1)).toEqual(["server/edit-yaml.mjs"]);
+    /* One report for one change, however many ways it was noticed. */
+    expect(reports).toEqual([["server/edit-yaml.mjs"]]);
   });
 
   it("watches only the folders that exist", () => {
