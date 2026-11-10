@@ -291,7 +291,17 @@ export function changesByShowcase(showcasesDir, changed) {
     const relative = path.relative(showcasesDir, file);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return null;
     const [showcaseId, ...rest] = relative.split(path.sep);
-    if (!showcaseId || rest.length === 0 || showcaseId.startsWith(".")) return null;
+    if (!showcaseId || showcaseId.startsWith(".")) return null;
+    if (rest.length === 0) {
+      /* The entry itself. Windows reports a showcase's folder beside the
+       * file written in it; a folder that is there is that showcase's
+       * change (the page re-reads it, and reloads on its own if it turns
+       * out to be new). A folder that went, or a file at the root, is
+       * the library changing. */
+      if (!isDirectory(path.join(showcasesDir, showcaseId))) return null;
+      if (!byShowcase.has(showcaseId)) byShowcase.set(showcaseId, []);
+      continue;
+    }
     const files = byShowcase.get(showcaseId) ?? [];
     files.push(rest.join("/"));
     byShowcase.set(showcaseId, files);

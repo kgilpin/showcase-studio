@@ -442,8 +442,19 @@ scenes:
       );
     });
 
+    it("counts a showcase's own folder entry as that showcase's change", () => {
+      /* Windows reports the folder beside the file written in it. */
+      const lib = libraryWith("nova");
+      expect(changesByShowcase(lib, [path.join(lib, "nova")])).toEqual(new Map([["nova", []]]));
+      expect(
+        changesByShowcase(lib, [path.join(lib, "nova"), path.join(lib, "nova", "showcase.yaml")]),
+      ).toEqual(new Map([["nova", ["showcase.yaml"]]]));
+      /* A folder that isn't there any more is the library changing. */
+      expect(changesByShowcase(lib, [path.join(lib, "gone")])).toBeNull();
+    });
+
     it("asks for a reload when the library itself changed", () => {
-      /* A showcase folder appearing or going. */
+      /* A showcase folder that went. */
       expect(changesByShowcase("/lib", ["/lib/nova"])).toBeNull();
       /* A file at the library's root. */
       expect(changesByShowcase("/lib", ["/lib/showcase_settings.yaml"])).toBeNull();
