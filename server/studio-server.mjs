@@ -543,7 +543,13 @@ add notes specific to this library below, and the studio won't touch them.
           if (changed.length === 0) return;
           const byShowcase = changesByShowcase(showcasesDir, changed);
           if (!byShowcase) {
-            emit("reload", {});
+            /* With what changed, relative to the library, so a page's
+             * console (and a failing test) can say why. */
+            emit("reload", {
+              files: changed.map((file) =>
+                file == null ? null : path.relative(showcasesDir, file).split(path.sep).join("/"),
+              ),
+            });
             return;
           }
           for (const [showcaseId, files] of byShowcase) {
