@@ -401,6 +401,7 @@ export function createStudioMcp({
         open: current.landingUrl(facts) + (view ? `?view=${view}` : ""),
         guide: path.join(facts.library, ".studio", "GUIDE.md"),
         schema: path.join(facts.library, ".studio", "showcase.schema.json"),
+        themeSchema: path.join(facts.library, ".studio", "theme.schema.json"),
         changes: path.join(facts.library, CHANGE_LOG),
       });
     }

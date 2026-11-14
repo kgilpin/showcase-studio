@@ -85,6 +85,7 @@ import { clearSnapshots, snapshotDir, snapshotId, takeSnapshot } from "./export-
 import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { SHOWCASE_SCHEMA } from "../src/content/showcase-schema.mjs";
+import { THEME_SCHEMA } from "../src/content/theme-rules.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { callTool, createMcpHandler } from "./mcp.mjs";
 import { prompterScript } from "./prompter-script.mjs";
@@ -281,7 +282,10 @@ function locateReferences(text, found) {
  *                 { settings, openUrl, onChange }; tests pass a fake, so
  *                 nothing reaches the license service
  *   commitDelayMs how long a showcase must stay unchanged before the
- *                 studio commits it (server/showcase-history.mjs)
+ *                 studio commits its own writes (server/showcase-history.mjs)
+ *   outsideCommitDelayMs
+ *                 the same for changes made outside the studio, which the
+ *                 file watcher sees (30 s)
  */
 
 /** Groups a burst of changed files by the showcase folder each is in:
@@ -333,6 +337,7 @@ export function createStudio({
   licensing = createLicense,
   log = (message) => console.log(message),
   commitDelayMs = 5000,
+  outsideCommitDelayMs = 30_000,
   buildDelayMs = 3000,
   /* The aws command's configuration (voiceover.mjs awsConfig), which the
    * voice build and its status read; tests pass a stand-in. */
@@ -425,6 +430,11 @@ export function createStudio({
     writeFileSync(
       path.join(showcasesDir, ".studio", "showcase.schema.json"),
       JSON.stringify(SHOWCASE_SCHEMA, null, 2) + "\n",
+    );
+    /* And theme.yaml's, the same way. */
+    writeFileSync(
+      path.join(showcasesDir, ".studio", "theme.schema.json"),
+      JSON.stringify(THEME_SCHEMA, null, 2) + "\n",
     );
     writeMcpConfig();
     /* The settings file marks the folder as a library. An older
@@ -546,12 +556,6 @@ add notes specific to this library below, and the studio won't touch them.
          * (.claude/ at any level) never change what pages show. */
         if (filename != null && /^(\.studio|\.git)([/\\]|$)/.test(filename)) return;
         if (filename != null && /(^|[/\\])\.claude([/\\]|$)/.test(filename)) return;
-        /* No commit starts here. The history commits what the studio
-         * wrote, and those writes reach it through the change log
-         * (onAppend below). A change made anywhere else — an editor, a
-         * git checkout, another program, a Claude session's own file
-         * tools — is its author's to commit; it only rides along in the
-         * studio's next commit of that showcase. */
         pending.add(filename == null ? null : path.join(showcasesDir, filename));
         autoBuild?.noteChange(filename);
         clearTimeout(reloadTimer);
@@ -559,6 +563,23 @@ add notes specific to this library below, and the studio won't touch them.
           const changed = [...pending].filter((file) => !(file != null && isSelfWriteEcho(file)));
           pending.clear();
           if (changed.length === 0) return;
+          /* What is left was changed outside the studio — an editor, a
+           * git checkout, another program, a Claude session's own file
+           * tools. Each file in a showcase folder starts that showcase's
+           * longer quiet period before a commit (server/showcase-history.mjs).
+           * The studio's own writes reach the history through the change
+           * log instead (onAppend below), with the shorter one. So do a
+           * media build's: its files are written as it goes, and its log
+           * line at the end starts the commit, so a half-built showcase
+           * is never committed. */
+          const job = buildJobs.current();
+          const buildingNow = job?.status === "running" ? job.showcaseId : null;
+          for (const file of changed) {
+            if (file == null) continue;
+            const relative = path.relative(showcasesDir, file);
+            if (buildingNow && relative.split(path.sep)[0] === buildingNow) continue;
+            history.noteOutsideChange(relative);
+          }
           const byShowcase = changesByShowcase(showcasesDir, changed);
           if (!byShowcase) {
             /* With what changed, relative to the library, so a page's
@@ -835,14 +856,15 @@ add notes specific to this library below, and the studio won't touch them.
    * (server/change-log.mjs), so a Claude session can follow the user's
    * edits, which the watcher above deliberately doesn't announce. */
   /* Commits each showcase's changes to git after a quiet period, when the
-   * library is in a git repository. The watcher reports every file change
-   * to it; logged writes report their showcase too, in case the watcher
-   * misses one. */
+   * library is in a git repository. Logged writes (the studio's own)
+   * start the short quiet period; the watcher reports every other change
+   * in a showcase folder, which starts the longer one. */
   const history = createShowcaseHistory({
     getLibrary: () => showcasesDir,
     settings,
     autoCommitDefault: features.autoCommit !== false,
     delayMs: commitDelayMs,
+    outsideDelayMs: outsideCommitDelayMs,
     actions,
     log,
   });

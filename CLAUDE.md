@@ -172,7 +172,11 @@ The marketing site (`site/`) is its own npm package:
   otherwise work out by hand, it belongs in the cut list, not in a script
   beside the library.
 - Per-showcase styling goes in `showcases/<id>/theme.yaml`: a whitelisted
-  set of `colors`, `fonts`, `shape` and `atmosphere` overrides. A theme
+  set of `colors`, `fonts`, `shape` and `atmosphere` overrides. The
+  whitelist is `src/content/theme-rules.mjs`, shared by the loader and
+  the studio's theme edits (the style panel and Claude's `edit_theme`):
+  add a new theme key there. Like a showcase.yaml field, a theme problem
+  is a warning, never a showcase that fails to load. A theme
   can `extends` another showcase's theme, and `fonts.load` lists font
   stylesheets. Structural CSS variables can't be overridden. `meta.theme`
   in showcase.yaml still works as a flat override on top. Don't fork
@@ -184,8 +188,9 @@ The marketing site (`site/`) is its own npm package:
   (`src/lib/edits.ts`), per showcase, for the session.
 - Git history: when the library is in a git repository, the studio
   commits each showcase's changes after a quiet period
-  (`server/showcase-history.mjs`). It commits only what it wrote itself;
-  an outside change rides along in the next commit. The "Commit changes
+  (`server/showcase-history.mjs`). Its own writes are committed after
+  5 s. A change made outside the studio is committed too, after 30 s
+  with no further change in that showcase. The "Commit changes
   to git" switch (the gear in the top bar) turns it on and off for the
   whole studio. It is off by default in Claude's studio.
 - A change on disk to one showcase reaches the page as `showcase-changed`
