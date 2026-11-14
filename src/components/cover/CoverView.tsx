@@ -136,10 +136,12 @@ export function CoverView({
          * edge on its side, and snug against the text. */
         <div
           className={cn(
-            "absolute inset-0 flex",
-            position === "top" ? "flex-col" : "flex-col-reverse",
+            "absolute inset-x-0 flex",
+            position === "top" ? "bottom-0 flex-col" : "top-0 flex-col-reverse",
           )}
-          style={position === "top" ? { paddingTop: SAFE_TOP } : { paddingBottom: SAFE_BOTTOM }}
+          /* Inset with top/bottom, not padding: a padding percentage
+           * is a share of the frame's width, not its height. */
+          style={position === "top" ? { top: SAFE_TOP } : { bottom: SAFE_BOTTOM }}
         >
           <div className="shrink-0 px-[7cqw] py-[4cqw]">{text}</div>
           {pictureArea(
@@ -230,9 +232,12 @@ function CoverText({
   split: boolean;
 }) {
   const shadow = onBand || split ? undefined : { textShadow: "0 0.4cqw 2cqw rgb(0 0 0 / 0.55)" };
+  /* The line height comes after the size: tailwind-merge drops a leading
+   * class that a later text size could override. */
   const headlineClass = cn(
-    "block font-display leading-[1.02] tracking-tight",
+    "block font-display tracking-tight",
     HEADLINE_SIZE[cover.textSize],
+    "leading-[1.02]",
     split && "text-foreground",
   );
   if (edit) {
