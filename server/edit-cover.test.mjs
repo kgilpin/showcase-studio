@@ -19,6 +19,16 @@ describe("applyCoverEdit", () => {
     );
   });
 
+  it("gives the YouTube thumbnail its own block", () => {
+    expect(
+      applyCoverEdit("headline: Hi\n", {
+        destination: "youtube43",
+        name: "layout",
+        value: "split",
+      }),
+    ).toBe("headline: Hi\nyoutube43:\n  layout: split\n");
+  });
+
   it("removes a field, and a destination block left empty", () => {
     const text = "headline: Hi\ninstagram:\n  headline: Hey\n";
     expect(applyCoverEdit(text, { destination: "instagram", name: "headline", value: null })).toBe(

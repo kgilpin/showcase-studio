@@ -29,10 +29,11 @@
  *                               PNG to save (the player's Frame button;
  *                               the screenshot_frame MCP tool renders the
  *                               same page)
- *   GET  /studio/api/cover?showcase=<id>[&destination=tiktok|instagram|youtube]
- *                               the showcase's cover (cover.yaml) as a
- *                               1080×1920 PNG to save (the Cover page's
- *                               Save button; screenshot_cover renders the
+ *   GET  /studio/api/cover?showcase=<id>[&destination=tiktok|instagram|youtube|youtube43]
+ *                               the showcase's cover (cover.yaml) to save:
+ *                               a 1080×1920 PNG, or youtube43's 1280×720
+ *                               JPEG thumbnail (the Cover page's Save
+ *                               button; screenshot_cover renders the
  *                               same page)
  *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below):
  *                               scene edits, new showcases, assets, the
@@ -1571,13 +1572,17 @@ scenes:
         const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
         const showcaseId = query.get("showcase") ?? "";
         const destination = query.get("destination") || undefined;
-        const png = await screenshotCover(renderer, url, showcasesDir, { showcaseId, destination });
-        res.writeHead(200, {
-          "Content-Type": "image/png",
-          "Content-Length": String(png.length),
-          "Content-Disposition": `attachment; filename="${coverFileName(showcaseId, destination)}"`,
+        const image = await screenshotCover(renderer, url, showcasesDir, {
+          showcaseId,
+          destination,
         });
-        res.end(png);
+        const fileName = coverFileName(showcaseId, destination);
+        res.writeHead(200, {
+          "Content-Type": fileName.endsWith(".jpg") ? "image/jpeg" : "image/png",
+          "Content-Length": String(image.length),
+          "Content-Disposition": `attachment; filename="${fileName}"`,
+        });
+        res.end(image);
         return;
       }
       if (req.method !== "POST" || !Object.hasOwn(ACTIONS, action)) {

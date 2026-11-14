@@ -82,7 +82,12 @@ import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
 import { DESTINATION_IDS, DESTINATIONS } from "../src/content/publish-rules.mjs";
-import { COVER_DESTINATIONS, COVER_FIELDS } from "../src/content/cover-rules.mjs";
+import {
+  COVER_DESTINATIONS,
+  COVER_FIELDS,
+  coverImage,
+  isLandscapeCover,
+} from "../src/content/cover-rules.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
 
@@ -344,7 +349,8 @@ export const TOOLS = [
     name: "edit_cover",
     description:
       "Make or change a showcase's cover: the still image TikTok, Instagram and YouTube " +
-      "Shorts show before the video plays (cover.yaml, beside showcase.yaml). The same " +
+      "Shorts show before the video plays, and the regular YouTube video's 16:9 thumbnail " +
+      "(youtube43) (cover.yaml, beside showcase.yaml). The same " +
       "write path as the Cover page: comments survive, values are checked, a bad edit is " +
       "refused with the reason, and the edits land as ONE write (none if any fails). The " +
       "first edit makes the file. Each edit is {destination?, name, value}: leave " +
@@ -391,11 +397,13 @@ export const TOOLS = [
     name: "screenshot_cover",
     description:
       "Render a showcase's cover and return it as an image — exactly what the saved cover " +
-      'shows (1080×1920, graphics drawn finished), at half size unless size: "full". ' +
+      "shows (1080×1920, or youtube43's 1280×720 thumbnail; graphics drawn finished), at " +
+      'half size unless size: "full". ' +
       "destination picks that destination's cover; without it, the default. Use it after " +
-      "edit_cover, or after editing a graphic the cover draws. The cover's text and " +
+      "edit_cover, or after editing a graphic the cover draws. At 9:16 the cover's text and " +
       "graphics belong in the middle 3:4: the profile grids cut 12.5% off the top and the " +
-      "bottom.",
+      "bottom. On the 16:9 thumbnail, keep the bottom-right corner clear: YouTube shows the " +
+      "video's length there.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1262,20 +1270,27 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
   }
   if (name === "screenshot_cover") {
     const destination = args.destination ? String(args.destination) : undefined;
-    const png = await screenshotCover(context.renderer, context.getUrl(), showcasesDir, {
+    const image = await screenshotCover(context.renderer, context.getUrl(), showcasesDir, {
       showcaseId: String(args.showcaseId ?? ""),
       destination,
       size: args.size === "full" ? "full" : "half",
     });
+    const thumbnail = isLandscapeCover(destination);
     return {
       content: [
-        { type: "image", data: png.toString("base64"), mimeType: "image/png" },
+        {
+          type: "image",
+          data: image.toString("base64"),
+          mimeType: coverImage(destination).format === "jpeg" ? "image/jpeg" : "image/png",
+        },
         {
           type: "text",
           text:
             `The cover of "${args.showcaseId}"` +
             (destination ? ` for ${COVER_DESTINATIONS[destination].label}` : " (the default)") +
-            ". The profile grids show only its middle 3:4.",
+            (thumbnail
+              ? ": the regular video's 16:9 thumbnail. YouTube shows the video's length over its bottom-right corner."
+              : ". The profile grids show only its middle 3:4."),
         },
       ],
     };

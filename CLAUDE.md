@@ -183,8 +183,12 @@ The marketing site (`site/`) is its own npm package:
   in showcase.yaml still works as a flat override on top. Don't fork
   component styles per showcase.
 - A showcase's cover (the still image TikTok, Instagram and Shorts show
-  before the video plays) goes in `showcases/<id>/cover.yaml`: a default
-  plus overrides per destination, like the `publish:` block. Its fields
+  before the video plays, and the regular YouTube video's 16:9 thumbnail,
+  `youtube43`) goes in `showcases/<id>/cover.yaml`: a default plus
+  overrides per destination, like the `publish:` block. Each destination's
+  frame size and file type are in `COVER_DESTINATIONS`; nothing else
+  assumes 9:16. Sizes in a cover are measured against the frame's shorter
+  side, so one default serves both shapes. Its fields
   and layouts are `src/content/cover-rules.mjs`, shared by the loader,
   the Cover page's edits and Claude's `edit_cover`: add a new field
   there. A cover problem is a warning, never a showcase that fails to

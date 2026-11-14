@@ -37,7 +37,10 @@ export function createElectronRenderer() {
       return {
         goto: (url) => win.loadURL(url),
         evaluate: (script) => win.webContents.executeJavaScript(script),
-        capture: async () => (await capture()).toPNG(),
+        capture: async ({ format = "png" } = {}) => {
+          const image = await capture();
+          return format === "jpeg" ? image.toJPEG(90) : image.toPNG();
+        },
         close: async () => {
           if (!win.isDestroyed()) win.destroy();
         },

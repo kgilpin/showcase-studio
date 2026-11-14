@@ -3,12 +3,12 @@
  * Electron's renderer instead (electron/renderer.mjs). Both offer the
  * same small interface, which server/exporter.mjs uses:
  *
- *   openPage({ width, height }) → { goto(url), evaluate(script), capture(), close() }
+ *   openPage({ width, height }) → { goto(url), evaluate(script), capture(options), close() }
  *   dispose()
  *
  * `evaluate` runs a script string in the page (an async IIFE is awaited)
  * and returns its value; `capture` returns a PNG Buffer of exactly
- * width × height.
+ * width × height (`capture({ format: "jpeg" })`: a JPEG, at quality 90).
  *
  * The browser starts on first use and stays up. Its pages share one
  * browser context, so after the first capture the app's modules come from
@@ -54,7 +54,8 @@ export function createPlaywrightRenderer({ log = (message) => console.log(messag
           await page.goto(url, { waitUntil: "load" });
         },
         evaluate: (script) => page.evaluate(script),
-        capture: () => page.screenshot({ type: "png" }),
+        capture: ({ format = "png" } = {}) =>
+          page.screenshot(format === "jpeg" ? { type: "jpeg", quality: 90 } : { type: "png" }),
         close: () => page.close(),
       };
     },

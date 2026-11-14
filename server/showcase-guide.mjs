@@ -179,7 +179,7 @@ Posting:
 - The studio keeps its records of exports and hand-offs in .studio/exports/ and .studio/publishes/ (one small JSON file each). Don't edit them; the videos stay in ~/Downloads/showcase-exports/<id>.
 
 ## Cover
-A cover is the still image TikTok, Instagram and YouTube Shorts show before the video plays: in the profile grid, and as a Short's thumbnail. It is never part of the video. Without one, each platform picks a frame of the video. The user edits it on the Cover page (in the rail, under Video); you edit it with edit_cover.
+A cover is the still image TikTok, Instagram and YouTube Shorts show before the video plays: in the profile grid, and as a Short's thumbnail. The regular YouTube video (youtube43) gets one too: its 16:9 thumbnail. It is never part of the video. Without one, each platform picks a frame of the video. The user edits it on the Cover page (in the rail, under Video); you edit it with edit_cover.
 
 It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are in .studio/cover.schema.json. A default for every destination, and overrides for each one, like the publish: block:
 
@@ -194,24 +194,34 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
       - { graphic: arrow, at: bottom-right, size: 30 }
     instagram:                    # changes just these fields for Instagram
       headline: Mirror your iPhone. Link in bio.
+    youtube43:                    # the regular YouTube video's 16:9 thumbnail
+      layout: split
+
+    destination   frame                       saved as
+    tiktok        9:16, 1080×1920             PNG
+    instagram     9:16, 1080×1920             PNG
+    youtube       9:16, 1080×1920 (Shorts)    PNG
+    youtube43     16:9, 1280×720              JPEG (YouTube takes 2 MB at most)
 
     layout   picture                         text
     fade     fills the frame                 large, over a dark fade
     band     fills the frame                 in a band of the theme's primary color
     split    the rest of the frame, whole    at the top or bottom, as much room as it needs — for an app screenshot
+             16:9: the right side, whole     in a column on the left, placed top, middle (the default) or bottom
 
-- focus says which part of the picture fill keeps (fade and band): top, center or bottom for a picture taller than 9:16, left, center or right for a wider one. A 9:16 picture — a frame of phone footage — isn't cropped, so focus does nothing there, and the Cover page hides it.
+- focus says which part of the picture fill keeps (fade and band): top, center or bottom for a picture taller than the frame, left, center or right for a wider one. A picture the frame's own shape — a frame of phone footage on a 9:16 cover — isn't cropped, so focus does nothing there, and the Cover page hides it.
 - fade says how dark the fade layout's darkening behind the text is: light, medium (the default) or strong. Strong for a bright picture (a sky, a white screen) where white text won't read; light for a dark one, where medium hides more of the picture than it needs to.
 
 - The picture is an image in assets/. On the Cover page the user picks it from the video (any moment of a scene's footage, saved as assets/cover-<scene>-t<ms>.jpg, without captions) or from the images, and can add one from their computer. To use a frame yourself, take it from the scene's clip with the ffmpeg tool — {output: "cover-<scene>-t<ms>.jpg", args: ["-ss", "<seconds>", "-i", "assets/<clip file>", "-frames:v", "1", "-q:v", "2"]} — then set picture to its key. Renaming the file on the Assets page updates the cover too.
 - Pick the layout by the picture: a photo or a frame of footage takes fade or band (band when the picture is busy and text over it won't read); an app screenshot takes split, so it isn't cropped.
 - The profile grids show only the middle 3:4 of the 9:16 frame: they cut 12.5% off the top and the bottom. The cover keeps its text and graphics inside that on its own; don't place anything that matters in those strips.
+- The YouTube thumbnail (youtube43) starts from the same default as the 9:16 covers, so give it its own block only for what should differ. Text size and a graphic's size are measured against the frame's shorter side, so they look the same at 9:16 and 16:9. A tall picture — a frame of phone footage — gets cropped hard in a 16:9 fade or band; give the thumbnail layout: split, which shows it whole beside the text, or a landscape picture of its own. YouTube shows the video's length over the bottom-right corner: keep that corner clear (no graphic at bottom-right).
 - The headline is the only text: a few words, readable at thumbnail size — the hook, not the caption.
 - Anything beyond the headline — an arrow, a badge, a label — is a graphic: write a TSX file in graphics/ as for a scene, then add it to graphics with a place (at: top-left, top, top-right, left, center, right, bottom-left, bottom or bottom-right) and a width in percent of the frame (size).
 - Write it with edit_cover {showcaseId, edits: [{destination?, name, value}], ifVersion}. Leave destination out for the default. null or "" removes a field, so the destination falls back to the default. The first edit makes cover.yaml. read_showcase returns the cover and its coverVersion to pass as ifVersion (null before there is a cover).
-- Check it with screenshot_cover {showcaseId, destination?}, and look at the text over the picture: it has to read at a glance.
+- Check it with screenshot_cover {showcaseId, destination?} — destination: youtube43 for the thumbnail — and look at the text over the picture: it has to read at a glance.
 - A cover.yaml that breaks a rule never stops the showcase from opening: what doesn't fit is left out, with a warning in the studio and in validate.
-- The Share page offers each destination's cover as an image to upload with the video. The regular YouTube video (youtube43) takes a 16:9 thumbnail, which the studio doesn't make yet.
+- The Share page offers each destination's cover as an image to upload with the video, and the YouTube thumbnail with the regular YouTube video.
 
 ## Working rules
 - Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.

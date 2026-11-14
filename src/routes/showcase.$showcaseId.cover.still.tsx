@@ -2,12 +2,13 @@ import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { coverFor, getShowcase } from "@/content/showcases";
 import { COVER_DESTINATIONS, type CoverDestination } from "@/content/cover-rules.mjs";
-import { CoverView } from "@/components/cover/CoverView";
+import { CoverFit, CoverView } from "@/components/cover/CoverView";
 
 /* A showcase's cover alone, filling the page with nothing around it —
- * what the studio captures at 1080×1920 to save the cover as a PNG
- * (GET /studio/api/cover, the screenshot_cover tool). `?destination=`
- * picks that destination's cover; without it, the default. A capture
+ * what the studio captures at the destination's size to save the cover
+ * (GET /studio/api/cover, the screenshot_cover tool): 1080×1920, or
+ * 1280×720 for the YouTube thumbnail. `?destination=` picks that
+ * destination's cover; without it, the default. A capture
  * page (src/lib/window-lock.mjs): no lock, no live reload.
  *
  * Graphics are drawn finished: window.__still (called by the capture,
@@ -62,8 +63,10 @@ function CoverStill() {
     );
   }
   return (
-    <main className="export-static flex h-dvh w-full items-center justify-center overflow-hidden bg-background">
-      <CoverView cover={cover} className="h-full max-w-full" />
+    <main className="export-static h-dvh w-full overflow-hidden bg-background">
+      <CoverFit frame={cover.frame} className="h-full w-full">
+        <CoverView cover={cover} className="w-full" />
+      </CoverFit>
     </main>
   );
 }
