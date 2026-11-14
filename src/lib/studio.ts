@@ -484,6 +484,14 @@ export type ShowcaseStudio = {
      *  references are left alone — a dangling key shows in the
      *  "referenced but missing" list. */
     remove(payload: { showcaseId: string; name: string }): Promise<{ ok: boolean; error?: string }>;
+    /** Saves the frame of a scene's video at `clipMs` (a time in the clip
+     *  file) into assets/ as a still, for the cover's picture
+     *  (server/cover-frame.mjs). */
+    saveFrame(payload: { showcaseId: string; sceneId: string; clipMs: number }): Promise<{
+      ok: boolean;
+      asset?: { name: string; key: string };
+      error?: string;
+    }>;
   };
 };
 
@@ -860,6 +868,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
       rename: (payload) => post("asset-rename", payload),
       add: (payload) => post("asset-add", payload),
       remove: (payload) => post("asset-delete", payload),
+      saveFrame: (payload) => post("cover-frame", payload),
     },
   };
 }

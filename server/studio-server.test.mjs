@@ -326,6 +326,23 @@ describe("createStudio", () => {
     });
   });
 
+  it("moves the cover's picture along when its file is renamed", async () => {
+    const { library, post } = await startStudio();
+    const files = [{ name: "frame.jpg", data: Buffer.from("jpg").toString("base64") }];
+    await post("asset-add", { showcaseId: "nova", files });
+    const cover = path.join(library, "nova", "cover.yaml");
+    writeFileSync(
+      cover,
+      "picture: frame # the hero\nheadline: frame\ntiktok:\n  picture: frame.jpg\n",
+    );
+    expect(
+      await post("asset-rename", { showcaseId: "nova", from: "frame.jpg", to: "hero" }),
+    ).toMatchObject({ ok: true, name: "hero.jpg", updatedReferences: 2 });
+    expect(readFileSync(cover, "utf8")).toBe(
+      "picture: hero # the hero\nheadline: frame\ntiktok:\n  picture: hero.jpg\n",
+    );
+  });
+
   it("renames only references to the renamed asset, leaving a missing asset's alone", async () => {
     const yaml = `meta:
   title: Nova

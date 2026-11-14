@@ -25,7 +25,7 @@ import {
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { cn } from "@/lib/utils";
 import { CoverView } from "@/components/cover/CoverView";
-import { AssetPicker } from "@/components/studio/MediaPicker";
+import { CoverPicturePicker } from "@/components/cover/CoverPicturePicker";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
 
@@ -112,11 +112,11 @@ function CoverScreen() {
             />
           </>
         ) : (
-          <NoCover showcase={showcase} canEdit={canEdit} />
+          <NoCover showcase={showcase} canEdit={canEdit} onMade={() => setPicking(true)} />
         )}
       </div>
       {picking && cover && (
-        <AssetPicker
+        <CoverPicturePicker
           showcase={showcase}
           title={
             destination
@@ -124,9 +124,8 @@ function CoverScreen() {
               : "Cover picture"
           }
           current={cover.picture}
-          kinds={["image"]}
           onClose={() => setPicking(false)}
-          onPick={(asset) => editCover(showcase, destination, "picture", asset.key)}
+          onPick={(key) => editCover(showcase, destination, "picture", key)}
         />
       )}
       <div className="fixed inset-x-0 bottom-0">
@@ -146,11 +145,17 @@ function editCover(
 }
 
 /** No cover.yaml yet. In a studio: one button, which starts the cover
- *  from the first scene's picture and the showcase's title. */
-function NoCover({ showcase, canEdit }: { showcase: Showcase; canEdit: boolean }) {
-  const firstPicture = showcase.scenes
-    .map((scene) => scene.media)
-    .find((media) => media.kind === "image");
+ *  with the showcase's title as its headline and opens the picture
+ *  picker, so the first thing to do is choose its picture. */
+function NoCover({
+  showcase,
+  canEdit,
+  onMade,
+}: {
+  showcase: Showcase;
+  canEdit: boolean;
+  onMade: () => void;
+}) {
   return (
     <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-4 text-center">
       <p className="font-display text-3xl tracking-tight text-foreground">No cover yet</p>
@@ -164,18 +169,12 @@ function NoCover({ showcase, canEdit }: { showcase: Showcase; canEdit: boolean }
           type="button"
           onClick={() => {
             void (async () => {
-              if (firstPicture && "asset" in firstPicture) {
-                await commitEdit(showcase.id, "", {
-                  field: "cover",
-                  name: "picture",
-                  value: firstPicture.asset,
-                });
-              }
-              await commitEdit(showcase.id, "", {
+              const made = await commitEdit(showcase.id, "", {
                 field: "cover",
                 name: "headline",
                 value: showcase.title,
               });
+              if (made) onMade();
             })();
           }}
           className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
@@ -252,6 +251,7 @@ function CoverPanel({
   onPickPicture: () => void;
 }) {
   const fields = resolveCover(showcase.coverDoc, destination);
+  const pictureUrl = coverFor(showcase, destination)?.pictureUrl;
   const set = (name: CoverField, value: unknown) => editCover(showcase, destination, name, value);
   const reset = (name: CoverField) =>
     destination && fields.overridden.includes(name) ? () => set(name, null) : undefined;
@@ -292,9 +292,16 @@ function CoverPanel({
       </Row>
 
       <Row label="Picture" overridden={reset("picture")}>
-        <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-support">
-            {fields.picture ?? "none"}
+        <div className="flex items-center gap-3">
+          <div className="flex h-16 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-background">
+            {pictureUrl ? (
+              <img src={pictureUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <ImagePlus className="size-3.5 text-support" />
+            )}
+          </div>
+          <span className="min-w-0 flex-1 truncate text-xs text-support">
+            {fields.picture ?? "No picture yet"}
           </span>
           {canEdit && (
             <button
@@ -303,7 +310,7 @@ function CoverPanel({
               className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs text-foreground/80 transition-colors hover:text-foreground"
             >
               <ImagePlus className="size-3.5" />
-              Change
+              {fields.picture ? "Change" : "Choose"}
             </button>
           )}
         </div>

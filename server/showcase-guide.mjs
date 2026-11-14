@@ -200,6 +200,7 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
     band     fills the frame                 in a band of the theme's primary color
     split    one half, shown whole           the other half — for an app screenshot
 
+- The picture is an image in assets/. On the Cover page the user picks it from the video (any moment of a scene's footage, saved as assets/cover-<scene>-t<ms>.jpg, without captions) or from the images, and can add one from their computer. To use a frame yourself, take it from the scene's clip with the ffmpeg tool — {output: "cover-<scene>-t<ms>.jpg", args: ["-ss", "<seconds>", "-i", "assets/<clip file>", "-frames:v", "1", "-q:v", "2"]} — then set picture to its key. Renaming the file on the Assets page updates the cover too.
 - Pick the layout by the picture: a photo or a frame of footage takes fade or band (band when the picture is busy and text over it won't read); an app screenshot takes split, so it isn't cropped.
 - The profile grids show only the middle 3:4 of the 9:16 frame: they cut 12.5% off the top and the bottom. The cover keeps its text and graphics inside that on its own; don't place anything that matters in those strips.
 - The headline is a few words, readable at thumbnail size: the hook, not the caption. The subhead is optional.

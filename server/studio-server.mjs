@@ -79,6 +79,7 @@ import { createAutoBuild } from "./auto-build.mjs";
 import { mediaStatus, mediaSummary } from "./media-status.mjs";
 import { buildVoiceover, hasVoiceover } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
+import { saveCoverFrame } from "./cover-frame.mjs";
 import { createActionsLog } from "./actions-log.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { watchStudioCode } from "./code-changes.mjs";
@@ -959,8 +960,9 @@ scenes:
   }
 
   /* Renames an asset file and updates every YAML reference to it — the
-   * bare key and the full file name, in asset:/src:/cover: fields only,
-   * so narration text mentioning the same word is left alone. Besides the
+   * bare key and the full file name, in showcase.yaml's asset:/src:/cover:
+   * fields and cover.yaml's picture: fields only, so narration text
+   * mentioning the same word is left alone. Besides the
    * page's answer, returns the references it rewrote and showcase.yaml's
    * hash before and after, for the change log. */
   function renameAsset({ showcaseId, from, to } = {}) {
@@ -981,29 +983,31 @@ scenes:
     let references = [];
     let previousHash;
     let hash;
-    const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
-    if (existsSync(yamlPath)) {
-      const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const strip = (s) => s.replace(/\.[^.]+$/, "");
-      const text = readFileSync(yamlPath, "utf8");
-      /* The full file name and, when it has an extension, the bare key —
-       * matched in one pass, so offsets point into the original text.
-       * When files share a bare name, it means the first of them (see
-       * assetMap in src/content/source.ts). So the bare key is rewritten
-       * only when it means the renamed file, and it becomes the full new
-       * name when the new bare name already means another file. */
-      const files = readdirSync(dir).filter((f) => !f.startsWith("."));
-      const means = (key, except) =>
-        files.find((f) => f !== except && (f === key || strip(f) === key));
-      const names = new Map([[oldName, newName]]);
-      if (strip(oldName) !== oldName && means(strip(oldName)) === oldName) {
-        const newKey = strip(newName);
-        names.set(strip(oldName), means(newKey, oldName) ? newName : newKey);
-      }
-      const re = new RegExp(
-        `(^\\s*(?:asset|src|cover):\\s*["']?)(${[...names.keys()].map(esc).join("|")})(["']?\\s*(?:#.*)?)$`,
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const strip = (s) => s.replace(/\.[^.]+$/, "");
+    /* The full file name and, when it has an extension, the bare key —
+     * matched in one pass, so offsets point into the original text.
+     * When files share a bare name, it means the first of them (see
+     * assetMap in src/content/source.ts). So the bare key is rewritten
+     * only when it means the renamed file, and it becomes the full new
+     * name when the new bare name already means another file. */
+    const files = readdirSync(dir).filter((f) => !f.startsWith("."));
+    const means = (key, except) =>
+      files.find((f) => f !== except && (f === key || strip(f) === key));
+    const names = new Map([[oldName, newName]]);
+    if (strip(oldName) !== oldName && means(strip(oldName)) === oldName) {
+      const newKey = strip(newName);
+      names.set(strip(oldName), means(newKey, oldName) ? newName : newKey);
+    }
+    const referenceTo = (fields) =>
+      new RegExp(
+        `(^\\s*(?:${fields}):\\s*["']?)(${[...names.keys()].map(esc).join("|")})(["']?\\s*(?:#.*)?)$`,
         "gm",
       );
+    const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
+    if (existsSync(yamlPath)) {
+      const text = readFileSync(yamlPath, "utf8");
+      const re = referenceTo("asset|src|cover");
       const found = [];
       const next = text.replace(re, (_all, head, value, tail, offset) => {
         found.push({ at: offset + head.length, from: value, to: names.get(value) });
@@ -1016,11 +1020,23 @@ scenes:
         writeFileSync(yamlPath, next);
       }
     }
+    /* The cover's picture, in cover.yaml (the default and each
+     * destination's own), follows the file too. */
+    const coverPath = path.join(showcasesDir, id, "cover.yaml");
+    let coverReferences = 0;
+    if (existsSync(coverPath)) {
+      const text = readFileSync(coverPath, "utf8");
+      const next = text.replace(referenceTo("picture"), (_all, head, value, tail) => {
+        coverReferences += 1;
+        return `${head}${names.get(value)}${tail}`;
+      });
+      if (coverReferences > 0) writeFileSync(coverPath, next);
+    }
     renameSync(path.join(dir, oldName), path.join(dir, newName));
     return {
       ok: true,
       name: newName,
-      updatedReferences: references.length,
+      updatedReferences: references.length + coverReferences,
       references,
       previousHash,
       hash,
@@ -1297,6 +1313,19 @@ scenes:
     "asset-add": (body) => {
       const result = addAssets(body);
       if (result.ok) logUi(body.showcaseId, "asset.add", { names: result.names });
+      return result;
+    },
+    /* A frame of a scene's video, saved into assets/ for the cover's
+     * picture (server/cover-frame.mjs). The page then points the cover
+     * at it with an ordinary cover edit. */
+    "cover-frame": async (body) => {
+      const result = await saveCoverFrame(showcasesDir, body);
+      if (result.ok) {
+        logUi(body.showcaseId, "asset.encode", {
+          name: result.asset.name,
+          replaced: result.replaced,
+        });
+      }
       return result;
     },
     "asset-delete": (body) => {
