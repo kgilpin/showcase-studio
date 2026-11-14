@@ -77,6 +77,7 @@ import { clearSnapshots, snapshotDir, snapshotId, takeSnapshot } from "./export-
 import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { SHOWCASE_SCHEMA } from "../src/content/showcase-schema.mjs";
+import { THEME_SCHEMA } from "../src/content/theme-rules.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { callTool, createMcpHandler } from "./mcp.mjs";
 import { prompterScript } from "./prompter-script.mjs";
@@ -421,6 +422,11 @@ export function createStudio({
     writeFileSync(
       path.join(showcasesDir, ".studio", "showcase.schema.json"),
       JSON.stringify(SHOWCASE_SCHEMA, null, 2) + "\n",
+    );
+    /* And theme.yaml's, the same way. */
+    writeFileSync(
+      path.join(showcasesDir, ".studio", "theme.schema.json"),
+      JSON.stringify(THEME_SCHEMA, null, 2) + "\n",
     );
     writeMcpConfig();
     /* The settings file marks the folder as a library. An older

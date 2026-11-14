@@ -409,6 +409,83 @@ atmosphere:
   });
 });
 
+/* A broken theme never fails its showcase: what breaks a rule is left
+ * out with a warning, and the showcase shows with the rest. */
+describe("a broken theme", () => {
+  const yaml = (title: string, meta = "") => `
+meta:
+  title: ${title}
+  description: A themed showcase.${meta}
+scenes:
+  - id: one
+    theme: statement
+    title: Hello
+`;
+  const loadThemes = async (...entries: [string, string | undefined, string?][]) => {
+    const loaded = await loadFromSource({
+      load: async () =>
+        entries.map(([id, themeYaml, meta]) => ({
+          ...data(id, yaml(id, meta), []),
+          ...(themeYaml == null ? {} : { themeYaml }),
+        })),
+    });
+    const byId = new Map(loaded.map((showcase) => [showcase.id, showcase]));
+    const messages = (id: string) =>
+      showcaseWarnings.filter((w) => w.showcaseId === id).map(({ message }) => message);
+    return { byId, messages };
+  };
+
+  it("leaves out an unknown key, an unknown section and a value of the wrong kind", async () => {
+    const { byId, messages } = await loadThemes([
+      "demo",
+      'colors:\n  primary: "#4ade80"\n  glow: red\nlayout:\n  gap: 2\nfonts:\n  load: a.css\n',
+    ]);
+    expect(showcaseErrors).toEqual([]);
+    expect(byId.get("demo")?.theme.vars["primary"]).toBe("#4ade80");
+    expect(byId.get("demo")?.theme.fontLoads).toEqual([]);
+    expect(messages("demo")).toEqual([
+      expect.stringMatching(/^Unknown colors key "glow" .* — it is left out$/),
+      expect.stringMatching(/^Unknown section "layout" .* — it is left out$/),
+      expect.stringMatching(/^"fonts.load" .* must be a list .* — it is left out$/),
+    ]);
+  });
+
+  it("shows the showcase without its theme when theme.yaml doesn't parse", async () => {
+    const { byId, messages } = await loadThemes(["demo", "colors: [unclosed\n"]);
+    expect(showcaseErrors).toEqual([]);
+    expect(byId.get("demo")?.theme.vars).toEqual({});
+    expect(messages("demo")).toEqual([
+      expect.stringContaining("theme.yaml doesn't read as YAML, so the showcase shows without"),
+    ]);
+  });
+
+  it("starts from the defaults when extends names no showcase, or makes a cycle", async () => {
+    const { byId, messages } = await loadThemes(
+      ["lonely", 'extends: ghost\ncolors:\n  primary: "#111111"\n'],
+      ["a", 'extends: b\ncolors:\n  primary: "#aaaaaa"\n'],
+      ["b", 'extends: a\ncolors:\n  accent: "#bbbbbb"\n'],
+    );
+    expect(showcaseErrors).toEqual([]);
+    expect(byId.get("lonely")?.theme.vars).toEqual({ primary: "#111111" });
+    expect(messages("lonely")).toEqual([
+      expect.stringContaining('extends unknown showcase "ghost"'),
+    ]);
+    expect(byId.size).toBe(3);
+    expect(messages("a").join("\n")).toContain('Theme "extends" cycle: a -> b -> a');
+  });
+
+  it("leaves out a meta.theme name that isn't themeable, with the schema's warning", async () => {
+    const { byId, messages } = await loadThemes([
+      "demo",
+      undefined,
+      '\n  theme:\n    primary: "#123456"\n    glow: red',
+    ]);
+    expect(showcaseErrors).toEqual([]);
+    expect(byId.get("demo")?.theme.vars).toEqual({ primary: "#123456" });
+    expect(messages("demo")).toEqual([expect.stringContaining("glow")]);
+  });
+});
+
 /* The length limits: meta.sceneMaxMs, a scene's own maxMs, and
  * meta.targetMs. They only warn — the timing is unchanged. */
 describe("scene and showcase length", () => {

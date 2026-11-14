@@ -26,7 +26,7 @@ import {
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
-import { THEME_GROUPS, themeDocProblem } from "./theme-rules.mjs";
+import { THEME_GROUPS, cleanTheme } from "./theme-rules.mjs";
 import { ASSET_KINDS, assetKind, mediaKindWarning, type AssetKind } from "./asset-kind";
 import {
   CAPTION_POSITION_HELP,
@@ -396,9 +396,13 @@ type RawDoc = {
  * SHOWCASE THEME — showcases/<id>/theme.yaml
  *
  * Per-showcase styling. Only the keys below are themeable; the loader
- * rejects anything else at build time, so a theme cannot override the
- * structural variables the app needs (the Tailwind `@theme inline` wiring,
- * radius derivations, library internals).
+ * leaves anything else out, with a warning, so a theme cannot override
+ * the structural variables the app needs (the Tailwind `@theme inline`
+ * wiring, radius derivations, library internals). A broken theme never
+ * fails its showcase: a key it doesn't know, a value of the wrong kind,
+ * an `extends` naming no showcase (or making a cycle), even a theme.yaml
+ * that doesn't parse — each is a warning, and the showcase shows with
+ * the rest.
  *
  *   extends: <showcase-id>   start from another showcase's resolved theme;
  *                            keys set here override the inherited values
@@ -434,9 +438,34 @@ type RawTheme = {
   atmosphere?: Record<string, unknown>;
 };
 
-function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
-  const problem = themeDocProblem(doc, `showcases/${showcaseId}/theme.yaml`);
-  if (problem) throw new Error(problem);
+/** What the loader left out of each theme.yaml it read, as warnings,
+ *  keyed by the theme it kept — so the warnings move with the theme
+ *  when a refresh puts an older one back. */
+const themeProblems = new WeakMap<RawTheme, string[]>();
+
+/** Reads a theme.yaml's text into the theme the loader uses: what breaks
+ *  a rule (theme-rules.mjs) is left out and noted in themeProblems, and
+ *  text that doesn't parse is an empty theme with one problem. Never
+ *  throws. */
+function readTheme(showcaseId: string, text: string): RawTheme {
+  const file = `showcases/${showcaseId}/theme.yaml`;
+  let parsed: unknown;
+  try {
+    parsed = parse(text);
+  } catch (error) {
+    const theme: RawTheme = {};
+    const reason = error instanceof Error ? error.message : String(error);
+    themeProblems.set(theme, [
+      `${file} doesn't read as YAML, so the showcase shows without its theme: ${reason}`,
+    ]);
+    return theme;
+  }
+  const { theme, problems } = cleanTheme(parsed, file);
+  themeProblems.set(
+    theme as RawTheme,
+    problems.map((problem) => `${problem} — it is left out`),
+  );
+  return theme as RawTheme;
 }
 
 /** The warning for a theme value YAML cut short (see looksCutOff). The
@@ -447,17 +476,6 @@ function cutOffWarning(where: string, value: string): string {
     `${where} looks cut off: "${value}", so it is left out. In YAML a space followed ` +
     `by # starts a comment — put the whole value in quotes.`
   );
-}
-
-function validateMetaTheme(showcaseId: string, theme: Record<string, string>): void {
-  for (const [name, value] of Object.entries(theme)) {
-    if (!THEMEABLE_VARS.has(name)) {
-      throw new Error(
-        `meta.theme in showcase "${showcaseId}" sets "--${name}", which is not themeable. ` +
-          `Themeable variables: ${[...THEMEABLE_VARS].sort().join(", ")}`,
-      );
-    }
-  }
 }
 
 /* -------------------------------------------------------------
@@ -656,23 +674,26 @@ const themeWarnings = new Map<string, string[]>();
 function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
   const cached = resolvedThemes.get(showcaseId);
   if (cached) return cached;
-  if (stack.includes(showcaseId)) {
-    throw new Error(`Theme "extends" cycle: ${[...stack, showcaseId].join(" -> ")}`);
-  }
-
   const doc = themeDocs.get(showcaseId) ?? {};
   let vars: Record<string, string> = {};
   const fontLoads: string[] = [];
-  const warnings: string[] = [];
+  const warnings: string[] = [...(themeProblems.get(doc) ?? [])];
+  const chain = [...stack, showcaseId];
 
-  if (doc.extends) {
-    if (!rawDocs.has(doc.extends)) {
-      throw new Error(
-        `Showcase "${showcaseId}" extends unknown showcase "${doc.extends}" — ` +
-          `expected a folder under showcases/ with a showcase.yaml`,
-      );
-    }
-    const parent = resolveTheme(doc.extends, [...stack, showcaseId]);
+  /* A parent that can't be used is a warning, and the theme starts from
+   * the defaults instead — never a showcase that fails to load. */
+  if (doc.extends && !rawDocs.has(doc.extends)) {
+    warnings.push(
+      `Showcase "${showcaseId}" extends unknown showcase "${doc.extends}" (expected a folder ` +
+        `with a showcase.yaml), so its theme starts from the defaults`,
+    );
+  } else if (doc.extends && chain.includes(doc.extends)) {
+    warnings.push(
+      `Theme "extends" cycle: ${[...chain, doc.extends].join(" -> ")} — ` +
+        `"${showcaseId}" starts from the defaults instead`,
+    );
+  } else if (doc.extends) {
+    const parent = resolveTheme(doc.extends, chain);
     vars = { ...parent.vars };
     fontLoads.push(...parent.fontLoads);
     warnings.push(...(themeWarnings.get(doc.extends) ?? []));
@@ -696,8 +717,10 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
 
   const metaTheme = rawDocs.get(showcaseId)?.meta.theme;
   if (metaTheme) {
-    validateMetaTheme(showcaseId, metaTheme);
     for (const [name, value] of Object.entries(metaTheme)) {
+      /* A name that isn't themeable is the schema check's warning
+       * (showcase-schema.mjs lists the names under meta.theme). */
+      if (!THEMEABLE_VARS.has(name)) continue;
       if (typeof value === "string" && looksCutOff(value)) {
         warnings.push(cutOffWarning(`meta.theme "${name}" in showcase "${showcaseId}"`, value));
         continue;
@@ -1079,9 +1102,7 @@ export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]
       rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
       rawTexts.set(entry.id, entry.yaml);
       if (entry.themeYaml != null) {
-        const doc = (parse(entry.themeYaml) ?? {}) as RawTheme;
-        validateThemeDoc(entry.id, doc);
-        themeDocs.set(entry.id, doc);
+        themeDocs.set(entry.id, readTheme(entry.id, entry.themeYaml));
         rawThemeTexts.set(entry.id, entry.themeYaml);
       }
     } catch (error) {
@@ -1274,8 +1295,7 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
   try {
     doc = parse(entry.yaml) as RawDoc;
     if (entry.themeYaml != null) {
-      theme = (parse(entry.themeYaml) ?? {}) as RawTheme;
-      validateThemeDoc(showcaseId, theme);
+      theme = readTheme(showcaseId, entry.themeYaml);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -104,6 +104,7 @@ describe("the studio's MCP server", () => {
       open: "http://localhost:1234/showcase/nova",
       guide: path.join(lib, ".studio", "GUIDE.md"),
       schema: path.join(lib, ".studio", "showcase.schema.json"),
+      themeSchema: path.join(lib, ".studio", "theme.schema.json"),
       changes: path.join(lib, ".studio", "changes.jsonl"),
     });
     expect(started).toEqual([{ showcasesDir: lib, lock, window: true, closed: false }]);

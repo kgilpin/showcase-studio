@@ -339,6 +339,15 @@ npm run dev -- --new [<library folder>]
   a session at, and `edit-yaml.test.mjs` holds the edit tool's
   whitelists to it. When you add a field to showcase.yaml, add it here
   first.
+- `src/content/theme-rules.mjs`: what theme.yaml may hold — the groups,
+  their keys and the CSS variable each sets (`THEME_GROUPS`), from which
+  everything else is made: `cleanTheme`, which the loader runs on every
+  theme (what breaks a rule is left out with a warning, so a bad theme
+  never fails its showcase), the value checks behind `edit_theme` and
+  the style panel, the variable names `meta.theme` takes in the showcase
+  schema, and `THEME_SCHEMA`, the same rules as JSON Schema, which the
+  studio writes into every library as `.studio/theme.schema.json`
+  (`studio_info`'s `themeSchema`). When you add a theme key, add it here.
 - `src/content/source.ts`: Where the showcase data comes from: folders
   bundled at build time (default, SSR-safe), or the same files fetched over
   HTTP when `VITE_SHOWCASES_URL` is set (every studio mode sets it to
@@ -422,7 +431,7 @@ npm run dev -- --new [<library folder>]
     `<source>/scripts/dev.mjs --no-terminal --no-auto-commit`, so every
     start runs current code — and by the packaged app's `--mcp`, in-process.
   - `mcp.mjs`: the MCP tools: `studio_info` (with the paths of the guide
-    and the schema a session reads before it writes, and `pageError` when the last
+    and the two schemas a session reads before it writes, and `pageError` when the last
     server-side page render failed and none has rendered since — recorded by
     `src/start.ts`/`src/server.ts` in `src/lib/page-error.mjs`, a store on
     `globalThis` that both the page's server code and the studio read in the
@@ -991,7 +1000,9 @@ print}` — what the automatic build asks before it starts, what an
   whitelisted set of `colors`, `fonts`, `shape`, and `atmosphere` overrides
   applied by the `/showcase/$showcaseId` layout route. The whitelist is
   `src/content/theme-rules.mjs`, shared by the loader and the studio's
-  theme edits (the style panel and Claude's `edit_theme`). A theme can
+  theme edits (the style panel and Claude's `edit_theme`). Like a
+  showcase.yaml field, a theme problem is a warning, never a showcase
+  that fails to load. A theme can
   `extends` another showcase's theme, and `fonts.load` lists font
   stylesheet URLs for families the app doesn't already load. Only
   whitelisted keys are accepted — structural CSS variables can't be

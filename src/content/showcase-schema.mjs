@@ -10,9 +10,9 @@
  * It is JSON Schema (the subset below), kept as data so one copy serves
  * the page, the studio and the reader. The values that other rule files
  * already decide — caption positions, TikTok fits, the brand mark, the
- * publish block — are imported from them, never retyped. Plain ESM, like
- * those files, so the server and the page read one copy; types live in
- * showcase-schema.d.mts.
+ * publish block, meta.theme's variable names — are imported from them,
+ * never retyped. Plain ESM, like those files, so the server and the page
+ * read one copy; types live in showcase-schema.d.mts.
  *
  * What checkShowcase understands of JSON Schema: type (string, number,
  * integer, boolean, object, array), properties, required,
@@ -40,6 +40,7 @@ import {
   WATERMARK_SHADE,
 } from "./watermark-rules.mjs";
 import { DESTINATIONS, PUBLISH_FIELDS } from "./publish-rules.mjs";
+import { THEME_VARS } from "./theme-rules.mjs";
 import { PLAYER_VIEWS } from "../lib/export-kinds.mjs";
 
 export const SCENE_THEMES = ["statement", "feature", "console", "footage"];
@@ -342,8 +343,10 @@ const META = object(
     theme: {
       type: "object",
       title: "theme overrides",
-      description: "Quick style overrides by CSS variable name, on top of theme.yaml.",
-      additionalProperties: { type: "string" },
+      description:
+        "Quick style overrides by CSS variable name (no leading --), on top of theme.yaml. The names are theme.yaml's own variables (theme-rules.mjs).",
+      additionalProperties: false,
+      properties: Object.fromEntries(THEME_VARS.map((name) => [name, { type: "string" }])),
     },
   },
   ["title"],

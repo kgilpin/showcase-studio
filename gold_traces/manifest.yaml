@@ -189,6 +189,11 @@ entries:
     test_name: warns about a field in the wrong place, on the scene it is in
     appmap_path: vitest/warns_about_a_field_in_the_wrong_place,_on_the_scene_it_is_in.appmap.json
     summary: The loader checking a document against the showcase.yaml schema — checkShowcase walking meta, the scenes and their fields, an unknown field on a scene turned into a warning that names where it belongs (scenes[].take.clip), and that warning landing on the scene it is in while the scene before it stays clean.
+  - feature: theme-schema
+    test_file: src/content/showcases.test.ts
+    test_name: leaves out an unknown key, an unknown section and a value of the wrong kind
+    appmap_path: "vitest/leaves_out_an_unknown_key,_an_unknown_section_and_a_value_of_the_wrong_kind.appmap.json"
+    summary: The loader reading a broken theme.yaml — readTheme and cleanTheme (theme-rules.mjs) leaving out what breaks a rule, each dropped key a warning, and the showcase still loading with the rest of its theme instead of failing.
   - feature: auto-build
     test_file: server/auto-build.test.mjs
     test_name: builds after a quiet period when something is out of date, as the studio

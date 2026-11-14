@@ -977,10 +977,12 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       ...context.info(),
       showcases: showcaseIndex(showcasesDir).showcases.map((s) => s.id),
       /* What a session reads before it writes: the guide, and the
-       * schema (the fields of showcase.yaml, their types, where each
-       * goes), both written into the library at every start. */
+       * schemas (the fields of showcase.yaml and of theme.yaml, their
+       * types, where each goes), all written into the library at every
+       * start. */
       guide: path.join(showcasesDir, ".studio", "GUIDE.md"),
       schema: path.join(showcasesDir, ".studio", "showcase.schema.json"),
+      themeSchema: path.join(showcasesDir, ".studio", "theme.schema.json"),
       /* Every showcase whose media the studio builds, and whether it is
        * up to date (server/media-status.mjs). */
       media: context.mediaSummary?.() ?? [],

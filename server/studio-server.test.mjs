@@ -169,6 +169,11 @@ describe("createStudio", () => {
     );
     expect(schema.title).toBe("showcase.yaml");
     expect(Object.keys(schema.properties.scenes.items.properties)).toContain("take");
+    const themeSchema = JSON.parse(
+      readFileSync(path.join(library, ".studio", "theme.schema.json"), "utf8"),
+    );
+    expect(themeSchema.title).toBe("theme.yaml");
+    expect(Object.keys(themeSchema.properties.colors.properties)).toContain("caption-text");
     const mcpConfig = JSON.parse(readFileSync(path.join(library, ".studio", "mcp.json"), "utf8"));
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
   });
@@ -542,6 +547,7 @@ scenes:
       showcases: ["nova"],
       guide: path.join(library, ".studio", "GUIDE.md"),
       schema: path.join(library, ".studio", "showcase.schema.json"),
+      themeSchema: path.join(library, ".studio", "theme.schema.json"),
     });
   });
 

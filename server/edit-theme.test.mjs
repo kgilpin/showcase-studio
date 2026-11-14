@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { applyThemeEdit, applyThemeEdits } from "./edit-theme.mjs";
-import { themeDocProblem } from "../src/content/theme-rules.mjs";
+import { cleanTheme } from "../src/content/theme-rules.mjs";
 
 const THEME = `# Brand theme — this comment is load-bearing.
 colors:
@@ -63,7 +63,7 @@ describe("applyThemeEdits", () => {
       shape: { radius: "1.25rem" },
       extends: "nova",
     });
-    expect(themeDocProblem(doc)).toBeNull();
+    expect(cleanTheme(doc).problems).toEqual([]);
     expect(out).toContain("# Brand theme — this comment is load-bearing.");
   });
 
