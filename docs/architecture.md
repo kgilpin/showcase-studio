@@ -139,7 +139,9 @@ says otherwise.
 ## The page
 
 - `src/routes/`: TanStack Router file routes: `/` (home), `/new` (studio
-  only), `/showcase/$showcaseId` with `/script`, `/assets` (the media
+  only), `/showcase/$showcaseId` with `/cover` (the cover image, editable
+  in a studio), `/cover/still` (the cover alone, a capture page the
+  studio saves as a PNG), `/script`, `/assets` (the media
   collection, with usage and rename in the studio), `/share` (studio only;
   parts in `src/components/share/`), `/export`, `/export/$sceneId` and
   `/record`.
@@ -149,6 +151,11 @@ says otherwise.
 - `src/components/showcase/`: the player (`ShowcasePlayer`, `SceneView`
   for slide layouts, `SceneMedia` for motion, `ProgressRail`,
   `Soundtrack`) and `ShowcaseFrame`, the frame around a showcase's screens.
+- `src/components/cover/`: the cover. `CoverView` draws it in container
+  units, so one drawing serves the Cover page, the home card, the Share
+  page's cover card and the saved PNG. `CoverPicturePicker` chooses its
+  picture: a frame of the video (saved by `server/cover-frame.mjs`) or an
+  image.
 - `src/components/script/`: the script listing and teleprompter.
 - `src/components/studio/`: the studio's panels. The top bar's activity
   slot and the Actions list are `StudioActivity.tsx`.
