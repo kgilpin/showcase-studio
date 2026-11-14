@@ -50,7 +50,33 @@
  * The voice and the engine are what the showcase sounds like, so they go
  * with it. The profile and region are only how to reach Polly; leave them
  * out of a showcase that ships to other people, and their own AWS
- * settings apply. */
+ * settings apply.
+ *
+ * It is for a showcase with no recording. Polly is called through the
+ * `aws` command, so whatever the user's profile does to sign in works.
+ * Clips, and what whisper heard in each, are cached in
+ * <library>/.studio/build/voiceover/<showcase>/. The build runs in the
+ * studio's media-build lane: the build_voiceover tool, the "voiceover"
+ * action, and a plain build of a showcase with meta.voiceover all reach
+ * it. build_voiceover's `only` writes meta.voiceover.scenes first, so
+ * the automatic build keeps to the same scenes afterwards.
+ *
+ * voiceoverStatus says whether the track is up to date without calling
+ * Polly or decoding a clip. The manifest keeps a print of every input
+ * the build read (voiceInputsPrint) and the pins it wrote.
+ *
+ * Which profile and region Polly is called with is resolveAws, in this
+ * order: the showcase's meta.voiceover, the library's aws_profile and
+ * aws_region (library-config.mjs), the environment, then the aws
+ * command's default profile and that profile's region (read through
+ * `aws configure` by awsConfig, cached for 30 s), and last us-east-1,
+ * with a note in the build's result. It is checked before any build,
+ * and in the status too. A profile this machine doesn't have, or no
+ * default profile and nothing naming one, is the status's `problem`. The
+ * problem lists the machine's profiles and tells a session to ask the
+ * user, since which account pays for the voice is the user's choice. So
+ * the automatic build reports it once instead of failing, and validate
+ * and studio_info say it before a build is tried. */
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import {

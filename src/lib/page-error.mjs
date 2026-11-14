@@ -13,7 +13,9 @@
  *   validate / screenshot_slide / screenshot_frame ◄── pageLoadFailureMessage()
  *
  * A later page that renders clears it (clearPageError), so an old error
- * doesn't linger. Plain JS so server/ can import it; the package script
+ * doesn't linger. The error page shows the error under Details only
+ * while a studio runs in this process and the request names a local
+ * host (mayShowErrorDetails). Plain JS so server/ can import it; the package script
  * copies it into the app (scripts/package-desktop.mjs). */
 
 const KEY = Symbol.for("showcase-studio.page-error");

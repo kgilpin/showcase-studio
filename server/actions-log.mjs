@@ -28,7 +28,13 @@
  * What the user can do with a record (its offers) depends on its state
  * and on the handlers whoever added it passed in — the job lane's cancel,
  * a way to run it again, the pending timer's skip. Records loaded from
- * the file have no handlers, so they offer only dismiss. */
+ * the file have no handlers, so they offer only dismiss.
+ *
+ * Who adds records: the export and build lanes report every job through
+ * job(), and server/showcase-history.mjs records each commit. Pages read
+ * the list over GET /studio/api/actions, hear each change as the
+ * "action" event, and run an offer with the "actions-offer" action.
+ * studio_info reports summary() as `actions`. */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 

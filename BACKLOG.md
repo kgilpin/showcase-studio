@@ -390,7 +390,7 @@ comment that its `media: none` means "not sent". The made-up value itself is
 still there; a later change could drop it so `ScriptPlayer` sees media as
 missing. B and C are open.
 
-**Deploying.** See `CLAUDE.md` for the command. Deploy both the Dev and Prod
+**Deploying.** See `docs/deploy.md` for the command. Deploy both the Dev and Prod
 sites.
 
 ---

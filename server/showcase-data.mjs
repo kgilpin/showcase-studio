@@ -1,7 +1,7 @@
 /* The showcase data-folder shape, shared by every server that exposes a
  * folder of showcases to the app's httpSource (src/content/source.ts):
- * the vite dev middleware (vite.config.ts) and the Electron shell
- * (electron/main.mjs).
+ * the studio server (studio-server.mjs) serves it in every mode, and the
+ * Electron shell (electron/main.mjs) reads showcaseIndex from it.
  *
  *   GET <base>/index.json               → { showcases: [{ id, hasTheme, assets, graphics,
  *                                                     modifiedMs }] }
@@ -16,6 +16,8 @@
  *                                         (CJS, automatic JSX) for the app's
  *                                         graphics runtime; compile errors
  *                                         return 500 with the message
+ *
+ * Assets answer byte-range requests, which media elements need to seek.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";

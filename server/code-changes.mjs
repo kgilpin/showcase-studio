@@ -8,8 +8,11 @@
  * accepts a field the edit tool refuses, and nothing says why (issue
  * #18). This watches those files and keeps the list of the ones whose
  * content differs from the start: a save that changes nothing, and a
- * change put back, count as no change. The studio reports the list as
- * `changedCode`, the page shows a banner, and a restart clears it. The
+ * change put back, count as no change. The start scripts under scripts/
+ * are watched too. The studio reports the list as `changedCode` (in its
+ * info and studio_info) and sends it to pages as the `code` event; the
+ * page shows a banner (src/components/studio/CodeChangedBanner.tsx), and
+ * a restart clears it. The
  * packaged app ships no source, so it has nothing to watch. */
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, watch } from "node:fs";

@@ -25,7 +25,9 @@ import { cn } from "@/lib/utils";
  * divider (the things you make, then sending them out). Icons are nouns
  * (what the screen shows) — the play triangle is reserved for actions
  * that start playback, so it never labels a place. Share shows only in
- * a studio: sharing works on the studio's exports.
+ * a studio: sharing works on the studio's exports. A new screen gets
+ * its place by adding its line to PLACES. The capture pages (/export,
+ * /record) don't use the frame.
  *
  * The top bar holds Home (none in a locked window, --open / --new), the
  * showcase's title, and at the right, in a studio: one slot for what

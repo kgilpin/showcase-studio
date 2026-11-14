@@ -16,7 +16,13 @@
  *                  desktop shell can point it at a user folder instead.
  *                  It can also re-read one showcase (loadOne), which is
  *                  how a change on disk reaches the page without a
- *                  reload (src/lib/live-updates.ts).
+ *                  reload (src/lib/live-updates.ts). Every studio mode
+ *                  sets VITE_SHOWCASES_URL to /showcase-data, which the
+ *                  studio server serves from the library folder.
+ *
+ * A page opened with ?snapshot=<id> (a video export's record page) reads
+ * the export's copy of the showcase from /showcase-data-snapshot/<id>/
+ * instead (server/export-snapshot.mjs).
  *
  * TSX graphics travel both ways: the bundled source compiles repo
  * graphics into the app, and the HTTP source lists folder graphics that

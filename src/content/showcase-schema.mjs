@@ -2,7 +2,10 @@
  * what it may hold. The loader (src/content/showcases.ts) checks each
  * document against it and reports what doesn't fit as warnings — an
  * unknown field, a field in the wrong place, a wrong type — so a
- * misplaced field is never silently ignored. The studio writes it into
+ * misplaced field is never silently ignored. A misplaced field's warning
+ * says where it belongs ("clip" isn't a scene field: it goes in
+ * scenes[].take), and a typo gets a "did you mean". Each warning is on
+ * the scene or on the showcase. The studio writes it into
  * every library as .studio/showcase.schema.json, the field reference a
  * session reads beside the guide, and the edit tool's whitelists are
  * tested against it (server/edit-yaml.test.mjs), so the four can't drift.

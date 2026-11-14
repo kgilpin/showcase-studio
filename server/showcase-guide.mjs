@@ -1,6 +1,6 @@
 /* The showcase authoring guide — the domain knowledge every Claude Code
  * session in a showcases folder needs. The studio writes it into
- * <folder>/.studio/GUIDE.md on every launch (electron/main.mjs), so it
+ * <folder>/.studio/GUIDE.md on every launch (server/studio-server.mjs), so it
  * always matches the running app; the seeded, user-owned CLAUDE.md
  * imports it with Claude Code's @-import syntax. */
 

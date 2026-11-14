@@ -15,7 +15,13 @@
  *                 studio already has the library open, or the user has
  *                 to choose the library first, it starts nothing and
  *                 says what to do instead (alreadyOpen and chooseLibrary,
- *                 below)
+ *                 below). In git, that answer is a worktree offer with
+ *                 the commands filled in, and what the copy won't have
+ *                 (library-git.mjs). Its choices: `window` where the
+ *                 program can show one, `source` (a checkout, from
+ *                 source), and `alongside: true`, the user's choice of
+ *                 a second studio on the same files, remembered for
+ *                 restarts
  *   studio_stop   stops it
  *   the studio's own tools (server/mcp.mjs) use the running studio,
  *                 starting an unlocked one first when none is running

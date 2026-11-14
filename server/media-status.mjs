@@ -19,7 +19,8 @@
  *
  * `kind` is "recording" or "voiceover". `print` fingerprints the
  * comparison, so a caller can tell whether anything changed since it
- * last looked. */
+ * last looked. mediaSummary is the same answer for every built showcase
+ * in the library: studio_info reports it as `media`. */
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { recordingStatus } from "./build-media.mjs";

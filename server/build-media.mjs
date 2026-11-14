@@ -18,7 +18,12 @@
  *
  * Builds are idempotent: each output records a fingerprint of the inputs
  * that made it in <library>/.studio/build/<showcase>.json, and an output
- * whose fingerprint still matches is left alone. */
+ * whose fingerprint still matches is left alone.
+ *
+ * planRecording is the build's first half on its own: the cut list read,
+ * the recording found, every output's name and fingerprint.
+ * recordingStatus compares that plan with the manifest to say what a
+ * build would remake, so the check and the build can't disagree. */
 import { createHash } from "node:crypto";
 import {
   existsSync,
