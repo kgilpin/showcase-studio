@@ -89,13 +89,15 @@ function CoverScreen() {
       <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-6 @4xl/frame:flex-row @4xl/frame:overflow-hidden">
         {cover ? (
           <>
-            <div className="flex min-h-0 flex-1 flex-col items-center gap-4">
+            {/* Narrow, the cover sits above the panel at a fixed height
+             * and the page scrolls; wide, it takes the height beside it. */}
+            <div className="flex shrink-0 flex-col items-center gap-4 @4xl/frame:min-h-0 @4xl/frame:flex-1 @4xl/frame:shrink">
               <DestinationSwitch showcase={showcase} choice={choice} onChoose={setChoice} />
-              <div className="flex min-h-[60vh] w-full flex-1 items-center justify-center @4xl/frame:min-h-0">
+              <div className="flex h-[70vh] w-full items-center justify-center @4xl/frame:h-auto @4xl/frame:min-h-0 @4xl/frame:flex-1">
                 <CoverView
                   cover={cover}
                   gridCrop={gridCrop}
-                  className="h-full max-h-[78vh] rounded-2xl border border-border shadow-2xl @4xl/frame:max-h-full"
+                  className="h-full max-w-full rounded-2xl border border-border shadow-2xl"
                   edit={
                     canEdit
                       ? {
@@ -293,9 +295,10 @@ function CoverPanel({
   const setGraphics = (graphics: CoverGraphic[]) => set("graphics", graphics);
 
   return (
-    <aside className="flex w-full shrink-0 flex-col gap-5 @4xl/frame:w-80 @4xl/frame:overflow-y-auto">
+    <aside className="mx-auto flex w-full max-w-md shrink-0 flex-col gap-5 @4xl/frame:mx-0 @4xl/frame:w-80 @4xl/frame:overflow-y-auto">
       <Row label="Layout" overridden={reset("layout")}>
-        <div className="grid grid-cols-3 gap-2">
+        {/* Small previews at any width: three thumbnails, not posters. */}
+        <div className="grid max-w-[16rem] grid-cols-3 gap-2">
           {COVER_LAYOUTS.map((layout) => {
             const preview = coverFor(showcase, destination);
             return (
