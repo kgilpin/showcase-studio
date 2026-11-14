@@ -468,7 +468,9 @@ change the files, but nothing tells you. So:
   |                 | edit_showcase's shape; theme.yaml edits are           |
   |                 | {field: "theme", group, name, value} from the style   |
   |                 | panel, {field: "theme.set", key, value} from          |
-  |                 | edit_theme                                            |
+  |                 | edit_theme; cover.yaml edits are {field: "cover",     |
+  |                 | destination?, name, value} from the Cover page and    |
+  |                 | edit_cover                                            |
   | asset.rename    | from, to, references (each {path, from, to}, plus     |
   |                 | sceneId inside a scene), and file and versions when   |
   |                 | references were rewritten                             |
@@ -512,6 +514,8 @@ change the files, but nothing tells you. So:
 - edit_theme works the same way for theme.yaml: pass the themeVersion
   read_showcase returned (null when there is no theme.yaml yet — then
   leave ifVersion out), or the version your last edit_theme returned.
+  So does edit_cover for cover.yaml, with coverVersion (null before the
+  showcase has a cover).
 - Your own file-editing tool has no such check. Read the file right
   before you change it.
 
