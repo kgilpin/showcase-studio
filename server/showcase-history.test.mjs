@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -135,7 +136,44 @@ async function startStudio(
   const committed = async (n) => {
     while (commitsLogged < n) await new Promise((resolve) => commitWaiters.push(resolve));
   };
-  return { studio, call, post, get, committed, saved: () => saved };
+  /* Resolves once the file watcher is reporting changes. On a Mac,
+   * fs.watch starts its FSEvents stream a moment after it returns —
+   * longer on a busy machine — and a file written before then is never
+   * reported. So this writes a file of its own at the library's root,
+   * where a change starts no commit, until the watcher reports it: the
+   * page's reload event names it, 250 ms after the change. One write
+   * every 500 ms, so each write's reload has time to go out. */
+  const watcherReady = async ({ timeout = 10_000 } = {}) => {
+    const probe = "watcher-probe.txt";
+    let reported = false;
+    const req = new EventEmitter();
+    req.method = "GET";
+    req.url = "/studio/api/events";
+    req.headers = { host: "localhost" };
+    req.socket = { remoteAddress: "127.0.0.1" };
+    const res = {
+      statusCode: 0,
+      headersSent: false,
+      setHeader() {},
+      writeHead() {},
+      write: (chunk) => {
+        if (chunk.startsWith("event: reload") && chunk.includes(probe)) reported = true;
+      },
+      end() {},
+    };
+    void studio.handle(req, res, () => {});
+    try {
+      const start = Date.now();
+      for (let i = 0; !reported; i++) {
+        if (Date.now() - start > timeout) throw new Error("the file watcher never started");
+        if (i % 20 === 0) writeFileSync(path.join(library, probe), `${i}\n`);
+        await sleep(25);
+      }
+    } finally {
+      req.emit("close");
+    }
+  };
+  return { studio, call, post, get, committed, watcherReady, saved: () => saved };
 }
 
 const commits = (dir) => git(dir, "log", "--format=%s").split("\n");
@@ -772,8 +810,15 @@ describe("changes made outside the studio", GIT_TESTS, () => {
    * studio's own writes. Longer than the watcher's own delay (about
    * 250 ms, plus the time the system takes to report a change). */
   const OUTSIDE = 900;
-  const watching = (library, options = {}) =>
-    startStudio(library, { outsideDelay: OUTSIDE, ...options, features: { watch: true } });
+  const watching = async (library, options = {}) => {
+    const studio = await startStudio(library, {
+      outsideDelay: OUTSIDE,
+      ...options,
+      features: { watch: true, ...options.features },
+    });
+    await studio.watcherReady();
+    return studio;
+  };
   const theme = (library, color = "red") =>
     writeFileSync(path.join(library, "nova", "theme.yaml"), `colors:\n  primary: ${color}\n`);
 
@@ -846,10 +891,7 @@ describe("changes made outside the studio", GIT_TESTS, () => {
 
   it("commits nothing while automatic commits are off", async () => {
     const { dir, library } = await project();
-    const { get } = await startStudio(library, {
-      outsideDelay: OUTSIDE,
-      features: { watch: true, autoCommit: false },
-    });
+    const { get } = await watching(library, { features: { autoCommit: false } });
     theme(library);
     await sleep(OUTSIDE * 2);
     expect(commits(dir)).toEqual(["start"]);
