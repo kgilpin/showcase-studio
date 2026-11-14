@@ -39,12 +39,19 @@
  * timer only. The session commits its own work with commit_showcase, and a
  * timer committing the same files underneath it would only make noise.
  *
- * What starts the timer is the studio's own writes — the change log, not
- * the file watcher. A change made anywhere else (an editor, a git
- * checkout or revert, another program, a Claude session's own file
- * tools) belongs to whoever made it: it never starts a commit, and only
- * rides along, named as "files changed directly", in the next commit the
- * studio makes of that showcase.
+ * Two things start the timer:
+ *
+ *   the studio's own write (the change log)  ──► 5 s quiet period
+ *   any other change in <id>/ (the watcher)   ──► 30 s quiet period
+ *
+ * A change made outside the studio (an editor, a git checkout, another
+ * program, a Claude session's own file tools) waits longer, so a burst
+ * of hand edits ends up in one commit. Its files are named as "files
+ * changed directly" in the message. One showcase has one timer: a
+ * studio write while an outside change waits takes over with its
+ * shorter period, and an outside change while a studio write waits
+ * just rides along in that commit. With automatic commits off, outside
+ * changes start nothing.
  *
  * Each commit is a record in the Actions list (server/actions-log.mjs)
  * when the studio has one: the quiet period is a pending record with its
@@ -337,7 +344,10 @@ export function commitMessage({ showcaseId, entries = [], files = [], message })
  *                       commit_showcase, and a timer committing the same
  *                       files underneath it only makes noise. The user's
  *                       own setting, either way, still wins.
- *   delayMs             the quiet period before a commit
+ *   delayMs             the quiet period before a commit of the
+ *                       studio's own writes
+ *   outsideDelayMs      the quiet period before a commit of changes made
+ *                       outside the studio (noteOutsideChange)
  *   failureCooldownMs   after a failed commit (a hook said no), how long
  *                       automatic commits for that showcase wait
  *   gitPath             the git program (default: its full path, found
@@ -350,6 +360,7 @@ export function createShowcaseHistory({
   settings = { load: () => ({}) },
   autoCommitDefault = true,
   delayMs = 5000,
+  outsideDelayMs = 30_000,
   failureCooldownMs = 60_000,
   gitPath,
   actions = null,
@@ -357,6 +368,8 @@ export function createShowcaseHistory({
 }) {
   const pending = new Map(); // showcase folder → timer
   const pendingActions = new Map(); // showcase folder → the pending record's id
+  /* showcase folder → "studio" or "outside": what started its timer. */
+  const pendingKind = new Map();
   const failedAt = new Map(); // showcase folder → time of the last failed commit
   let gitMissing; // undefined until checked
 
@@ -616,6 +629,7 @@ export function createShowcaseHistory({
   const cancel = (showcaseDir) => {
     clearTimeout(pending.get(showcaseDir));
     pending.delete(showcaseDir);
+    pendingKind.delete(showcaseDir);
   };
 
   /** Ends the showcase's pending record without a commit: `skipped` when
@@ -631,7 +645,10 @@ export function createShowcaseHistory({
   /** Runs one commit and keeps its record current. `id` is the pending
    *  record to turn into the running one; without it a new running
    *  record is added (by whom, and why). Resolves with commit()'s result. */
-  async function recordedCommit(showcaseDir, { id, by = "studio", why, message, auto } = {}) {
+  async function recordedCommit(
+    showcaseDir,
+    { id, by = "studio", why, message, auto, quietWhenClean = false } = {},
+  ) {
     const showcaseId = path.basename(showcaseDir);
     const retry = () =>
       inTurn(() =>
@@ -651,6 +668,10 @@ export function createShowcaseHistory({
     if (result.committed) {
       const { sha, message: subject, files } = result;
       actions.update(id, { state: "done", result: { sha, message: subject, files } });
+    } else if (result.clean && quietWhenClean) {
+      /* An outside change that was already committed (it rode along in
+       * a studio commit), or that git ignores: nothing happened. */
+      actions.drop(id);
     } else if (result.clean || result.reason === TURNED_OFF) {
       /* Nothing to do after all (the change was undone within the quiet
        * period), or the user's switch is off and a commit_showcase asked
@@ -661,6 +682,66 @@ export function createShowcaseHistory({
       actions.update(id, { state: "failed", error: result.reason });
     }
     return result;
+  }
+
+  /** Starts (or restarts) a showcase's quiet period. `kind` says what
+   *  started it ("studio" or "outside"), `wait` how long it is, and `why`
+   *  is the sentence its record in the Actions list shows. */
+  function schedule(showcaseDir, showcaseId, { kind, wait, why }) {
+    cancel(showcaseDir);
+    pendingKind.set(showcaseDir, kind);
+    const dueAt = new Date(Date.now() + wait).toISOString();
+    /* The quiet period, as a pending record — only while commits are
+     * on: a timer that will end in "commits are off" isn't worth a
+     * line in the list. Another change moves its due time. */
+    if (actions && enabled()) {
+      const id = pendingActions.get(showcaseDir);
+      if (id && actions.get(id)?.state === "pending") actions.update(id, { dueAt, why });
+      else {
+        const record = actions.add(
+          {
+            kind: "commit",
+            showcaseId,
+            by: "studio",
+            why,
+            label: "Commit to git",
+            state: "pending",
+            dueAt,
+          },
+          {
+            skip: () => {
+              cancel(showcaseDir);
+              forgetPending(showcaseDir, { skipped: true });
+            },
+            /* Once it has run and failed (or was skipped): commit now. */
+            retry: () =>
+              inTurn(() =>
+                recordedCommit(showcaseDir, {
+                  by: "user",
+                  why: "Tried again from the Actions list",
+                  auto: true,
+                }),
+              ),
+          },
+        );
+        pendingActions.set(showcaseDir, record.id);
+      }
+    }
+    const timer = setTimeout(() => {
+      pending.delete(showcaseDir);
+      pendingKind.delete(showcaseDir);
+      const id = pendingActions.get(showcaseDir);
+      pendingActions.delete(showcaseDir);
+      /* Commits off, and no record waiting: commit() would only answer
+       * "commits are off", which is no failure to put in the list. */
+      if (!id && !enabled()) return;
+      const quietWhenClean = kind === "outside";
+      void inTurn(() => recordedCommit(showcaseDir, { id, auto: true, quietWhenClean })).catch(
+        (error) => log(`studio: couldn't commit ${showcaseId} (${error?.message ?? error})`),
+      );
+    }, wait);
+    timer.unref?.();
+    pending.set(showcaseDir, timer);
   }
 
   return {
@@ -679,57 +760,31 @@ export function createShowcaseHistory({
       if (rest.length === 0 && existsSync(showcaseDir) && !statSync(showcaseDir).isDirectory()) {
         return;
       }
-      cancel(showcaseDir);
-      const dueAt = new Date(Date.now() + delayMs).toISOString();
-      /* The quiet period, as a pending record — only while commits are
-       * on: a timer that will end in "commits are off" isn't worth a
-       * line in the list. Another change moves its due time. */
-      if (actions && enabled()) {
-        const id = pendingActions.get(showcaseDir);
-        if (id && actions.get(id)?.state === "pending") actions.update(id, { dueAt });
-        else {
-          const record = actions.add(
-            {
-              kind: "commit",
-              showcaseId: first,
-              by: "studio",
-              why: `${first} changed`,
-              label: "Commit to git",
-              state: "pending",
-              dueAt,
-            },
-            {
-              skip: () => {
-                cancel(showcaseDir);
-                forgetPending(showcaseDir, { skipped: true });
-              },
-              /* Once it has run and failed (or was skipped): commit now. */
-              retry: () =>
-                inTurn(() =>
-                  recordedCommit(showcaseDir, {
-                    by: "user",
-                    why: "Tried again from the Actions list",
-                    auto: true,
-                  }),
-                ),
-            },
-          );
-          pendingActions.set(showcaseDir, record.id);
-        }
-      }
-      const timer = setTimeout(() => {
-        pending.delete(showcaseDir);
-        const id = pendingActions.get(showcaseDir);
-        pendingActions.delete(showcaseDir);
-        /* Commits off, and no record waiting: commit() would only answer
-         * "commits are off", which is no failure to put in the list. */
-        if (!id && !enabled()) return;
-        void inTurn(() => recordedCommit(showcaseDir, { id, auto: true })).catch((error) =>
-          log(`studio: couldn't commit ${first} (${error?.message ?? error})`),
-        );
-      }, delayMs);
-      timer.unref?.();
-      pending.set(showcaseDir, timer);
+      schedule(showcaseDir, first, { kind: "studio", wait: delayMs, why: `${first} changed` });
+    },
+
+    /** A file changed outside the studio, as the file watcher saw it:
+     *  `file` is relative to the library. Starts (or restarts) that
+     *  showcase's longer quiet period, while automatic commits are on.
+     *  The studio's own writes are not passed here (the watcher drops
+     *  their echo), nor is anything under .studio/ or .git/, nor a file
+     *  at the library's root. A studio commit already waiting picks the
+     *  change up, so it is left alone. */
+    noteOutsideChange(file) {
+      if (file == null || !enabled()) return;
+      const [first, ...rest] = String(file).split(/[/\\]/).filter(Boolean);
+      if (!first || first.startsWith(".") || rest.length === 0) return;
+      if (rest.some((part) => part === ".studio" || part === ".git")) return;
+      const showcaseDir = path.join(getLibrary(), first);
+      /* Only showcase folders. A showcase folder deleted by hand still
+       * counts: the commit records the deletion when git tracked it. */
+      if (existsSync(showcaseDir) && !existsSync(path.join(showcaseDir, "showcase.yaml"))) return;
+      if (pendingKind.get(showcaseDir) === "studio") return;
+      schedule(showcaseDir, first, {
+        kind: "outside",
+        wait: outsideDelayMs,
+        why: `Files in ${first} changed outside the studio`,
+      });
     },
 
     /** A change the studio logged for a showcase (the watcher sees the
@@ -760,12 +815,16 @@ export function createShowcaseHistory({
     /** Commits whatever is still waiting for its quiet period, then stops. */
     async close() {
       const waiting = [...pending.keys()];
+      const outside = new Set(waiting.filter((dir) => pendingKind.get(dir) === "outside"));
       waiting.forEach(cancel);
       for (const showcaseDir of waiting) {
+        const quietWhenClean = outside.has(showcaseDir);
         const id = pendingActions.get(showcaseDir);
         pendingActions.delete(showcaseDir);
         if (!id && !enabled()) continue;
-        await inTurn(() => recordedCommit(showcaseDir, { id, auto: true })).catch(() => {});
+        await inTurn(() => recordedCommit(showcaseDir, { id, auto: true, quietWhenClean })).catch(
+          () => {},
+        );
       }
       /* A commit already running (a git process holding the folder open)
        * finishes before close resolves, so the caller can remove the

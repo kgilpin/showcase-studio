@@ -690,11 +690,17 @@ print}` — what the automatic build asks before it starts, what an
     inside a git work tree, each showcase folder is committed on its own
     after a quiet period (5 s, `commitDelayMs`) — `git add -A -- <folder>`
     then `git commit -- <folder>`, so the user's other staged work stays
-    staged. Only the studio's own writes start the clock — they arrive
-    through the change log (`onAppend`), never the file watcher — so an
-    editor, a checkout or a Claude session's own file tools never start a
-    commit; their changes ride along in the studio's next commit of that
-    showcase as "files changed directly". In the studio Claude Code starts
+    staged. The studio's own writes start the clock — they arrive
+    through the change log (`onAppend`). Any other change in a showcase
+    folder (an editor, a checkout, a Claude session's own file tools)
+    reaches it from the file watcher (`noteOutsideChange`) and starts a
+    longer quiet period (30 s, `outsideCommitDelayMs`), which each
+    further change restarts; its files are named as "files changed
+    directly". One showcase has one timer, so a studio write and an
+    outside change close together make one commit. The watcher leaves
+    out the echoes of the studio's own writes it recognizes, `.studio/`,
+    the library's root files, and a showcase whose media build is
+    running (the build's log line starts its commit). In the studio Claude Code starts
     (`features.autoCommit: false`) the studio makes no commits of its own
     until the user turns the switch on; that off stops only the timer, and
     `commit_showcase` still commits — unlike the user's switch turned off,
@@ -990,9 +996,9 @@ print}` — what the automatic build asks before it starts, what an
   (`src/lib/edits.ts`), per showcase and session-scoped. When the library
   is in a git repository the studio also commits each showcase's changes
   after a quiet period (`server/showcase-history.mjs`), so older changes
-  can be reviewed and reverted with git. It commits what it wrote itself:
-  an outside change never starts a commit, it only rides along in the
-  next one. The user turns that on and off with the "Commit changes to
+  can be reviewed and reverted with git. Its own writes are committed
+  after 5 s; a change made outside the studio is committed too, after
+  30 s with no further change in that showcase. The user turns that on and off with the "Commit changes to
   git" switch under the gear button in the showcase's top bar; it is
   studio-wide, and off by default in the studio Claude Code starts,
   where the session commits with `commit_showcase`. A change on disk to

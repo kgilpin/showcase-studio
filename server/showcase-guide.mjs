@@ -484,16 +484,21 @@ available is false when commits can't happen here at all (no git, no
 repository, or the library is in .gitignore). reason says why, whenever
 the studio isn't committing on its own.
 
-    a studio write to <id>/ ──► ~5 s with no more writes ──► commit of <id>/ only
+    a studio write to <id>/  ──► ~5 s with no more changes  ──► commit of <id>/ only
+    any other change in <id>/ ──► ~30 s with no more changes ──► commit of <id>/ only
 
-- Only the studio's own writes start that clock: studio edits,
+- The studio's own writes start the short clock: studio edits,
   edit_showcase, asset changes on the Assets page, a media build, a
-  saved transcript. A file you or the user change directly (a TSX
-  graphic, theme.yaml, a file in assets/) never starts a commit. It
-  rides along in the next commit the studio makes of that showcase,
-  listed as "files changed directly". Only that showcase's folder goes
-  into a commit; other work in the repository is left alone, staged or
-  not.
+  saved transcript.
+- A file you or the user change directly (a TSX graphic, theme.yaml,
+  a file in assets/) starts the longer one. Each further change
+  restarts it. When it ends, the studio commits that showcase, and the
+  message lists those files as "files changed directly".
+- One showcase has one clock. A studio write and a direct change made
+  close together end up in one commit.
+- Changes under .studio/ and files at the library's root are never
+  committed this way. Only that showcase's folder goes into a commit;
+  other work in the repository is left alone, staged or not.
 - In the studio Claude Code starts, the studio makes no commits on its
   own (autoCommit is false, and reason says so). Committing is your job
   there: when you finish a meaningful step, call commit_showcase. That
