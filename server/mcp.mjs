@@ -359,8 +359,8 @@ export const TOOLS = [
     description:
       "Commit a showcase's changes to git now, with your own message. In the studio Claude " +
       "Code starts, the studio makes no commits on its own — this is how your work gets " +
-      "committed, including files you wrote with your own tools (a TSX graphic, " +
-      "theme.yaml). Elsewhere the studio commits its own writes a few seconds after they " +
+      "committed, including files you wrote with your own tools (a TSX graphic). " +
+      "Elsewhere the studio commits its own writes a few seconds after they " +
       "stop. Either way, call this after you finish a meaningful step, to give it a clear " +
       'name ("Retime scenes to the new voiceover"), and before you run git commands ' +
       "yourself. Only the showcase's folder " +
