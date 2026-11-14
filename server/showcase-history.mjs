@@ -207,6 +207,12 @@ function describeEdit(edit = {}) {
       return edit.value ? `set ${scene} TikTok fit` : `reset ${scene} TikTok fit`;
     case "theme":
       return `set theme ${edit.name}`;
+    case "theme.set":
+      return edit.value == null ||
+        edit.value === "" ||
+        (Array.isArray(edit.value) && !edit.value.length)
+        ? `reset theme ${edit.key}`
+        : `set theme ${edit.key}`;
     default:
       return `edit ${scene} ${edit.field ?? ""}`;
   }

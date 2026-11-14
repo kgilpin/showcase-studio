@@ -229,6 +229,23 @@ describe("showcase history", GIT_TESTS, () => {
     });
   });
 
+  it("commits an edit_theme write like an edit_showcase one", async () => {
+    const { dir, library } = await project();
+    const { call } = await startStudio(library);
+    await call("edit_theme", {
+      showcaseId: "nova",
+      edits: [
+        { key: "colors.primary", value: "#4ade80" },
+        { key: "shape.radius", value: null },
+      ],
+    });
+    await waitFor(() => commits(dir).length === 2);
+    expect(commits(dir)[0]).toBe("nova: set theme colors.primary, reset theme shape.radius");
+    const body = git(dir, "log", "-1", "--format=%b");
+    expect(body).toContain("- set theme colors.primary (Claude, via edit_theme)");
+    expect(git(dir, "show", "--name-only", "--format=", "HEAD")).toBe("showcases/nova/theme.yaml");
+  });
+
   it("commits only the showcase folder: other staged work stays staged", async () => {
     const { dir, library } = await project();
     writeFileSync(path.join(dir, "notes.txt"), "staged by the user\n");

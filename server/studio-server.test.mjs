@@ -169,6 +169,11 @@ describe("createStudio", () => {
     );
     expect(schema.title).toBe("showcase.yaml");
     expect(Object.keys(schema.properties.scenes.items.properties)).toContain("take");
+    const themeSchema = JSON.parse(
+      readFileSync(path.join(library, ".studio", "theme.schema.json"), "utf8"),
+    );
+    expect(themeSchema.title).toBe("theme.yaml");
+    expect(Object.keys(themeSchema.properties.colors.properties)).toContain("caption-text");
     const mcpConfig = JSON.parse(readFileSync(path.join(library, ".studio", "mcp.json"), "utf8"));
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
   });
@@ -542,6 +547,7 @@ scenes:
       showcases: ["nova"],
       guide: path.join(library, ".studio", "GUIDE.md"),
       schema: path.join(library, ".studio", "showcase.schema.json"),
+      themeSchema: path.join(library, ".studio", "theme.schema.json"),
     });
   });
 
@@ -1321,6 +1327,92 @@ scenes:
     expect(refused.message).toContain(`The current version is ${contentHash(afterUi)}`);
     expect(readFileSync(file, "utf8")).toBe(afterUi);
     expect(changesIn(library).map((entry) => entry.source)).toEqual(["mcp", "ui"]);
+  });
+
+  it("edit_theme writes theme.yaml, logs it, and refuses a stale ifVersion with the style-panel edits since", async () => {
+    const { studio, library } = await startStudio();
+    const file = path.join(library, "nova", "theme.yaml");
+
+    const read = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(read.content[0].text).themeVersion).toBeNull();
+    expect(read.content).toHaveLength(2);
+
+    const edited = await studio.callTool({
+      name: "edit_theme",
+      arguments: {
+        showcaseId: "nova",
+        edits: [
+          { key: "colors.primary", value: "#4ade80" },
+          { key: "fonts.display", value: "Inter" },
+        ],
+      },
+    });
+    const { applied, version } = JSON.parse(edited.content[0].text);
+    expect(applied).toBe(2);
+    expect(version).toBe(contentHash(readFileSync(file)));
+    expect(readFileSync(file, "utf8")).toContain('primary: "#4ade80"');
+    expect(changesIn(library).at(-1)).toMatchObject({
+      source: "mcp",
+      tool: "edit_theme",
+      kind: "edit",
+      file: "theme.yaml",
+      previousVersion: null,
+      version,
+      edits: [
+        { field: "theme.set", key: "colors.primary", value: "#4ade80" },
+        { field: "theme.set", key: "fonts.display", value: "Inter" },
+      ],
+    });
+    const reread = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(reread.content[0].text).themeVersion).toBe(version);
+    expect(reread.content[2].text).toBe(`# theme.yaml\n${readFileSync(file, "utf8")}`);
+
+    /* The user picks a caption color in the style panel. */
+    await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/scene-edit",
+      body: {
+        showcaseId: "nova",
+        field: "theme",
+        group: "colors",
+        name: "caption-text",
+        value: "#ffd166",
+        baseHash: version,
+      },
+    });
+    const afterUi = readFileSync(file, "utf8");
+
+    const refused = await studio
+      .callTool({
+        name: "edit_theme",
+        arguments: {
+          showcaseId: "nova",
+          ifVersion: version,
+          edits: [{ key: "colors.primary", value: "#22d3ee" }],
+        },
+      })
+      .catch((error) => error);
+    expect(refused).toBeInstanceOf(Error);
+    expect(refused.message).toContain("theme.yaml changed since version");
+    expect(refused.message).toContain("The studio logged these changes since then");
+    expect(refused.message).toContain('"caption-text"');
+    expect(refused.message).toContain(`The current version is ${contentHash(afterUi)}`);
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
+
+    const bad = await studio
+      .callTool({
+        name: "edit_theme",
+        arguments: { showcaseId: "nova", edits: [{ key: "colors.glow", value: "red" }] },
+      })
+      .catch((error) => error);
+    expect(bad.message).toContain('Unknown colors key "glow"');
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
   });
 
   it("says so when showcase.yaml changed outside the studio", async () => {
