@@ -136,7 +136,9 @@ export function coverValueProblem(name, value) {
     }
     if (
       item.size !== undefined &&
-      (typeof item.size !== "number" || item.size < GRAPHIC_SIZE.min || item.size > GRAPHIC_SIZE.max)
+      (typeof item.size !== "number" ||
+        item.size < GRAPHIC_SIZE.min ||
+        item.size > GRAPHIC_SIZE.max)
     ) {
       return `${where}.size must be a number from ${GRAPHIC_SIZE.min} to ${GRAPHIC_SIZE.max} (percent of the frame's width)`;
     }
@@ -216,9 +218,9 @@ export function checkCoverEdit({ destination, name, value } = {}) {
   if (problem) throw new Error(problem);
 }
 
-/** cover.yaml's shape as a JSON Schema, for a reader: the studio writes
+/* cover.yaml's shape as a JSON Schema, for a reader: the studio writes
  *  it into every library as .studio/cover.schema.json. */
-export function coverSchema() {
+function buildSchema() {
   const property = (field) => {
     if (field.type === "string") return { type: "string", description: field.description };
     if (field.type === "enum") {
@@ -265,3 +267,6 @@ export function coverSchema() {
     },
   };
 }
+
+/** cover.yaml's shape as a JSON Schema (see buildSchema). */
+export const COVER_SCHEMA = buildSchema();

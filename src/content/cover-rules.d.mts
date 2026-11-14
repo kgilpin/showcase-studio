@@ -61,4 +61,4 @@ export function checkCoverEdit(edit: {
   name?: string;
   value?: unknown;
 }): void;
-export function coverSchema(): Record<string, unknown>;
+export const COVER_SCHEMA: Record<string, unknown>;

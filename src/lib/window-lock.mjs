@@ -15,12 +15,13 @@ export function lockLandingPath(lock) {
 }
 
 /** Whether a page is drawn for a screenshot or video: an export frame,
- *  the record page, or the recorded teleprompter (`?record`). Capture
- *  pages ignore the lock and live reloads — the studio's page renderer
- *  opens them for any showcase, and a reload would break the capture. */
+ *  the record page, the cover's still, or the recorded teleprompter
+ *  (`?record`). Capture pages ignore the lock and live reloads — the
+ *  studio's page renderer opens them for any showcase, and a reload
+ *  would break the capture. */
 export function isCapturePage(pathname, search = "") {
   return (
-    /^\/showcase\/[^/]+\/(export\/[^/]+|record)\/?$/.test(pathname) ||
+    /^\/showcase\/[^/]+\/(export\/[^/]+|record|cover\/still)\/?$/.test(pathname) ||
     new URLSearchParams(search).has("record")
   );
 }

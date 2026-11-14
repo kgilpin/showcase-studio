@@ -110,7 +110,10 @@ describe("writing cover.yaml", () => {
 
   it("refuses a showcase that isn't there", () => {
     expect(
-      applyCoverEditsToFolder(dir, { showcaseId: "nope", edits: [{ name: "headline", value: "x" }] }),
+      applyCoverEditsToFolder(dir, {
+        showcaseId: "nope",
+        edits: [{ name: "headline", value: "x" }],
+      }),
     ).toEqual({ ok: false, error: 'No showcase named "nope"' });
   });
 });

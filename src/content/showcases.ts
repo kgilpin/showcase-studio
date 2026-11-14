@@ -533,6 +533,16 @@ for (const [path, component] of Object.entries(graphicModules)) {
  * same showcase id and key; bundled graphics are the fallback. */
 const dataGraphicsByShowcase = new Map<string, Map<string, string>>();
 
+/** The keys of every graphic a showcase can draw, folder and bundled,
+ *  in order. */
+export function showcaseGraphicKeys(showcaseId: string): string[] {
+  const keys = new Set([
+    ...(dataGraphicsByShowcase.get(showcaseId)?.keys() ?? []),
+    ...(graphicsByShowcase.get(showcaseId)?.keys() ?? []),
+  ]);
+  return [...keys].sort();
+}
+
 function resolveGraphic(showcaseId: string, key: string): GraphicEntry {
   const url = dataGraphicsByShowcase.get(showcaseId)?.get(key);
   if (url) {
@@ -762,11 +772,14 @@ export function coverFor(
 /** The warnings a showcase's cover.yaml gives: it doesn't read, a field
  *  has a bad value, a picture or graphic isn't there. */
 function coverWarnings(showcaseId: string): string[] {
+  const file = `showcases/${showcaseId}/cover.yaml`;
   const parseError = coverParseErrors.get(showcaseId);
-  if (parseError) return [`cover.yaml doesn't read, so the cover isn't drawn: ${parseError}`];
+  if (parseError) {
+    return [`${file} doesn't read as YAML, so the showcase shows without its cover: ${parseError}`];
+  }
   const doc = coverDocs.get(showcaseId);
   if (doc === undefined) return [];
-  const warnings = checkCover(doc).map((problem) => `cover.yaml: ${problem}`);
+  const warnings = checkCover(doc).map((problem) => `${file}: ${problem} — it is left out`);
   const blocks = [
     doc,
     ...Object.keys(COVER_DESTINATIONS).map((id) => (doc as Record<string, unknown>)[id]),
@@ -775,7 +788,7 @@ function coverWarnings(showcaseId: string): string[] {
     if (!block || typeof block !== "object") continue;
     const { picture, graphics } = block as { picture?: unknown; graphics?: unknown };
     if (typeof picture === "string" && !assetsByShowcase.get(showcaseId)?.has(picture)) {
-      warnings.push(`cover.yaml: no asset named "${picture}" in assets/`);
+      warnings.push(`${file}: no asset named "${picture}" in assets/ — the cover shows a stand-in`);
     }
     if (Array.isArray(graphics)) {
       for (const item of graphics as { graphic?: unknown }[]) {
@@ -783,7 +796,7 @@ function coverWarnings(showcaseId: string): string[] {
         try {
           resolveGraphic(showcaseId, item.graphic);
         } catch {
-          warnings.push(`cover.yaml: no graphic named "${item.graphic}" in graphics/`);
+          warnings.push(`${file}: no graphic named "${item.graphic}" in graphics/`);
         }
       }
     }

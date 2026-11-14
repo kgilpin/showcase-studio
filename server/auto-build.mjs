@@ -54,6 +54,10 @@ const WAIT_POLL_MS = 100;
  *   enabled()            the switch: false turns the automatic build off
  *   delayMs              the quiet period after a change
  */
+/** Files in a showcase folder that no build reads: the cover is drawn
+ *  from its own file and never touches the voiceover or the clips. */
+const NOT_INPUTS = ["cover.yaml"];
+
 export function createAutoBuild({
   buildJobs,
   status,
@@ -227,6 +231,7 @@ export function createAutoBuild({
       if (file == null) return;
       const [first, ...rest] = String(file).split(/[/\\]/);
       if (!first || first.startsWith(".") || rest.length === 0) return;
+      if (rest.length === 1 && NOT_INPUTS.includes(rest[0])) return;
       if (building(first) || now() - (endedAt.get(first) ?? 0) < SETTLE_MS) return;
       schedule(first, `${first} changed`);
     },
@@ -234,10 +239,12 @@ export function createAutoBuild({
     /** A change the studio logged for a showcase (change-log.mjs): an
      *  edit to showcase.yaml, an asset added, renamed, deleted or
      *  encoded, a transcript saved. The build's own log line, a commit
-     *  and a setting are not changes to its inputs. */
-    noteShowcase(showcaseId, kind) {
+     *  and a setting are not changes to its inputs, and nor is an edit to
+     *  a file the build never reads (`file`, from the log line). */
+    noteShowcase(showcaseId, kind, file) {
       if (!showcaseId || !kind) return;
       if (["build", "commit", "setting", "showcase.create"].includes(kind)) return;
+      if (NOT_INPUTS.includes(file)) return;
       const what =
         kind === "edit"
           ? "showcase.yaml changed"

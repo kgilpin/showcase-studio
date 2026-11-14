@@ -138,6 +138,9 @@ describe("createAutoBuild", () => {
     auto.noteShowcase(null, "setting");
     auto.noteChange(".studio/changes.jsonl");
     auto.noteChange("README.md");
+    /* The cover is never one of a build's inputs. */
+    auto.noteShowcase("pitch", "edit", "cover.yaml");
+    auto.noteChange("pitch/cover.yaml");
     expect(auto.pending()).toEqual([]);
 
     let on = false;

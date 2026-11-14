@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCover, checkCoverEdit, coverSchema, resolveCover } from "./cover-rules.mjs";
+import { checkCover, checkCoverEdit, COVER_SCHEMA, resolveCover } from "./cover-rules.mjs";
 
 describe("resolveCover", () => {
   it("fills in the defaults for a cover that sets nothing", () => {
@@ -92,19 +92,21 @@ describe("checkCoverEdit", () => {
   });
 
   it("refuses an unknown destination, field or value", () => {
-    expect(() => checkCoverEdit({ destination: "youtube43", name: "headline", value: "x" })).toThrow(
-      'cover has no destination "youtube43" — destinations: tiktok, instagram, youtube',
+    expect(() =>
+      checkCoverEdit({ destination: "youtube43", name: "headline", value: "x" }),
+    ).toThrow('cover has no destination "youtube43" — destinations: tiktok, instagram, youtube');
+    expect(() => checkCoverEdit({ name: "title", value: "x" })).toThrow(
+      'cover has no field "title"',
     );
-    expect(() => checkCoverEdit({ name: "title", value: "x" })).toThrow('cover has no field "title"');
     expect(() => checkCoverEdit({ name: "textSize", value: "xl" })).toThrow(
       "textSize must be one of s, m, l",
     );
   });
 });
 
-describe("coverSchema", () => {
+describe("COVER_SCHEMA", () => {
   it("lists every field, at the top and in each destination's block", () => {
-    const schema = coverSchema() as { properties: Record<string, { properties?: object }> };
+    const schema = COVER_SCHEMA as { properties: Record<string, { properties?: object }> };
     expect(Object.keys(schema.properties)).toEqual([
       "picture",
       "focus",

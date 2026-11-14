@@ -11,7 +11,7 @@
  *
  * Where each tool's work is done:
  *
- *   studio_info        here: the guide's and the two schemas' paths, every
+ *   studio_info        here: the guide's and the three schemas' paths, every
  *                      built showcase's media status, the Actions list's
  *                      summary, the git history status, and pageError
  *                      when the last page render failed
@@ -23,8 +23,12 @@
  *                      keys, with the same ifVersion check and change-log
  *                      line as edit_showcase; an `extends` must name
  *                      another showcase and make no cycle
- *   read_showcase      here: showcase.yaml, plus theme.yaml and its
- *                      themeVersion
+ *   edit_cover         scene-edit.mjs applyCoverEditsToFolder: cover.yaml
+ *                      fields (src/content/cover-rules.mjs), with the same
+ *                      ifVersion check and change-log line
+ *   screenshot_cover   exporter.mjs screenshotCover: the cover's still page
+ *   read_showcase      here: showcase.yaml, plus theme.yaml and cover.yaml
+ *                      with their themeVersion and coverVersion
  *   create_showcase    the studio's own scaffold, through the context
  *   add_asset          asset-files.mjs: files on disk copied into a
  *                      showcase's assets/
@@ -58,10 +62,16 @@ import path from "node:path";
 import { pageErrorField } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { addAssetPaths, encodeAsset } from "./asset-files.mjs";
-import { applySceneEditsToFolder, applyThemeEditsToFolder, contentHash } from "./scene-edit.mjs";
+import {
+  applyCoverEditsToFolder,
+  applySceneEditsToFolder,
+  applyThemeEditsToFolder,
+  contentHash,
+} from "./scene-edit.mjs";
 import {
   formatClock,
   MAX_FRAMES_PER_CALL,
+  screenshotCover,
   screenshotFrame,
   screenshotSlide,
   scriptText,
@@ -72,6 +82,7 @@ import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
 import { DESTINATION_IDS, DESTINATIONS } from "../src/content/publish-rules.mjs";
+import { COVER_DESTINATIONS, COVER_FIELDS } from "../src/content/cover-rules.mjs";
 
 const PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-03-26", "2024-11-05"]);
 
@@ -318,11 +329,79 @@ export const TOOLS = [
       "hash). Pass the version to edit_showcase as ifVersion. When the showcase has a " +
       "theme.yaml, its text follows, and themeVersion is the version to pass to edit_theme " +
       "(null when there is none). Also returns the path of the studio's change log, where " +
-      "every edit made in the studio lands as one JSON line.",
+      "every edit made in the studio lands as one JSON line. When the showcase has a " +
+      "cover, its cover.yaml comes too, with coverVersion — pass that to edit_cover as " +
+      "ifVersion.",
     inputSchema: {
       type: "object",
       properties: {
         showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
+    name: "edit_cover",
+    description:
+      "Make or change a showcase's cover: the still image TikTok, Instagram and YouTube " +
+      "Shorts show before the video plays (cover.yaml, beside showcase.yaml). The same " +
+      "write path as the Cover page: comments survive, values are checked, a bad edit is " +
+      "refused with the reason, and the edits land as ONE write (none if any fails). The " +
+      "first edit makes the file. Each edit is {destination?, name, value}: leave " +
+      "destination out to set the default every destination starts from, or name one — " +
+      `${Object.keys(COVER_DESTINATIONS).join(", ")} — to change that field there only. ` +
+      'null or "" removes the field. Fields: ' +
+      Object.entries(COVER_FIELDS)
+        .map(([name, field]) => `${name} (${field.description})`)
+        .join("; ") +
+      ". Graphics are TSX files in the showcase's graphics/, as for a scene; the cover " +
+      "draws them finished. Check the result with screenshot_cover. Returns {applied, " +
+      "version}. Pass ifVersion — coverVersion from read_showcase, or your last edit_cover's " +
+      "version; null when the showcase has no cover yet — so an edit the user made on the " +
+      "Cover page meanwhile is never overwritten unseen.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        edits: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              destination: { type: "string", enum: Object.keys(COVER_DESTINATIONS) },
+              name: { type: "string", enum: Object.keys(COVER_FIELDS) },
+              value: {},
+            },
+            required: ["name", "value"],
+          },
+        },
+        ifVersion: {
+          type: ["string", "null"],
+          description:
+            "The cover.yaml version these edits were made against (coverVersion from " +
+            "read_showcase, or the last edit_cover result); null for a showcase with no " +
+            "cover yet. The write is refused if the file changed since.",
+        },
+      },
+      required: ["showcaseId", "edits"],
+    },
+  },
+  {
+    name: "screenshot_cover",
+    description:
+      "Render a showcase's cover and return it as an image — exactly what the saved cover " +
+      'shows (1080×1920, graphics drawn finished), at half size unless size: "full". ' +
+      "destination picks that destination's cover; without it, the default. Use it after " +
+      "edit_cover, or after editing a graphic the cover draws. The cover's text and " +
+      "graphics belong in the middle 3:4: the profile grids cut 12.5% off the top and the " +
+      "bottom.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        destination: { type: "string", enum: Object.keys(COVER_DESTINATIONS) },
+        size: { type: "string", enum: ["half", "full"] },
       },
       required: ["showcaseId"],
     },
@@ -1029,6 +1108,7 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       guide: path.join(showcasesDir, ".studio", "GUIDE.md"),
       schema: path.join(showcasesDir, ".studio", "showcase.schema.json"),
       themeSchema: path.join(showcasesDir, ".studio", "theme.schema.json"),
+      coverSchema: path.join(showcasesDir, ".studio", "cover.schema.json"),
       /* Every showcase whose media the studio builds, and whether it is
        * up to date (server/media-status.mjs). */
       media: context.mediaSummary?.() ?? [],
@@ -1057,6 +1137,8 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     const text = readFileSync(file, "utf8");
     const themeFile = path.join(showcasesDir, showcaseId, "theme.yaml");
     const theme = existsSync(themeFile) ? readFileSync(themeFile, "utf8") : null;
+    const coverFile = path.join(showcasesDir, showcaseId, "cover.yaml");
+    const cover = existsSync(coverFile) ? readFileSync(coverFile, "utf8") : null;
     return {
       content: [
         {
@@ -1065,11 +1147,13 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
             showcaseId,
             version: contentHash(text),
             themeVersion: theme == null ? null : contentHash(theme),
+            coverVersion: cover == null ? null : contentHash(cover),
             changes: context.changeLog?.path(),
           }),
         },
         { type: "text", text },
         ...(theme == null ? [] : [{ type: "text", text: `# theme.yaml\n${theme}` }]),
+        ...(cover == null ? [] : [{ type: "text", text: `# cover.yaml\n${cover}` }]),
       ],
     };
   }
@@ -1150,6 +1234,51 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       edits: args.edits.map(({ key, value }) => ({ field: "theme.set", key, value })),
     });
     return json({ applied: result.applied, version: result.hash });
+  }
+  if (name === "edit_cover") {
+    const showcaseId = String(args.showcaseId ?? "");
+    const result = applyCoverEditsToFolder(showcasesDir, {
+      showcaseId: args.showcaseId,
+      edits: args.edits,
+      baseHash: args.ifVersion,
+    });
+    if (result.stale) {
+      throw new Error(
+        staleEditMessage(context.changeLog, showcaseId, args.ifVersion, result.hash, "cover.yaml"),
+      );
+    }
+    if (!result.ok) throw new Error(result.error);
+    context.changeLog?.append({
+      source: "mcp",
+      tool: "edit_cover",
+      showcaseId,
+      kind: "edit",
+      file: "cover.yaml",
+      previousVersion: result.previousHash,
+      version: result.hash,
+      edits: args.edits.map((edit) => ({ field: "cover", ...edit })),
+    });
+    return json({ applied: result.applied, version: result.hash });
+  }
+  if (name === "screenshot_cover") {
+    const destination = args.destination ? String(args.destination) : undefined;
+    const png = await screenshotCover(context.renderer, context.getUrl(), showcasesDir, {
+      showcaseId: String(args.showcaseId ?? ""),
+      destination,
+      size: args.size === "full" ? "full" : "half",
+    });
+    return {
+      content: [
+        { type: "image", data: png.toString("base64"), mimeType: "image/png" },
+        {
+          type: "text",
+          text:
+            `The cover of "${args.showcaseId}"` +
+            (destination ? ` for ${COVER_DESTINATIONS[destination].label}` : " (the default)") +
+            ". The profile grids show only its middle 3:4.",
+        },
+      ],
+    };
   }
   if (name === "script") {
     return {

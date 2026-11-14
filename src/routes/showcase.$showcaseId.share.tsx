@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ShareHandoff, type HandoffMethod } from "@/components/share/ShareHandoff";
+import { ShareCover } from "@/components/share/ShareCover";
 import { ShareHistory } from "@/components/share/ShareHistory";
 import { ShareText, type PublishEdit } from "@/components/share/ShareText";
 import { ShareVideo, type Quality } from "@/components/share/ShareVideo";
@@ -296,6 +297,13 @@ function ShareScreen() {
                 onExport={(exportKind) => void exportVideo(exportKind)}
                 onCancel={(jobId) => void studio()!.exports.cancel(jobId)}
               />
+              {showcase && (
+                <ShareCover
+                  showcase={showcase}
+                  destination={destinationId}
+                  label={destination.label}
+                />
+              )}
               <ShareHistory handoffs={status.handoffs} onOpen={(id) => void openPost(id)} />
               <SubscribeDialog
                 open={subscribingFor != null}

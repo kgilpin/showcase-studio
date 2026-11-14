@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { coverUrl, useLibrary } from "@/content/showcases";
+import { coverFor, coverUrl, themeVars, useLibrary } from "@/content/showcases";
+import { CoverView } from "@/components/cover/CoverView";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { HomeBackNav } from "@/components/showcase/HomeBackNav";
 import { NewShowcaseForm } from "@/components/studio/NewShowcaseForm";
@@ -75,7 +76,11 @@ function HomeScreen() {
 
         <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {showcases.map((showcase) => {
-            const cover = coverUrl(showcase);
+            /* The card's picture: the showcase's cover when it has one
+             * (cover.yaml, in its own theme's colors), else its
+             * meta.cover image or first picture. */
+            const coverImage = coverFor(showcase);
+            const cover = coverImage ? undefined : coverUrl(showcase);
             const runtime = showcase.scenes.reduce((sum, s) => sum + s.durationMs, 0);
             return (
               <Link
@@ -84,6 +89,16 @@ function HomeScreen() {
                 params={{ showcaseId: showcase.id }}
                 className="group rounded-2xl border border-border bg-card/40 p-7 transition-colors hover:border-primary hover:bg-card/70"
               >
+                {coverImage && (
+                  <div className="mb-6 flex h-28 items-center justify-center">
+                    <div style={themeVars(showcase)} className="h-full">
+                      <CoverView
+                        cover={coverImage}
+                        className="h-full rounded-md border border-border shadow-lg"
+                      />
+                    </div>
+                  </div>
+                )}
                 {cover && (
                   <div className="relative mb-6 flex h-28 items-center justify-center">
                     <div

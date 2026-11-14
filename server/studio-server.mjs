@@ -29,6 +29,11 @@
  *                               PNG to save (the player's Frame button;
  *                               the screenshot_frame MCP tool renders the
  *                               same page)
+ *   GET  /studio/api/cover?showcase=<id>[&destination=tiktok|instagram|youtube]
+ *                               the showcase's cover (cover.yaml) as a
+ *                               1080×1920 PNG to save (the Cover page's
+ *                               Save button; screenshot_cover renders the
+ *                               same page)
  *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below):
  *                               scene edits, new showcases, assets, the
  *                               prompter link, the two switches, exports,
@@ -80,7 +85,15 @@ import { watchStudioCode } from "./code-changes.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { DEFAULT_EXPORT_DIR, revealInFileManager } from "./export-output.mjs";
 import { createExportRecords, RECORDED_KINDS, showcaseDurationMs } from "./export-records.mjs";
-import { frameFileName, runExport, screenshotFrame, videoFps } from "./exporter.mjs";
+import {
+  coverFileName,
+  frameFileName,
+  runExport,
+  screenshotCover,
+  screenshotFrame,
+  videoFps,
+} from "./exporter.mjs";
+import { COVER_SCHEMA } from "../src/content/cover-rules.mjs";
 import { clearSnapshots, snapshotDir, snapshotId, takeSnapshot } from "./export-snapshot.mjs";
 import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
@@ -431,10 +444,14 @@ export function createStudio({
       path.join(showcasesDir, ".studio", "showcase.schema.json"),
       JSON.stringify(SHOWCASE_SCHEMA, null, 2) + "\n",
     );
-    /* And theme.yaml's, the same way. */
+    /* And theme.yaml's and cover.yaml's, the same way. */
     writeFileSync(
       path.join(showcasesDir, ".studio", "theme.schema.json"),
       JSON.stringify(THEME_SCHEMA, null, 2) + "\n",
+    );
+    writeFileSync(
+      path.join(showcasesDir, ".studio", "cover.schema.json"),
+      JSON.stringify(COVER_SCHEMA, null, 2) + "\n",
     );
     writeMcpConfig();
     /* The settings file marks the folder as a library. An older
@@ -872,7 +889,7 @@ add notes specific to this library below, and the studio won't touch them.
     log,
     onAppend: (entry) => {
       history.noteShowcase(entry.showcaseId, entry.kind);
-      autoBuild.noteShowcase(entry.showcaseId, entry.kind);
+      autoBuild.noteShowcase(entry.showcaseId, entry.kind, entry.file);
     },
   });
 
@@ -1517,6 +1534,19 @@ scenes:
           "Content-Type": "image/png",
           "Content-Length": String(png.length),
           "Content-Disposition": `attachment; filename="${frameFileName(showcaseId, view, atMs)}"`,
+        });
+        res.end(png);
+        return;
+      }
+      if (req.method === "GET" && action === "cover") {
+        const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        const showcaseId = query.get("showcase") ?? "";
+        const destination = query.get("destination") || undefined;
+        const png = await screenshotCover(renderer, url, showcasesDir, { showcaseId, destination });
+        res.writeHead(200, {
+          "Content-Type": "image/png",
+          "Content-Length": String(png.length),
+          "Content-Disposition": `attachment; filename="${coverFileName(showcaseId, destination)}"`,
         });
         res.end(png);
         return;
