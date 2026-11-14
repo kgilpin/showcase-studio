@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Download, ImagePlus, Plus, Trash2 } from "lucide-react";
 import {
   coverFor,
@@ -11,7 +11,6 @@ import {
 import {
   COVER_ANCHORS,
   COVER_DESTINATIONS,
-  COVER_FOCUS,
   COVER_LAYOUTS,
   COVER_TEXT_POSITIONS,
   COVER_TEXT_SIZES,
@@ -19,6 +18,7 @@ import {
   resolveCover,
   type CoverAnchor,
   type CoverDestination,
+  type CoverFocus,
   type CoverField,
   type CoverGraphic,
 } from "@/content/cover-rules.mjs";
@@ -63,6 +63,13 @@ const DESTINATION_IDS = Object.keys(COVER_DESTINATIONS) as CoverDestination[];
 
 const LAYOUT_LABELS = { fade: "Fade", band: "Band", split: "Split" } as const;
 const SIZE_LABELS = { s: "S", m: "M", l: "L" } as const;
+
+/** The Focus choices for a picture the crop cuts top and bottom (tall)
+ *  or at the sides (wide). */
+const FOCUS_CHOICES: Record<"tall" | "wide", CoverFocus[]> = {
+  tall: ["top", "center", "bottom"],
+  wide: ["left", "center", "right"],
+};
 
 function CoverScreen() {
   const { showcaseId } = Route.useParams();
@@ -132,6 +139,29 @@ function CoverScreen() {
       </div>
     </ShowcaseFrame>
   );
+}
+
+/** The picture's shape against the 9:16 frame, once it has loaded:
+ *  "tall" (cropped top and bottom), "wide" (cropped at the sides) or
+ *  "fits" (not cropped). Undefined until then, or with no picture. */
+function usePictureShape(url: string | undefined): "tall" | "wide" | "fits" | undefined {
+  const [shape, setShape] = useState<"tall" | "wide" | "fits">();
+  useEffect(() => {
+    setShape(undefined);
+    if (!url) return undefined;
+    let live = true;
+    const image = new Image();
+    image.onload = () => {
+      if (!live || !image.naturalHeight) return;
+      const ratio = image.naturalWidth / image.naturalHeight;
+      setShape(Math.abs(ratio - 9 / 16) < 0.01 ? "fits" : ratio < 9 / 16 ? "tall" : "wide");
+    };
+    image.src = url;
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  return shape;
 }
 
 function editCover(
@@ -251,6 +281,11 @@ function CoverPanel({
 }) {
   const fields = resolveCover(showcase.coverDoc, destination);
   const pictureUrl = coverFor(showcase, destination)?.pictureUrl;
+  /* Focus only matters when the crop cuts something off: a picture
+   * taller or wider than the frame, in a layout that fills the frame. */
+  const shape = usePictureShape(pictureUrl);
+  const focusChoices: CoverFocus[] | undefined =
+    fields.layout === "split" || !shape || shape === "fits" ? undefined : FOCUS_CHOICES[shape];
   const set = (name: CoverField, value: unknown) => editCover(showcase, destination, name, value);
   const reset = (name: CoverField) =>
     destination && fields.overridden.includes(name) ? () => set(name, null) : undefined;
@@ -315,14 +350,16 @@ function CoverPanel({
         </div>
       </Row>
 
-      <Row label="Focus" overridden={reset("focus")}>
-        <Segments
-          values={COVER_FOCUS}
-          current={fields.focus}
-          disabled={!canEdit}
-          onChoose={(value) => set("focus", value)}
-        />
-      </Row>
+      {focusChoices && (
+        <Row label="Focus" overridden={reset("focus")}>
+          <Segments
+            values={focusChoices}
+            current={focusChoices.includes(fields.focus) ? fields.focus : "center"}
+            disabled={!canEdit}
+            onChoose={(value) => set("focus", value)}
+          />
+        </Row>
+      )}
 
       <Row label="Text" overridden={reset("textPosition")}>
         <Segments

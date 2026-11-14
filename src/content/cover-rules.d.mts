@@ -4,7 +4,7 @@ export type CoverDestination = "tiktok" | "instagram" | "youtube";
 export type CoverLayout = "fade" | "band" | "split";
 export type CoverTextPosition = "top" | "middle" | "bottom";
 export type CoverTextSize = "s" | "m" | "l";
-export type CoverFocus = "top" | "center" | "bottom";
+export type CoverFocus = "top" | "center" | "bottom" | "left" | "right";
 export type CoverAnchor =
   | "top-left"
   | "top"

@@ -52,7 +52,10 @@ export const COVER_LAYOUTS = ["fade", "band", "split"];
 
 export const COVER_TEXT_POSITIONS = ["top", "middle", "bottom"];
 export const COVER_TEXT_SIZES = ["s", "m", "l"];
-export const COVER_FOCUS = ["top", "center", "bottom"];
+/** Which part of the picture a crop keeps: top, center or bottom for a
+ *  picture taller than 9:16, left, center or right for a wider one. A
+ *  9:16 picture, or one the split layout shows whole, isn't cropped. */
+export const COVER_FOCUS = ["top", "center", "bottom", "left", "right"];
 
 /** Where a graphic sits, inside the grid crop. */
 export const COVER_ANCHORS = [
@@ -76,7 +79,8 @@ export const COVER_FIELDS = {
   focus: {
     type: "enum",
     values: COVER_FOCUS,
-    description: "Which part of the picture the crop keeps (default center).",
+    description:
+      "Which part of the picture the crop keeps (default center): top, center or bottom for a picture taller than 9:16; left, center or right for a wider one.",
   },
   layout: {
     type: "enum",

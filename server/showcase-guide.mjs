@@ -197,7 +197,9 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
     layout   picture                         text
     fade     fills the frame                 large, over a dark fade
     band     fills the frame                 in a band of the theme's primary color
-    split    one half, shown whole           the other half — for an app screenshot
+    split    the rest of the frame, whole    at the top or bottom, as much room as it needs — for an app screenshot
+
+- focus says which part of the picture fill keeps (fade and band): top, center or bottom for a picture taller than 9:16, left, center or right for a wider one. A 9:16 picture — a frame of phone footage — isn't cropped, so focus does nothing there, and the Cover page hides it.
 
 - The picture is an image in assets/. On the Cover page the user picks it from the video (any moment of a scene's footage, saved as assets/cover-<scene>-t<ms>.jpg, without captions) or from the images, and can add one from their computer. To use a frame yourself, take it from the scene's clip with the ffmpeg tool — {output: "cover-<scene>-t<ms>.jpg", args: ["-ss", "<seconds>", "-i", "assets/<clip file>", "-frames:v", "1", "-q:v", "2"]} — then set picture to its key. Renaming the file on the Assets page updates the cover too.
 - Pick the layout by the picture: a photo or a frame of footage takes fade or band (band when the picture is busy and text over it won't read); an app screenshot takes split, so it isn't cropped.

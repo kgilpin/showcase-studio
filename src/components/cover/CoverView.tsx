@@ -14,7 +14,7 @@ import { EditableText } from "@/components/studio/EditableText";
  *   fade    the picture fills the frame; the text sits over a dark fade
  *   band    the picture fills the frame; the text sits in a band of the
  *           theme's primary color
- *   split   the picture in one half, shown whole; the text in the other
+ *   split   the text where it needs, the picture shown whole in the rest
  *
  * Text and graphics are placed inside the middle 3:4, which is what
  * TikTok's and Instagram's profile grids show; `gridCrop` shades what
@@ -94,11 +94,13 @@ export function CoverView({
       src={cover.pictureUrl}
       alt=""
       draggable={false}
-      className={cn(
-        "absolute inset-0 h-full w-full",
-        cover.layout === "split" ? "object-contain" : "object-cover",
-      )}
-      style={{ objectPosition: `center ${cover.focus}` }}
+      className="absolute inset-0 h-full w-full object-cover"
+      style={{
+        objectPosition:
+          cover.focus === "left" || cover.focus === "right"
+            ? `${cover.focus} center`
+            : `center ${cover.focus}`,
+      }}
     />
   ) : (
     <div className="absolute inset-0 flex items-center justify-center text-[4cqw] text-foreground/40">
@@ -129,22 +131,32 @@ export function CoverView({
       style={{ background: "var(--gradient-stage)" }}
     >
       {cover.layout === "split" ? (
-        <>
-          {pictureArea(
-            picture,
-            position === "top"
-              ? "inset-x-0 bottom-[12.5%] top-1/2"
-              : "inset-x-0 top-[12.5%] bottom-1/2",
+        /* The text takes the room it needs, just inside the grid crop;
+         * the picture, shown whole, takes the rest — out to the frame's
+         * edge on its side, and snug against the text. */
+        <div
+          className={cn(
+            "absolute inset-0 flex",
+            position === "top" ? "flex-col" : "flex-col-reverse",
           )}
-          <div
-            className={cn(
-              "absolute inset-x-0 flex flex-col justify-center px-[7cqw]",
-              position === "top" ? "top-[12.5%] bottom-1/2" : "top-1/2 bottom-[12.5%]",
-            )}
-          >
-            {text}
-          </div>
-        </>
+          style={position === "top" ? { paddingTop: SAFE_TOP } : { paddingBottom: SAFE_BOTTOM }}
+        >
+          <div className="shrink-0 px-[7cqw] py-[4cqw]">{text}</div>
+          {pictureArea(
+            cover.pictureUrl ? (
+              <img
+                src={cover.pictureUrl}
+                alt=""
+                draggable={false}
+                className="absolute inset-0 h-full w-full object-contain"
+                style={{ objectPosition: position === "top" ? "center top" : "center bottom" }}
+              />
+            ) : (
+              picture
+            ),
+            "relative min-h-0 w-full flex-1",
+          )}
+        </div>
       ) : (
         <>
           {pictureArea(picture, "inset-0")}

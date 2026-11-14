@@ -61,7 +61,7 @@ describe("checkCover", () => {
         layout: "band",
         headline: "Hi",
         graphics: [{ graphic: "arrow", at: "top-right", size: 20 }],
-        tiktok: { textSize: "l" },
+        tiktok: { textSize: "l", focus: "right" },
       }),
     ).toEqual([]);
   });
