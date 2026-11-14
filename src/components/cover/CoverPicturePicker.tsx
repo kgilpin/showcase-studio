@@ -73,7 +73,9 @@ export function CoverPicturePicker({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-6 backdrop-blur-sm"
+      className="fixed inset-y-0 left-0 z-50 flex items-center justify-center bg-background/70 p-3 backdrop-blur-sm sm:p-6"
+      /* Over the page only: it stops at the studio agent's docked panel. */
+      style={{ right: "var(--studio-dock, 0px)" }}
       onClick={(event) => {
         event.stopPropagation();
         onClose();
@@ -83,11 +85,11 @@ export function CoverPicturePicker({
         className="flex max-h-full w-full max-w-3xl flex-col rounded-2xl border border-border bg-card shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center gap-4 border-b border-border px-6 py-4">
-          <p className="text-sm text-foreground">{title}</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+          <p className="min-w-0 flex-1 truncate text-sm text-foreground">{title}</p>
           <div
             role="tablist"
-            className="ml-auto flex rounded-full border border-border p-0.5 text-xs"
+            className="order-last flex w-full rounded-full border border-border p-0.5 text-xs sm:order-none sm:w-auto"
           >
             {(
               [
@@ -105,7 +107,7 @@ export function CoverPicturePicker({
                   setError(null);
                 }}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-colors",
+                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 transition-colors sm:flex-none",
                   tab === id
                     ? "bg-primary/15 font-medium text-foreground"
                     : "text-foreground/60 hover:text-foreground",
@@ -219,8 +221,8 @@ function FromVideo({
     );
   }
   return (
-    <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-6">
-      <div className="flex h-[46vh] items-center justify-center rounded-xl bg-black">
+    <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
+      <div className="flex h-[40vh] items-center justify-center rounded-xl bg-black sm:h-[46vh]">
         {media?.kind === "video" ? (
           <video
             ref={video}
@@ -274,7 +276,7 @@ function FromVideo({
           onChange={(event) => setAt(Number(event.target.value))}
           className="w-full accent-[var(--primary)]"
         />
-        <div className="flex items-center gap-3 text-xs text-support">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-support">
           <span className="font-mono">
             {clock(at)} / {clock(total)}
           </span>
@@ -330,7 +332,7 @@ function FromImages({
   };
 
   return (
-    <div className="grid grid-cols-3 gap-4 overflow-y-auto p-6 sm:grid-cols-4">
+    <div className="grid grid-cols-3 gap-3 overflow-y-auto p-4 sm:grid-cols-4 sm:gap-4 sm:p-6">
       <button
         type="button"
         disabled={adding}

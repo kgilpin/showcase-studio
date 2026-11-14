@@ -88,7 +88,9 @@ export function AssetPicker({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-6 backdrop-blur-sm"
+      className="fixed inset-y-0 left-0 z-50 flex items-center justify-center bg-background/70 p-3 backdrop-blur-sm sm:p-6"
+      /* Over the page only: it stops at the studio agent's docked panel. */
+      style={{ right: "var(--studio-dock, 0px)" }}
       onClick={(event) => {
         event.stopPropagation();
         onClose();
