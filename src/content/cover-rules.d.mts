@@ -20,7 +20,6 @@ export type CoverField =
   | "focus"
   | "layout"
   | "headline"
-  | "subhead"
   | "textPosition"
   | "textSize"
   | "graphics";
@@ -33,7 +32,6 @@ export type ResolvedCoverFields = {
   focus: CoverFocus;
   layout: CoverLayout;
   headline?: string;
-  subhead?: string;
   textPosition: CoverTextPosition;
   textSize: CoverTextSize;
   graphics: CoverGraphic[];

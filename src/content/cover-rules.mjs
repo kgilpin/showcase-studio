@@ -13,7 +13,6 @@
  *   focus: top                    # which part of the picture the crop keeps
  *   layout: band                  # fade | band | split
  *   headline: Mirror your iPhone
- *   subhead: in 10 seconds
  *   textPosition: bottom          # top | middle | bottom
  *   textSize: l                   # s | m | l
  *   graphics:                     # TSX graphics from graphics/, drawn finished
@@ -85,7 +84,6 @@ export const COVER_FIELDS = {
     description: "fade, band or split (default fade).",
   },
   headline: { type: "string", description: "The large text." },
-  subhead: { type: "string", description: "The smaller line under the headline." },
   textPosition: {
     type: "enum",
     values: COVER_TEXT_POSITIONS,

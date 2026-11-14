@@ -187,7 +187,6 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
     focus: top                    # which part of the picture the crop keeps
     layout: fade                  # fade | band | split
     headline: Mirror your iPhone
-    subhead: in 10 seconds
     textPosition: bottom          # top | middle | bottom
     textSize: l                   # s | m | l
     graphics:                     # TSX graphics from graphics/, drawn finished
@@ -203,8 +202,8 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
 - The picture is an image in assets/. On the Cover page the user picks it from the video (any moment of a scene's footage, saved as assets/cover-<scene>-t<ms>.jpg, without captions) or from the images, and can add one from their computer. To use a frame yourself, take it from the scene's clip with the ffmpeg tool — {output: "cover-<scene>-t<ms>.jpg", args: ["-ss", "<seconds>", "-i", "assets/<clip file>", "-frames:v", "1", "-q:v", "2"]} — then set picture to its key. Renaming the file on the Assets page updates the cover too.
 - Pick the layout by the picture: a photo or a frame of footage takes fade or band (band when the picture is busy and text over it won't read); an app screenshot takes split, so it isn't cropped.
 - The profile grids show only the middle 3:4 of the 9:16 frame: they cut 12.5% off the top and the bottom. The cover keeps its text and graphics inside that on its own; don't place anything that matters in those strips.
-- The headline is a few words, readable at thumbnail size: the hook, not the caption. The subhead is optional.
-- Anything beyond the headline and subhead — an arrow, a badge, a label — is a graphic: write a TSX file in graphics/ as for a scene, then add it to graphics with a place (at: top-left, top, top-right, left, center, right, bottom-left, bottom or bottom-right) and a width in percent of the frame (size).
+- The headline is the only text: a few words, readable at thumbnail size — the hook, not the caption.
+- Anything beyond the headline — an arrow, a badge, a label — is a graphic: write a TSX file in graphics/ as for a scene, then add it to graphics with a place (at: top-left, top, top-right, left, center, right, bottom-left, bottom or bottom-right) and a width in percent of the frame (size).
 - Write it with edit_cover {showcaseId, edits: [{destination?, name, value}], ifVersion}. Leave destination out for the default. null or "" removes a field, so the destination falls back to the default. The first edit makes cover.yaml. read_showcase returns the cover and its coverVersion to pass as ifVersion (null before there is a cover).
 - Check it with screenshot_cover {showcaseId, destination?}, and look at the text over the picture: it has to read at a glance.
 - A cover.yaml that breaks a rule never stops the showcase from opening: what doesn't fit is left out, with a warning in the studio and in validate.

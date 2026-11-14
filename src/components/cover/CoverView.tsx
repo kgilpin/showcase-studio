@@ -21,7 +21,10 @@ import { EditableText } from "@/components/studio/EditableText";
  * those grids cut off. Colors and fonts come from the showcase's theme
  * (the CSS variables its layout route sets).
  *
- * With `edit` the headline and subhead are click-to-edit and the picture
+ * The headline is the cover's only text: a second line would compete
+ * with it at thumbnail size, and anything more is a graphic.
+ *
+ * With `edit` the headline is click-to-edit and the picture
  * opens the asset picker; without it the cover is only drawn. */
 
 const SAFE_TOP = `${COVER_GRID_CROP}%`;
@@ -31,11 +34,6 @@ const HEADLINE_SIZE: Record<CoverTextSize, string> = {
   s: "text-[7cqw]",
   m: "text-[9cqw]",
   l: "text-[11.5cqw]",
-};
-const SUBHEAD_SIZE: Record<CoverTextSize, string> = {
-  s: "text-[4cqw]",
-  m: "text-[4.8cqw]",
-  l: "text-[5.6cqw]",
 };
 
 /** Where a graphic's box sits, inside the grid crop. */
@@ -66,7 +64,6 @@ function anchorStyle(at: CoverAnchor, size: number): CSSProperties {
 
 export type CoverEditing = {
   onHeadline: (value: string) => void;
-  onSubhead: (value: string) => void;
   onPickPicture: () => void;
 };
 
@@ -226,11 +223,6 @@ function CoverText({
     HEADLINE_SIZE[cover.textSize],
     split && "text-foreground",
   );
-  const subheadClass = cn(
-    "mt-[2.5cqw] block leading-snug",
-    SUBHEAD_SIZE[cover.textSize],
-    split ? "text-muted-foreground" : "opacity-90",
-  );
   if (edit) {
     return (
       <div style={shadow}>
@@ -242,21 +234,12 @@ function CoverText({
           placeholder="Headline"
           className={headlineClass}
         />
-        <EditableText
-          as="p"
-          value={cover.subhead ?? ""}
-          onCommit={edit.onSubhead}
-          label="Cover subhead"
-          placeholder="Subhead (optional)"
-          className={subheadClass}
-        />
       </div>
     );
   }
   return (
     <div style={shadow}>
       {cover.headline && <h2 className={headlineClass}>{cover.headline}</h2>}
-      {cover.subhead && <p className={subheadClass}>{cover.subhead}</p>}
     </div>
   );
 }

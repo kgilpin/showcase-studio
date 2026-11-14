@@ -36,8 +36,8 @@ describe("resolveCover", () => {
   });
 
   it("never takes a field from another destination", () => {
-    const doc = { headline: "Default", tiktok: { subhead: "TikTok only" } };
-    expect(resolveCover(doc, "instagram").subhead).toBeUndefined();
+    const doc = { headline: "Default", tiktok: { picture: "tiktok-only" } };
+    expect(resolveCover(doc, "instagram").picture).toBeUndefined();
   });
 
   it("leaves out a field with a bad value, falling back to the default", () => {
@@ -75,7 +75,7 @@ describe("checkCover", () => {
         graphics: [{ graphic: "arrow", at: "middle" }],
       }),
     ).toEqual([
-      'cover has no field "title" — fields: picture, focus, layout, headline, subhead, textPosition, textSize, graphics',
+      'cover has no field "title" — fields: picture, focus, layout, headline, textPosition, textSize, graphics',
       'layout must be one of fade, band, split (not "poster")',
       'graphics[0].at must be one of top-left, top, top-right, left, center, right, bottom-left, bottom, bottom-right (not "middle")',
       'instagram: textSize must be one of s, m, l (not "xl")',
@@ -112,7 +112,6 @@ describe("COVER_SCHEMA", () => {
       "focus",
       "layout",
       "headline",
-      "subhead",
       "textPosition",
       "textSize",
       "graphics",
@@ -120,6 +119,6 @@ describe("COVER_SCHEMA", () => {
       "instagram",
       "youtube",
     ]);
-    expect(Object.keys(schema.properties["tiktok"]!.properties!)).toHaveLength(8);
+    expect(Object.keys(schema.properties["tiktok"]!.properties!)).toHaveLength(7);
   });
 });

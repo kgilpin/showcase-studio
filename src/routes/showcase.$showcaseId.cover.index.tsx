@@ -42,7 +42,7 @@ import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
  *   │      └─────────┘      │ ☑ Grid crop  [Save image]  │
  *   └───────────────────────┴───────────────────────────┘
  *
- * In a studio the cover is edited here: click the headline or subhead to
+ * In a studio the cover is edited here: click the headline to
  * type, the picture to choose another, and the panel for the rest. With
  * All chosen an edit changes the default; with one destination chosen it
  * goes into that destination's own block, and a field it sets shows a dot
@@ -94,7 +94,6 @@ function CoverScreen() {
                       ? {
                           onHeadline: (value) =>
                             editCover(showcase, destination, "headline", value),
-                          onSubhead: (value) => editCover(showcase, destination, "subhead", value),
                           onPickPicture: () => setPicking(true),
                         }
                       : undefined

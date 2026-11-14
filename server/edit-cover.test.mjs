@@ -93,7 +93,7 @@ describe("writing cover.yaml", () => {
     const result = applyCoverEditsToFolder(dir, {
       showcaseId: "demo",
       baseHash: contentHash("headline: Before\n"),
-      edits: [{ name: "subhead", value: "x" }],
+      edits: [{ name: "textSize", value: "l" }],
     });
     expect(result).toMatchObject({ ok: false, stale: true, hash: contentHash("headline: Hi\n") });
   });
