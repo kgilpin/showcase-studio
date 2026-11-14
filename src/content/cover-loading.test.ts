@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   coverFor,
   loadFromSource,
+  showcaseAssets,
   showcaseErrors,
   showcasesReady,
   showcaseWarnings,
@@ -82,5 +83,18 @@ describe("a showcase's cover", () => {
       'showcases/covered/cover.yaml: layout must be one of fade, band, split (not "poster") — it is left out',
       'showcases/covered/cover.yaml: no asset named "gone" in assets/ — the cover shows a stand-in',
     ]);
+  });
+});
+
+describe("the cover's pictures on the Assets page", () => {
+  it("counts each destination's picture as used by the cover", async () => {
+    const showcase = await loadWith("picture: frame\ninstagram:\n  picture: gone\n", [
+      "frame.jpg",
+      "other.png",
+    ]);
+    const { assets, missing } = showcaseAssets(showcase);
+    expect(assets.find((a) => a.key === "frame")?.usedBy).toEqual(["cover"]);
+    expect(assets.find((a) => a.key === "other")?.usedBy).toEqual([]);
+    expect(missing).toEqual([{ key: "gone", usedBy: ["cover"] }]);
   });
 });

@@ -1798,6 +1798,21 @@ export function showcaseAssets(showcase: Showcase): {
     if (cover) mark(usedBy, cover.file, "cover");
     else mark(missing, showcase.cover, "cover");
   }
+  /* cover.yaml's picture: the default's, and each destination's own. */
+  if (showcase.coverDoc !== undefined) {
+    const pictures = [
+      resolveCover(showcase.coverDoc).picture,
+      ...(Object.keys(COVER_DESTINATIONS) as CoverDestination[]).map(
+        (id) => resolveCover(showcase.coverDoc, id).picture,
+      ),
+    ];
+    for (const key of new Set(pictures)) {
+      if (!key) continue;
+      const picture = entries.get(key);
+      if (picture) mark(usedBy, picture.file, "cover");
+      else mark(missing, key, "cover");
+    }
+  }
 
   const assets: AssetInfo[] = [];
   for (const [key, entry] of entries) {
