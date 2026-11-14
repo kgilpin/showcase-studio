@@ -11,7 +11,8 @@
  *
  *   picture: cover-frame          # asset key
  *   focus: top                    # which part of the picture the crop keeps
- *   layout: band                  # fade | band | split
+ *   layout: fade                  # fade | band | split
+ *   fade: strong                  # light | medium | strong (fade layout)
  *   headline: Mirror your iPhone
  *   textPosition: bottom          # top | middle | bottom
  *   textSize: l                   # s | m | l
@@ -46,9 +47,14 @@ export const COVER_GRID_CROP = 12.5;
  *    fade      the picture fills the frame, large text over a dark fade
  *    band      the picture fills the frame, the text in a band of the
  *              theme's color
- *    split     the picture in one half, the text in the other — for an
- *              app screenshot, which shouldn't be cropped to fill */
+ *    split     the text takes the room it needs, the picture is shown
+ *              whole in the rest — for an app screenshot, which
+ *              shouldn't be cropped to fill */
 export const COVER_LAYOUTS = ["fade", "band", "split"];
+
+/** How dark the fade layout's fade is behind the text: light for a dark
+ *  picture, strong for a bright one. */
+export const COVER_FADES = ["light", "medium", "strong"];
 
 export const COVER_TEXT_POSITIONS = ["top", "middle", "bottom"];
 export const COVER_TEXT_SIZES = ["s", "m", "l"];
@@ -87,6 +93,12 @@ export const COVER_FIELDS = {
     values: COVER_LAYOUTS,
     description: "fade, band or split (default fade).",
   },
+  fade: {
+    type: "enum",
+    values: COVER_FADES,
+    description:
+      "How dark the fade behind the text is, in the fade layout: light, medium or strong (default medium). Light for a dark picture, strong for a bright one.",
+  },
   headline: { type: "string", description: "The large text." },
   textPosition: {
     type: "enum",
@@ -106,7 +118,7 @@ export const COVER_FIELDS = {
 
 export const COVER_FIELD_NAMES = Object.keys(COVER_FIELDS);
 
-const DEFAULTS = { focus: "center", layout: "fade", textSize: "m" };
+const DEFAULTS = { focus: "center", layout: "fade", fade: "medium", textSize: "m" };
 
 /** The problem with one field's value, or null when it's fine. */
 export function coverValueProblem(name, value) {

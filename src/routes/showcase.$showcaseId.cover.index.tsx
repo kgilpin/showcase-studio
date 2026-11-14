@@ -11,6 +11,7 @@ import {
 import {
   COVER_ANCHORS,
   COVER_DESTINATIONS,
+  COVER_FADES,
   COVER_LAYOUTS,
   COVER_TEXT_POSITIONS,
   COVER_TEXT_SIZES,
@@ -360,6 +361,17 @@ function CoverPanel({
             current={focusChoices.includes(fields.focus) ? fields.focus : "center"}
             disabled={!canEdit}
             onChoose={(value) => set("focus", value)}
+          />
+        </Row>
+      )}
+
+      {fields.layout === "fade" && (
+        <Row label="Fade" overridden={reset("fade")}>
+          <Segments
+            values={COVER_FADES}
+            current={fields.fade}
+            disabled={!canEdit}
+            onChoose={(value) => set("fade", value)}
           />
         </Row>
       )}

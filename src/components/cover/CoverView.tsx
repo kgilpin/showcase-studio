@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { ResolvedCover } from "@/content/showcases";
-import type { CoverAnchor, CoverTextSize } from "@/content/cover-rules.mjs";
+import type { CoverAnchor, CoverFade, CoverTextSize } from "@/content/cover-rules.mjs";
 import { COVER_GRID_CROP } from "@/content/cover-rules.mjs";
 import { EditableText } from "@/components/studio/EditableText";
 
@@ -60,6 +60,29 @@ function anchorStyle(at: CoverAnchor, size: number): CSSProperties {
     style.translate = `-50% ${row === "middle" ? "-50%" : "0"}`;
   }
   return style;
+}
+
+/* The fade layout's darkening, by strength: at the frame's edge on the
+ * text's side, then at 32% and 50% of the way across, and where it is
+ * clear. Darkest where the text sits (just inside the grid crop), so
+ * white text reads over a bright picture. With the text in the middle,
+ * an even darkening instead. */
+const FADES: Record<
+  CoverFade,
+  { edge: number; near: number; mid: number; clear: string; even: number }
+> = {
+  light: { edge: 0.6, near: 0.45, mid: 0.15, clear: "58%", even: 0.28 },
+  medium: { edge: 0.85, near: 0.75, mid: 0.35, clear: "66%", even: 0.45 },
+  strong: { edge: 0.94, near: 0.88, mid: 0.6, clear: "80%", even: 0.62 },
+};
+
+function fadeBackground(fade: CoverFade, position: "top" | "middle" | "bottom"): string {
+  const f = FADES[fade];
+  if (position === "middle") return `rgb(0 0 0 / ${f.even})`;
+  return (
+    `linear-gradient(to ${position === "top" ? "bottom" : "top"}, rgb(0 0 0 / ${f.edge}), ` +
+    `rgb(0 0 0 / ${f.near}) 32%, rgb(0 0 0 / ${f.mid}) 50%, transparent ${f.clear})`
+  );
 }
 
 export type CoverEditing = {
@@ -166,14 +189,7 @@ export function CoverView({
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0"
-              style={{
-                /* Darkest where the text sits (just inside the grid
-                 * crop), so it reads over a bright picture too. */
-                background:
-                  position === "middle"
-                    ? "rgb(0 0 0 / 0.45)"
-                    : `linear-gradient(to ${position === "top" ? "bottom" : "top"}, rgb(0 0 0 / 0.85), rgb(0 0 0 / 0.75) 32%, rgb(0 0 0 / 0.35) 50%, transparent 66%)`,
-              }}
+              style={{ background: fadeBackground(cover.fade, position) }}
             />
           )}
           <div

@@ -6,6 +6,7 @@ describe("resolveCover", () => {
     expect(resolveCover({})).toEqual({
       focus: "center",
       layout: "fade",
+      fade: "medium",
       textSize: "m",
       textPosition: "bottom",
       graphics: [],
@@ -61,7 +62,7 @@ describe("checkCover", () => {
         layout: "band",
         headline: "Hi",
         graphics: [{ graphic: "arrow", at: "top-right", size: 20 }],
-        tiktok: { textSize: "l", focus: "right" },
+        tiktok: { textSize: "l", focus: "right", fade: "strong" },
       }),
     ).toEqual([]);
   });
@@ -75,7 +76,7 @@ describe("checkCover", () => {
         graphics: [{ graphic: "arrow", at: "middle" }],
       }),
     ).toEqual([
-      'cover has no field "title" — fields: picture, focus, layout, headline, textPosition, textSize, graphics',
+      'cover has no field "title" — fields: picture, focus, layout, fade, headline, textPosition, textSize, graphics',
       'layout must be one of fade, band, split (not "poster")',
       'graphics[0].at must be one of top-left, top, top-right, left, center, right, bottom-left, bottom, bottom-right (not "middle")',
       'instagram: textSize must be one of s, m, l (not "xl")',
@@ -111,6 +112,7 @@ describe("COVER_SCHEMA", () => {
       "picture",
       "focus",
       "layout",
+      "fade",
       "headline",
       "textPosition",
       "textSize",
@@ -119,6 +121,6 @@ describe("COVER_SCHEMA", () => {
       "instagram",
       "youtube",
     ]);
-    expect(Object.keys(schema.properties["tiktok"]!.properties!)).toHaveLength(7);
+    expect(Object.keys(schema.properties["tiktok"]!.properties!)).toHaveLength(8);
   });
 });

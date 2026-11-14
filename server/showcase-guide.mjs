@@ -186,6 +186,7 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
     picture: shot-hero            # an image in assets/, by key
     focus: top                    # which part of the picture the crop keeps
     layout: fade                  # fade | band | split
+    fade: strong                  # light | medium | strong (fade layout only)
     headline: Mirror your iPhone
     textPosition: bottom          # top | middle | bottom
     textSize: l                   # s | m | l
@@ -200,6 +201,7 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
     split    the rest of the frame, whole    at the top or bottom, as much room as it needs — for an app screenshot
 
 - focus says which part of the picture fill keeps (fade and band): top, center or bottom for a picture taller than 9:16, left, center or right for a wider one. A 9:16 picture — a frame of phone footage — isn't cropped, so focus does nothing there, and the Cover page hides it.
+- fade says how dark the fade layout's darkening behind the text is: light, medium (the default) or strong. Strong for a bright picture (a sky, a white screen) where white text won't read; light for a dark one, where medium hides more of the picture than it needs to.
 
 - The picture is an image in assets/. On the Cover page the user picks it from the video (any moment of a scene's footage, saved as assets/cover-<scene>-t<ms>.jpg, without captions) or from the images, and can add one from their computer. To use a frame yourself, take it from the scene's clip with the ffmpeg tool — {output: "cover-<scene>-t<ms>.jpg", args: ["-ss", "<seconds>", "-i", "assets/<clip file>", "-frames:v", "1", "-q:v", "2"]} — then set picture to its key. Renaming the file on the Assets page updates the cover too.
 - Pick the layout by the picture: a photo or a frame of footage takes fade or band (band when the picture is busy and text over it won't read); an app screenshot takes split, so it isn't cropped.
