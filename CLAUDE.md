@@ -348,6 +348,12 @@ npm run dev -- --new [<library folder>]
   with the same key.
 - `src/components/showcase/`: The player: `ShowcasePlayer`, `SceneView`
   (slide layouts), `SceneMedia` (motion), `ProgressRail`, `Soundtrack`.
+  `ShowcaseFrame` is the frame around a showcase's screens (Video,
+  Script, Assets, Share): a top bar with Home, the title, the activity
+  slot and the gear, and a rail down the left with one icon and label
+  per place — a bar along the bottom on a phone. Its `PLACES` list is
+  where a new screen gets its place, one line each. Capture pages
+  (`/export`, `/record`) don't use it.
 - `src/components/script/`: The script page: script listing and
   teleprompter.
 - `src/routes/`: TanStack Router file routes: `/` (home), `/new` (the New
@@ -665,7 +671,7 @@ print}` — what the automatic build asks before it starts, what an
     stopped loads as failed. Pages read it over `GET /studio/api/actions`,
     hear each change as the `action` event, and run offers with the
     `actions-offer` action; `studio_info` reports `actions`
-    (`summary()`). The tab bar's activity slot and the list behind it are
+    (`summary()`). The top bar's activity slot and the list behind it are
     `src/components/studio/StudioActivity.tsx` (the words in
     `activity-text.ts`): the slot shows the one record that matters most
     — running, then pending, then an undismissed failure, then a result
@@ -707,7 +713,7 @@ print}` — what the automatic build asks before it starts, what an
     `autoCommit: false` in settings turns it off — the user sets it with the
     "Commit changes to git" switch
     (`src/components/studio/StudioSettings.tsx`, the gear button at the
-    right of `ShowcaseNav`), which saves it through `history-auto-commit`,
+    right of the top bar in `ShowcaseFrame`), which saves it through `history-auto-commit`,
     takes effect at once, drops commits still waiting, and logs a
     `"kind":"setting"` line; `studio_info`/`studio_start` report it as
     `history`.
@@ -924,7 +930,7 @@ print}` — what the automatic build asks before it starts, what an
   `showcases.ts`. Narration lives in captions only — titles are on-screen
   text, never spoken or timed. A theme linter warns (diagnostics tray)
   on legacy/incoherent themes but always renders.
-- The player (`ShowcasePlayer.tsx`) stacks its rows under the tab bar:
+- The player (`ShowcasePlayer.tsx`) stacks its rows under the top bar:
   the stage (the slide, with the transcript column beside it), then the
   scrubber (`Scrubber.tsx` — a slider over the current scene with a time
   counter; dragging pauses and moves the caption, the video and every CSS
@@ -987,7 +993,7 @@ print}` — what the automatic build asks before it starts, what an
   can be reviewed and reverted with git. It commits what it wrote itself:
   an outside change never starts a commit, it only rides along in the
   next one. The user turns that on and off with the "Commit changes to
-  git" switch under the gear button in the showcase tab bar; it is
+  git" switch under the gear button in the showcase's top bar; it is
   studio-wide, and off by default in the studio Claude Code starts,
   where the session commits with `commit_showcase`. A change on disk to
   one showcase — the build's new voiceover and durations, Claude's

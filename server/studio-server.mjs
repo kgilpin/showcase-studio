@@ -16,7 +16,7 @@
  *                               "Commit changes to git" switch
  *   GET  /studio/api/actions    the Actions list: every export, build and
  *                               commit — pending, running, done, failed —
- *                               for the tab bar's activity slot
+ *                               for the top bar's activity slot
  *                               (server/actions-log.mjs)
  *   GET  /studio/api/events     live events (server-sent events):
  *                               showcase-changed, reload, info, export,
@@ -665,7 +665,7 @@ add notes specific to this library below, and the studio won't touch them.
    * (server/actions-log.mjs): running, pending, done or failed, with who
    * started it and why, and what the user can do about it. Pages hear
    * each change as the "action" event and read the list over
-   * GET /studio/api/actions; the tab bar's activity slot shows it. */
+   * GET /studio/api/actions; the top bar's activity slot shows it. */
   const actions = createActionsLog(() => showcasesDir, {
     log,
     onChange: (record) => emit("action", record),

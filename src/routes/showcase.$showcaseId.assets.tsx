@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FileQuestion, Music, Plus, Trash2, TriangleAlert, Upload, X } from "lucide-react";
 import { showcaseAssets, useShowcase, type AssetInfo } from "@/content/showcases";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
-import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
+import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
 import { studio } from "@/lib/studio";
 import { isGenericClipboardName, pastedAssetName } from "@/lib/pasted-asset-name";
 import { isTypingTarget } from "@/lib/typing-target";
@@ -133,11 +133,12 @@ function AssetsScreen() {
   };
 
   return (
-    <main
-      className="@container min-h-dvh w-full pb-14"
-      style={{ background: "var(--gradient-stage)" }}
+    <ShowcaseFrame
+      showcaseId={showcaseId}
+      title={showcase.title}
+      current="assets"
+      className="@container pb-14"
     >
-      <ShowcaseNav showcaseId={showcaseId} title={showcase.title} current="assets" />
       <div className="mx-auto box-content max-w-6xl px-6 sm:px-10">
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Assets</p>
@@ -237,7 +238,7 @@ function AssetsScreen() {
       <div className="fixed inset-x-0 bottom-0">
         <DiagnosticsTray />
       </div>
-    </main>
+    </ShowcaseFrame>
   );
 }
 

@@ -1,5 +1,5 @@
-/* Studio settings: the gear button at the right end of a showcase's tab
- * bar (ShowcaseNav), which opens a small panel of studio-wide options:
+/* Studio settings: the gear button at the right end of a showcase's top
+ * bar (ShowcaseFrame), which opens a small panel of studio-wide options:
  *
  *   gear button ──► panel ──► Subscription: Active · Renews Nov 20 ·
  *                               Manage subscription ↗   (LicensePanel)
@@ -10,7 +10,7 @@
  * While the subscription needs the user — the trial, a checkout, a
  * payment issue — the gear carries a dot (amber for a payment issue)
  * and its tooltip says so: "Studio settings · Trial · 2 videos left".
- * That is the tab bar's only sign of it; the Subscription section here
+ * That is the top bar's only sign of it; the Subscription section here
  * has what to do.
  *
  * The commit switch saves autoCommit in the studio's settings.json

@@ -5,7 +5,7 @@ import { ShareHandoff, type HandoffMethod } from "@/components/share/ShareHandof
 import { ShareHistory } from "@/components/share/ShareHistory";
 import { ShareText, type PublishEdit } from "@/components/share/ShareText";
 import { ShareVideo, type Quality } from "@/components/share/ShareVideo";
-import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
+import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
 import { getShowcase, useShowcase } from "@/content/showcases";
 import {
   DESTINATION_IDS,
@@ -239,11 +239,12 @@ function ShareScreen() {
   };
 
   return (
-    <main
-      className="@container min-h-dvh w-full pb-14"
-      style={{ background: "var(--gradient-stage)" }}
+    <ShowcaseFrame
+      showcaseId={showcaseId}
+      title={showcase.title}
+      current="share"
+      className="@container pb-14"
     >
-      <ShowcaseNav showcaseId={showcaseId} title={showcase.title} current="share" />
       <div className="mx-auto box-content max-w-6xl px-4 sm:px-10">
         <header className="mt-8 border-b border-border pb-6">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Share</p>
@@ -328,6 +329,6 @@ function ShareScreen() {
           </div>
         )}
       </div>
-    </main>
+    </ShowcaseFrame>
   );
 }
