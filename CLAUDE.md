@@ -430,7 +430,11 @@ npm run dev -- --new [<library folder>]
     page shows it under Details only while a studio runs in the process and
     the request names a local host), `edit_showcase` through
     `scene-edit.mjs` (a recorded pitch's `take` is an editable scene field,
-    checked by `takeProblem` in `build-plan.mjs`), `create_showcase` (the
+    checked by `takeProblem` in `build-plan.mjs`), `edit_theme` through the
+    same module's `applyThemeEditsToFolder` (theme.yaml's keys, with the
+    same `ifVersion` check and change-log line as `edit_showcase`; an
+    `extends` must name another showcase and make no cycle), `read_showcase`
+    (showcase.yaml, plus theme.yaml and its `themeVersion`), `create_showcase` (the
     studio's own scaffold, the + card's, through the MCP context),
     `add_asset` through `asset-files.mjs` (files on disk
     copied into a showcase's `assets/` — what an image dropped into the
@@ -631,9 +635,14 @@ print}` — what the automatic build asks before it starts, what an
     or theme.yaml for style-panel edits: resolve, stale-`baseHash` gate,
     patch, `beforeWrite` hook, write, return the new content hash;
     `applySceneEditsToFolder` applies a batch of showcase.yaml edits as one
-    all-or-nothing write.
-  - `edit-theme.mjs`: the style panel's whitelisted theme.yaml edits:
-    caption colors + stage background.
+    all-or-nothing write, and `applyThemeEditsToFolder` the same for
+    theme.yaml (`edit_theme`).
+  - `edit-theme.mjs`: comment-preserving theme.yaml edits, `{key, value}`
+    — every key the loader accepts (colors, fonts with `load`, shape,
+    atmosphere, `extends`), each value checked by
+    `src/content/theme-rules.mjs`, the loader's own theme whitelist, so an
+    edit can't leave a theme the loader refuses. The style panel's
+    `{group, name, value}` edits go through it too.
   - `export-output.mjs`: where finished exports go: the export folder holds
     only the newest of each kind, and older ones move into its `history/`,
     numbered from the newest.
@@ -980,7 +989,9 @@ print}` — what the automatic build asks before it starts, what an
   it belongs in the cut list, not in a script beside the library.
 - Per-showcase styling goes in `showcases/<id>/theme.yaml` — a
   whitelisted set of `colors`, `fonts`, `shape`, and `atmosphere` overrides
-  applied by the `/showcase/$showcaseId` layout route. A theme can
+  applied by the `/showcase/$showcaseId` layout route. The whitelist is
+  `src/content/theme-rules.mjs`, shared by the loader and the studio's
+  theme edits (the style panel and Claude's `edit_theme`). A theme can
   `extends` another showcase's theme, and `fonts.load` lists font
   stylesheet URLs for families the app doesn't already load. Only
   whitelisted keys are accepted — structural CSS variables can't be

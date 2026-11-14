@@ -12,7 +12,7 @@ import path from "node:path";
 import { pageErrorField } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { addAssetPaths, encodeAsset } from "./asset-files.mjs";
-import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
+import { applySceneEditsToFolder, applyThemeEditsToFolder, contentHash } from "./scene-edit.mjs";
 import {
   formatClock,
   MAX_FRAMES_PER_CALL,
@@ -165,7 +165,8 @@ export const TOOLS = [
       "removes the field, so it inherits again. Check the result with share_status, which " +
       "reports each destination's final text and anything over a platform's limits.\n" +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +
-      "result. theme.yaml and comments are not covered — edit those directly.\n" +
+      "result. theme.yaml has its own tool, edit_theme; YAML comments are not covered — " +
+      "edit those directly.\n" +
       "Returns {applied, version}. Pass ifVersion — the version read_showcase or your last " +
       "edit_showcase returned — so an edit the user made in the studio meanwhile is never " +
       "overwritten unseen: when showcase.yaml has changed since that version, nothing is " +
@@ -195,6 +196,61 @@ export const TOOLS = [
     },
   },
   {
+    name: "edit_theme",
+    description:
+      "Apply edits to a showcase's theme.yaml (its colors, fonts and atmosphere) — the same " +
+      "comment-preserving write path as the studio's style panel. Use this instead of " +
+      "hand-editing theme.yaml: values are checked against what the loader accepts, so a bad " +
+      "edit is refused with the reason instead of breaking the showcase, and the studio logs " +
+      "and commits the write like any other. The edits apply in order and land as ONE write; " +
+      "if any edit fails, nothing is written. theme.yaml is created when it doesn't exist. " +
+      "Each edit is {key, value}:\n" +
+      "- colors.<name> — background, foreground, card, card-foreground, primary, " +
+      "primary-foreground, secondary, secondary-foreground, muted, muted-foreground, accent, " +
+      "accent-foreground, border, support, caption-chip, caption-text, caption-word, " +
+      'watermark-text. A CSS color as a string ("#4ade80", "oklch(0.7 0.2 150)").\n' +
+      "- fonts.display, fonts.body — a CSS font-family; fonts.load — a list of stylesheet " +
+      "URLs (Google Fonts, say) for families the app doesn't already load.\n" +
+      "- shape.radius — a CSS length.\n" +
+      "- atmosphere.gradient-stage (the slide background), atmosphere.gradient-accent, " +
+      "atmosphere.shadow-device — CSS values.\n" +
+      "- extends — another showcase's id: start from its theme, with this one's keys on top.\n" +
+      'null, "" or [] removes a key, so it falls back to the default (or the theme it ' +
+      "extends). The studio's pages restyle on the write; check with screenshot_slide.\n" +
+      "Returns {applied, version}. Pass ifVersion — the themeVersion read_showcase returned, " +
+      "or the version your last edit_theme returned — so a style-panel edit the user made " +
+      "meanwhile is never overwritten unseen: when theme.yaml has changed since that version, " +
+      "nothing is written and the error lists the changes the studio logged since then. " +
+      "Leave ifVersion out only when the showcase has no theme.yaml yet (themeVersion null).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        edits: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              key: { type: "string", description: 'e.g. "colors.primary" or "extends"' },
+              value: {},
+            },
+            required: ["key", "value"],
+          },
+          description: "The edits, applied in order as one write (see the tool description)",
+        },
+        ifVersion: {
+          type: "string",
+          description:
+            "The theme.yaml version these edits were made against (themeVersion from " +
+            "read_showcase, or the last edit_theme result). The write is refused if the file " +
+            "changed since.",
+        },
+      },
+      required: ["showcaseId", "edits"],
+    },
+  },
+  {
     name: "create_showcase",
     description:
       "Make a new showcase folder in the library from a name — the same scaffold as the " +
@@ -213,8 +269,10 @@ export const TOOLS = [
     name: "read_showcase",
     description:
       "Read a showcase's showcase.yaml as it is on disk now, with its version (a content " +
-      "hash). Pass the version to edit_showcase as ifVersion. Also returns the path of the " +
-      "studio's change log, where every edit made in the studio lands as one JSON line.",
+      "hash). Pass the version to edit_showcase as ifVersion. When the showcase has a " +
+      "theme.yaml, its text follows, and themeVersion is the version to pass to edit_theme " +
+      "(null when there is none). Also returns the path of the studio's change log, where " +
+      "every edit made in the studio lands as one JSON line.",
     inputSchema: {
       type: "object",
       properties: {
@@ -751,13 +809,19 @@ async function builtFirst(context, showcaseId, tool) {
 
 /** The refusal for an edit made against an old version: what the change
  *  log recorded since that version, one JSON line per write. */
-function staleEditMessage(changeLog, showcaseId, ifVersion, currentVersion) {
-  const { known, entries } = changeLog?.since(showcaseId, "showcase.yaml", ifVersion) ?? {
+function staleEditMessage(
+  changeLog,
+  showcaseId,
+  ifVersion,
+  currentVersion,
+  file = "showcase.yaml",
+) {
+  const { known, entries } = changeLog?.since(showcaseId, file, ifVersion) ?? {
     known: false,
     entries: [],
   };
-  const lastVersion = entries.findLast((e) => e.file === "showcase.yaml")?.version;
-  const lines = [`showcase.yaml changed since version ${ifVersion} — nothing was written.`];
+  const lastVersion = entries.findLast((e) => e.file === file)?.version;
+  const lines = [`${file} changed since version ${ifVersion} — nothing was written.`];
   if (!known) {
     lines.push(
       "The change log has no record of that version: the file was changed outside the studio " +
@@ -774,8 +838,9 @@ function staleEditMessage(changeLog, showcaseId, ifVersion, currentVersion) {
     lines.push("The file was also changed outside the studio after the last of these.");
   }
   lines.push(
-    `The current version is ${currentVersion}. Read the showcase again (read_showcase), ` +
-      "check your edits against it, and retry with the new version as ifVersion.",
+    `The current version is ${currentVersion ?? "none (the file is gone)"}. Read the ` +
+      "showcase again (read_showcase), check your edits against it, and retry with the new " +
+      "version as ifVersion.",
   );
   return lines.join("\n");
 }
@@ -942,6 +1007,8 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     const file = path.join(showcasesDir, showcaseId, "showcase.yaml");
     if (!existsSync(file)) throw new Error(`No showcase named "${showcaseId}"`);
     const text = readFileSync(file, "utf8");
+    const themeFile = path.join(showcasesDir, showcaseId, "theme.yaml");
+    const theme = existsSync(themeFile) ? readFileSync(themeFile, "utf8") : null;
     return {
       content: [
         {
@@ -949,10 +1016,12 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
           text: JSON.stringify({
             showcaseId,
             version: contentHash(text),
+            themeVersion: theme == null ? null : contentHash(theme),
             changes: context.changeLog?.path(),
           }),
         },
         { type: "text", text },
+        ...(theme == null ? [] : [{ type: "text", text: `# theme.yaml\n${theme}` }]),
       ],
     };
   }
@@ -1006,6 +1075,31 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       previousVersion: result.previousHash,
       version: result.hash,
       edits: args.edits,
+    });
+    return json({ applied: result.applied, version: result.hash });
+  }
+  if (name === "edit_theme") {
+    const showcaseId = String(args.showcaseId ?? "");
+    const result = applyThemeEditsToFolder(showcasesDir, {
+      showcaseId: args.showcaseId,
+      edits: args.edits,
+      baseHash: args.ifVersion,
+    });
+    if (result.stale) {
+      throw new Error(
+        staleEditMessage(context.changeLog, showcaseId, args.ifVersion, result.hash, "theme.yaml"),
+      );
+    }
+    if (!result.ok) throw new Error(result.error);
+    context.changeLog?.append({
+      source: "mcp",
+      tool: "edit_theme",
+      showcaseId,
+      kind: "edit",
+      file: "theme.yaml",
+      previousVersion: result.previousHash,
+      version: result.hash,
+      edits: args.edits.map(({ key, value }) => ({ field: "theme.set", key, value })),
     });
     return json({ applied: result.applied, version: result.hash });
   }

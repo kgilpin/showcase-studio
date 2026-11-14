@@ -172,8 +172,11 @@ the full list.
   Each line is one edit the user made. Take it into account before your
   next change, and don't undo it.
 
-- `theme.yaml`, `assets/`, `graphics/`: edit the files directly. The
-  studio reloads by itself.
+- `theme.yaml`: use `edit_theme` when the studio has it (pass the
+  `themeVersion` from `read_showcase` as `ifVersion`). An older studio
+  has no such tool: then edit the file directly.
+- `assets/`, `graphics/`: edit the files directly. The studio reloads by
+  itself.
 - Media is either the user's real product or something you build, and
   both belong in a showcase:
   - **Their product** — screenshots and recordings. Don't fabricate
@@ -233,8 +236,8 @@ the full list.
   `commit_showcase`.
   - After you finish a meaningful change, call `commit_showcase` with a
     clear message, such as "Retime scenes to the new voiceover". That
-    includes files you wrote with your own tools, like a graphic or
-    theme.yaml. Don't run `git commit` yourself.
+    includes files you wrote with your own tools, like a graphic.
+    Don't run `git commit` yourself.
   - When the user asks to undo, compare, or branch, use git history. Look
     first (`git log --stat -- <showcase>`) and confirm which change they
     mean. Undo with `git revert <sha>`, which adds a new commit. Never

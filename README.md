@@ -127,6 +127,8 @@ Claude works through the studio's MCP tools:
 - `read_showcase` / `edit_showcase` — read the script, and make
   structured edits (scene fields, captions, meta, insert/move/delete) as
   one write that keeps the file's formatting
+- `edit_theme` — change a showcase's theme.yaml (colors, fonts, shape,
+  atmosphere, extends) the same way, with each value checked
 - `screenshot_slide` — render one slide and look at it
 - `screenshot_frame` — render the video's frame at a given moment (TikTok
   or 4:3) and look at it, with TikTok's safe area shaded on request

@@ -89,8 +89,8 @@ for (const dir of ["electron", "server"]) {
  * their staged-relative ../src paths: the timing model (prompter-script.mjs,
  * exporter.mjs), what counts as media (asset-files.mjs), the brand mark's
  * rules, where captions may sit and what a TikTok fit may say
- * (edit-yaml.mjs), the text a post uses and where it can go
- * (edit-yaml.mjs, share.mjs), the lock rule
+ * (edit-yaml.mjs), what a theme may hold (edit-theme.mjs), the text a
+ * post uses and where it can go (edit-yaml.mjs, share.mjs), the lock rule
  * (electron/main.mjs), the last page error (server/mcp.mjs, exporter.mjs),
  * and export names (the export notification in electron/main.mjs).
  * scripts/package-desktop.test.mjs fails when server/ or electron/ imports
@@ -100,6 +100,7 @@ for (const shared of [
   "content/caption-position-rules.mjs",
   "content/publish-rules.mjs",
   "content/showcase-schema.mjs",
+  "content/theme-rules.mjs",
   "content/tiktok-fit-rules.mjs",
   "content/timing.mjs",
   "content/watermark-rules.mjs",

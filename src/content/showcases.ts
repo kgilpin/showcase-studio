@@ -26,6 +26,7 @@ import {
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
+import { THEME_GROUPS, themeDocProblem } from "./theme-rules.mjs";
 import { ASSET_KINDS, assetKind, mediaKindWarning, type AssetKind } from "./asset-kind";
 import {
   CAPTION_POSITION_HELP,
@@ -410,43 +411,10 @@ type RawDoc = {
  * stylesheet URLs (e.g. Google Fonts) and they are added to <head> on that
  * showcase's pages. `meta.theme` in showcase.yaml still works as a flat
  * map of the same CSS-variable names, applied on top of theme.yaml.
+ *
+ * The groups and keys are in theme-rules.mjs, shared with the studio's
+ * theme edits (server/edit-theme.mjs).
  * ------------------------------------------------------------- */
-
-/** Themeable keys, by group, mapped to the CSS variable each one sets. */
-const THEME_GROUPS: Record<string, Record<string, string>> = {
-  colors: Object.fromEntries(
-    [
-      "background",
-      "foreground",
-      "card",
-      "card-foreground",
-      "primary",
-      "primary-foreground",
-      "secondary",
-      "secondary-foreground",
-      "muted",
-      "muted-foreground",
-      "accent",
-      "accent-foreground",
-      "border",
-      "support",
-      /* Overlay caption painting: the chip background, the text, and the
-       * word being spoken (karaoke/reveal styles). */
-      "caption-chip",
-      "caption-text",
-      "caption-word",
-      /* The brand mark's wordmark (watermark.ts) — white unless set. */
-      "watermark-text",
-    ].map((name) => [name, name]),
-  ),
-  fonts: { display: "font-display", body: "font-body" },
-  shape: { radius: "radius" },
-  atmosphere: {
-    "gradient-stage": "gradient-stage",
-    "gradient-accent": "gradient-accent",
-    "shadow-device": "shadow-device",
-  },
-};
 
 /** Every CSS-variable name a theme may set (also the valid `meta.theme` keys). */
 const THEMEABLE_VARS = new Set(Object.values(THEME_GROUPS).flatMap((keys) => Object.values(keys)));
@@ -467,41 +435,8 @@ type RawTheme = {
 };
 
 function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
-  const file = `showcases/${showcaseId}/theme.yaml`;
-  const groups = Object.keys(THEME_GROUPS);
-  for (const key of Object.keys(doc)) {
-    if (key !== "extends" && !groups.includes(key)) {
-      throw new Error(
-        `Unknown section "${key}" in ${file} — expected: extends, ${groups.join(", ")}`,
-      );
-    }
-  }
-  if (doc.extends != null && typeof doc.extends !== "string") {
-    throw new Error(`"extends" in ${file} must be a showcase id (folder name under showcases/)`);
-  }
-  for (const [group, keys] of Object.entries(THEME_GROUPS)) {
-    const section = doc[group as keyof RawTheme];
-    if (section == null) continue;
-    if (typeof section !== "object" || Array.isArray(section)) {
-      throw new Error(`"${group}" in ${file} must be a map of ${Object.keys(keys).join(", ")}`);
-    }
-    for (const [key, value] of Object.entries(section)) {
-      if (group === "fonts" && key === "load") {
-        if (!Array.isArray(value) || value.some((url) => typeof url !== "string")) {
-          throw new Error(`"fonts.load" in ${file} must be a list of stylesheet URLs`);
-        }
-        continue;
-      }
-      if (!(key in keys)) {
-        throw new Error(
-          `Unknown ${group} key "${key}" in ${file} — themeable ${group} keys: ${Object.keys(keys).join(", ")}`,
-        );
-      }
-      if (typeof value !== "string" && typeof value !== "number") {
-        throw new Error(`"${group}.${key}" in ${file} must be a CSS value (got ${typeof value})`);
-      }
-    }
-  }
+  const problem = themeDocProblem(doc, `showcases/${showcaseId}/theme.yaml`);
+  if (problem) throw new Error(problem);
 }
 
 /** The warning for a theme value YAML cut short (see looksCutOff). The

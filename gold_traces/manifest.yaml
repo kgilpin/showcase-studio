@@ -124,6 +124,11 @@ entries:
     test_name: edit_showcase returns a version, and refuses a stale ifVersion with the UI edits since
     appmap_path: "vitest/edit_showcase_returns_a_version,_and_refuses_a_stale_ifVersion_with_the_UI_edits_since.appmap.json"
     summary: The stale-write guard's refused branch — a UI edit lands in the change log, then edit_showcase refuses an edit made against the older version and reads the log back to say what changed.
+  - feature: change-log
+    test_file: server/studio-server.test.mjs
+    test_name: edit_theme writes theme.yaml, logs it, and refuses a stale ifVersion with the style-panel edits since
+    appmap_path: "vitest/edit_theme_writes_theme.yaml,_logs_it,_and_refuses_a_stale_ifVersion_with_the_style-panel_edits_since.appmap.json"
+    summary: Claude's theme.yaml write path — edit_theme creates the file, logs an mcp edit, then refuses a stale ifVersion after a style-panel edit and rejects a key the loader doesn't accept (theme-rules.mjs).
   - feature: history
     test_file: server/showcase-history.test.mjs
     test_name: "commits only the showcase folder: other staged work stays staged"

@@ -19,7 +19,7 @@ showcase.yaml (the fields, their types and where each goes are in .studio/showca
 - Timing derives from the copy by default: each caption prices out at its reading time (words at meta.pace plus settle and punctuation beats), and a slide is exactly long enough to speak its lines. Only pin durationMs when there is a concrete reason — and on a showcase cut from a recording, never by hand: its take decides, and build_media writes the pin.
 - Length: a generated showcase runs long when its slides carry too many words, and nothing says so until someone watches it. Set meta.sceneMaxMs (the longest any scene should run, in ms — 8000 is a good default for a product video) and meta.targetMs (what the whole video should add up to — 60000 for a TikTok). They change nothing in the timing: the linter warns about every scene over its maximum, saying how far over and why ("24.4 s long, 12.4 s over the 8 s maximum: pinned by durationMs (a video clip: media.speed plays it faster); 5 captions, 61 words"), and about a showcase over its target, naming its longest scenes; validate returns the same warnings, and the player's scene rail marks the long scenes in amber and shows the total against the target. One scene that must run long (a clip that can't be cut) sets its own maxMs. Draft to the limit from the start: two captions per slide, one idea per slide, and at 2.5 words a second an 8 s slide holds about 15 words. To bring a scene down, from the best fix to the least: cut the copy (too many captions, a list of jargon, a detail the story doesn't need — no setting fixes this, and the scene rail shows each scene's caption and word count on hover); play a video clip faster with media.speed (2 halves a screen recording's time in the player and every export, with no re-encoding; then shorten the scene's durationMs to the clip's length ÷ speed); split a long scene in two. When a pinned scene's durationMs changes through edit_showcase, captions that carry their own durationMs are re-scaled by the same ratio, so they still add up — no arithmetic by hand. Never fix a long scene with a faster meta.pace: that hides long copy instead of cutting it, and captions become unreadable.
 
-theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme. Put quotes around any value that contains a # (a hex color, a gradient): in YAML a space followed by # starts a comment, so an unquoted "linear-gradient(100deg, #34e7d6, #0a8f95)" is cut to "linear-gradient(100deg,". The studio warns about a value cut like this and leaves it out.
+theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme. Change it with the edit_theme tool ({showcaseId, edits: [{key: "colors.primary", value: "#4ade80"}], ifVersion}), not by hand: the tool checks each key and value, quotes what needs quoting, keeps the file's comments, and the studio logs and commits the write. If you do edit theme.yaml by hand, put quotes around any value that contains a # (a hex color, a gradient): in YAML a space followed by # starts a comment, so an unquoted "linear-gradient(100deg, #34e7d6, #0a8f95)" is cut to "linear-gradient(100deg,". The studio warns about a value cut like this and leaves it out.
 
 showcase_settings.yaml (in the library root, beside the showcase folders): settings for the whole library, not for one showcase. It also marks the folder as a library; the studio writes it, all comments, when it opens a library that has none. Its settings: show_in_recent: false keeps the folder out of File > Open Recent in the desktop app; export_dir: <folder> puts the library's exports there (relative to the library root, or absolute; one subfolder per showcase) instead of ~/Downloads/showcase-exports; aws_profile: <name> is the AWS profile the synthesized voiceovers are made with, and aws_region its region when the profile has none (see "Synthesized voiceovers"). A setting may name an environment variable as \${NAME}, replaced when the file is read: a committed aws_profile: \${USER} works for everyone whose profile is named after their login. Don't delete it, and don't put a showcase.yaml in the library root — that name belongs to each showcase's script. (Older libraries kept these settings in a root showcase.yaml; the studio renames it when it opens the library.)
 
@@ -431,7 +431,9 @@ change the files, but nothing tells you. So:
   | --------------- | ----------------------------------------------------- |
   | edit            | file, previousVersion, version, edits — in            |
   |                 | edit_showcase's shape; theme.yaml edits are           |
-  |                 | {field: "theme", group, name, value}                  |
+  |                 | {field: "theme", group, name, value} from the style   |
+  |                 | panel, {field: "theme.set", key, value} from          |
+  |                 | edit_theme                                            |
   | asset.rename    | from, to, references (each {path, from, to}, plus     |
   |                 | sceneId inside a scene), and file and versions when   |
   |                 | references were rewritten                             |
@@ -472,6 +474,9 @@ change the files, but nothing tells you. So:
   written, and the error lists the logged changes since your version.
   Read the showcase again, check your edits against it, and retry with
   the new version.
+- edit_theme works the same way for theme.yaml: pass the themeVersion
+  read_showcase returned (null when there is no theme.yaml yet — then
+  leave ifVersion out), or the version your last edit_theme returned.
 - Your own file-editing tool has no such check. Read the file right
   before you change it.
 
@@ -488,12 +493,12 @@ the studio isn't committing on its own.
     any other change in <id>/ ──► ~30 s with no more changes ──► commit of <id>/ only
 
 - The studio's own writes start the short clock: studio edits,
-  edit_showcase, asset changes on the Assets page, a media build, a
-  saved transcript.
-- A file you or the user change directly (a TSX graphic, theme.yaml,
-  a file in assets/) starts the longer one. Each further change
-  restarts it. When it ends, the studio commits that showcase, and the
-  message lists those files as "files changed directly".
+  edit_showcase, edit_theme, asset changes on the Assets page, a media
+  build, a saved transcript.
+- A file you or the user change directly (a TSX graphic, a file in
+  assets/) starts the longer one. Each further change restarts it.
+  When it ends, the studio commits that showcase, and the message lists
+  those files as "files changed directly".
 - One showcase has one clock. A studio write and a direct change made
   close together end up in one commit.
 - Changes under .studio/ and files at the library's root are never
@@ -502,8 +507,8 @@ the studio isn't committing on its own.
 - In the studio Claude Code starts, the studio makes no commits on its
   own (autoCommit is false, and reason says so). Committing is your job
   there: when you finish a meaningful step, call commit_showcase. That
-  matters most for files you wrote with your own tools — a graphic or a
-  theme.yaml stays uncommitted until you do.
+  matters most for files you wrote with your own tools — a graphic
+  stays uncommitted until you do.
 - Messages say what changed and who changed it:
 
       nova: edit intro caption 1 text, point hook at shot-2
