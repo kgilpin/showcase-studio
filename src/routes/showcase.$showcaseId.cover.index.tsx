@@ -35,13 +35,16 @@ import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
  * cover is shown — All (the default every destination starts from),
  * TikTok, Instagram, Shorts.
  *
- *   ┌───────────────────────┬───────────────────────────┐
- *   │ All · TikTok · Insta… │ Layout  [fade][band][split]│
- *   │                       │ Picture  key  [Change]     │
- *   │      ┌─────────┐      │ Focus / Text / Size        │
- *   │      │  cover  │      │ Graphics  + Add            │
- *   │      └─────────┘      │ ☑ Grid crop  [Save image]  │
- *   └───────────────────────┴───────────────────────────┘
+ *   ┌──────────────────────────────┬────────────────────────────┐
+ *   │ All · TikTok · Insta…        │ Layout  [fade][band][split]│
+ *   │        ┌─────────┐           │ Picture  key  [Change]     │
+ *   │        │  cover  │           │ Focus / Fade / Text / Size │
+ *   │        └─────────┘           │ Graphics  + Add            │
+ *   │ ☑ Grid crop [Save … cover]   │                            │
+ *   └──────────────────────────────┴────────────────────────────┘
+ *
+ * The row under the cover holds how the preview is shown and saving it;
+ * the panel holds only the cover's own settings.
  *
  * In a studio the cover is edited here: click the headline to
  * type, the picture to choose another, and the panel for the rest. With
@@ -87,7 +90,9 @@ function CoverScreen() {
 
   return (
     <ShowcaseFrame showcaseId={showcaseId} title={showcase.title} current="cover" fill>
-      <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-6 @4xl/frame:flex-row @4xl/frame:overflow-hidden">
+      {/* The bottom padding clears the diagnostics strip along the
+       * window's bottom edge, so the row under the cover stays in view. */}
+      <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-6 pb-12 @4xl/frame:flex-row @4xl/frame:overflow-hidden">
         {cover ? (
           <>
             {/* Narrow, the cover sits above the panel at a fixed height
@@ -110,13 +115,18 @@ function CoverScreen() {
                   }
                 />
               </div>
+              <CoverActions
+                showcase={showcase}
+                destination={destination}
+                canSave={canEdit}
+                gridCrop={gridCrop}
+                onGridCrop={setGridCrop}
+              />
             </div>
             <CoverPanel
               showcase={showcase}
               destination={destination}
               canEdit={canEdit}
-              gridCrop={gridCrop}
-              onGridCrop={setGridCrop}
               onPickPicture={() => setPicking(true)}
             />
           </>
@@ -271,15 +281,11 @@ function CoverPanel({
   showcase,
   destination,
   canEdit,
-  gridCrop,
-  onGridCrop,
   onPickPicture,
 }: {
   showcase: Showcase;
   destination: CoverDestination | undefined;
   canEdit: boolean;
-  gridCrop: boolean;
-  onGridCrop: (on: boolean) => void;
   onPickPicture: () => void;
 }) {
   const fields = resolveCover(showcase.coverDoc, destination);
@@ -480,28 +486,51 @@ function CoverPanel({
           )}
         </div>
       </Row>
-
-      <div className="flex flex-col gap-3 border-t border-border pt-4">
-        <label className="flex items-center gap-2 text-sm text-foreground/80">
-          <input
-            type="checkbox"
-            checked={gridCrop}
-            onChange={(event) => onGridCrop(event.target.checked)}
-          />
-          Show what the profile grid cuts off
-        </label>
-        {canEdit && (
-          <a
-            href={`/studio/api/cover?showcase=${encodeURIComponent(showcase.id)}${destination ? `&destination=${destination}` : ""}`}
-            download
-            className="inline-flex w-fit items-center gap-2 rounded-full border border-border px-4 py-2 text-sm text-foreground/80 transition-colors hover:text-foreground"
-          >
-            <Download className="size-4" />
-            Save cover image
-          </a>
-        )}
-      </div>
     </aside>
+  );
+}
+
+/** The row under the cover: how the preview is shown (the grid crop),
+ *  and saving the cover — the destination chosen above it — as an image.
+ *  Like the rows under the player's stage, it stays with what it acts on;
+ *  the panel beside it holds only the cover's own settings. */
+function CoverActions({
+  showcase,
+  destination,
+  canSave,
+  gridCrop,
+  onGridCrop,
+}: {
+  showcase: Showcase;
+  destination: CoverDestination | undefined;
+  canSave: boolean;
+  gridCrop: boolean;
+  onGridCrop: (on: boolean) => void;
+}) {
+  return (
+    <div className="flex w-full max-w-md shrink-0 flex-wrap items-center justify-center gap-x-5 gap-y-2">
+      <label
+        className="flex items-center gap-2 text-sm text-foreground/80"
+        title="Shade the top and bottom that TikTok's and Instagram's profile grids cut off"
+      >
+        <input
+          type="checkbox"
+          checked={gridCrop}
+          onChange={(event) => onGridCrop(event.target.checked)}
+        />
+        Grid crop
+      </label>
+      {canSave && (
+        <a
+          href={`/studio/api/cover?showcase=${encodeURIComponent(showcase.id)}${destination ? `&destination=${destination}` : ""}`}
+          download
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <Download className="size-4" />
+          {destination ? `Save ${COVER_DESTINATIONS[destination].label} cover` : "Save cover image"}
+        </a>
+      )}
+    </div>
   );
 }
 
