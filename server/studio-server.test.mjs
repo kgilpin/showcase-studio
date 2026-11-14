@@ -1432,6 +1432,93 @@ scenes:
     expect(readFileSync(file, "utf8")).toBe(afterUi);
   });
 
+  it("edit_cover makes cover.yaml, logs it, and refuses a stale ifVersion with the Cover page's edits since", async () => {
+    const { studio, library } = await startStudio();
+    const file = path.join(library, "nova", "cover.yaml");
+
+    const read = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(read.content[0].text).coverVersion).toBeNull();
+
+    /* Claude makes the cover: no cover yet, so ifVersion is null. */
+    const edited = await studio.callTool({
+      name: "edit_cover",
+      arguments: {
+        showcaseId: "nova",
+        ifVersion: null,
+        edits: [
+          { name: "headline", value: "Mirror your iPhone" },
+          { destination: "instagram", name: "layout", value: "band" },
+        ],
+      },
+    });
+    const { applied, version } = JSON.parse(edited.content[0].text);
+    expect(applied).toBe(2);
+    expect(version).toBe(contentHash(readFileSync(file)));
+    expect(changesIn(library).at(-1)).toMatchObject({
+      source: "mcp",
+      tool: "edit_cover",
+      kind: "edit",
+      file: "cover.yaml",
+      previousVersion: null,
+      version,
+      edits: [
+        { field: "cover", name: "headline", value: "Mirror your iPhone" },
+        { field: "cover", destination: "instagram", name: "layout", value: "band" },
+      ],
+    });
+    const reread = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(reread.content[0].text).coverVersion).toBe(version);
+    expect(reread.content.at(-1).text).toBe(`# cover.yaml\n${readFileSync(file, "utf8")}`);
+
+    /* The user makes the fade stronger on the Cover page. */
+    await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/scene-edit",
+      body: {
+        showcaseId: "nova",
+        sceneId: "",
+        field: "cover",
+        name: "fade",
+        value: "strong",
+        baseHash: version,
+      },
+    });
+    const afterUi = readFileSync(file, "utf8");
+    expect(afterUi).toContain("fade: strong");
+
+    const refused = await studio
+      .callTool({
+        name: "edit_cover",
+        arguments: {
+          showcaseId: "nova",
+          ifVersion: version,
+          edits: [{ name: "fade", value: "light" }],
+        },
+      })
+      .catch((error) => error);
+    expect(refused).toBeInstanceOf(Error);
+    expect(refused.message).toContain("cover.yaml changed since version");
+    expect(refused.message).toContain("The studio logged these changes since then");
+    expect(refused.message).toContain('"strong"');
+    expect(refused.message).toContain(`The current version is ${contentHash(afterUi)}`);
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
+
+    const bad = await studio
+      .callTool({
+        name: "edit_cover",
+        arguments: { showcaseId: "nova", edits: [{ name: "layout", value: "poster" }] },
+      })
+      .catch((error) => error);
+    expect(bad.message).toContain("layout must be one of fade, band, split");
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
+  });
+
   it("says so when showcase.yaml changed outside the studio", async () => {
     const { studio, library } = await startStudio();
     const file = path.join(library, "nova", "showcase.yaml");
