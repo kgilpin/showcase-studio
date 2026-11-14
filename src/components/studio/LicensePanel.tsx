@@ -13,7 +13,7 @@
  *
  * While there is something to do (the trial, a checkout, a payment
  * issue) the gear carries a dot and names the state in its tooltip,
- * so the tab bar itself holds no pill for it.
+ * so the top bar itself holds no pill for it.
  *
  * ↗ marks what opens Stripe in the browser. Only full-quality videos
  * count; drafts, screenshots and the script are always free. The state

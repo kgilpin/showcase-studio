@@ -75,7 +75,7 @@ A talking-head recording — a phone selfie video, an interview — becomes a sh
         theme: footage
         take: {from: 28.300, to: 35.600}   # seconds in the recording
 
-The studio builds it a few seconds after the cut list, the recording or the transcript changes, and before any export or screenshot, so there is nothing to press: the Actions list (the slot in the tab bar) shows the build waiting, running and done, and studio_info's media says whether a showcase is up to date. build_media is the way to force a rebuild, to build only some scenes, or to get a jobId to wait on with build_status {waitMs} before you look at the result. The build writes:
+The studio builds it a few seconds after the cut list, the recording or the transcript changes, and before any export or screenshot, so there is nothing to press: the Actions list (the slot in the top bar) shows the build waiting, running and done, and studio_info's media says whether a showcase is up to date. build_media is the way to force a rebuild, to build only some scenes, or to get a jobId to wait on with build_status {waitMs} before you look at the result. The build writes:
 - assets/<voiceover>.mp3 — every scene's audio spans joined in order and retimed, which is the showcase's voice. It is set as meta.soundtrack {sync: true} on the first build.
 - assets/clip-<scene>.mp4 — one muted clip per footage scene, cut frame-accurately.
 - assets/<voiceover>.words.json — the recording's transcript remapped onto this cut, for karaoke and reveal captions.
@@ -137,7 +137,7 @@ To voice some scenes and not others — a voice tried on one scene before the wh
 Which AWS account pays for the voice is the user's choice, never yours. Polly is called through the aws command with the showcase's profile, else the library's aws_profile in showcase_settings.yaml, else AWS_PROFILE, else the aws command's default profile — and a machine with named profiles only has no default. Before voicing the first showcase in a library, ask the user which AWS profile to use and put it in showcase_settings.yaml at the library root as aws_profile (\${USER} there names the profile called after the login name, so the committed file works for a team; aws_region sets the region when the profile has none, else the build uses us-east-1 and says so in its notes). The studio checks the setup before any build: when nothing names a profile this machine has, the media status in studio_info and validate, and the Actions list, say so and list the machine's profiles — ask the user, don't pick one. Keep profile and region out of the showcase itself unless the user wants that one showcase on another account: a showcase ships to other people. If the build says the aws command isn't signed in, tell the user the command it names (e.g. aws sso login --profile <name>) — it's theirs to run. Without whisper the words file still gets written, with word times spread by length, and the build's notes say so: tell the user, as with any estimated timing.
 
 ## Sharing (TikTok, Instagram, YouTube Shorts, YouTube)
-The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (a tab beside Script and Assets) walks through it; the share tools do the same from here.
+The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (in the rail down the left, below Video, Script and Assets) walks through it; the share tools do the same from here.
 
 What each destination takes (the id is what share, share_record and publish.set call it):
 
@@ -456,7 +456,7 @@ change the files, but nothing tells you. So:
   as a record that is pending (a commit waiting out its quiet period),
   running, done, failed or canceled, with who started it and why. The
   user sees it behind the activity slot at the right of the showcase's
-  tab bar, where a failure stays marked until they dismiss it, and where
+  top bar, where a failure stays marked until they dismiss it, and where
   they can skip a waiting commit, cancel a running job, try a failure
   again, or rebuild everything. Your own exports and builds show there
   as "Started by Claude", so the user can follow what you do. studio_info

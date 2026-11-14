@@ -8,7 +8,7 @@ import { EditableText } from "@/components/studio/EditableText";
 import { MediaPicker } from "@/components/studio/MediaPicker";
 import { SharePrompter } from "@/components/studio/SharePrompter";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
-import { ShowcaseNav } from "@/components/showcase/ShowcaseNav";
+import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
 import { GraphicThumb } from "@/components/script/GraphicThumb";
 import { MediaThumb } from "@/components/script/MediaThumb";
 import { ScriptPlayer } from "@/components/script/ScriptPlayer";
@@ -87,8 +87,12 @@ function ScriptScreen() {
     );
 
   return (
-    <main className="min-h-dvh w-full pb-14" style={{ background: "var(--gradient-stage)" }}>
-      <ShowcaseNav showcaseId={showcaseId} title={showcase.title} current="script" />
+    <ShowcaseFrame
+      showcaseId={showcaseId}
+      title={showcase.title}
+      current="script"
+      className="pb-14"
+    >
       <div className="mx-auto box-content max-w-4xl px-6 sm:px-10">
         <header className="mt-8 border-b border-border pb-8">
           <p className="text-xs uppercase tracking-[0.42em] text-primary">Script</p>
@@ -378,6 +382,6 @@ function ScriptScreen() {
       <div className="fixed inset-x-0 bottom-0">
         <DiagnosticsTray />
       </div>
-    </main>
+    </ShowcaseFrame>
   );
 }
