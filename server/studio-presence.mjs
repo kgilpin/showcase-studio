@@ -19,7 +19,14 @@
  * when in doubt — a timeout, an answer that isn't a studio's — the
  * library counts as free. The failure this module can afford is an
  * occasional second studio; it can't afford to lock someone out of
- * their own library. */
+ * their own library.
+ *
+ * On close, a studio removes the file only if it is still its own.
+ * Who asks: npm run dev (scripts/dev.mjs), the app (electron/main.mjs)
+ * and File > Open Folder (studio-server.mjs) refuse a taken library,
+ * naming the address. --export runs skip the check, since they run
+ * beside an open studio. Claude's studio_start (mcp-stdio.mjs) doesn't
+ * refuse: it starts nothing and offers a git worktree, or asks. */
 import {
   existsSync,
   mkdirSync,

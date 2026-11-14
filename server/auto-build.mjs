@@ -28,12 +28,17 @@
  * the list), is reported once: not again until the inputs change, so a
  * half-written showcase doesn't fail the list on every keystroke, and a
  * build that failed (whoever started it) isn't run again until they do.
+ * The quiet period is 3 s (`delayMs`; the studio's `buildDelayMs`). A
+ * cut list that doesn't read is reported as a failed record with Try
+ * again.
  * The "Build media when it changes" switch turns the whole thing off; the
- * build_media and build_voiceover tools still run on request.
+ * build_media and build_voiceover tools still run on request. The switch
+ * is the studio's `media-auto-build` action, saved as `autoBuild` in
+ * settings and reported as `autoBuild` in the studio's info.
  *
- * ensureBuilt() is the same check for an export or a screenshot: build
- * first when anything is stale, and wait for it, so nothing renders
- * from stale clips. */
+ * ensureBuilt() is the same check for an export, a screenshot or the
+ * face check: build first when anything is stale, and wait for it, so
+ * nothing renders from stale clips. */
 import { describeStale } from "./media-status.mjs";
 
 /** How long after a build ends its own writes may still echo through

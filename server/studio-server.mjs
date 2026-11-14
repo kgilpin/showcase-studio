@@ -29,7 +29,11 @@
  *                               PNG to save (the player's Frame button;
  *                               the screenshot_frame MCP tool renders the
  *                               same page)
- *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below)
+ *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below):
+ *                               scene edits, new showcases, assets, the
+ *                               prompter link, the two switches, exports,
+ *                               media builds, sharing, the license, the
+ *                               library switch, terminals
  *   POST /mcp                   the MCP tools, for Claude (server/mcp.mjs)
  *
  * Everything the studio serves — library files, API, events, MCP — only
@@ -40,7 +44,11 @@
  * .studio/GUIDE.md, .studio/mcp.json), and watches it: when files change
  * outside the studio — a build's new voiceover, Claude's edit, a hand
  * edit — it names the showcase to the pages, which re-read it in place;
- * only a change to the library itself reloads them. callTool runs the MCP tools
+ * a new showcase folder counts as that showcase's change too. Only a
+ * showcase folder that went away, or a file at the library root, reloads
+ * them. The studio's own
+ * writes are recognized by content hash and not sent, since the page
+ * already applied them. callTool runs the MCP tools
  * in-process, for the studio Claude Code starts over stdio
  * (scripts/studio-mcp.mjs). */
 import {

@@ -8,7 +8,10 @@
  * patch comment-preservingly (edit-yaml.mjs / edit-theme.mjs), let the
  * caller note the write before it lands (the watcher must recognize its
  * echo), write, and return the new content hash — the page's base for
- * its next edit to that file. */
+ * its next edit to that file.
+ *
+ * applySceneEditsToFolder applies a batch of showcase.yaml edits as one
+ * write: all of them or none. Theme edits don't batch. */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";

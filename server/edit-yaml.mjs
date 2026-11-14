@@ -65,6 +65,12 @@
  *                                                   (src/content/
  *                                                   publish-rules.mjs); null
  *                                                   or "" removes it
+ *
+ * The page uses the named fields. scene.set, caption.set, meta.set and
+ * scene.move are for the MCP edit tool (edit_showcase). A recorded
+ * pitch's `take` is a scene.set field, checked by takeProblem in
+ * build-plan.mjs. edit-yaml.test.mjs checks that every whitelisted field
+ * is a field of the schema (src/content/showcase-schema.mjs).
  */
 import { isMap, isScalar, isSeq, Scalar } from "yaml";
 import { editedText, parseEditable } from "./yaml-text.mjs";

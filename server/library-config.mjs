@@ -18,7 +18,14 @@
  * `aws_profile: ${USER}` for a team whose profiles are named after their
  * login names. A variable that isn't set is reported, not guessed
  * (readLibraryConfig's `problems`); the setting keeps its unexpanded
- * text. Unknown keys are ignored.
+ * text. Unknown keys are ignored. expandVariables does the replacing.
+ * libraryAwsSettings reads the two AWS settings, and leaves out one
+ * with a problem: it is never used as written.
+ *
+ * A new setting gets a commented line in SETTINGS_TEMPLATE, which new
+ * libraries show, and a description in the authoring guide
+ * (server/showcase-guide.mjs). Existing libraries keep the file they
+ * have, so the guide is how their sessions learn about it.
  *
  * Older libraries keep their settings in a root-level showcase.yaml — the
  * same name as each showcase's own <id>/showcase.yaml, one level down.

@@ -23,7 +23,12 @@
  *
  * The bar is a container, so the pill grows by the room the bar has, not
  * the window's width — beside the studio agent's dock the bar is half
- * the window. Hidden without a studio. */
+ * the window. Hidden without a studio.
+ *
+ * The slot picks, in order: a running job, then a pending one, then a
+ * failure not yet dismissed, then a result for a few seconds. The list's
+ * groups are headed Now, Needs you and Earlier. That choice (slotFor)
+ * and the words are in activity-text.ts. The records come from server/actions-log.mjs. */
 import { useEffect, useState } from "react";
 import { Check, CircleAlert, Clock, History, Loader2, X } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

@@ -6,7 +6,8 @@
  * reaches AirDrop: a small JavaScript for Automation script run with
  * osascript. Nothing to install, and about 0.1 s a picture. It answers
  * with every face's box as fractions of the picture (origin top-left)
- * and Vision's confidence in it.
+ * and Vision's confidence in it. Faces too faint or too small to be the
+ * speaker are dropped (MIN_CONFIDENCE, MIN_FACE_HEIGHT).
  *
  * There is no finder on Windows or Linux yet: `createFaceFinder` says so
  * in `reason`, and the check reports that it could not run rather than

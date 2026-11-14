@@ -39,7 +39,11 @@
  *             {from: 6.10, to: 10.16}]
  *
  * This module is the reading and the arithmetic only — no ffmpeg, no
- * files. build-media.mjs does the building. */
+ * files. build-media.mjs does the building. It reads the list, checks
+ * that each scene's picture and sound last the same (takeProblem, which
+ * the edit tool also runs on a `take`), and pins every scene's duration
+ * on a 10ms grid of the running total, so the pins add up to the track
+ * built from the same spans. */
 
 /** Default trailing silence on the built voiceover (seconds). It is a
  *  margin, not a fudge: scene pins are rounded to 10ms, so the track is

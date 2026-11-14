@@ -21,6 +21,12 @@
  *
  * The summary comes from the change log entries made since the showcase's
  * last commit, plus the names of any changed files no entry explains.
+ * The subject names the changed files when that fits in 72 characters,
+ * and counts them when it doesn't ("add 7 graphics"). Every message ends
+ * with a `Showcase-Studio: auto-commit` trailer (`checkpoint` when
+ * commit_showcase brings a message of its own). git's "who are you"
+ * error becomes the two commands to run (noIdentityReason). It never
+ * commits with --no-verify.
  *
  * A library outside a git repository gets one: the first time the studio
  * has something to commit, it runs `git init` there, so a new library
@@ -32,7 +38,11 @@
  * turns this off with them: no commits, no repository. The user sets it with the
  * "Commit changes to git" switch in the studio (the studio server's
  * history-auto-commit action); it takes effect at once, because every
- * check reads the settings again.
+ * check reads the settings again. Turning it off also drops the commits
+ * still waiting, and the change is logged as a "setting" line. The switch
+ * is under the gear button in the showcase's top bar
+ * (src/components/studio/StudioSettings.tsx). studio_info and
+ * studio_start report status() as `history`.
  *
  * When the user has never set it, `autoCommitDefault` decides. It is off
  * in the studio Claude Code starts, and that off is narrower: it stops the
@@ -57,7 +67,10 @@
  * when the studio has one: the quiet period is a pending record with its
  * due time and a Skip, the commit itself runs, and the record ends done
  * (the sha and subject), failed (git's reason, with Retry), or is dropped
- * when the folder turned out to be clean. commit_showcase's commits are
+ * when the folder turned out to be clean before the commit ran. A folder
+ * found clean when the commit runs ends the record as canceled, and so
+ * does a commit_showcase that the user's switch refuses: the user's own
+ * setting at work, nothing for them to do. commit_showcase's commits are
  * records too, started by Claude. */
 import { execFile } from "node:child_process";
 import { existsSync, realpathSync, statSync } from "node:fs";

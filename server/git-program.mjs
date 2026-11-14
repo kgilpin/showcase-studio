@@ -4,7 +4,8 @@
  * a dozen such folders made each git command 40–50 ms where the full
  * path takes 6 ms. A studio commit runs about ten git commands, so the
  * studio looks git up here instead: once, by reading the folders itself,
- * and runs it by its full path after that. */
+ * and runs it by its full path after that. The history
+ * (showcase-history.mjs) and library-git.mjs both use it. */
 import { accessSync, constants, statSync } from "node:fs";
 import path from "node:path";
 

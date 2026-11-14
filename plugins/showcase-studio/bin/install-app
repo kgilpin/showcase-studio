@@ -3,7 +3,9 @@
 # ../app-version, downloaded from showcasestudio.dev (or
 # $SHOWCASE_STUDIO_DOWNLOAD_URL, e.g. a local wrangler dev), checked against
 # the release's SHA-256 hash, into ~/Applications (or
-# $SHOWCASE_STUDIO_INSTALL_DIR). Replaces an older version there.
+# $SHOWCASE_STUDIO_INSTALL_DIR). Replaces an older version there. The
+# files come from <base>/v<version>/. The plugin's showcase skill runs
+# this when the studio tools are missing.
 #
 # Plain sh on purpose: Claude Code doesn't need Node, so this can't either.
 # curl, shasum and ditto come with macOS.

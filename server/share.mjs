@@ -16,7 +16,12 @@
  *                   pastes the caption
  *                   "to the phone": the desktop app's Share menu (AirDrop)
  *   post link    ─► the user pastes the post's URL back; it is kept with
- *                   the hand-off
+ *                   the hand-off, once it is checked to be on the
+ *                   platform's own site
+ *
+ * The server opens the upload page and copies the caption to the
+ * clipboard, not the page. That is what makes both work in Claude
+ * Code's preview, where the page may not use the clipboard.
  *
  * Each hand-off is one record file, like the export records
  * (export-records.mjs):

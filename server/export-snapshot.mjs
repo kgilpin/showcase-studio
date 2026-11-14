@@ -23,10 +23,12 @@
  *
  * The studio serves it at /showcase-data-snapshot/<id>/ with the same
  * code that serves the library, the record page opens with
- * ?snapshot=<id> and reads from there, and the folder goes when the job
+ * ?snapshot=<id> and reads from there (src/content/source.ts), and the
+ * folder goes when the job
  * ends. The export's fingerprint is taken from the snapshot, so the
  * Share page still says, correctly, when the finished video no longer
- * matches the showcase.
+ * matches the showcase. Only video exports use a snapshot: screens and
+ * script exports and the page tools render the live library.
  *
  * The id carries the studio's pid: two studios on one library
  * (--alongside) each clear only the snapshots of studios that are gone. */

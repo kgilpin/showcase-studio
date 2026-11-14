@@ -15,6 +15,10 @@
  *   npm run export:screens -- nova    # or just the named showcase(s)
  *
  * Env: BASE_URL (default http://localhost:8080), OUT_DIR (default exports).
+ *
+ * npm run dev picks a free port, so pass the URL it prints ("studio:
+ * <url>") as BASE_URL. The first time, run npx playwright install
+ * chromium. Or skip this script: npm run dev -- --export screens:<id>.
  */
 import { readFile, readdir, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";

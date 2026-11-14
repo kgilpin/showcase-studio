@@ -6,7 +6,53 @@
  *
  * Page tools (screenshot_slide, screenshot_frame, check_framing, validate, export) render through the
  * studio's page renderer, so they see the current files on disk — the
- * same files Claude just edited. */
+ * same files Claude just edited. screenshot_slide, screenshot_frame and
+ * check_framing build the media first when it is stale.
+ *
+ * Where each tool's work is done:
+ *
+ *   studio_info        here: the guide's and the two schemas' paths, every
+ *                      built showcase's media status, the Actions list's
+ *                      summary, the git history status, and pageError
+ *                      when the last page render failed
+ *                      (src/lib/page-error.mjs; validate and the
+ *                      screenshot tools quote it too)
+ *   edit_showcase      scene-edit.mjs (a recorded pitch's `take` is
+ *                      checked by takeProblem in build-plan.mjs)
+ *   edit_theme         scene-edit.mjs applyThemeEditsToFolder: theme.yaml
+ *                      keys, with the same ifVersion check and change-log
+ *                      line as edit_showcase; an `extends` must name
+ *                      another showcase and make no cycle
+ *   read_showcase      here: showcase.yaml, plus theme.yaml and its
+ *                      themeVersion
+ *   create_showcase    the studio's own scaffold, through the context
+ *   add_asset          asset-files.mjs: files on disk copied into a
+ *                      showcase's assets/
+ *   ffmpeg             asset-files.mjs encodeAsset: the bundled ffmpeg,
+ *                      run in the showcase folder with Claude's
+ *                      arguments; the output is written under
+ *                      .studio/ffmpeg/ and renamed into assets/ only
+ *                      when ffmpeg succeeds, replacing a file of the
+ *                      same name
+ *   commit_showcase    showcase-history.mjs
+ *   screenshot_frame   exporter.mjs screenshotFrame: the record page,
+ *                      TikTok or 4:3, animations finished unless asked
+ *                      live, TikTok's safe area shaded on request
+ *   check_framing      face-check.mjs
+ *   transcribe         transcribe.mjs; with `save`, it writes the
+ *                      recording's editable transcript
+ *   build_media, build_status, build_cancel
+ *                      build-media.mjs
+ *   build_voiceover    voiceover.mjs
+ *                      (both builds answer with a build of the showcase
+ *                      already running, since the studio builds on its
+ *                      own; validate adds each showcase's media status)
+ *   share_status, share, share_record
+ *                      share.mjs
+ *   export, export_status, export_cancel
+ *
+ * export_status and build_status take waitMs and wait for the job inside
+ * the call, up to two minutes, so a session needn't poll. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pageErrorField } from "../src/lib/page-error.mjs";

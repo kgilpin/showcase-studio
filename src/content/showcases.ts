@@ -11,6 +11,13 @@
  * showcase requires no code changes. Asset keys in the YAML are simply
  * file names without their extension: `asset: shot-mirror` resolves to
  * `assets/shot-mirror.png`.
+ *
+ * This file is the generic loader. It parses each showcase's YAML,
+ * checks it against src/content/showcase-schema.mjs (checkShowcase),
+ * resolves asset keys to URLs, and resolves each showcase's theme (the
+ * whitelist, `extends`, font loads). It documents the scene and theme
+ * model below (SHOWCASE THEME), and how a showcase updates in place
+ * (UPDATING IN PLACE).
  * ============================================================= */
 
 import { parse } from "yaml";

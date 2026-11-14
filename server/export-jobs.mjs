@@ -1,6 +1,7 @@
 /* Background jobs: the async layer between long work and its callers —
  * the MCP tools and the studio's buttons. A studio runs two of these, one
- * for exports and one for media builds. Starting a job returns
+ * for exports and one for media builds, so neither blocks the other.
+ * Starting a job returns
  * immediately; callers poll status, or follow onChange, and can cancel
  * (cooperative — the work checks an AbortSignal between steps). One job
  * of each kind runs at a time, whoever started it.
