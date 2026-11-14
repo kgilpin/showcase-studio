@@ -39,6 +39,8 @@ export type ShowcaseData = {
   yaml: string;
   /** theme.yaml text, when the showcase has one. */
   themeYaml?: string | undefined;
+  /** cover.yaml text, when the showcase has a cover. */
+  coverYaml?: string | undefined;
   /** Asset key (file name without extension) → URL + display name. */
   assets: Map<string, ShowcaseAsset>;
   /** Voiceover word-timestamp sidecars: `assets/<name>.words.json` raw
@@ -100,6 +102,12 @@ const themeModules = import.meta.glob("../../showcases/*/theme.yaml", {
   eager: true,
 }) as Record<string, string>;
 
+const coverModules = import.meta.glob("../../showcases/*/cover.yaml", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
 const assetModules = import.meta.glob("../../showcases/*/assets/*", {
   query: "?url",
   import: "default",
@@ -125,6 +133,9 @@ export const bundledSource: ShowcaseSource = {
       const themeYaml = Object.entries(themeModules).find(
         ([path]) => path.split("/").at(-2) === id,
       )?.[1];
+      const coverYaml = Object.entries(coverModules).find(
+        ([path]) => path.split("/").at(-2) === id,
+      )?.[1];
       const words = new Map(
         Object.entries(wordsModules)
           .filter(([path]) => path.split("/").at(-3) === id)
@@ -140,6 +151,7 @@ export const bundledSource: ShowcaseSource = {
         id,
         yaml,
         themeYaml,
+        coverYaml,
         assets: assetMap(id, files),
         words,
         graphics: new Map<string, string>(),
@@ -152,6 +164,7 @@ export const bundledSource: ShowcaseSource = {
 type ShowcaseIndexEntry = {
   id: string;
   hasTheme: boolean;
+  hasCover?: boolean;
   assets: string[];
   graphics?: string[];
   modifiedMs?: number;
@@ -178,6 +191,7 @@ export function httpSource(base: string): ShowcaseSource {
   const load = async ({
     id,
     hasTheme,
+    hasCover,
     assets,
     graphics,
     modifiedMs,
@@ -187,6 +201,7 @@ export function httpSource(base: string): ShowcaseSource {
     modifiedMs,
     yaml: await text(`${base}/${id}/showcase.yaml`),
     themeYaml: hasTheme ? await text(`${base}/${id}/theme.yaml`) : undefined,
+    coverYaml: hasCover ? await text(`${base}/${id}/cover.yaml`) : undefined,
     assets: assetMap(
       id,
       assets.map((name) => ({

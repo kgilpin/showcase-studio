@@ -128,6 +128,7 @@ export function editForLog(payload = {}) {
     case "meta.set":
     case "scene.insert":
     case "theme":
+    case "cover":
       return { field, ...params };
     default:
       return { field, sceneId, ...params };
