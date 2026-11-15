@@ -75,10 +75,18 @@ export const COVER_LENGTH_BADGE = { right: 2, bottom: 3.5, width: 13, height: 11
  *    fade      the picture fills the frame, large text over a dark fade
  *    band      the picture fills the frame, the text in a band of the
  *              theme's color
- *    split     the text takes the room it needs, the picture is shown
- *              whole in the rest — for an app screenshot, which
- *              shouldn't be cropped to fill */
+ *    split     9:16: the text takes the room it needs, the picture is
+ *              shown whole in the rest — for an app screenshot, which
+ *              shouldn't be cropped to fill. 16:9: the text on the left,
+ *              the picture filling the right
+ *  A 16:9 cover of a portrait picture is split unless its own block sets
+ *  a layout: fade would show only a strip of it, and the default block's
+ *  layout was chosen for 9:16. Every other cover defaults to fade. */
 export const COVER_LAYOUTS = ["fade", "band", "split"];
+
+/** The 16:9 split layout's text column, in percent of the frame's width;
+ *  the picture fills the rest. */
+export const COVER_SPLIT_TEXT_WIDTH = 46;
 
 /** How dark the fade layout's fade is behind the text: light for a dark
  *  picture, strong for a bright one. */
@@ -122,7 +130,7 @@ export const COVER_FIELDS = {
     type: "enum",
     values: COVER_LAYOUTS,
     description:
-      "fade, band or split (default fade). At 16:9, split puts the text on the left and the picture on the right.",
+      "fade, band or split. At 16:9, split puts the text on the left and the picture filling the right. Default fade; at 16:9 a portrait picture is split unless the youtube43 block sets its own layout.",
   },
   fade: {
     type: "enum",
@@ -150,7 +158,7 @@ export const COVER_FIELDS = {
 
 export const COVER_FIELD_NAMES = Object.keys(COVER_FIELDS);
 
-const DEFAULTS = { focus: "center", layout: "fade", fade: "medium", textSize: "m" };
+const DEFAULTS = { focus: "center", fade: "medium", textSize: "m" };
 
 /** The problem with one field's value, or null when it's fine. */
 export function coverValueProblem(name, value) {
@@ -221,8 +229,10 @@ export function checkCover(doc) {
 
 /** One destination's cover: its own fields over the default ones, each
  *  field with a problem left out, the defaults filled in. `overridden`
- *  names the fields the destination sets itself. */
-export function resolveCover(doc, destination) {
+ *  names the fields the destination sets itself. `pictureRatio` (the
+ *  picture's width over its height, once known) makes a 16:9 cover of a
+ *  portrait picture split, unless the destination sets its own layout. */
+export function resolveCover(doc, destination, { pictureRatio } = {}) {
   const base = doc && typeof doc === "object" && !Array.isArray(doc) ? doc : {};
   const own =
     destination && base[destination] && typeof base[destination] === "object"
@@ -237,6 +247,15 @@ export function resolveCover(doc, destination) {
     cover[name] = value;
     if (fromOwn) overridden.push(name);
   }
+  if (
+    isLandscapeCover(destination) &&
+    pictureRatio !== undefined &&
+    pictureRatio < 1 &&
+    !overridden.includes("layout")
+  ) {
+    cover.layout = "split";
+  }
+  cover.layout ??= "fade";
   cover.textPosition ??=
     cover.layout !== "split" ? "bottom" : isLandscapeCover(destination) ? "middle" : "top";
   cover.graphics = cover.graphics.map((item) => ({

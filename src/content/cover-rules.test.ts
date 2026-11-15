@@ -61,6 +61,22 @@ describe("resolveCover", () => {
     );
   });
 
+  it("splits a thumbnail of a portrait picture unless the thumbnail sets its own layout", () => {
+    const portrait = { pictureRatio: 9 / 16 };
+    expect(resolveCover({}, "youtube43", portrait)).toMatchObject({
+      layout: "split",
+      textPosition: "middle",
+    });
+    expect(resolveCover({}, "youtube43", { pictureRatio: 4 / 3 }).layout).toBe("fade");
+    expect(resolveCover({}, "youtube43").layout).toBe("fade");
+    expect(resolveCover({}, "tiktok", portrait).layout).toBe("fade");
+    expect(resolveCover({ layout: "band" }, "youtube43", portrait).layout).toBe("split");
+    expect(resolveCover({ layout: "band" }, "tiktok", portrait).layout).toBe("band");
+    expect(resolveCover({ youtube43: { layout: "fade" } }, "youtube43", portrait).layout).toBe(
+      "fade",
+    );
+  });
+
   it("starts the YouTube thumbnail from the same default as the other covers", () => {
     const doc = { headline: "Mirror your iPhone", picture: "shot", youtube43: { layout: "split" } };
     expect(resolveCover(doc, "youtube43")).toMatchObject({

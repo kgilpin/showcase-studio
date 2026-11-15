@@ -743,13 +743,16 @@ export type ResolvedCover = Omit<ResolvedCoverFields, "graphics"> & {
 };
 
 /** The showcase's cover for one destination (the default when none is
- *  named), or undefined when the showcase has no cover. */
+ *  named), or undefined when the showcase has no cover. `pictureRatio`,
+ *  once the picture has loaded, picks the layout when cover.yaml sets
+ *  none (useCover measures it). */
 export function coverFor(
   showcase: Showcase,
   destination?: CoverDestination,
+  pictureRatio?: number,
 ): ResolvedCover | undefined {
   if (showcase.coverDoc === undefined) return undefined;
-  const fields = resolveCover(showcase.coverDoc, destination);
+  const fields = resolveCover(showcase.coverDoc, destination, { pictureRatio });
   let pictureUrl: string | undefined;
   if (fields.picture) {
     try {

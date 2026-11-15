@@ -13,6 +13,7 @@ import {
   COVER_DESTINATIONS,
   COVER_FADES,
   COVER_LAYOUTS,
+  COVER_SPLIT_TEXT_WIDTH,
   COVER_TEXT_POSITIONS,
   COVER_TEXT_SIZES,
   GRAPHIC_SIZE,
@@ -28,6 +29,7 @@ import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { cn } from "@/lib/utils";
 import { CoverFit, CoverView } from "@/components/cover/CoverView";
 import { CoverPicturePicker } from "@/components/cover/CoverPicturePicker";
+import { useCover } from "@/components/cover/use-cover";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
 
@@ -87,10 +89,9 @@ function CoverScreen() {
   const [choice, setChoice] = useState<Choice>("all");
   const [marks, setMarks] = useState(true);
   const [picking, setPicking] = useState(false);
-  if (!showcase) return null; // the layout route renders the not-found message
-
   const destination = choice === "all" ? undefined : choice;
-  const cover = coverFor(showcase, destination);
+  const { cover, pictureRatio } = useCover(showcase, destination);
+  if (!showcase) return null; // the layout route renders the not-found message
 
   return (
     <ShowcaseFrame showcaseId={showcaseId} title={showcase.title} current="cover" fill>
@@ -133,6 +134,7 @@ function CoverScreen() {
             <CoverPanel
               showcase={showcase}
               destination={destination}
+              pictureRatio={pictureRatio}
               canEdit={canEdit}
               onPickPicture={() => setPicking(true)}
             />
@@ -152,7 +154,7 @@ function CoverScreen() {
           current={cover.picture}
           hint={
             isLandscapeCover(destination)
-              ? "The thumbnail is 16:9: a landscape picture fills it best. A tall one, such as a phone frame, suits the split layout, which shows it whole beside the text."
+              ? "The thumbnail is 16:9: a landscape picture fills it. A tall one, such as a phone frame, goes beside the text in the split layout."
               : undefined
           }
           onClose={() => setPicking(false)}
@@ -166,32 +168,23 @@ function CoverScreen() {
   );
 }
 
-/** The picture's shape against the cover's frame (9:16 or 16:9), once it
- *  has loaded: "tall" (cropped top and bottom), "wide" (cropped at the
- *  sides) or "fits" (not cropped). Undefined until then, or with no
- *  picture. */
-function usePictureShape(
-  url: string | undefined,
+/** The picture's shape against the box it fills: "tall" (cropped top
+ *  and bottom), "wide" (cropped at the sides) or "fits" (not cropped).
+ *  The box is the frame, or the 16:9 split layout's picture half; the
+ *  9:16 split shows the picture whole, so nothing is cropped. Undefined
+ *  until the picture has loaded, or with no picture. */
+function pictureShape(
+  pictureRatio: number | undefined,
   frame: { width: number; height: number },
+  layout: string,
 ): "tall" | "wide" | "fits" | undefined {
-  const frameRatio = frame.width / frame.height;
-  const [shape, setShape] = useState<"tall" | "wide" | "fits">();
-  useEffect(() => {
-    setShape(undefined);
-    if (!url) return undefined;
-    let live = true;
-    const image = new Image();
-    image.onload = () => {
-      if (!live || !image.naturalHeight) return;
-      const ratio = image.naturalWidth / image.naturalHeight;
-      setShape(Math.abs(ratio - frameRatio) < 0.01 ? "fits" : ratio < frameRatio ? "tall" : "wide");
-    };
-    image.src = url;
-    return () => {
-      live = false;
-    };
-  }, [url, frameRatio]);
-  return shape;
+  if (pictureRatio === undefined) return undefined;
+  const landscape = frame.width > frame.height;
+  if (layout === "split" && !landscape) return "fits";
+  const boxRatio =
+    (frame.width / frame.height) * (layout === "split" ? 1 - COVER_SPLIT_TEXT_WIDTH / 100 : 1);
+  if (Math.abs(pictureRatio - boxRatio) < 0.01) return "fits";
+  return pictureRatio < boxRatio ? "tall" : "wide";
 }
 
 function editCover(
@@ -297,23 +290,29 @@ function DestinationSwitch({
 function CoverPanel({
   showcase,
   destination,
+  pictureRatio,
   canEdit,
   onPickPicture,
 }: {
   showcase: Showcase;
   destination: CoverDestination | undefined;
+  pictureRatio: number | undefined;
   canEdit: boolean;
   onPickPicture: () => void;
 }) {
-  const fields = resolveCover(showcase.coverDoc, destination);
-  const preview = coverFor(showcase, destination);
+  const fields = resolveCover(showcase.coverDoc, destination, { pictureRatio });
+  const preview = coverFor(showcase, destination, pictureRatio);
   const pictureUrl = preview?.pictureUrl;
   const landscape = isLandscapeCover(destination);
   /* Focus only matters when the crop cuts something off: a picture
-   * taller or wider than the frame, in a layout that fills the frame. */
-  const shape = usePictureShape(pictureUrl, preview?.frame ?? { width: 9, height: 16 });
+   * taller or wider than the box it fills. */
+  const shape = pictureShape(
+    pictureRatio,
+    preview?.frame ?? { width: 9, height: 16 },
+    fields.layout,
+  );
   const focusChoices: CoverFocus[] | undefined =
-    fields.layout === "split" || !shape || shape === "fits" ? undefined : FOCUS_CHOICES[shape];
+    !shape || shape === "fits" ? undefined : FOCUS_CHOICES[shape];
   const set = (name: CoverField, value: unknown) => editCover(showcase, destination, name, value);
   const reset = (name: CoverField) =>
     destination && fields.overridden.includes(name) ? () => set(name, null) : undefined;

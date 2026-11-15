@@ -43,6 +43,7 @@ export function coverImage(destination?: CoverDestination | null): CoverImage;
 export function isLandscapeCover(destination?: CoverDestination | null): boolean;
 export const COVER_GRID_CROP: number;
 export const COVER_LENGTH_BADGE: { right: number; bottom: number; width: number; height: number };
+export const COVER_SPLIT_TEXT_WIDTH: number;
 export const COVER_LAYOUTS: CoverLayout[];
 export const COVER_FADES: CoverFade[];
 export const COVER_TEXT_POSITIONS: CoverTextPosition[];
@@ -55,7 +56,11 @@ export const COVER_FIELD_NAMES: CoverField[];
 
 export function coverValueProblem(name: string, value: unknown): string | null;
 export function checkCover(doc: unknown): string[];
-export function resolveCover(doc: unknown, destination?: CoverDestination): ResolvedCoverFields;
+export function resolveCover(
+  doc: unknown,
+  destination?: CoverDestination,
+  options?: { pictureRatio?: number | undefined },
+): ResolvedCoverFields;
 export function checkCoverEdit(edit: {
   destination?: string | null;
   name?: string;

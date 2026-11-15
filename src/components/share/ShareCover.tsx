@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Download, Pencil } from "lucide-react";
-import { coverFor, type Showcase } from "@/content/showcases";
+import type { Showcase } from "@/content/showcases";
 import {
   COVER_DESTINATIONS,
   isLandscapeCover,
@@ -8,6 +8,7 @@ import {
 } from "@/content/cover-rules.mjs";
 import type { DestinationId } from "@/content/publish-rules.mjs";
 import { CoverView } from "@/components/cover/CoverView";
+import { useCover } from "@/components/cover/use-cover";
 import { cn } from "@/lib/utils";
 
 /* The Share page's cover card: the cover this destination gets — the
@@ -26,7 +27,10 @@ export function ShareCover({
 }) {
   const coverDestination =
     destination in COVER_DESTINATIONS ? (destination as CoverDestination) : null;
-  const cover = coverDestination ? coverFor(showcase, coverDestination) : undefined;
+  const { cover } = useCover(
+    coverDestination ? showcase : undefined,
+    coverDestination ?? undefined,
+  );
   const thumbnail = isLandscapeCover(coverDestination);
   return (
     <section className="rounded-2xl border border-border bg-card/40 p-5">

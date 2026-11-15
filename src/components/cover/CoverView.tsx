@@ -2,7 +2,11 @@ import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { ResolvedCover } from "@/content/showcases";
 import type { CoverAnchor, CoverFade, CoverTextSize } from "@/content/cover-rules.mjs";
-import { COVER_GRID_CROP, COVER_LENGTH_BADGE } from "@/content/cover-rules.mjs";
+import {
+  COVER_GRID_CROP,
+  COVER_LENGTH_BADGE,
+  COVER_SPLIT_TEXT_WIDTH,
+} from "@/content/cover-rules.mjs";
 import { EditableText } from "@/components/studio/EditableText";
 
 /* A showcase's cover, drawn in its destination's frame (`cover.frame`:
@@ -18,13 +22,13 @@ import { EditableText } from "@/components/studio/EditableText";
  *   band    the picture fills the frame; the text sits in a band of the
  *           theme's primary color
  *   split   9:16: the text where it needs, the picture shown whole in
- *           the rest. 16:9: the text on the left, the picture whole on
- *           the right.
+ *           the rest. 16:9: the text on the left, the picture filling
+ *           the right, cropped by its focus.
  *
  *   9:16 split          16:9 split
  *   ┌────────┐          ┌──────────┬──────────┐
  *   │Headline│          │ Headline │ picture  │
- *   │picture │          │          │ (whole)  │
+ *   │picture │          │          │ (fills)  │
  *   └────────┘          └──────────┴──────────┘
  *
  * At 9:16, text and graphics are placed inside the middle 3:4, which is
@@ -182,33 +186,24 @@ export function CoverView({
     >
       {cover.layout === "split" && landscape ? (
         /* Side by side: the text in a column on the left, placed up or
-         * down by its position; the picture, shown whole, in the rest. */
+         * down by its position; the picture filling the rest, cropped
+         * by its focus — shown whole, a phone picture would be a narrow
+         * strip with empty bands beside it. */
         <div className="absolute inset-0 flex">
           <div
             className={cn(
-              "flex w-[46%] shrink-0 flex-col px-[7cqmin] py-[6cqmin]",
+              "flex shrink-0 flex-col px-[7cqmin] py-[6cqmin]",
               position === "top"
                 ? "justify-start"
                 : position === "bottom"
                   ? "justify-end"
                   : "justify-center",
             )}
+            style={{ width: `${COVER_SPLIT_TEXT_WIDTH}%` }}
           >
             {text}
           </div>
-          {pictureArea(
-            cover.pictureUrl ? (
-              <img
-                src={cover.pictureUrl}
-                alt=""
-                draggable={false}
-                className="absolute inset-0 h-full w-full object-contain"
-              />
-            ) : (
-              picture
-            ),
-            "relative h-full min-w-0 flex-1",
-          )}
+          {pictureArea(picture, "relative h-full min-w-0 flex-1")}
         </div>
       ) : cover.layout === "split" ? (
         /* The text takes the room it needs, just inside the grid crop;
