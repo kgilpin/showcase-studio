@@ -42,13 +42,13 @@ import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
  *   │        ┌─────────┐           │ Picture  key  [Change]     │
  *   │        │  cover  │           │ Focus / Fade / Text / Size │
  *   │        └─────────┘           │ Graphics  + Add            │
- *   │ ☑ Grid crop [Save … cover]   │                            │
+ *   │ ☑ Safe area [Save … cover]   │                            │
  *   └──────────────────────────────┴────────────────────────────┘
  *
  * The row under the cover holds how the preview is shown and saving it;
- * the panel holds only the cover's own settings. Its switch shades what
- * the platform covers: the profile grid's crop at 9:16, the video length
- * on YouTube's thumbnail.
+ * the panel holds only the cover's own settings. Its Safe area switch,
+ * named like the player's, shades what the platform covers: the profile
+ * grid's crop at 9:16, the video length on YouTube's thumbnail.
  *
  * In a studio the cover is edited here: click the headline to
  * type, the picture to choose another, and the panel for the rest. With
@@ -547,7 +547,7 @@ function CoverActions({
           checked={marks}
           onChange={(event) => onMarks(event.target.checked)}
         />
-        {landscape ? "Video length" : "Grid crop"}
+        Safe area
       </label>
       {canSave && (
         <a
