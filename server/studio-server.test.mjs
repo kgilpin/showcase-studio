@@ -20,6 +20,13 @@ import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { createExportRecords } from "./export-records.mjs";
 import { contentHash } from "./scene-edit.mjs";
 import { changesByShowcase, createStudio, isLocalRequest } from "./studio-server.mjs";
+import { whisperPath } from "./transcribe.mjs";
+
+/* Pin the whisper lookup. whisperPath keeps a miss for only 15 s, so
+ * whether a test's studio looks again depended on the clock and on the
+ * tests before it, and the gold traces gained or lost a findWhisper call.
+ * A find is kept for the whole process. */
+whisperPath({ probe: () => "/test/whisper-cli" });
 
 const cleanups = [];
 afterEach(async () => {

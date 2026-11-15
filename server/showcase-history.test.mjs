@@ -7,6 +7,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { commitMessage, noIdentityReason, tooBigToInit } from "./showcase-history.mjs";
 import { createStudio } from "./studio-server.mjs";
 import { gitProgram } from "./git-program.mjs";
+import { whisperPath } from "./transcribe.mjs";
+
+/* Pin the whisper lookup. whisperPath keeps a miss for only 15 s, so
+ * whether a test's studio looks again depended on the clock and on the
+ * tests before it, and the gold traces gained or lost a findWhisper call.
+ * A find is kept for the whole process. */
+whisperPath({ probe: () => "/test/whisper-cli" });
 
 const cleanups = [];
 afterEach(async () => {
