@@ -11,6 +11,10 @@ Cut away from me to these clips while my voice carries on:
 
 For the last line ("search the App Store ... or go to novagame.app") show the App Store listing, raw/nova app store image.png, with me in a small window.
 
+Give the captions NOVA's colors: gold text on a deep navy chip.
+
+Make a cover for the TikTok post: a frame of me, with "NOVA" as the headline.
+
 Facts: the game is NOVA, "NOVA: Space Strategy Game" in the App Store, web at novagame.app. Free, no ads, no in-app purchases, no loot boxes. Audience: parents of teens.
 
 When it's done, give me the TikTok draft export and tell me what you checked.

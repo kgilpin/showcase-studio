@@ -13,6 +13,9 @@ tools_used:
   - screenshot_frame # frames looked at instead of draft exports
   - ffmpeg # the composite encoded into assets/ safely
   - transcribe # the real words, for karaoke
+  - edit_theme # 1.0.0: the caption colors through the studio, not a
+    # hand edit of theme.yaml
+  - edit_cover # 1.0.0: the TikTok cover, written through the studio
   - validate # the schema's warnings read before reporting done (0.8.0:
     # a field in the wrong place is named, with where it belongs)
 
