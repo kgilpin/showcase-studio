@@ -5,6 +5,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,6 +18,7 @@ import {
   snapshotId,
   takeSnapshot,
 } from "./export-snapshot.mjs";
+import { exportFingerprint } from "./export-records.mjs";
 import { handleShowcaseRequest } from "./showcase-data.mjs";
 
 /* The copy of a showcase an export renders from (issue #29): what it
@@ -92,6 +94,19 @@ describe("an export's snapshot of a showcase", () => {
     expect(copyOf("nova/assets/voiceover.words.json")).toBe("[]");
     expect(copyOf("nova/assets/clip-intro.mp4")).toBe("take one");
     snapshot.remove();
+  });
+
+  it("has the library's fingerprint, so a finished export reads as up to date", () => {
+    libraryWithNova();
+    /* Files made a while ago: a copy stamped "now" would differ. */
+    const then = new Date("2026-01-01T00:00:00Z");
+    for (const p of ["nova/assets/clip-intro.mp4", "nova/graphics/chart.tsx"]) {
+      utimesSync(path.join(library, p), then, then);
+    }
+    const snapshot = takeSnapshot(library, "nova", snapshotId("export-1", 4242));
+    expect(exportFingerprint(snapshot.dir, "nova", { appVersion: "1.0.0" })).toBe(
+      exportFingerprint(library, "nova", { appVersion: "1.0.0" }),
+    );
   });
 
   it("refuses what isn't a showcase or a snapshot id", () => {

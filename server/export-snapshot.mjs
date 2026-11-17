@@ -40,6 +40,8 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
+  utimesSync,
 } from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
@@ -148,7 +150,16 @@ function copyShowcase(from, to, { files }) {
 
 /** A copy that shares the original's blocks where the file system can,
  *  and a plain copy elsewhere. Not a hard link: showcase.yaml and the
- *  words file are written in place, and a link would see the write. */
+ *  words file are written in place, and a link would see the write.
+ *
+ *  The copy keeps the original's modified time. The export's fingerprint
+ *  is taken from the snapshot and includes each asset's modified time
+ *  (server/export-records.mjs), so a copy stamped "now" would make every
+ *  finished video read as out of date. The time is read before copying:
+ *  if the original is written in between, the copy gets the older time
+ *  and the video reads as out of date, never wrongly as up to date. */
 function clone(from, to) {
+  const { atime, mtime } = statSync(from);
   copyFileSync(from, to, constants.COPYFILE_FICLONE);
+  utimesSync(to, atime, mtime);
 }
