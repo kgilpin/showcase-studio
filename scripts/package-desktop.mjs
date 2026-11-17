@@ -38,7 +38,14 @@ if (preset !== "node-server") {
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
-const RUNTIME_DEPS = ["node-pty", "ffmpeg-static", "esbuild", "yaml"];
+const RUNTIME_DEPS = [
+  "node-pty",
+  "ffmpeg-static",
+  "esbuild",
+  "yaml",
+  "@xterm/headless",
+  "@xterm/addon-serialize",
+];
 const rootPkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
 const versionOf = (dep) => {
   const version = rootPkg.dependencies?.[dep] ?? rootPkg.devDependencies?.[dep];
