@@ -294,10 +294,17 @@ export function createActionsLog(
      * ("export", "build"), `label` names the job for people, and
      * `handlers` are the record's offers (cancel, retry, rebuild,
      * reveal), each given the record.
+     *
+     * Only a running record can be the job's: a lane's ids start again
+     * at 1 whenever the studio starts, so the finished records loaded
+     * from the file carry the ids the new jobs are about to use
+     * (issue #76).
      */
     job(status, { kind = "export", label, handlers = {} } = {}) {
       const list = current();
-      const item = [...list.values()].find(({ record }) => record.jobId === status.jobId);
+      const item = [...list.values()].find(
+        ({ record }) => record.jobId === status.jobId && record.state === "running",
+      );
       if (!item) {
         if (status.status !== "running") return undefined;
         return api.add(

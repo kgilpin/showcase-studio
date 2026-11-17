@@ -200,6 +200,44 @@ describe("the Actions list", () => {
     });
   });
 
+  it("gives a job a new record when an earlier studio's job had the same id (issue #76)", () => {
+    /* A studio's job ids start again at export-1 every time it starts,
+     * so the file holds finished records with the ids the new studio's
+     * jobs are about to use. */
+    const dir = library();
+    const now = clock();
+    const follow = (actions, status) =>
+      actions.job(status, { kind: "export", label: "Screenshots" });
+    const base = { jobId: "export-1", kind: "screens", by: "user" };
+    const first = createActionsLog(() => dir, { now });
+    follow(first, { ...base, showcaseId: "nova", status: "running" });
+    follow(first, { ...base, showcaseId: "nova", status: "done", out: "/out/nova/screens" });
+
+    now.tick(3 * 24 * 3600_000);
+    const changes = [];
+    const again = createActionsLog(() => dir, { now, onChange: (r) => changes.push(r) });
+    follow(again, { ...base, showcaseId: "orbit", status: "running", progress: "starting" });
+    follow(again, { ...base, showcaseId: "orbit", status: "done", out: "/out/orbit/screens" });
+
+    const [old, fresh] = again.list();
+    expect(old).toMatchObject({ showcaseId: "nova", result: "/out/nova/screens" });
+    expect(fresh).toMatchObject({
+      showcaseId: "orbit",
+      state: "done",
+      result: "/out/orbit/screens",
+    });
+    expect(changes.map((r) => [r.showcaseId, r.state])).toEqual([
+      ["orbit", "running"],
+      ["orbit", "done"],
+    ]);
+    expect(lines(dir).map((l) => [l.showcaseId, l.state])).toEqual([
+      ["nova", "running"],
+      ["nova", "done"],
+      ["orbit", "running"],
+      ["orbit", "done"],
+    ]);
+  });
+
   it("keeps only the newest finished records, and survives a torn line", () => {
     const dir = library();
     mkdirSync(path.join(dir, ".studio"), { recursive: true });
