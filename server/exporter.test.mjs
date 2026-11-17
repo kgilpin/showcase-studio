@@ -4,11 +4,14 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import {
+  coverFileName,
   exportScreens,
   formatClock,
   frameFileName,
+  jpegSize,
   MAX_FRAMES_PER_CALL,
   pngSize,
+  screenshotCover,
   screenshotFrame,
   screenshotSlide,
   validateShowcases,
@@ -94,6 +97,64 @@ describe("capture size", () => {
         outDir: path.join(root, "full"),
       });
       expect(existsSync(path.join(root, "full", "screens", "01-intro.png"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+/** The start of a JPEG: SOI, an APP0 segment, then a baseline frame
+ *  header (SOF0) giving its size. */
+function jpegHeader(width, height) {
+  const app0 = [0xff, 0xe0, 0x00, 0x04, 0x00, 0x00];
+  const sof0 = [0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff];
+  return Buffer.from([0xff, 0xd8, ...app0, ...sof0, ...new Array(12).fill(0)]);
+}
+
+describe("the cover image", () => {
+  it("reads a JPEG's size from its frame header", () => {
+    expect(jpegSize(jpegHeader(1280, 720))).toEqual({ width: 1280, height: 720 });
+    expect(jpegSize(pngHeader(1280, 720))).toBeUndefined();
+  });
+
+  it("names a JPEG for the YouTube thumbnail and a PNG for the rest", () => {
+    expect(coverFileName("nova")).toBe("nova-cover.png");
+    expect(coverFileName("nova", "instagram")).toBe("nova-cover-instagram.png");
+    expect(coverFileName("nova", "youtube43")).toBe("nova-cover-youtube43.jpg");
+  });
+
+  it("captures each destination at its own size and file type", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "exporter-"));
+    try {
+      mkdirSync(path.join(root, "nova"), { recursive: true });
+      writeFileSync(path.join(root, "nova", "showcase.yaml"), "meta: {title: Nova}\nscenes: []\n");
+      writeFileSync(path.join(root, "nova", "cover.yaml"), "headline: Hi\n");
+      const asked = [];
+      const renderer = {
+        openPage: async (size) => ({
+          goto: async () => {},
+          evaluate: async () => {},
+          capture: async ({ format } = {}) => {
+            asked.push({ ...size, format });
+            return format === "jpeg"
+              ? jpegHeader(size.width, size.height)
+              : pngHeader(size.width, size.height);
+          },
+          close: async () => {},
+        }),
+      };
+      await screenshotCover(renderer, "", root, { showcaseId: "nova", destination: "youtube43" });
+      await screenshotCover(renderer, "", root, { showcaseId: "nova", destination: "tiktok" });
+      await screenshotCover(renderer, "", root, {
+        showcaseId: "nova",
+        destination: "youtube43",
+        size: "half",
+      });
+      expect(asked).toEqual([
+        { width: 1280, height: 720, format: "jpeg" },
+        { width: 1080, height: 1920, format: "png" },
+        { width: 640, height: 360, format: "jpeg" },
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -2,24 +2,41 @@ import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { ResolvedCover } from "@/content/showcases";
 import type { CoverAnchor, CoverFade, CoverTextSize } from "@/content/cover-rules.mjs";
-import { COVER_GRID_CROP } from "@/content/cover-rules.mjs";
+import {
+  COVER_GRID_CROP,
+  COVER_LENGTH_BADGE,
+  COVER_SPLIT_TEXT_WIDTH,
+} from "@/content/cover-rules.mjs";
 import { EditableText } from "@/components/studio/EditableText";
 
-/* A showcase's cover, drawn in a 9:16 box: the picture, the text and the
- * graphics, in one of the cover layouts (src/content/cover-rules.mjs).
- * Everything is sized in container units, so the same drawing serves the
- * Cover page, the home card and the saved PNG
- * (/showcase/<id>/cover/still), which the studio captures at 1080×1920.
+/* A showcase's cover, drawn in its destination's frame (`cover.frame`:
+ * 9:16, or 16:9 for the regular YouTube video's thumbnail): the picture,
+ * the text and the graphics, in one of the cover layouts
+ * (src/content/cover-rules.mjs). Everything is sized in container units
+ * of the frame's shorter side (cqmin), so the same drawing serves the
+ * Cover page, the home card and the saved image
+ * (/showcase/<id>/cover/still), which the studio captures at the frame's
+ * size.
  *
  *   fade    the picture fills the frame; the text sits over a dark fade
  *   band    the picture fills the frame; the text sits in a band of the
  *           theme's primary color
- *   split   the text where it needs, the picture shown whole in the rest
+ *   split   9:16: the text where it needs, the picture shown whole in
+ *           the rest. 16:9: the text on the left, the picture filling
+ *           the right, cropped by its focus.
  *
- * Text and graphics are placed inside the middle 3:4, which is what
- * TikTok's and Instagram's profile grids show; `gridCrop` shades what
- * those grids cut off. Colors and fonts come from the showcase's theme
- * (the CSS variables its layout route sets).
+ *   9:16 split          16:9 split
+ *   ┌────────┐          ┌──────────┬──────────┐
+ *   │Headline│          │ Headline │ picture  │
+ *   │picture │          │          │ (fills)  │
+ *   └────────┘          └──────────┴──────────┘
+ *
+ * At 9:16, text and graphics are placed inside the middle 3:4, which is
+ * what TikTok's and Instagram's profile grids show. `marks` shades what
+ * the platform cuts off or draws over: the grids' crop at 9:16, the video
+ * length YouTube puts in the bottom-right corner at 16:9. Colors and fonts
+ * come from the showcase's theme (the CSS variables its layout route
+ * sets).
  *
  * The headline is the cover's only text: a second line would compete
  * with it at thumbnail size, and anything more is a graphic.
@@ -27,17 +44,20 @@ import { EditableText } from "@/components/studio/EditableText";
  * With `edit` the headline is click-to-edit and the picture
  * opens the asset picker; without it the cover is only drawn. */
 
-const SAFE_TOP = `${COVER_GRID_CROP}%`;
-const SAFE_BOTTOM = `${COVER_GRID_CROP}%`;
+/** How far in from the top and bottom text and graphics stay: inside the
+ *  grid crop at 9:16; a 16:9 thumbnail isn't cropped. */
+const safeInset = (landscape: boolean) => (landscape ? "0%" : `${COVER_GRID_CROP}%`);
 
 const HEADLINE_SIZE: Record<CoverTextSize, string> = {
-  s: "text-[7cqw]",
-  m: "text-[9cqw]",
-  l: "text-[11.5cqw]",
+  s: "text-[7cqmin]",
+  m: "text-[9cqmin]",
+  l: "text-[11.5cqmin]",
 };
 
-/** Where a graphic's box sits, inside the grid crop. */
-function anchorStyle(at: CoverAnchor, size: number): CSSProperties {
+/** Where a graphic's box sits, inside the grid crop at 9:16. Its width
+ *  is a share of the frame's shorter side. */
+function anchorStyle(at: CoverAnchor, size: number, landscape: boolean): CSSProperties {
+  const safe = safeInset(landscape);
   const [row, column] = at.includes("-")
     ? (at.split("-") as [string, string])
     : at === "left" || at === "right"
@@ -45,10 +65,10 @@ function anchorStyle(at: CoverAnchor, size: number): CSSProperties {
       : at === "top" || at === "bottom"
         ? [at, "center"]
         : ["middle", "center"];
-  const style: CSSProperties = { width: `${size}%` };
-  const inset = "5%";
-  if (row === "top") style.top = `calc(${SAFE_TOP} + 3%)`;
-  else if (row === "bottom") style.bottom = `calc(${SAFE_BOTTOM} + 3%)`;
+  const style: CSSProperties = { width: `${size}cqmin` };
+  const inset = landscape ? "3%" : "5%";
+  if (row === "top") style.top = `calc(${safe} + ${landscape ? 5 : 3}%)`;
+  else if (row === "bottom") style.bottom = `calc(${safe} + ${landscape ? 5 : 3}%)`;
   else {
     style.top = "50%";
     style.translate = "0 -50%";
@@ -92,18 +112,23 @@ export type CoverEditing = {
 
 export function CoverView({
   cover,
-  gridCrop = false,
+  marks = false,
   edit,
   className,
 }: {
   cover: ResolvedCover;
-  /** Shade the top and bottom that the profile grids cut off. */
-  gridCrop?: boolean;
+  /** Shade what the platform cuts off or draws over: the top and bottom
+   *  the profile grids cut off (9:16), or the video length (16:9). */
+  marks?: boolean;
   edit?: CoverEditing | undefined;
   className?: string;
 }) {
+  const landscape = cover.frame.width > cover.frame.height;
+  const safe = safeInset(landscape);
   const position =
-    cover.layout === "split" && cover.textPosition === "middle" ? "top" : cover.textPosition;
+    cover.layout === "split" && cover.textPosition === "middle" && !landscape
+      ? "top"
+      : cover.textPosition;
   const text = (
     <CoverText
       cover={cover}
@@ -126,7 +151,7 @@ export function CoverView({
       }}
     />
   ) : (
-    <div className="absolute inset-0 flex items-center justify-center text-[4cqw] text-foreground/40">
+    <div className="absolute inset-0 flex items-center justify-center text-[4cqmin] text-foreground/40">
       {edit ? "Click to choose a picture" : "No picture"}
     </div>
   );
@@ -150,10 +175,37 @@ export function CoverView({
 
   return (
     <div
-      className={cn("@container relative aspect-[9/16] overflow-hidden bg-card", className)}
-      style={{ background: "var(--gradient-stage)" }}
+      className={cn("relative overflow-hidden bg-card", className)}
+      /* A size container, not just an inline-size one: cqmin has to read
+       * this frame's height too, not the height of a box around it. */
+      style={{
+        containerType: "size",
+        aspectRatio: `${cover.frame.width} / ${cover.frame.height}`,
+        background: "var(--gradient-stage)",
+      }}
     >
-      {cover.layout === "split" ? (
+      {cover.layout === "split" && landscape ? (
+        /* Side by side: the text in a column on the left, placed up or
+         * down by its position; the picture filling the rest, cropped
+         * by its focus — shown whole, a phone picture would be a narrow
+         * strip with empty bands beside it. */
+        <div className="absolute inset-0 flex">
+          <div
+            className={cn(
+              "flex shrink-0 flex-col px-[7cqmin] py-[6cqmin]",
+              position === "top"
+                ? "justify-start"
+                : position === "bottom"
+                  ? "justify-end"
+                  : "justify-center",
+            )}
+            style={{ width: `${COVER_SPLIT_TEXT_WIDTH}%` }}
+          >
+            {text}
+          </div>
+          {pictureArea(picture, "relative h-full min-w-0 flex-1")}
+        </div>
+      ) : cover.layout === "split" ? (
         /* The text takes the room it needs, just inside the grid crop;
          * the picture, shown whole, takes the rest — out to the frame's
          * edge on its side, and snug against the text. */
@@ -164,9 +216,9 @@ export function CoverView({
           )}
           /* Inset with top/bottom, not padding: a padding percentage
            * is a share of the frame's width, not its height. */
-          style={position === "top" ? { top: SAFE_TOP } : { bottom: SAFE_BOTTOM }}
+          style={position === "top" ? { top: safe } : { bottom: safe }}
         >
-          <div className="shrink-0 px-[7cqw] py-[4cqw]">{text}</div>
+          <div className="shrink-0 px-[7cqmin] py-[4cqmin]">{text}</div>
           {pictureArea(
             cover.pictureUrl ? (
               <img
@@ -201,14 +253,14 @@ export function CoverView({
                   ? "items-end"
                   : "items-center",
             )}
-            style={{ top: SAFE_TOP, bottom: SAFE_BOTTOM }}
+            style={{ top: safe, bottom: safe }}
           >
             <div
               className={cn(
                 "pointer-events-auto w-full",
                 cover.layout === "band"
-                  ? "bg-primary px-[7cqw] py-[5cqw] text-primary-foreground"
-                  : "px-[7cqw] py-[4cqw] text-white",
+                  ? "bg-primary px-[7cqmin] py-[5cqmin] text-primary-foreground"
+                  : "px-[7cqmin] py-[4cqmin] text-white",
               )}
             >
               {text}
@@ -220,18 +272,43 @@ export function CoverView({
         <div
           key={`${item.key}-${i}`}
           className="pointer-events-none absolute aspect-square"
-          style={anchorStyle(item.at, item.size)}
+          style={anchorStyle(item.at, item.size, landscape)}
         >
           {item.component ? (
             <item.component />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-[2cqw] border border-dashed border-foreground/40 p-[2cqw] text-center text-[3cqw] text-foreground/60">
+            <div className="flex h-full w-full items-center justify-center rounded-[2cqmin] border border-dashed border-foreground/40 p-[2cqmin] text-center text-[3cqmin] text-foreground/60">
               no graphic “{item.key}”
             </div>
           )}
         </div>
       ))}
-      {gridCrop && <GridCrop />}
+      {marks && (landscape ? <LengthBadge /> : <GridCrop />)}
+    </div>
+  );
+}
+
+/** A cover as large as fits in the box this fills, at its frame's shape,
+ *  centered: a 9:16 cover takes the height, a 16:9 one the width, until
+ *  the other side runs out. */
+export function CoverFit({
+  className,
+  children,
+  frame,
+}: {
+  className?: string;
+  /** The cover's frame, for its shape. */
+  frame: { width: number; height: number };
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn("flex items-center justify-center", className)}
+      style={{ containerType: "size" }}
+    >
+      <div style={{ width: `min(100cqw, 100cqh * ${frame.width} / ${frame.height})` }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -247,7 +324,8 @@ function CoverText({
   onBand: boolean;
   split: boolean;
 }) {
-  const shadow = onBand || split ? undefined : { textShadow: "0 0.4cqw 2cqw rgb(0 0 0 / 0.55)" };
+  const shadow =
+    onBand || split ? undefined : { textShadow: "0 0.4cqmin 2cqmin rgb(0 0 0 / 0.55)" };
   /* The line height comes after the size: tailwind-merge drops a leading
    * class that a later text size could override. */
   const headlineClass = cn(
@@ -292,11 +370,28 @@ function GridCrop() {
             [side === "top" ? "borderBottomWidth" : "borderTopWidth"]: 1,
           }}
         >
-          <span className="rounded bg-black/60 px-[1.5cqw] py-[0.5cqw] text-[3cqw] text-amber-100">
+          <span className="rounded bg-black/60 px-[1.5cqmin] py-[0.5cqmin] text-[3cqmin] text-amber-100">
             Cut off in the profile grid
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** The bottom-right corner where YouTube draws the video's length over
+ *  the thumbnail — shown on the Cover page, never in the saved image. */
+function LengthBadge() {
+  const { right, bottom, width, height } = COVER_LENGTH_BADGE;
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute z-30 flex items-center justify-center rounded-[1cqmin] border border-dashed border-amber-300/70 bg-amber-400/25"
+      style={{ right: `${right}%`, bottom: `${bottom}%`, width: `${width}%`, height: `${height}%` }}
+    >
+      <span className="rounded bg-black/60 px-[1.5cqmin] py-[0.5cqmin] text-[2.6cqmin] text-amber-100">
+        Video length
+      </span>
     </div>
   );
 }

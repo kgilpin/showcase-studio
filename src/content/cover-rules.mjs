@@ -1,5 +1,6 @@
 /* A showcase's cover: the still image a platform shows before the video
- * plays (TikTok's and Instagram's profile grids, a Short's thumbnail).
+ * plays (TikTok's and Instagram's profile grids, a Short's thumbnail, a
+ * regular YouTube video's 16:9 thumbnail).
  * Plain ESM with no imports, like publish-rules.mjs, so the page, the
  * studio's edit path (server/edit-cover.mjs) and the tools read one copy.
  * Types live in cover-rules.d.mts.
@@ -22,20 +23,42 @@
  *     headline: Mirror your iPhone. Link in bio.
  *
  * Each destination's block stands on its own: it inherits from the
- * default only, never from another destination. The video is never part
+ * default only, never from another destination. Every field means the
+ * same thing in every frame, so youtube43's 16:9 thumbnail starts from the
+ * same default as the 9:16 covers: sizes are measured against the frame's
+ * shorter side (its width at 9:16, its height at 16:9). The video is never part
  * of a cover — a cover is a still image, drawn by CoverView and saved as
  * a PNG when one is needed. */
 
-/** Where a cover goes. All three are 9:16; the 16:9 YouTube thumbnail
- *  comes later. */
+/** Where a cover goes, and the image it gets: its size in pixels and
+ *  its file type. The three 9:16 covers are PNGs; the regular YouTube
+ *  video's thumbnail is 1280×720 and a JPEG, since YouTube takes no
+ *  thumbnail over 2 MB and a photo as a PNG can be more. */
 export const COVER_DESTINATIONS = {
-  tiktok: { label: "TikTok" },
-  instagram: { label: "Instagram" },
-  youtube: { label: "YouTube Shorts" },
+  tiktok: { label: "TikTok", width: 1080, height: 1920, format: "png" },
+  instagram: { label: "Instagram", width: 1080, height: 1920, format: "png" },
+  youtube: { label: "YouTube Shorts", width: 1080, height: 1920, format: "png" },
+  youtube43: { label: "YouTube", width: 1280, height: 720, format: "jpeg" },
 };
 
-/** The cover's size, in pixels. */
+/** The default cover's size, in pixels — what a destination without its
+ *  own size gets, and what the home card shows. */
 export const COVER_SIZE = { width: 1080, height: 1920 };
+
+/** One destination's image: its size and file type. The default cover's
+ *  without a destination. */
+export function coverImage(destination) {
+  const own = destination ? COVER_DESTINATIONS[destination] : undefined;
+  return own
+    ? { width: own.width, height: own.height, format: own.format }
+    : { ...COVER_SIZE, format: "png" };
+}
+
+/** Whether a destination's frame is wider than it is tall. */
+export function isLandscapeCover(destination) {
+  const { width, height } = coverImage(destination);
+  return width > height;
+}
 
 /** The middle 3:4 of the frame is what TikTok's and Instagram's profile
  *  grids show; the rest is cut off there. In percent of the frame's
@@ -43,14 +66,27 @@ export const COVER_SIZE = { width: 1080, height: 1920 };
  *  inside it. */
 export const COVER_GRID_CROP = 12.5;
 
+/** Where YouTube draws the video's length over a 16:9 thumbnail: the
+ *  bottom-right corner, in percent of the frame's width and height
+ *  (generous, so nothing that matters goes near it). */
+export const COVER_LENGTH_BADGE = { right: 2, bottom: 3.5, width: 13, height: 11 };
+
 /** The fixed set of cover layouts, drawn by CoverView:
  *    fade      the picture fills the frame, large text over a dark fade
  *    band      the picture fills the frame, the text in a band of the
  *              theme's color
- *    split     the text takes the room it needs, the picture is shown
- *              whole in the rest — for an app screenshot, which
- *              shouldn't be cropped to fill */
+ *    split     9:16: the text takes the room it needs, the picture is
+ *              shown whole in the rest — for an app screenshot, which
+ *              shouldn't be cropped to fill. 16:9: the text on the left,
+ *              the picture filling the right
+ *  A 16:9 cover of a portrait picture is split unless its own block sets
+ *  a layout: fade would show only a strip of it, and the default block's
+ *  layout was chosen for 9:16. Every other cover defaults to fade. */
 export const COVER_LAYOUTS = ["fade", "band", "split"];
+
+/** The 16:9 split layout's text column, in percent of the frame's width;
+ *  the picture fills the rest. */
+export const COVER_SPLIT_TEXT_WIDTH = 46;
 
 /** How dark the fade layout's fade is behind the text: light for a dark
  *  picture, strong for a bright one. */
@@ -59,11 +95,12 @@ export const COVER_FADES = ["light", "medium", "strong"];
 export const COVER_TEXT_POSITIONS = ["top", "middle", "bottom"];
 export const COVER_TEXT_SIZES = ["s", "m", "l"];
 /** Which part of the picture a crop keeps: top, center or bottom for a
- *  picture taller than 9:16, left, center or right for a wider one. A
- *  9:16 picture, or one the split layout shows whole, isn't cropped. */
+ *  picture taller than the frame, left, center or right for a wider one.
+ *  A picture the frame's shape, or one the split layout shows whole,
+ *  isn't cropped. */
 export const COVER_FOCUS = ["top", "center", "bottom", "left", "right"];
 
-/** Where a graphic sits, inside the grid crop. */
+/** Where a graphic sits, inside the grid crop at 9:16. */
 export const COVER_ANCHORS = [
   "top-left",
   "top",
@@ -76,7 +113,8 @@ export const COVER_ANCHORS = [
   "bottom-right",
 ];
 
-/** A graphic's width, in percent of the frame's width. */
+/** A graphic's width, in percent of the frame's shorter side (its width
+ *  at 9:16, its height at 16:9). */
 export const GRAPHIC_SIZE = { min: 5, max: 100, default: 30 };
 
 /** What a field is, and what the edit tool and the loader accept. */
@@ -86,12 +124,13 @@ export const COVER_FIELDS = {
     type: "enum",
     values: COVER_FOCUS,
     description:
-      "Which part of the picture the crop keeps (default center): top, center or bottom for a picture taller than 9:16; left, center or right for a wider one.",
+      "Which part of the picture the crop keeps (default center): top, center or bottom for a picture taller than the frame; left, center or right for a wider one.",
   },
   layout: {
     type: "enum",
     values: COVER_LAYOUTS,
-    description: "fade, band or split (default fade).",
+    description:
+      "fade, band or split. At 16:9, split puts the text on the left and the picture filling the right. Default fade; at 16:9 a portrait picture is split unless the youtube43 block sets its own layout.",
   },
   fade: {
     type: "enum",
@@ -103,22 +142,23 @@ export const COVER_FIELDS = {
   textPosition: {
     type: "enum",
     values: COVER_TEXT_POSITIONS,
-    description: "Where the text sits: top, middle or bottom (default bottom; split: top).",
+    description:
+      "Where the text sits: top, middle or bottom (default bottom; split: top at 9:16, middle at 16:9).",
   },
   textSize: {
     type: "enum",
     values: COVER_TEXT_SIZES,
-    description: "s, m or l (default m).",
+    description: "s, m or l (default m), measured against the frame's shorter side.",
   },
   graphics: {
     type: "graphics",
-    description: `TSX graphics from graphics/, each {graphic, at, size}: at is one of ${COVER_ANCHORS.join(", ")}; size is its width in percent of the frame (default ${GRAPHIC_SIZE.default}).`,
+    description: `TSX graphics from graphics/, each {graphic, at, size}: at is one of ${COVER_ANCHORS.join(", ")}; size is its width in percent of the frame's shorter side (default ${GRAPHIC_SIZE.default}).`,
   },
 };
 
 export const COVER_FIELD_NAMES = Object.keys(COVER_FIELDS);
 
-const DEFAULTS = { focus: "center", layout: "fade", fade: "medium", textSize: "m" };
+const DEFAULTS = { focus: "center", fade: "medium", textSize: "m" };
 
 /** The problem with one field's value, or null when it's fine. */
 export function coverValueProblem(name, value) {
@@ -189,8 +229,10 @@ export function checkCover(doc) {
 
 /** One destination's cover: its own fields over the default ones, each
  *  field with a problem left out, the defaults filled in. `overridden`
- *  names the fields the destination sets itself. */
-export function resolveCover(doc, destination) {
+ *  names the fields the destination sets itself. `pictureRatio` (the
+ *  picture's width over its height, once known) makes a 16:9 cover of a
+ *  portrait picture split, unless the destination sets its own layout. */
+export function resolveCover(doc, destination, { pictureRatio } = {}) {
   const base = doc && typeof doc === "object" && !Array.isArray(doc) ? doc : {};
   const own =
     destination && base[destination] && typeof base[destination] === "object"
@@ -205,7 +247,17 @@ export function resolveCover(doc, destination) {
     cover[name] = value;
     if (fromOwn) overridden.push(name);
   }
-  cover.textPosition ??= cover.layout === "split" ? "top" : "bottom";
+  if (
+    isLandscapeCover(destination) &&
+    pictureRatio !== undefined &&
+    pictureRatio < 1 &&
+    !overridden.includes("layout")
+  ) {
+    cover.layout = "split";
+  }
+  cover.layout ??= "fade";
+  cover.textPosition ??=
+    cover.layout !== "split" ? "bottom" : isLandscapeCover(destination) ? "middle" : "top";
   cover.graphics = cover.graphics.map((item) => ({
     graphic: item.graphic,
     at: item.at ?? "center",

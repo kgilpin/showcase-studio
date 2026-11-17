@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { checkCover, checkCoverEdit, COVER_SCHEMA, resolveCover } from "./cover-rules.mjs";
+import {
+  checkCover,
+  checkCoverEdit,
+  COVER_SCHEMA,
+  coverImage,
+  isLandscapeCover,
+  resolveCover,
+} from "./cover-rules.mjs";
 
 describe("resolveCover", () => {
   it("fills in the defaults for a cover that sets nothing", () => {
@@ -45,6 +52,39 @@ describe("resolveCover", () => {
     const doc = { layout: "band", tiktok: { layout: "poster" } };
     expect(resolveCover(doc, "tiktok").layout).toBe("band");
     expect(resolveCover({ layout: "poster" }).layout).toBe("fade");
+  });
+
+  it("puts a split thumbnail's text in the middle of its column unless it says otherwise", () => {
+    expect(resolveCover({ layout: "split" }, "youtube43").textPosition).toBe("middle");
+    expect(resolveCover({ layout: "split", textPosition: "top" }, "youtube43").textPosition).toBe(
+      "top",
+    );
+  });
+
+  it("splits a thumbnail of a portrait picture unless the thumbnail sets its own layout", () => {
+    const portrait = { pictureRatio: 9 / 16 };
+    expect(resolveCover({}, "youtube43", portrait)).toMatchObject({
+      layout: "split",
+      textPosition: "middle",
+    });
+    expect(resolveCover({}, "youtube43", { pictureRatio: 4 / 3 }).layout).toBe("fade");
+    expect(resolveCover({}, "youtube43").layout).toBe("fade");
+    expect(resolveCover({}, "tiktok", portrait).layout).toBe("fade");
+    expect(resolveCover({ layout: "band" }, "youtube43", portrait).layout).toBe("split");
+    expect(resolveCover({ layout: "band" }, "tiktok", portrait).layout).toBe("band");
+    expect(resolveCover({ youtube43: { layout: "fade" } }, "youtube43", portrait).layout).toBe(
+      "fade",
+    );
+  });
+
+  it("starts the YouTube thumbnail from the same default as the other covers", () => {
+    const doc = { headline: "Mirror your iPhone", picture: "shot", youtube43: { layout: "split" } };
+    expect(resolveCover(doc, "youtube43")).toMatchObject({
+      headline: "Mirror your iPhone",
+      picture: "shot",
+      layout: "split",
+      overridden: ["layout"],
+    });
   });
 
   it("fills in each graphic's place and size", () => {
@@ -93,9 +133,9 @@ describe("checkCoverEdit", () => {
   });
 
   it("refuses an unknown destination, field or value", () => {
-    expect(() =>
-      checkCoverEdit({ destination: "youtube43", name: "headline", value: "x" }),
-    ).toThrow('cover has no destination "youtube43" — destinations: tiktok, instagram, youtube');
+    expect(() => checkCoverEdit({ destination: "facebook", name: "headline", value: "x" })).toThrow(
+      'cover has no destination "facebook" — destinations: tiktok, instagram, youtube, youtube43',
+    );
     expect(() => checkCoverEdit({ name: "title", value: "x" })).toThrow(
       'cover has no field "title"',
     );
@@ -120,7 +160,27 @@ describe("COVER_SCHEMA", () => {
       "tiktok",
       "instagram",
       "youtube",
+      "youtube43",
     ]);
     expect(Object.keys(schema.properties["tiktok"]!.properties!)).toHaveLength(8);
+  });
+});
+
+describe("coverImage", () => {
+  it("gives the 9:16 covers a 1080×1920 PNG, and YouTube's thumbnail a 1280×720 JPEG", () => {
+    expect(coverImage()).toEqual({ width: 1080, height: 1920, format: "png" });
+    expect(coverImage("instagram")).toEqual({ width: 1080, height: 1920, format: "png" });
+    expect(coverImage("youtube43")).toEqual({ width: 1280, height: 720, format: "jpeg" });
+    expect(isLandscapeCover("youtube43")).toBe(true);
+    expect(isLandscapeCover("youtube")).toBe(false);
+    expect(isLandscapeCover()).toBe(false);
+  });
+});
+
+describe("checkCover, YouTube thumbnail", () => {
+  it("checks the youtube43 block like the others", () => {
+    expect(checkCover({ youtube43: { layout: "poster" } })).toEqual([
+      'youtube43: layout must be one of fade, band, split (not "poster")',
+    ]);
   });
 });

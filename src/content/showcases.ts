@@ -48,9 +48,11 @@ import { checkShowcase } from "./showcase-schema.mjs";
 import {
   COVER_DESTINATIONS,
   checkCover,
+  coverImage,
   resolveCover,
   type CoverDestination,
   type CoverField,
+  type CoverImage,
   type ResolvedCoverFields,
 } from "./cover-rules.mjs";
 import type { SceneEdit } from "@/lib/studio";
@@ -727,8 +729,10 @@ function readCoverText(showcaseId: string, text: string | undefined): void {
 }
 
 /** One destination's cover with its files found: the picture's URL (a
- *  stand-in when the asset is missing) and each graphic's component. */
+ *  stand-in when the asset is missing), each graphic's component, and
+ *  the frame it's drawn in (9:16, or 16:9 for youtube43). */
 export type ResolvedCover = Omit<ResolvedCoverFields, "graphics"> & {
+  frame: CoverImage;
   pictureUrl?: string | undefined;
   graphics: {
     key: string;
@@ -739,13 +743,16 @@ export type ResolvedCover = Omit<ResolvedCoverFields, "graphics"> & {
 };
 
 /** The showcase's cover for one destination (the default when none is
- *  named), or undefined when the showcase has no cover. */
+ *  named), or undefined when the showcase has no cover. `pictureRatio`,
+ *  once the picture has loaded, picks the layout when cover.yaml sets
+ *  none (useCover measures it). */
 export function coverFor(
   showcase: Showcase,
   destination?: CoverDestination,
+  pictureRatio?: number,
 ): ResolvedCover | undefined {
   if (showcase.coverDoc === undefined) return undefined;
-  const fields = resolveCover(showcase.coverDoc, destination);
+  const fields = resolveCover(showcase.coverDoc, destination, { pictureRatio });
   let pictureUrl: string | undefined;
   if (fields.picture) {
     try {
@@ -756,6 +763,7 @@ export function coverFor(
   }
   return {
     ...fields,
+    frame: coverImage(destination),
     pictureUrl,
     graphics: fields.graphics.map((item) => {
       let component: ComponentType | undefined;

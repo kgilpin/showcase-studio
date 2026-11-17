@@ -184,6 +184,11 @@ entries:
     test_name: renders the frames asked, in order, from the page the video export records
     appmap_path: vitest/renders_the_frames_asked,_in_order,_from_the_page_the_video_export_records.appmap.json
     summary: A frame of the video at given times (screenshot_frame) — the showcase read and its length checked, the record page opened at half size with the safe area, its ready gate passed, then for each time a seek, the animations finished, the page asked what it shows, and a capture checked for size.
+  - feature: exporter
+    test_file: server/exporter.test.mjs
+    test_name: captures each destination at its own size and file type
+    appmap_path: vitest/captures_each_destination_at_its_own_size_and_file_type.appmap.json
+    summary: Saving a cover (the Cover page's Save button, screenshot_cover) — each destination's size and file type looked up, the still page opened at that size, and the capture checked as a PNG for the 9:16 covers or a JPEG for the 1280×720 YouTube thumbnail.
   - feature: face-check
     test_file: server/face-check.test.mjs
     test_name: "renders each caption's moment, finds the faces, and warns where they meet"

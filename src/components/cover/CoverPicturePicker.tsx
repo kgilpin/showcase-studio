@@ -16,7 +16,8 @@ import { cn } from "@/lib/utils";
  *                    from this computer.
  *
  * It opens on the video when the showcase has one. `onPick` gets the
- * asset key; the caller writes it as the cover's picture. */
+ * asset key; the caller writes it as the cover's picture. `hint` is a
+ * line of advice under the title (which pictures suit a 16:9 thumbnail). */
 
 type Tab = "video" | "images";
 
@@ -43,12 +44,14 @@ async function reread(showcaseId: string) {
 export function CoverPicturePicker({
   showcase,
   title,
+  hint,
   current,
   onPick,
   onClose,
 }: {
   showcase: Showcase;
   title: string;
+  hint?: string | undefined;
   /** The picture's asset key now. */
   current?: string | undefined;
   onPick: (key: string) => void;
@@ -127,6 +130,7 @@ export function CoverPicturePicker({
           >
             <X className="size-4" />
           </button>
+          {hint && <p className="order-last w-full text-xs text-muted-foreground">{hint}</p>}
         </div>
         {tab === "video" ? (
           <FromVideo showcase={showcase} onPick={pick} onError={setError} />

@@ -13,9 +13,11 @@ import {
   COVER_DESTINATIONS,
   COVER_FADES,
   COVER_LAYOUTS,
+  COVER_SPLIT_TEXT_WIDTH,
   COVER_TEXT_POSITIONS,
   COVER_TEXT_SIZES,
   GRAPHIC_SIZE,
+  isLandscapeCover,
   resolveCover,
   type CoverAnchor,
   type CoverDestination,
@@ -25,26 +27,30 @@ import {
 } from "@/content/cover-rules.mjs";
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { cn } from "@/lib/utils";
-import { CoverView } from "@/components/cover/CoverView";
+import { CoverFit, CoverView } from "@/components/cover/CoverView";
 import { CoverPicturePicker } from "@/components/cover/CoverPicturePicker";
+import { useCover } from "@/components/cover/use-cover";
 import { DiagnosticsTray } from "@/components/showcase/DiagnosticsTray";
 import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
 
 /* The Cover page: the showcase's cover image (cover.yaml, see
  * src/content/cover-rules.mjs), with a switch for which destination's
  * cover is shown — All (the default every destination starts from),
- * TikTok, Instagram, Shorts.
+ * TikTok, Instagram, Shorts, and YouTube (the regular video's 16:9
+ * thumbnail, drawn in its own shape).
  *
  *   ┌──────────────────────────────┬────────────────────────────┐
- *   │ All · TikTok · Insta…        │ Layout  [fade][band][split]│
+ *   │ All · TikTok · Insta… · YT   │ Layout  [fade][band][split]│
  *   │        ┌─────────┐           │ Picture  key  [Change]     │
  *   │        │  cover  │           │ Focus / Fade / Text / Size │
  *   │        └─────────┘           │ Graphics  + Add            │
- *   │ ☑ Grid crop [Save … cover]   │                            │
+ *   │ ☑ Safe area [Save … cover]   │                            │
  *   └──────────────────────────────┴────────────────────────────┘
  *
  * The row under the cover holds how the preview is shown and saving it;
- * the panel holds only the cover's own settings.
+ * the panel holds only the cover's own settings. Its Safe area switch,
+ * named like the player's, shades what the platform covers: the profile
+ * grid's crop at 9:16, the video length on YouTube's thumbnail.
  *
  * In a studio the cover is edited here: click the headline to
  * type, the picture to choose another, and the panel for the rest. With
@@ -81,12 +87,11 @@ function CoverScreen() {
   const canEdit = useCanEditScenes();
   useEditShortcuts(showcaseId);
   const [choice, setChoice] = useState<Choice>("all");
-  const [gridCrop, setGridCrop] = useState(true);
+  const [marks, setMarks] = useState(true);
   const [picking, setPicking] = useState(false);
-  if (!showcase) return null; // the layout route renders the not-found message
-
   const destination = choice === "all" ? undefined : choice;
-  const cover = coverFor(showcase, destination);
+  const { cover, pictureRatio } = useCover(showcase, destination);
+  if (!showcase) return null; // the layout route renders the not-found message
 
   return (
     <ShowcaseFrame showcaseId={showcaseId} title={showcase.title} current="cover" fill>
@@ -99,11 +104,14 @@ function CoverScreen() {
              * and the page scrolls; wide, it takes the height beside it. */}
             <div className="flex shrink-0 flex-col items-center gap-4 @4xl/frame:min-h-0 @4xl/frame:flex-1 @4xl/frame:shrink">
               <DestinationSwitch showcase={showcase} choice={choice} onChoose={setChoice} />
-              <div className="flex h-[70vh] w-full items-center justify-center @4xl/frame:h-auto @4xl/frame:min-h-0 @4xl/frame:flex-1">
+              <CoverFit
+                frame={cover.frame}
+                className="h-[70vh] w-full @4xl/frame:h-auto @4xl/frame:min-h-0 @4xl/frame:flex-1"
+              >
                 <CoverView
                   cover={cover}
-                  gridCrop={gridCrop}
-                  className="h-full max-w-full rounded-2xl border border-border shadow-2xl"
+                  marks={marks}
+                  className="w-full rounded-2xl border border-border shadow-2xl"
                   edit={
                     canEdit
                       ? {
@@ -114,18 +122,19 @@ function CoverScreen() {
                       : undefined
                   }
                 />
-              </div>
+              </CoverFit>
               <CoverActions
                 showcase={showcase}
                 destination={destination}
                 canSave={canEdit}
-                gridCrop={gridCrop}
-                onGridCrop={setGridCrop}
+                marks={marks}
+                onMarks={setMarks}
               />
             </div>
             <CoverPanel
               showcase={showcase}
               destination={destination}
+              pictureRatio={pictureRatio}
               canEdit={canEdit}
               onPickPicture={() => setPicking(true)}
             />
@@ -143,6 +152,11 @@ function CoverScreen() {
               : "Cover picture"
           }
           current={cover.picture}
+          hint={
+            isLandscapeCover(destination)
+              ? "The thumbnail is 16:9: a landscape picture fills it. A tall one, such as a phone frame, goes beside the text in the split layout."
+              : undefined
+          }
           onClose={() => setPicking(false)}
           onPick={(key) => editCover(showcase, destination, "picture", key)}
         />
@@ -154,27 +168,23 @@ function CoverScreen() {
   );
 }
 
-/** The picture's shape against the 9:16 frame, once it has loaded:
- *  "tall" (cropped top and bottom), "wide" (cropped at the sides) or
- *  "fits" (not cropped). Undefined until then, or with no picture. */
-function usePictureShape(url: string | undefined): "tall" | "wide" | "fits" | undefined {
-  const [shape, setShape] = useState<"tall" | "wide" | "fits">();
-  useEffect(() => {
-    setShape(undefined);
-    if (!url) return undefined;
-    let live = true;
-    const image = new Image();
-    image.onload = () => {
-      if (!live || !image.naturalHeight) return;
-      const ratio = image.naturalWidth / image.naturalHeight;
-      setShape(Math.abs(ratio - 9 / 16) < 0.01 ? "fits" : ratio < 9 / 16 ? "tall" : "wide");
-    };
-    image.src = url;
-    return () => {
-      live = false;
-    };
-  }, [url]);
-  return shape;
+/** The picture's shape against the box it fills: "tall" (cropped top
+ *  and bottom), "wide" (cropped at the sides) or "fits" (not cropped).
+ *  The box is the frame, or the 16:9 split layout's picture half; the
+ *  9:16 split shows the picture whole, so nothing is cropped. Undefined
+ *  until the picture has loaded, or with no picture. */
+function pictureShape(
+  pictureRatio: number | undefined,
+  frame: { width: number; height: number },
+  layout: string,
+): "tall" | "wide" | "fits" | undefined {
+  if (pictureRatio === undefined) return undefined;
+  const landscape = frame.width > frame.height;
+  if (layout === "split" && !landscape) return "fits";
+  const boxRatio =
+    (frame.width / frame.height) * (layout === "split" ? 1 - COVER_SPLIT_TEXT_WIDTH / 100 : 1);
+  if (Math.abs(pictureRatio - boxRatio) < 0.01) return "fits";
+  return pictureRatio < boxRatio ? "tall" : "wide";
 }
 
 function editCover(
@@ -202,9 +212,9 @@ function NoCover({
     <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-4 text-center">
       <p className="font-display text-3xl tracking-tight text-foreground">No cover yet</p>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        A cover is the still image TikTok, Instagram and YouTube Shorts show before the video plays:
-        a picture with a headline, and graphics if you like. Without one, each platform picks a
-        frame of the video.
+        A cover is the still image TikTok, Instagram and YouTube Shorts show before the video plays,
+        and the regular YouTube video&apos;s 16:9 thumbnail: a picture with a headline, and graphics
+        if you like. Without one, each platform picks a frame of the video.
       </p>
       {canEdit && (
         <button
@@ -280,21 +290,29 @@ function DestinationSwitch({
 function CoverPanel({
   showcase,
   destination,
+  pictureRatio,
   canEdit,
   onPickPicture,
 }: {
   showcase: Showcase;
   destination: CoverDestination | undefined;
+  pictureRatio: number | undefined;
   canEdit: boolean;
   onPickPicture: () => void;
 }) {
-  const fields = resolveCover(showcase.coverDoc, destination);
-  const pictureUrl = coverFor(showcase, destination)?.pictureUrl;
+  const fields = resolveCover(showcase.coverDoc, destination, { pictureRatio });
+  const preview = coverFor(showcase, destination, pictureRatio);
+  const pictureUrl = preview?.pictureUrl;
+  const landscape = isLandscapeCover(destination);
   /* Focus only matters when the crop cuts something off: a picture
-   * taller or wider than the frame, in a layout that fills the frame. */
-  const shape = usePictureShape(pictureUrl);
+   * taller or wider than the box it fills. */
+  const shape = pictureShape(
+    pictureRatio,
+    preview?.frame ?? { width: 9, height: 16 },
+    fields.layout,
+  );
   const focusChoices: CoverFocus[] | undefined =
-    fields.layout === "split" || !shape || shape === "fits" ? undefined : FOCUS_CHOICES[shape];
+    !shape || shape === "fits" ? undefined : FOCUS_CHOICES[shape];
   const set = (name: CoverField, value: unknown) => editCover(showcase, destination, name, value);
   const reset = (name: CoverField) =>
     destination && fields.overridden.includes(name) ? () => set(name, null) : undefined;
@@ -307,7 +325,6 @@ function CoverPanel({
         {/* Small previews at any width: three thumbnails, not posters. */}
         <div className="grid max-w-[16rem] grid-cols-3 gap-2">
           {COVER_LAYOUTS.map((layout) => {
-            const preview = coverFor(showcase, destination);
             return (
               <button
                 key={layout}
@@ -337,7 +354,12 @@ function CoverPanel({
 
       <Row label="Picture" overridden={reset("picture")}>
         <div className="flex items-center gap-3">
-          <div className="flex h-16 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-background">
+          <div
+            className={cn(
+              "flex shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-background",
+              landscape ? "h-9 w-16" : "h-16 w-9",
+            )}
+          >
             {pictureUrl ? (
               <img src={pictureUrl} alt="" className="h-full w-full object-cover" />
             ) : (
@@ -490,35 +512,41 @@ function CoverPanel({
   );
 }
 
-/** The row under the cover: how the preview is shown (the grid crop),
- *  and saving the cover — the destination chosen above it — as an image.
+/** The row under the cover: how the preview is shown (the grid crop, or
+ *  YouTube's video length), and saving the cover — the destination
+ *  chosen above it — as an image.
  *  Like the rows under the player's stage, it stays with what it acts on;
  *  the panel beside it holds only the cover's own settings. */
 function CoverActions({
   showcase,
   destination,
   canSave,
-  gridCrop,
-  onGridCrop,
+  marks,
+  onMarks,
 }: {
   showcase: Showcase;
   destination: CoverDestination | undefined;
   canSave: boolean;
-  gridCrop: boolean;
-  onGridCrop: (on: boolean) => void;
+  marks: boolean;
+  onMarks: (on: boolean) => void;
 }) {
+  const landscape = isLandscapeCover(destination);
   return (
     <div className="flex w-full max-w-md shrink-0 flex-wrap items-center justify-center gap-x-5 gap-y-2">
       <label
         className="flex items-center gap-2 text-sm text-foreground/80"
-        title="Shade the top and bottom that TikTok's and Instagram's profile grids cut off"
+        title={
+          landscape
+            ? "Shade the corner where YouTube shows the video's length"
+            : "Shade the top and bottom that TikTok's and Instagram's profile grids cut off"
+        }
       >
         <input
           type="checkbox"
-          checked={gridCrop}
-          onChange={(event) => onGridCrop(event.target.checked)}
+          checked={marks}
+          onChange={(event) => onMarks(event.target.checked)}
         />
-        Grid crop
+        Safe area
       </label>
       {canSave && (
         <a
@@ -527,7 +555,11 @@ function CoverActions({
           className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
           <Download className="size-4" />
-          {destination ? `Save ${COVER_DESTINATIONS[destination].label} cover` : "Save cover image"}
+          {destination === "youtube43"
+            ? "Save YouTube thumbnail"
+            : destination
+              ? `Save ${COVER_DESTINATIONS[destination].label} cover`
+              : "Save cover image"}
         </a>
       )}
     </div>

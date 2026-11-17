@@ -44,7 +44,7 @@ import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { moveIntoPlace, partialPath, removePartial } from "./export-output.mjs";
 import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
-import { COVER_DESTINATIONS, COVER_SIZE } from "../src/content/cover-rules.mjs";
+import { COVER_DESTINATIONS, coverImage } from "../src/content/cover-rules.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
@@ -104,21 +104,38 @@ export function pngSize(png) {
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
+/** A JPEG's width and height, from its first frame header (SOF0–SOF15,
+ *  less the markers that aren't frames), or undefined for anything that
+ *  isn't a JPEG. */
+export function jpegSize(jpeg) {
+  if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) return undefined;
+  let at = 2;
+  while (at + 9 < jpeg.length) {
+    if (jpeg[at] !== 0xff) return undefined;
+    const marker = jpeg[at + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return { width: jpeg.readUInt16BE(at + 7), height: jpeg.readUInt16BE(at + 5) };
+    }
+    at += 2 + jpeg.readUInt16BE(at + 2);
+  }
+  return undefined;
+}
+
 /* Every capture must be exactly the size asked for. A renderer that draws
  * at the wrong pixel density would otherwise write a small, blurry export
  * without a word (issue #22), so a wrong size stops the export. */
 async function withPage(renderer, size, work) {
   const page = await requireRenderer(renderer).openPage(size);
-  const capture = async () => {
-    const png = await page.capture();
-    const got = pngSize(png);
+  const capture = async ({ format = "png" } = {}) => {
+    const image = await page.capture({ format });
+    const got = format === "jpeg" ? jpegSize(image) : pngSize(image);
     if (got?.width !== size.width || got?.height !== size.height) {
       throw new Error(
-        `The page renderer drew ${got ? `${got.width}×${got.height}` : "something that isn't a PNG"}, ` +
+        `The page renderer drew ${got ? `${got.width}×${got.height}` : `something that isn't a ${format.toUpperCase()}`}, ` +
           `not ${size.width}×${size.height}, so the export would be the wrong size`,
       );
     }
-    return png;
+    return image;
   };
   try {
     return await work({ ...page, capture });
@@ -496,10 +513,12 @@ export function screenshotSlide(renderer, appUrl, { showcaseId, sceneId } = {}) 
   );
 }
 
-/** A showcase's cover as a PNG (`/showcase/<id>/cover/still`): one
+/** A showcase's cover as an image (`/showcase/<id>/cover/still`): one
  *  destination's cover, or the default, graphics drawn finished. Full
- *  size is the cover itself, 1080×1920 (the Cover page's Save button);
- *  half size is for the screenshot_cover tool. Returns the PNG's bytes. */
+ *  size is the cover itself — 1080×1920, or YouTube's 1280×720 thumbnail
+ *  (the Cover page's Save button); half size is for the screenshot_cover
+ *  tool. Returns the image's bytes: a PNG, or a JPEG for the destinations
+ *  that take one (coverImage in cover-rules.mjs). */
 export async function screenshotCover(
   renderer,
   appUrl,
@@ -522,16 +541,17 @@ export async function screenshotCover(
     );
   }
   const scale = size === "half" ? 0.5 : 1;
+  const image = coverImage(destination);
   const pagePath = `/showcase/${showcaseId}/cover/still`;
   const query = destination ? `?destination=${destination}` : "";
   return withTimeout(
     withPage(
       renderer,
-      { width: COVER_SIZE.width * scale, height: COVER_SIZE.height * scale },
+      { width: image.width * scale, height: image.height * scale },
       async (page) => {
         await page.goto(`${appUrl}${pagePath}${query}`);
         await page.evaluate(EXPORT_PAGE_READY);
-        return page.capture();
+        return page.capture({ format: image.format });
       },
     ),
     `The cover did not render — check the showcase id ("${showcaseId}"), and whether the ` +
@@ -540,9 +560,11 @@ export async function screenshotCover(
   );
 }
 
-/** The file a saved cover gets: nova-cover.png, nova-cover-instagram.png. */
+/** The file a saved cover gets: nova-cover.png, nova-cover-instagram.png,
+ *  nova-cover-youtube43.jpg. */
 export function coverFileName(showcaseId, destination) {
-  return `${showcaseId}-cover${destination ? `-${destination}` : ""}.png`;
+  const extension = coverImage(destination).format === "jpeg" ? "jpg" : "png";
+  return `${showcaseId}-cover${destination ? `-${destination}` : ""}.${extension}`;
 }
 
 /** The most frames one screenshot_frame call renders: a review checks a
