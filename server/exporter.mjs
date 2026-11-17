@@ -20,10 +20,16 @@
  *                    exactly.
  *   exportScript     the narration as plain text (instant).
  *   screenshotSlide  one slide at half size, for the MCP tool.
+ *   screenshotCover  the showcase's cover (cover.yaml) as a PNG, for the
+ *                    Cover page's Save button and the screenshot_cover
+ *                    tool.
  *   screenshotFrame  one frame of the video at a given time (the record
  *                    page the video export records, in the TikTok 9:16
  *                    or 4:3 embed view), for the screenshot_frame MCP
- *                    tool and the player's Frame button.
+ *                    tool and the player's Frame button (which gets it
+ *                    from GET /studio/api/frame). Animations are
+ *                    finished unless asked for live; TikTok's safe area
+ *                    is shaded on request.
  *   validateShowcases loads the library in a fresh page exactly as the app
  *                    does and reports what built and what failed.
  */
@@ -38,6 +44,7 @@ import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { moveIntoPlace, partialPath, removePartial } from "./export-output.mjs";
 import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
+import { COVER_DESTINATIONS, coverImage } from "../src/content/cover-rules.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
@@ -97,21 +104,38 @@ export function pngSize(png) {
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
+/** A JPEG's width and height, from its first frame header (SOF0–SOF15,
+ *  less the markers that aren't frames), or undefined for anything that
+ *  isn't a JPEG. */
+export function jpegSize(jpeg) {
+  if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) return undefined;
+  let at = 2;
+  while (at + 9 < jpeg.length) {
+    if (jpeg[at] !== 0xff) return undefined;
+    const marker = jpeg[at + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return { width: jpeg.readUInt16BE(at + 7), height: jpeg.readUInt16BE(at + 5) };
+    }
+    at += 2 + jpeg.readUInt16BE(at + 2);
+  }
+  return undefined;
+}
+
 /* Every capture must be exactly the size asked for. A renderer that draws
  * at the wrong pixel density would otherwise write a small, blurry export
  * without a word (issue #22), so a wrong size stops the export. */
 async function withPage(renderer, size, work) {
   const page = await requireRenderer(renderer).openPage(size);
-  const capture = async () => {
-    const png = await page.capture();
-    const got = pngSize(png);
+  const capture = async ({ format = "png" } = {}) => {
+    const image = await page.capture({ format });
+    const got = format === "jpeg" ? jpegSize(image) : pngSize(image);
     if (got?.width !== size.width || got?.height !== size.height) {
       throw new Error(
-        `The page renderer drew ${got ? `${got.width}×${got.height}` : "something that isn't a PNG"}, ` +
+        `The page renderer drew ${got ? `${got.width}×${got.height}` : `something that isn't a ${format.toUpperCase()}`}, ` +
           `not ${size.width}×${size.height}, so the export would be the wrong size`,
       );
     }
-    return png;
+    return image;
   };
   try {
     return await work({ ...page, capture });
@@ -321,6 +345,10 @@ export async function exportVideo({
   draft = false,
   /** "embed" renders the 4:3 canvas (1440×1080) instead of TikTok's 9:16. */
   canvas = "tiktok",
+  /** The id of the snapshot `showcasesDir` is (server/export-snapshot.mjs):
+   *  the record page reads the showcase from it too, so an edit made
+   *  while the frames render changes nothing the video shows. */
+  snapshot,
   progress,
   signal,
 }) {
@@ -340,7 +368,8 @@ export async function exportVideo({
   try {
     await withPage(renderer, size, async (page) => {
       await page.goto(
-        `${appUrl}/showcase/${showcaseId}/record?controlled=1${embed ? "&canvas=embed" : ""}`,
+        `${appUrl}/showcase/${showcaseId}/record?controlled=1${embed ? "&canvas=embed" : ""}` +
+          (snapshot ? `&snapshot=${encodeURIComponent(snapshot)}` : ""),
       );
       requireRecordPage(await page.evaluate(RECORD_PAGE_READY), showcaseId);
       for (let frame = 0; frame < frameCount; frame++) {
@@ -444,6 +473,7 @@ export function runExport({
   kind,
   showcaseId,
   outDir,
+  snapshot,
   onProgress,
   signal,
 }) {
@@ -460,6 +490,7 @@ export function runExport({
   if (kind === "script") return exportScript(options);
   return exportVideo({
     ...options,
+    snapshot,
     draft: kind.endsWith("-draft"),
     canvas: kind.startsWith("video-43") ? "embed" : "tiktok",
     fps: videoFps(kind),
@@ -480,6 +511,60 @@ export function screenshotSlide(renderer, appUrl, { showcaseId, sceneId } = {}) 
       `("${sceneId}"), and whether the showcase loads at all (run validate).`,
     { path: pagePath },
   );
+}
+
+/** A showcase's cover as an image (`/showcase/<id>/cover/still`): one
+ *  destination's cover, or the default, graphics drawn finished. Full
+ *  size is the cover itself — 1080×1920, or YouTube's 1280×720 thumbnail
+ *  (the Cover page's Save button); half size is for the screenshot_cover
+ *  tool. Returns the image's bytes: a PNG, or a JPEG for the destinations
+ *  that take one (coverImage in cover-rules.mjs). */
+export async function screenshotCover(
+  renderer,
+  appUrl,
+  showcasesDir,
+  { showcaseId, destination, size = "full" } = {},
+) {
+  if (!showcaseId) throw new Error("showcaseId is required");
+  if (destination != null && !Object.hasOwn(COVER_DESTINATIONS, destination)) {
+    throw new Error(
+      `No cover destination "${destination}" — use one of: ${Object.keys(COVER_DESTINATIONS).join(", ")}`,
+    );
+  }
+  if (size !== "half" && size !== "full") throw new Error('size must be "half" or "full"');
+  if (!existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))) {
+    throw new Error(`No showcase named "${showcaseId}"`);
+  }
+  if (!existsSync(path.join(showcasesDir, showcaseId, "cover.yaml"))) {
+    throw new Error(
+      `"${showcaseId}" has no cover yet — make one with edit_cover (or the Cover page)`,
+    );
+  }
+  const scale = size === "half" ? 0.5 : 1;
+  const image = coverImage(destination);
+  const pagePath = `/showcase/${showcaseId}/cover/still`;
+  const query = destination ? `?destination=${destination}` : "";
+  return withTimeout(
+    withPage(
+      renderer,
+      { width: image.width * scale, height: image.height * scale },
+      async (page) => {
+        await page.goto(`${appUrl}${pagePath}${query}`);
+        await page.evaluate(EXPORT_PAGE_READY);
+        return page.capture({ format: image.format });
+      },
+    ),
+    `The cover did not render — check the showcase id ("${showcaseId}"), and whether the ` +
+      "showcase loads at all (run validate).",
+    { path: pagePath },
+  );
+}
+
+/** The file a saved cover gets: nova-cover.png, nova-cover-instagram.png,
+ *  nova-cover-youtube43.jpg. */
+export function coverFileName(showcaseId, destination) {
+  const extension = coverImage(destination).format === "jpeg" ? "jpg" : "png";
+  return `${showcaseId}-cover${destination ? `-${destination}` : ""}.${extension}`;
 }
 
 /** The most frames one screenshot_frame call renders: a review checks a

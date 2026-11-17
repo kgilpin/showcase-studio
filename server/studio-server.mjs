@@ -8,12 +8,15 @@
  *
  *   GET  /showcase-data/…       the library's files, for the page
  *                               (server/showcase-data.mjs)
+ *   GET  /showcase-data-snapshot/<id>/…
+ *                               the same shape, from the snapshot a video
+ *                               export renders (server/export-snapshot.mjs)
  *   GET  /studio/api/info       the studio: URL, library folder, lock, features
  *   GET  /studio/api/history    the library's git history status, for the
  *                               "Commit changes to git" switch
  *   GET  /studio/api/actions    the Actions list: every export, build and
  *                               commit — pending, running, done, failed —
- *                               for the tab bar's activity slot
+ *                               for the top bar's activity slot
  *                               (server/actions-log.mjs)
  *   GET  /studio/api/events     live events (server-sent events):
  *                               showcase-changed, reload, info, export,
@@ -26,7 +29,17 @@
  *                               PNG to save (the player's Frame button;
  *                               the screenshot_frame MCP tool renders the
  *                               same page)
- *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below)
+ *   GET  /studio/api/cover?showcase=<id>[&destination=tiktok|instagram|youtube|youtube43]
+ *                               the showcase's cover (cover.yaml) to save:
+ *                               a 1080×1920 PNG, or youtube43's 1280×720
+ *                               JPEG thumbnail (the Cover page's Save
+ *                               button; screenshot_cover renders the
+ *                               same page)
+ *   POST /studio/api/<action>   page actions, JSON in and out (ACTIONS below):
+ *                               scene edits, new showcases, assets, the
+ *                               prompter link, the two switches, exports,
+ *                               media builds, sharing, the license, the
+ *                               library switch, terminals
  *   POST /mcp                   the MCP tools, for Claude (server/mcp.mjs)
  *
  * Everything the studio serves — library files, API, events, MCP — only
@@ -37,7 +50,11 @@
  * .studio/GUIDE.md, .studio/mcp.json), and watches it: when files change
  * outside the studio — a build's new voiceover, Claude's edit, a hand
  * edit — it names the showcase to the pages, which re-read it in place;
- * only a change to the library itself reloads them. callTool runs the MCP tools
+ * a new showcase folder counts as that showcase's change too. Only a
+ * showcase folder that went away, or a file at the library root, reloads
+ * them. The studio's own
+ * writes are recognized by content hash and not sent, since the page
+ * already applied them. callTool runs the MCP tools
  * in-process, for the studio Claude Code starts over stdio
  * (scripts/studio-mcp.mjs). */
 import {
@@ -63,16 +80,27 @@ import { createAutoBuild } from "./auto-build.mjs";
 import { mediaStatus, mediaSummary } from "./media-status.mjs";
 import { buildVoiceover, hasVoiceover } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
+import { saveCoverFrame } from "./cover-frame.mjs";
 import { createActionsLog } from "./actions-log.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { watchStudioCode } from "./code-changes.mjs";
 import { createExportJobs } from "./export-jobs.mjs";
 import { DEFAULT_EXPORT_DIR, revealInFileManager } from "./export-output.mjs";
 import { createExportRecords, RECORDED_KINDS, showcaseDurationMs } from "./export-records.mjs";
-import { frameFileName, runExport, screenshotFrame, videoFps } from "./exporter.mjs";
+import {
+  coverFileName,
+  frameFileName,
+  runExport,
+  screenshotCover,
+  screenshotFrame,
+  videoFps,
+} from "./exporter.mjs";
+import { COVER_SCHEMA } from "../src/content/cover-rules.mjs";
+import { clearSnapshots, snapshotDir, snapshotId, takeSnapshot } from "./export-snapshot.mjs";
 import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { registerStudio } from "../src/lib/page-error.mjs";
 import { SHOWCASE_SCHEMA } from "../src/content/showcase-schema.mjs";
+import { THEME_SCHEMA } from "../src/content/theme-rules.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { callTool, createMcpHandler } from "./mcp.mjs";
 import { prompterScript } from "./prompter-script.mjs";
@@ -81,7 +109,7 @@ import { handleShowcaseRequest, showcaseIndex } from "./showcase-data.mjs";
 import { createShowcaseHistory } from "./showcase-history.mjs";
 import { alreadyOpen, clearPresence, runningStudio, writePresence } from "./studio-presence.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
-import { ensureLibrarySettings, libraryExportDir } from "./library-config.mjs";
+import { ensureLibrarySettings, libraryExportDir, SETTINGS_FILE } from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { airDrop, canAirDrop } from "./airdrop.mjs";
 import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
@@ -269,7 +297,10 @@ function locateReferences(text, found) {
  *                 { settings, openUrl, onChange }; tests pass a fake, so
  *                 nothing reaches the license service
  *   commitDelayMs how long a showcase must stay unchanged before the
- *                 studio commits it (server/showcase-history.mjs)
+ *                 studio commits its own writes (server/showcase-history.mjs)
+ *   outsideCommitDelayMs
+ *                 the same for changes made outside the studio, which the
+ *                 file watcher sees (30 s)
  */
 
 /** Groups a burst of changed files by the showcase folder each is in:
@@ -287,7 +318,17 @@ export function changesByShowcase(showcasesDir, changed) {
     const relative = path.relative(showcasesDir, file);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return null;
     const [showcaseId, ...rest] = relative.split(path.sep);
-    if (!showcaseId || rest.length === 0 || showcaseId.startsWith(".")) return null;
+    if (!showcaseId || showcaseId.startsWith(".")) return null;
+    if (rest.length === 0) {
+      /* The entry itself. Windows reports a showcase's folder beside the
+       * file written in it; a folder that is there is that showcase's
+       * change (the page re-reads it, and reloads on its own if it turns
+       * out to be new). A folder that went, or a file at the root, is
+       * the library changing. */
+      if (!isDirectory(path.join(showcasesDir, showcaseId))) return null;
+      if (!byShowcase.has(showcaseId)) byShowcase.set(showcaseId, []);
+      continue;
+    }
     const files = byShowcase.get(showcaseId) ?? [];
     files.push(rest.join("/"));
     byShowcase.set(showcaseId, files);
@@ -311,7 +352,11 @@ export function createStudio({
   licensing = createLicense,
   log = (message) => console.log(message),
   commitDelayMs = 5000,
+  outsideCommitDelayMs = 30_000,
   buildDelayMs = 3000,
+  /* The aws command's configuration (voiceover.mjs awsConfig), which the
+   * voice build and its status read; tests pass a stand-in. */
+  aws,
 }) {
   let showcasesDir = path.resolve(initialDir);
   /* While this studio runs, the page's error page may show error details
@@ -365,7 +410,23 @@ export function createStudio({
   /* ---------- the library folder ---------- */
 
   function scaffold() {
+    /* The files written at the library's root here are the studio's
+     * own, recorded like its other writes so the watcher drops their
+     * echo. On macOS it reports them a moment after the start, and an
+     * unrecorded one looks like the library changing: every page
+     * reloads once for nothing (issue #64). Writes under .studio/ need
+     * no record; the watcher never reports that folder. */
+    const writeOwn = (file, content) => {
+      writeFileSync(file, content);
+      recordSelfWrite(file, content);
+    };
+    const appendOwn = (file, content) => {
+      appendFileSync(file, content);
+      recordSelfWrite(file, readFileSync(file));
+    };
     mkdirSync(path.join(showcasesDir, ".studio"), { recursive: true });
+    /* Snapshots a studio that stopped mid-export left behind. */
+    clearSnapshots(showcasesDir);
     const claudeMdPath = path.join(showcasesDir, "CLAUDE.md");
     const claudeMd = existsSync(claudeMdPath) ? readFileSync(claudeMdPath, "utf8") : null;
     writeFileSync(
@@ -385,32 +446,43 @@ export function createStudio({
       path.join(showcasesDir, ".studio", "showcase.schema.json"),
       JSON.stringify(SHOWCASE_SCHEMA, null, 2) + "\n",
     );
+    /* And theme.yaml's and cover.yaml's, the same way. */
+    writeFileSync(
+      path.join(showcasesDir, ".studio", "theme.schema.json"),
+      JSON.stringify(THEME_SCHEMA, null, 2) + "\n",
+    );
+    writeFileSync(
+      path.join(showcasesDir, ".studio", "cover.schema.json"),
+      JSON.stringify(COVER_SCHEMA, null, 2) + "\n",
+    );
     writeMcpConfig();
     /* The settings file marks the folder as a library. An older
      * library's had the same name as a showcase's script; rename it. */
     try {
       ensureLibrarySettings(showcasesDir);
+      const settingsPath = path.join(showcasesDir, SETTINGS_FILE);
+      if (existsSync(settingsPath)) recordSelfWrite(settingsPath, readFileSync(settingsPath));
     } catch (error) {
       console.warn(`[studio] couldn't set up showcase_settings.yaml: ${error.message}`);
     }
     const readmePath = path.join(showcasesDir, "README.md");
     if (!existsSync(readmePath)) {
-      writeFileSync(readmePath, FOLDER_README);
+      writeOwn(readmePath, FOLDER_README);
     } else {
       const readme = readFileSync(readmePath, "utf8");
       if (readme.includes(OLD_README_SETTINGS)) {
-        writeFileSync(readmePath, readme.replace(OLD_README_SETTINGS, README_SETTINGS));
+        writeOwn(readmePath, readme.replace(OLD_README_SETTINGS, README_SETTINGS));
       }
     }
     const gitignorePath = path.join(showcasesDir, ".gitignore");
     if (!existsSync(gitignorePath)) {
-      writeFileSync(gitignorePath, `.DS_Store\n.studio/\n`);
+      writeOwn(gitignorePath, `.DS_Store\n.studio/\n`);
     } else if (!readFileSync(gitignorePath, "utf8").includes(".studio/")) {
-      appendFileSync(gitignorePath, `.studio/\n`);
+      appendOwn(gitignorePath, `.studio/\n`);
     }
     removeLaunchConfigs();
     if (claudeMd == null) {
-      writeFileSync(
+      writeOwn(
         claudeMdPath,
         `# Showcases folder
 
@@ -422,7 +494,7 @@ add notes specific to this library below, and the studio won't touch them.
 `,
       );
     } else if (!claudeMd.includes(GUIDE_IMPORT)) {
-      appendFileSync(
+      appendOwn(
         claudeMdPath,
         `\n${GUIDE_IMPORT}\n<!-- The studio's always-current instructions (regenerated every launch) — keep this import. -->\n`,
       );
@@ -503,12 +575,6 @@ add notes specific to this library below, and the studio won't touch them.
          * (.claude/ at any level) never change what pages show. */
         if (filename != null && /^(\.studio|\.git)([/\\]|$)/.test(filename)) return;
         if (filename != null && /(^|[/\\])\.claude([/\\]|$)/.test(filename)) return;
-        /* No commit starts here. The history commits what the studio
-         * wrote, and those writes reach it through the change log
-         * (onAppend below). A change made anywhere else — an editor, a
-         * git checkout, another program, a Claude session's own file
-         * tools — is its author's to commit; it only rides along in the
-         * studio's next commit of that showcase. */
         pending.add(filename == null ? null : path.join(showcasesDir, filename));
         autoBuild?.noteChange(filename);
         clearTimeout(reloadTimer);
@@ -516,9 +582,32 @@ add notes specific to this library below, and the studio won't touch them.
           const changed = [...pending].filter((file) => !(file != null && isSelfWriteEcho(file)));
           pending.clear();
           if (changed.length === 0) return;
+          /* What is left was changed outside the studio — an editor, a
+           * git checkout, another program, a Claude session's own file
+           * tools. Each file in a showcase folder starts that showcase's
+           * longer quiet period before a commit (server/showcase-history.mjs).
+           * The studio's own writes reach the history through the change
+           * log instead (onAppend below), with the shorter one. So do a
+           * media build's: its files are written as it goes, and its log
+           * line at the end starts the commit, so a half-built showcase
+           * is never committed. */
+          const job = buildJobs.current();
+          const buildingNow = job?.status === "running" ? job.showcaseId : null;
+          for (const file of changed) {
+            if (file == null) continue;
+            const relative = path.relative(showcasesDir, file);
+            if (buildingNow && relative.split(path.sep)[0] === buildingNow) continue;
+            history.noteOutsideChange(relative);
+          }
           const byShowcase = changesByShowcase(showcasesDir, changed);
           if (!byShowcase) {
-            emit("reload", {});
+            /* With what changed, relative to the library, so a page's
+             * console (and a failing test) can say why. */
+            emit("reload", {
+              files: changed.map((file) =>
+                file == null ? null : path.relative(showcasesDir, file).split(path.sep).join("/"),
+              ),
+            });
             return;
           }
           for (const [showcaseId, files] of byShowcase) {
@@ -560,7 +649,7 @@ add notes specific to this library below, and the studio won't touch them.
     return path.join(libraryExportDir(showcasesDir) ?? exportDir, showcaseId);
   }
 
-  async function recordedExport(kind, showcaseId, { onProgress, signal, by } = {}) {
+  async function recordedExport(kind, showcaseId, { onProgress, signal, by, jobId } = {}) {
     /* Full-quality videos need a license or a free export; the page asks
      * first, so this refusal is what Claude's export tool (and --export)
      * meet. */
@@ -574,35 +663,48 @@ add notes specific to this library below, and the studio won't touch them.
       onProgress: (label) => onProgress?.(label),
     });
     const recorded = RECORDED_KINDS.includes(kind);
-    const fingerprint = recorded ? exportRecords.fingerprint(showcaseId) : undefined;
-    const durationMs = recorded ? showcaseDurationMs(showcasesDir, showcaseId) : undefined;
-    const started = Date.now();
-    const out = await runExport({
-      renderer,
-      appUrl: url,
-      showcasesDir,
-      kind,
-      showcaseId,
-      outDir: exportFolder(showcaseId),
-      onProgress,
-      signal,
-    });
-    if (recorded) {
-      try {
-        exportRecords.add({
-          showcaseId,
-          kind,
-          file: out,
-          fingerprint,
-          durationMs,
-          frames: Math.round((durationMs / 1000) * videoFps(kind)),
-          renderMs: Date.now() - started,
-        });
-      } catch (error) {
-        log(`studio: couldn't record the export of ${showcaseId} (${error.message})`);
+    /* A video renders for minutes, from a copy of the showcase taken now
+     * (server/export-snapshot.mjs): an edit or a build meanwhile changes
+     * the library, not the video. The fingerprint is the copy's, so the
+     * Share page still says when the video no longer matches. */
+    const snapshot = recorded
+      ? takeSnapshot(showcasesDir, showcaseId, snapshotId(jobId ?? `export-${Date.now()}`))
+      : null;
+    try {
+      const from = snapshot?.dir ?? showcasesDir;
+      const fingerprint = recorded ? exportRecords.fingerprintOf(from, showcaseId) : undefined;
+      const durationMs = recorded ? showcaseDurationMs(from, showcaseId) : undefined;
+      const started = Date.now();
+      const out = await runExport({
+        renderer,
+        appUrl: url,
+        showcasesDir: from,
+        kind,
+        showcaseId,
+        outDir: exportFolder(showcaseId),
+        snapshot: snapshot?.id,
+        onProgress,
+        signal,
+      });
+      if (recorded) {
+        try {
+          exportRecords.add({
+            showcaseId,
+            kind,
+            file: out,
+            fingerprint,
+            durationMs,
+            frames: Math.round((durationMs / 1000) * videoFps(kind)),
+            renderMs: Date.now() - started,
+          });
+        } catch (error) {
+          log(`studio: couldn't record the export of ${showcaseId} (${error.message})`);
+        }
       }
+      return out;
+    } finally {
+      snapshot?.remove();
     }
-    return out;
   }
 
   /* ---------- the Actions list ---------- */
@@ -611,7 +713,7 @@ add notes specific to this library below, and the studio won't touch them.
    * (server/actions-log.mjs): running, pending, done or failed, with who
    * started it and why, and what the user can do about it. Pages hear
    * each change as the "action" event and read the list over
-   * GET /studio/api/actions; the tab bar's activity slot shows it. */
+   * GET /studio/api/actions; the top bar's activity slot shows it. */
   const actions = createActionsLog(() => showcasesDir, {
     log,
     onChange: (record) => emit("action", record),
@@ -658,9 +760,11 @@ add notes specific to this library below, and the studio won't touch them.
             showcasesDir,
             showcaseId,
             force,
+            only,
             onProgress,
             signal,
             beforeWrite: recordSelfWrite,
+            aws,
           })
         : buildMedia({
             showcasesDir,
@@ -713,7 +817,7 @@ add notes specific to this library below, and the studio won't touch them.
   autoBuild = createAutoBuild({
     buildJobs,
     actions,
-    status: (showcaseId) => mediaStatus({ showcasesDir, showcaseId }),
+    status: (showcaseId) => mediaStatus({ showcasesDir, showcaseId, aws }),
     enabled: () => settings.load()?.autoBuild !== false,
     delayMs: buildDelayMs,
     log,
@@ -748,7 +852,15 @@ add notes specific to this library below, and the studio won't touch them.
          * explains each one. */
         getEnv: () => ({
           SHOWCASE_STUDIO_ROOT: showcasesDir,
-          ...(sourceDir ? { SHOWCASE_STUDIO_SRC: sourceDir } : {}),
+          /* With SHOWCASE_STUDIO_SRC set, the plugin's launcher runs the
+           * checkout's MCP script with SHOWCASE_STUDIO_NODE, else the node
+           * on PATH, which in a terminal here can be an ancient one (a
+           * Node 12 shim made the plugin's server exit, and the session
+           * started with "Connection closed", issue #58). The Node this
+           * studio runs on is 22 or later, so it is the one to name. */
+          ...(sourceDir
+            ? { SHOWCASE_STUDIO_SRC: sourceDir, SHOWCASE_STUDIO_NODE: process.execPath }
+            : {}),
           ...(ffmpegPath ? { SHOWCASE_STUDIO_FFMPEG: ffmpegPath } : {}),
           ...(whisperPath() ? { SHOWCASE_STUDIO_WHISPER: whisperPath() } : {}),
         }),
@@ -763,14 +875,15 @@ add notes specific to this library below, and the studio won't touch them.
    * (server/change-log.mjs), so a Claude session can follow the user's
    * edits, which the watcher above deliberately doesn't announce. */
   /* Commits each showcase's changes to git after a quiet period, when the
-   * library is in a git repository. The watcher reports every file change
-   * to it; logged writes report their showcase too, in case the watcher
-   * misses one. */
+   * library is in a git repository. Logged writes (the studio's own)
+   * start the short quiet period; the watcher reports every other change
+   * in a showcase folder, which starts the longer one. */
   const history = createShowcaseHistory({
     getLibrary: () => showcasesDir,
     settings,
     autoCommitDefault: features.autoCommit !== false,
     delayMs: commitDelayMs,
+    outsideDelayMs: outsideCommitDelayMs,
     actions,
     log,
   });
@@ -778,7 +891,7 @@ add notes specific to this library below, and the studio won't touch them.
     log,
     onAppend: (entry) => {
       history.noteShowcase(entry.showcaseId, entry.kind);
-      autoBuild.noteShowcase(entry.showcaseId, entry.kind);
+      autoBuild.noteShowcase(entry.showcaseId, entry.kind, entry.file);
     },
   });
 
@@ -792,8 +905,8 @@ add notes specific to this library below, and the studio won't touch them.
     exportJobs,
     buildJobs,
     autoBuild,
-    mediaStatus: (showcaseId) => mediaStatus({ showcasesDir, showcaseId }),
-    mediaSummary: () => mediaSummary(showcasesDir),
+    mediaStatus: (showcaseId) => mediaStatus({ showcasesDir, showcaseId, aws }),
+    mediaSummary: () => mediaSummary(showcasesDir, { aws }),
     changeLog,
     actions,
     history,
@@ -848,8 +961,9 @@ scenes:
   }
 
   /* Renames an asset file and updates every YAML reference to it — the
-   * bare key and the full file name, in asset:/src:/cover: fields only,
-   * so narration text mentioning the same word is left alone. Besides the
+   * bare key and the full file name, in showcase.yaml's asset:/src:/cover:
+   * fields and cover.yaml's picture: fields only, so narration text
+   * mentioning the same word is left alone. Besides the
    * page's answer, returns the references it rewrote and showcase.yaml's
    * hash before and after, for the change log. */
   function renameAsset({ showcaseId, from, to } = {}) {
@@ -870,29 +984,31 @@ scenes:
     let references = [];
     let previousHash;
     let hash;
-    const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
-    if (existsSync(yamlPath)) {
-      const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const strip = (s) => s.replace(/\.[^.]+$/, "");
-      const text = readFileSync(yamlPath, "utf8");
-      /* The full file name and, when it has an extension, the bare key —
-       * matched in one pass, so offsets point into the original text.
-       * When files share a bare name, it means the first of them (see
-       * assetMap in src/content/source.ts). So the bare key is rewritten
-       * only when it means the renamed file, and it becomes the full new
-       * name when the new bare name already means another file. */
-      const files = readdirSync(dir).filter((f) => !f.startsWith("."));
-      const means = (key, except) =>
-        files.find((f) => f !== except && (f === key || strip(f) === key));
-      const names = new Map([[oldName, newName]]);
-      if (strip(oldName) !== oldName && means(strip(oldName)) === oldName) {
-        const newKey = strip(newName);
-        names.set(strip(oldName), means(newKey, oldName) ? newName : newKey);
-      }
-      const re = new RegExp(
-        `(^\\s*(?:asset|src|cover):\\s*["']?)(${[...names.keys()].map(esc).join("|")})(["']?\\s*(?:#.*)?)$`,
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const strip = (s) => s.replace(/\.[^.]+$/, "");
+    /* The full file name and, when it has an extension, the bare key —
+     * matched in one pass, so offsets point into the original text.
+     * When files share a bare name, it means the first of them (see
+     * assetMap in src/content/source.ts). So the bare key is rewritten
+     * only when it means the renamed file, and it becomes the full new
+     * name when the new bare name already means another file. */
+    const files = readdirSync(dir).filter((f) => !f.startsWith("."));
+    const means = (key, except) =>
+      files.find((f) => f !== except && (f === key || strip(f) === key));
+    const names = new Map([[oldName, newName]]);
+    if (strip(oldName) !== oldName && means(strip(oldName)) === oldName) {
+      const newKey = strip(newName);
+      names.set(strip(oldName), means(newKey, oldName) ? newName : newKey);
+    }
+    const referenceTo = (fields) =>
+      new RegExp(
+        `(^\\s*(?:${fields}):\\s*["']?)(${[...names.keys()].map(esc).join("|")})(["']?\\s*(?:#.*)?)$`,
         "gm",
       );
+    const yamlPath = path.join(showcasesDir, id, "showcase.yaml");
+    if (existsSync(yamlPath)) {
+      const text = readFileSync(yamlPath, "utf8");
+      const re = referenceTo("asset|src|cover");
       const found = [];
       const next = text.replace(re, (_all, head, value, tail, offset) => {
         found.push({ at: offset + head.length, from: value, to: names.get(value) });
@@ -905,11 +1021,23 @@ scenes:
         writeFileSync(yamlPath, next);
       }
     }
+    /* The cover's picture, in cover.yaml (the default and each
+     * destination's own), follows the file too. */
+    const coverPath = path.join(showcasesDir, id, "cover.yaml");
+    let coverReferences = 0;
+    if (existsSync(coverPath)) {
+      const text = readFileSync(coverPath, "utf8");
+      const next = text.replace(referenceTo("picture"), (_all, head, value, tail) => {
+        coverReferences += 1;
+        return `${head}${names.get(value)}${tail}`;
+      });
+      if (coverReferences > 0) writeFileSync(coverPath, next);
+    }
     renameSync(path.join(dir, oldName), path.join(dir, newName));
     return {
       ok: true,
       name: newName,
-      updatedReferences: references.length,
+      updatedReferences: references.length + coverReferences,
       references,
       previousHash,
       hash,
@@ -1188,6 +1316,19 @@ scenes:
       if (result.ok) logUi(body.showcaseId, "asset.add", { names: result.names });
       return result;
     },
+    /* A frame of a scene's video, saved into assets/ for the cover's
+     * picture (server/cover-frame.mjs). The page then points the cover
+     * at it with an ordinary cover edit. */
+    "cover-frame": async (body) => {
+      const result = await saveCoverFrame(showcasesDir, body);
+      if (result.ok) {
+        logUi(body.showcaseId, "asset.encode", {
+          name: result.asset.name,
+          replaced: result.replaced,
+        });
+      }
+      return result;
+    },
     "asset-delete": (body) => {
       const result = deleteAsset(body);
       if (result.ok) logUi(body.showcaseId, "asset.delete", { name: String(body.name) });
@@ -1199,7 +1340,7 @@ scenes:
     /* Whether a showcase's built media is up to date (media-status.mjs). */
     "media-status": ({ showcaseId }) => ({
       ok: true,
-      status: mediaStatus({ showcasesDir, showcaseId: String(showcaseId ?? "") }),
+      status: mediaStatus({ showcasesDir, showcaseId: String(showcaseId ?? ""), aws }),
     }),
     export: ({ kind, showcaseId }) => exportJob(String(kind ?? ""), showcaseId),
     "export-status": ({ jobId }) => {
@@ -1336,8 +1477,9 @@ scenes:
     const pathname = (req.url ?? "").split("?")[0] ?? "";
     try {
       const isData = pathname === "/showcase-data" || pathname.startsWith("/showcase-data/");
+      const snapshotMatch = /^\/showcase-data-snapshot\/([^/]+)(\/.*)?$/.exec(pathname);
       const isApi = pathname.startsWith("/studio/api/");
-      if (!isData && !isApi && pathname !== "/mcp") {
+      if (!isData && !snapshotMatch && !isApi && pathname !== "/mcp") {
         next();
         return;
       }
@@ -1348,12 +1490,17 @@ scenes:
         });
         return;
       }
-      if (isData) {
-        const result = await handleShowcaseRequest(
-          showcasesDir,
-          pathname.slice("/showcase-data".length) || "/",
-          { range: req.headers.range },
-        );
+      if (isData || snapshotMatch) {
+        /* A snapshot is served exactly like the library; one that is gone
+         * (its export ended) is a 404 like any missing file. */
+        const dir = snapshotMatch ? snapshotDir(showcasesDir, snapshotMatch[1]) : showcasesDir;
+        const result = dir
+          ? await handleShowcaseRequest(
+              dir,
+              (snapshotMatch ? snapshotMatch[2] : pathname.slice("/showcase-data".length)) || "/",
+              { range: req.headers.range },
+            )
+          : null;
         if (!result) {
           res.statusCode = 404;
           res.end("not found");
@@ -1419,6 +1566,23 @@ scenes:
           "Content-Disposition": `attachment; filename="${frameFileName(showcaseId, view, atMs)}"`,
         });
         res.end(png);
+        return;
+      }
+      if (req.method === "GET" && action === "cover") {
+        const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        const showcaseId = query.get("showcase") ?? "";
+        const destination = query.get("destination") || undefined;
+        const image = await screenshotCover(renderer, url, showcasesDir, {
+          showcaseId,
+          destination,
+        });
+        const fileName = coverFileName(showcaseId, destination);
+        res.writeHead(200, {
+          "Content-Type": fileName.endsWith(".jpg") ? "image/jpeg" : "image/png",
+          "Content-Length": String(image.length),
+          "Content-Disposition": `attachment; filename="${fileName}"`,
+        });
+        res.end(image);
         return;
       }
       if (req.method !== "POST" || !Object.hasOwn(ACTIONS, action)) {

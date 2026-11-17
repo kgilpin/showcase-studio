@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -6,6 +7,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { commitMessage, noIdentityReason, tooBigToInit } from "./showcase-history.mjs";
 import { createStudio } from "./studio-server.mjs";
 import { gitProgram } from "./git-program.mjs";
+import { whisperPath } from "./transcribe.mjs";
+
+/* Pin the whisper lookup. whisperPath keeps a miss for only 15 s, so
+ * whether a test's studio looks again depended on the clock and on the
+ * tests before it, and the gold traces gained or lost a findWhisper call.
+ * A find is kept for the whole process. */
+whisperPath({ probe: () => "/test/whisper-cli" });
 
 const cleanups = [];
 afterEach(async () => {
@@ -61,7 +69,10 @@ function project({ repo = true } = {}) {
   return { dir, library };
 }
 
-async function startStudio(library, { delay = DELAY, autoCommit, features = {} } = {}) {
+async function startStudio(
+  library,
+  { delay = DELAY, outsideDelay = 60_000, autoCommit, features = {} } = {},
+) {
   let saved = autoCommit === undefined ? {} : { autoCommit };
   const settings = { load: () => saved, save: (patch) => (saved = { ...saved, ...patch }) };
   /* The history logs each commit it makes. Waiting for that line, rather
@@ -80,11 +91,13 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
     version: "test",
     settings,
     exportDir: path.join(library, "..", "exports"),
-    /* No file watcher: the history needs none (the studio's writes reach
-     * it through the change log), and its reload timer would race each
-     * test's end, so the gold traces would record it only sometimes. */
+    /* No file watcher, except in the tests of changes made outside the
+     * studio: the studio's writes reach the history through the change
+     * log, and the watcher's reload timer would race each test's end, so
+     * the gold traces would record it only sometimes. */
     features: { terminal: false, watch: false, ...features },
     commitDelayMs: delay,
+    outsideCommitDelayMs: outsideDelay,
     log,
   });
   cleanups.push(() => studio.close());
@@ -130,7 +143,44 @@ async function startStudio(library, { delay = DELAY, autoCommit, features = {} }
   const committed = async (n) => {
     while (commitsLogged < n) await new Promise((resolve) => commitWaiters.push(resolve));
   };
-  return { studio, call, post, get, committed, saved: () => saved };
+  /* Resolves once the file watcher is reporting changes. On a Mac,
+   * fs.watch starts its FSEvents stream a moment after it returns —
+   * longer on a busy machine — and a file written before then is never
+   * reported. So this writes a file of its own at the library's root,
+   * where a change starts no commit, until the watcher reports it: the
+   * page's reload event names it, 250 ms after the change. One write
+   * every 500 ms, so each write's reload has time to go out. */
+  const watcherReady = async ({ timeout = 10_000 } = {}) => {
+    const probe = "watcher-probe.txt";
+    let reported = false;
+    const req = new EventEmitter();
+    req.method = "GET";
+    req.url = "/studio/api/events";
+    req.headers = { host: "localhost" };
+    req.socket = { remoteAddress: "127.0.0.1" };
+    const res = {
+      statusCode: 0,
+      headersSent: false,
+      setHeader() {},
+      writeHead() {},
+      write: (chunk) => {
+        if (chunk.startsWith("event: reload") && chunk.includes(probe)) reported = true;
+      },
+      end() {},
+    };
+    void studio.handle(req, res, () => {});
+    try {
+      const start = Date.now();
+      for (let i = 0; !reported; i++) {
+        if (Date.now() - start > timeout) throw new Error("the file watcher never started");
+        if (i % 20 === 0) writeFileSync(path.join(library, probe), `${i}\n`);
+        await sleep(25);
+      }
+    } finally {
+      req.emit("close");
+    }
+  };
+  return { studio, call, post, get, committed, watcherReady, saved: () => saved };
 }
 
 const commits = (dir) => git(dir, "log", "--format=%s").split("\n");
@@ -222,6 +272,23 @@ describe("showcase history", GIT_TESTS, () => {
       sha: git(dir, "rev-parse", "HEAD"),
       files: ["showcase.yaml", "theme.yaml"],
     });
+  });
+
+  it("commits an edit_theme write like an edit_showcase one", async () => {
+    const { dir, library } = await project();
+    const { call } = await startStudio(library);
+    await call("edit_theme", {
+      showcaseId: "nova",
+      edits: [
+        { key: "colors.primary", value: "#4ade80" },
+        { key: "shape.radius", value: null },
+      ],
+    });
+    await waitFor(() => commits(dir).length === 2);
+    expect(commits(dir)[0]).toBe("nova: set theme colors.primary, reset theme shape.radius");
+    const body = git(dir, "log", "-1", "--format=%b");
+    expect(body).toContain("- set theme colors.primary (Claude, via edit_theme)");
+    expect(git(dir, "show", "--name-only", "--format=", "HEAD")).toBe("showcases/nova/theme.yaml");
   });
 
   it("commits only the showcase folder: other staged work stays staged", async () => {
@@ -331,26 +398,6 @@ describe("showcase history", GIT_TESTS, () => {
     expect(commits(dir)[0]).toBe("nova: edit intro title");
   });
 
-  it("never commits a change the studio didn't make — it waits for the studio's next one", async () => {
-    const { dir, library } = await project();
-    const { call } = await startStudio(library);
-    /* An editor, a git checkout, a Claude session's own file tools: none
-     * of them go through the studio, so none of them start a commit. */
-    writeFileSync(path.join(library, "nova", "theme.yaml"), "colors:\n  primary: red\n");
-    await sleep(DELAY * 6);
-    expect(commits(dir)).toEqual(["start"]);
-    expect(git(dir, "status", "--porcelain", "--", "showcases/nova")).toContain("theme.yaml");
-
-    /* The studio's own next write commits the showcase, and the outside
-     * change rides along, named for what it is. */
-    await call("edit_showcase", editTitle("Later"));
-    await waitFor(() => commits(dir).length === 2);
-    expect(commits(dir)[0]).toBe("nova: edit intro title, add theme.yaml");
-    expect(git(dir, "log", "-1", "--format=%b")).toContain(
-      "- add theme.yaml (files changed directly)",
-    );
-  });
-
   it("makes no timer commits in the studio Claude Code starts, and says why", async () => {
     const { dir, library } = await project();
     const { call } = await startStudio(library, { features: { autoCommit: false } });
@@ -421,7 +468,7 @@ describe("showcase history", GIT_TESTS, () => {
 
   it("turns off with the autoCommit setting", async () => {
     const { dir, library } = await project();
-    const { call } = await startStudio(library, { autoCommit: false });
+    const { call, get } = await startStudio(library, { autoCommit: false });
     await call("edit_showcase", editTitle("Changed"));
     await sleep(DELAY * 4);
     expect(commits(dir)).toEqual(["start"]);
@@ -430,6 +477,18 @@ describe("showcase history", GIT_TESTS, () => {
       committed: false,
       reason: expect.stringContaining("turned off"),
     });
+    /* The refusal is the user's own setting at work, not a failure: the
+     * Actions list shows the attempt as skipped, saying why, so it never
+     * sits under "Needs you". */
+    const { actions } = await get("actions");
+    expect(actions.filter((a) => a.kind === "commit")).toEqual([
+      expect.objectContaining({
+        by: "claude",
+        state: "canceled",
+        why: expect.stringContaining("Commits are turned off"),
+      }),
+    ]);
+    expect((await call("studio_info", {})).actions.failed).toEqual([]);
   });
 });
 
@@ -749,5 +808,112 @@ describe("commits in the Actions list", GIT_TESTS, () => {
     await post("history-auto-commit", { on: false });
     ({ actions } = await get("actions"));
     expect(actions.map((a) => a.state)).toEqual(["canceled"]);
+  });
+});
+
+describe("changes made outside the studio", GIT_TESTS, () => {
+  /* An editor, a git checkout, a Claude session's own file tools: the
+   * file watcher sees them, and they get a longer quiet period than the
+   * studio's own writes. Longer than the watcher's own delay (about
+   * 250 ms, plus the time the system takes to report a change). */
+  const OUTSIDE = 900;
+  const watching = async (library, options = {}) => {
+    const studio = await startStudio(library, {
+      outsideDelay: OUTSIDE,
+      ...options,
+      features: { watch: true, ...options.features },
+    });
+    await studio.watcherReady();
+    return studio;
+  };
+  const theme = (library, color = "red") =>
+    writeFileSync(path.join(library, "nova", "theme.yaml"), `colors:\n  primary: ${color}\n`);
+
+  it("commits them after the longer quiet period, naming the files", async () => {
+    const { dir, library } = await project();
+    const { get, committed } = await watching(library);
+    theme(library);
+
+    /* Not after the studio's short one. */
+    await sleep(DELAY * 3);
+    expect(commits(dir)).toEqual(["start"]);
+    await committed(1);
+    expect(commits(dir)[0]).toBe("nova: add theme.yaml");
+    expect(git(dir, "log", "-1", "--format=%b")).toContain(
+      "- add theme.yaml (files changed directly)",
+    );
+    expect(git(dir, "status", "--porcelain", "--", "showcases/nova")).toBe("");
+
+    const { actions } = await get("actions");
+    expect(actions).toEqual([
+      expect.objectContaining({
+        kind: "commit",
+        showcaseId: "nova",
+        by: "studio",
+        why: "Files in nova changed outside the studio",
+        state: "done",
+        result: expect.objectContaining({ message: "nova: add theme.yaml" }),
+      }),
+    ]);
+  });
+
+  it("starts the quiet period again on each further change", async () => {
+    const { dir, library } = await project();
+    await watching(library);
+    theme(library);
+    await sleep(OUTSIDE / 2);
+    writeFileSync(path.join(library, "nova", "assets", "note.txt"), "a note\n");
+    /* Past the first change's deadline, but not the second's. */
+    await sleep(OUTSIDE * 0.75);
+    expect(commits(dir)).toEqual(["start"]);
+    await waitFor(() => commits(dir).length === 2);
+    expect(git(dir, "show", "--name-only", "--format=", "HEAD").split("\n").sort()).toEqual([
+      "showcases/nova/assets/note.txt",
+      "showcases/nova/theme.yaml",
+    ]);
+  });
+
+  it("makes one commit of a studio write and an outside change in the same window", async () => {
+    const { dir, library } = await project();
+    /* A studio quiet period longer than the watcher takes to report a
+     * change, as the real 5 s is: the watcher also reports the studio's
+     * own write to showcase.yaml (edit_showcase's writes aren't swallowed
+     * as echoes, so the page re-reads them), and that report must land
+     * while the studio's commit still waits, where it rides along. */
+    const outside = 1500;
+    const { call, get } = await watching(library, { delay: 700, outsideDelay: outside });
+    theme(library);
+    await sleep(DELAY * 3);
+    await call("edit_showcase", editTitle("Together"));
+    /* The studio's shorter period takes over and commits both. */
+    await waitFor(() => commits(dir).length === 2);
+    expect(commits(dir)[0]).toBe("nova: edit intro title, add theme.yaml");
+    /* And no second commit, nor a second record, when the longer period
+     * would have ended. */
+    await sleep(outside * 1.5);
+    expect(commits(dir)).toHaveLength(2);
+    const { actions } = await get("actions");
+    expect(actions.filter((a) => a.kind === "commit").map((a) => a.state)).toEqual(["done"]);
+  });
+
+  it("commits nothing while automatic commits are off", async () => {
+    const { dir, library } = await project();
+    const { get } = await watching(library, { features: { autoCommit: false } });
+    theme(library);
+    await sleep(OUTSIDE * 2);
+    expect(commits(dir)).toEqual(["start"]);
+    expect((await get("actions")).actions).toEqual([]);
+  });
+
+  it("ignores .studio/ and files at the library's root", async () => {
+    const { dir, library } = await project();
+    const { get } = await watching(library);
+    mkdirSync(path.join(library, "nova", ".studio"), { recursive: true });
+    writeFileSync(path.join(library, "nova", ".studio", "cache.json"), "{}\n");
+    writeFileSync(path.join(library, ".studio", "scratch.json"), "{}\n");
+    writeFileSync(path.join(library, "notes.md"), "library notes\n");
+    await sleep(OUTSIDE * 2);
+    expect(commits(dir)).toEqual(["start"]);
+    expect((await get("actions")).actions.filter((a) => a.kind === "commit")).toEqual([]);
   });
 });

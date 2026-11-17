@@ -23,6 +23,17 @@
  *
  * `--help` lists the options (server/launch-options.mjs).
  *
+ * The packaged app runs on free ports, so any number of studios can run
+ * at once; from Finder, a second one needs `open -n`. With --mcp,
+ * closing the window leaves the studio running for Claude. --export
+ * works in the packaged app too: it exports one showcase and quits.
+ *
+ * File > Open Folder… and Open Recent switch the studio's library
+ * through its API, and are hidden in a locked window (--open, --new). A
+ * navigation guard keeps a locked window on its showcase, as a backstop
+ * to the page's own redirect. Dragging a file out of the window only
+ * drags an .mp4 inside the export folder.
+ *
  * ELECTRON_SMOKE=<path.png> captures the loaded window to a file and
  * quits — used for automated verification (ELECTRON_SMOKE_* below add
  * steps).
@@ -568,8 +579,14 @@ app.whenReady().then(async () => {
     app.dock?.setIcon(nativeImage.createFromPath(path.join(repoRoot, "build", "icon.png")));
   }
   const fail = (message) => {
-    if (options.window) dialog.showErrorBox("Showcase Studio", message);
-    else console.error(message);
+    /* Under ELECTRON_SMOKE a dialog would wait for a click nobody can
+     * give, and the smoke run would hang with no output (issue #56): the
+     * message goes to stderr and the run fails. */
+    if (options.window && !process.env.ELECTRON_SMOKE) {
+      dialog.showErrorBox("Showcase Studio", message);
+    } else {
+      console.error(message);
+    }
     app.exit(1);
   };
   if (launchError) {

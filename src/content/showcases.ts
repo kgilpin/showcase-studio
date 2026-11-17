@@ -5,12 +5,20 @@
  *
  *   showcases/<id>/showcase.yaml   the script (scenes, copy, timings)
  *   showcases/<id>/theme.yaml      optional styling (see SHOWCASE THEME)
+ *   showcases/<id>/cover.yaml      optional cover image (see SHOWCASE COVER)
  *   showcases/<id>/assets/         its screenshots and app mark
  *
  * Folders are discovered automatically at build time — adding a new
  * showcase requires no code changes. Asset keys in the YAML are simply
  * file names without their extension: `asset: shot-mirror` resolves to
  * `assets/shot-mirror.png`.
+ *
+ * This file is the generic loader. It parses each showcase's YAML,
+ * checks it against src/content/showcase-schema.mjs (checkShowcase),
+ * resolves asset keys to URLs, and resolves each showcase's theme (the
+ * whitelist, `extends`, font loads). It documents the scene and theme
+ * model below (SHOWCASE THEME), and how a showcase updates in place
+ * (UPDATING IN PLACE).
  * ============================================================= */
 
 import { parse } from "yaml";
@@ -26,6 +34,7 @@ import {
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
 import { looksCutOff } from "./theme-value";
+import { THEME_GROUPS, cleanTheme } from "./theme-rules.mjs";
 import { ASSET_KINDS, assetKind, mediaKindWarning, type AssetKind } from "./asset-kind";
 import {
   CAPTION_POSITION_HELP,
@@ -36,6 +45,16 @@ import { readWatermark, resolveWatermark, type Watermark, type WatermarkSpec } f
 import { PLAYER_VIEWS, playerView, type PlayerView } from "@/lib/export-kinds.mjs";
 import { readTikTokFit, resolveTikTokFit, type TikTokFit, type TikTokFitSpec } from "./tiktok-fit";
 import { checkShowcase } from "./showcase-schema.mjs";
+import {
+  COVER_DESTINATIONS,
+  checkCover,
+  coverImage,
+  resolveCover,
+  type CoverDestination,
+  type CoverField,
+  type CoverImage,
+  type ResolvedCoverFields,
+} from "./cover-rules.mjs";
 import type { SceneEdit } from "@/lib/studio";
 
 /* Caption/title timing is shared with the export scripts — the model and
@@ -272,8 +291,13 @@ export type Showcase = {
    *  Scenes carry their own copy — this is the setting, not what any one
    *  slide draws. */
   watermark?: Watermark | undefined;
-  /** Asset key for the home-page card image (defaults to the app mark). */
+  /** Asset key for the home-page card image (meta.cover), from before
+   *  covers had their own file; the card draws cover.yaml's cover when
+   *  there is one. */
   cover?: string | undefined;
+  /** cover.yaml as read, when the showcase has a cover — resolved per
+   *  destination by coverFor. Undefined: no cover yet. */
+  coverDoc?: unknown;
   /** Showcase-level authoring notes (see Scene.note) — never rendered in
    *  the player or exports; shown on the script page. */
   notes?: string | undefined;
@@ -395,9 +419,13 @@ type RawDoc = {
  * SHOWCASE THEME — showcases/<id>/theme.yaml
  *
  * Per-showcase styling. Only the keys below are themeable; the loader
- * rejects anything else at build time, so a theme cannot override the
- * structural variables the app needs (the Tailwind `@theme inline` wiring,
- * radius derivations, library internals).
+ * leaves anything else out, with a warning, so a theme cannot override
+ * the structural variables the app needs (the Tailwind `@theme inline`
+ * wiring, radius derivations, library internals). A broken theme never
+ * fails its showcase: a key it doesn't know, a value of the wrong kind,
+ * an `extends` naming no showcase (or making a cycle), even a theme.yaml
+ * that doesn't parse — each is a warning, and the showcase shows with
+ * the rest.
  *
  *   extends: <showcase-id>   start from another showcase's resolved theme;
  *                            keys set here override the inherited values
@@ -410,43 +438,10 @@ type RawDoc = {
  * stylesheet URLs (e.g. Google Fonts) and they are added to <head> on that
  * showcase's pages. `meta.theme` in showcase.yaml still works as a flat
  * map of the same CSS-variable names, applied on top of theme.yaml.
+ *
+ * The groups and keys are in theme-rules.mjs, shared with the studio's
+ * theme edits (server/edit-theme.mjs).
  * ------------------------------------------------------------- */
-
-/** Themeable keys, by group, mapped to the CSS variable each one sets. */
-const THEME_GROUPS: Record<string, Record<string, string>> = {
-  colors: Object.fromEntries(
-    [
-      "background",
-      "foreground",
-      "card",
-      "card-foreground",
-      "primary",
-      "primary-foreground",
-      "secondary",
-      "secondary-foreground",
-      "muted",
-      "muted-foreground",
-      "accent",
-      "accent-foreground",
-      "border",
-      "support",
-      /* Overlay caption painting: the chip background, the text, and the
-       * word being spoken (karaoke/reveal styles). */
-      "caption-chip",
-      "caption-text",
-      "caption-word",
-      /* The brand mark's wordmark (watermark.ts) — white unless set. */
-      "watermark-text",
-    ].map((name) => [name, name]),
-  ),
-  fonts: { display: "font-display", body: "font-body" },
-  shape: { radius: "radius" },
-  atmosphere: {
-    "gradient-stage": "gradient-stage",
-    "gradient-accent": "gradient-accent",
-    "shadow-device": "shadow-device",
-  },
-};
 
 /** Every CSS-variable name a theme may set (also the valid `meta.theme` keys). */
 const THEMEABLE_VARS = new Set(Object.values(THEME_GROUPS).flatMap((keys) => Object.values(keys)));
@@ -466,42 +461,34 @@ type RawTheme = {
   atmosphere?: Record<string, unknown>;
 };
 
-function validateThemeDoc(showcaseId: string, doc: RawTheme): void {
+/** What the loader left out of each theme.yaml it read, as warnings,
+ *  keyed by the theme it kept — so the warnings move with the theme
+ *  when a refresh puts an older one back. */
+const themeProblems = new WeakMap<RawTheme, string[]>();
+
+/** Reads a theme.yaml's text into the theme the loader uses: what breaks
+ *  a rule (theme-rules.mjs) is left out and noted in themeProblems, and
+ *  text that doesn't parse is an empty theme with one problem. Never
+ *  throws. */
+function readTheme(showcaseId: string, text: string): RawTheme {
   const file = `showcases/${showcaseId}/theme.yaml`;
-  const groups = Object.keys(THEME_GROUPS);
-  for (const key of Object.keys(doc)) {
-    if (key !== "extends" && !groups.includes(key)) {
-      throw new Error(
-        `Unknown section "${key}" in ${file} — expected: extends, ${groups.join(", ")}`,
-      );
-    }
+  let parsed: unknown;
+  try {
+    parsed = parse(text);
+  } catch (error) {
+    const theme: RawTheme = {};
+    const reason = error instanceof Error ? error.message : String(error);
+    themeProblems.set(theme, [
+      `${file} doesn't read as YAML, so the showcase shows without its theme: ${reason}`,
+    ]);
+    return theme;
   }
-  if (doc.extends != null && typeof doc.extends !== "string") {
-    throw new Error(`"extends" in ${file} must be a showcase id (folder name under showcases/)`);
-  }
-  for (const [group, keys] of Object.entries(THEME_GROUPS)) {
-    const section = doc[group as keyof RawTheme];
-    if (section == null) continue;
-    if (typeof section !== "object" || Array.isArray(section)) {
-      throw new Error(`"${group}" in ${file} must be a map of ${Object.keys(keys).join(", ")}`);
-    }
-    for (const [key, value] of Object.entries(section)) {
-      if (group === "fonts" && key === "load") {
-        if (!Array.isArray(value) || value.some((url) => typeof url !== "string")) {
-          throw new Error(`"fonts.load" in ${file} must be a list of stylesheet URLs`);
-        }
-        continue;
-      }
-      if (!(key in keys)) {
-        throw new Error(
-          `Unknown ${group} key "${key}" in ${file} — themeable ${group} keys: ${Object.keys(keys).join(", ")}`,
-        );
-      }
-      if (typeof value !== "string" && typeof value !== "number") {
-        throw new Error(`"${group}.${key}" in ${file} must be a CSS value (got ${typeof value})`);
-      }
-    }
-  }
+  const { theme, problems } = cleanTheme(parsed, file);
+  themeProblems.set(
+    theme as RawTheme,
+    problems.map((problem) => `${problem} — it is left out`),
+  );
+  return theme as RawTheme;
 }
 
 /** The warning for a theme value YAML cut short (see looksCutOff). The
@@ -512,17 +499,6 @@ function cutOffWarning(where: string, value: string): string {
     `${where} looks cut off: "${value}", so it is left out. In YAML a space followed ` +
     `by # starts a comment — put the whole value in quotes.`
   );
-}
-
-function validateMetaTheme(showcaseId: string, theme: Record<string, string>): void {
-  for (const [name, value] of Object.entries(theme)) {
-    if (!THEMEABLE_VARS.has(name)) {
-      throw new Error(
-        `meta.theme in showcase "${showcaseId}" sets "--${name}", which is not themeable. ` +
-          `Themeable variables: ${[...THEMEABLE_VARS].sort().join(", ")}`,
-      );
-    }
-  }
 }
 
 /* -------------------------------------------------------------
@@ -558,6 +534,16 @@ for (const [path, component] of Object.entries(graphicModules)) {
  * source of truth, so a folder graphic wins over a bundled one with the
  * same showcase id and key; bundled graphics are the fallback. */
 const dataGraphicsByShowcase = new Map<string, Map<string, string>>();
+
+/** The keys of every graphic a showcase can draw, folder and bundled,
+ *  in order. */
+export function showcaseGraphicKeys(showcaseId: string): string[] {
+  const keys = new Set([
+    ...(dataGraphicsByShowcase.get(showcaseId)?.keys() ?? []),
+    ...(graphicsByShowcase.get(showcaseId)?.keys() ?? []),
+  ]);
+  return [...keys].sort();
+}
 
 function resolveGraphic(showcaseId: string, key: string): GraphicEntry {
   const url = dataGraphicsByShowcase.get(showcaseId)?.get(key);
@@ -713,6 +699,118 @@ const rawDocs = new Map<string, RawDoc>();
 const rawTexts = new Map<string, string>();
 const themeDocs = new Map<string, RawTheme>();
 const rawThemeTexts = new Map<string, string>();
+
+/* =============================================================
+ * SHOWCASE COVER — showcases/<id>/cover.yaml
+ *
+ * The still image a platform shows before the video plays. Its fields,
+ * layouts and per-destination overrides are in cover-rules.mjs; CoverView
+ * draws it. A cover.yaml that doesn't read, or a field with a bad value,
+ * is a warning on the showcase, never a reason it won't load: the video
+ * doesn't depend on its cover.
+ * ============================================================= */
+const coverDocs = new Map<string, unknown>();
+const rawCoverTexts = new Map<string, string>();
+/* Why the cover.yaml text this page holds didn't parse, by showcase. */
+const coverParseErrors = new Map<string, string>();
+
+/** Reads a showcase's cover.yaml text into coverDocs (or a parse error). */
+function readCoverText(showcaseId: string, text: string | undefined): void {
+  coverDocs.delete(showcaseId);
+  rawCoverTexts.delete(showcaseId);
+  coverParseErrors.delete(showcaseId);
+  if (text == null) return;
+  rawCoverTexts.set(showcaseId, text);
+  try {
+    coverDocs.set(showcaseId, parse(text) ?? {});
+  } catch (error) {
+    coverParseErrors.set(showcaseId, error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** One destination's cover with its files found: the picture's URL (a
+ *  stand-in when the asset is missing), each graphic's component, and
+ *  the frame it's drawn in (9:16, or 16:9 for youtube43). */
+export type ResolvedCover = Omit<ResolvedCoverFields, "graphics"> & {
+  frame: CoverImage;
+  pictureUrl?: string | undefined;
+  graphics: {
+    key: string;
+    at: ResolvedCoverFields["graphics"][number]["at"];
+    size: number;
+    component?: ComponentType | undefined;
+  }[];
+};
+
+/** The showcase's cover for one destination (the default when none is
+ *  named), or undefined when the showcase has no cover. `pictureRatio`,
+ *  once the picture has loaded, picks the layout when cover.yaml sets
+ *  none (useCover measures it). */
+export function coverFor(
+  showcase: Showcase,
+  destination?: CoverDestination,
+  pictureRatio?: number,
+): ResolvedCover | undefined {
+  if (showcase.coverDoc === undefined) return undefined;
+  const fields = resolveCover(showcase.coverDoc, destination, { pictureRatio });
+  let pictureUrl: string | undefined;
+  if (fields.picture) {
+    try {
+      pictureUrl = resolveAsset(showcase.id, fields.picture).url;
+    } catch {
+      pictureUrl = placeholderAsset(fields.picture).url;
+    }
+  }
+  return {
+    ...fields,
+    frame: coverImage(destination),
+    pictureUrl,
+    graphics: fields.graphics.map((item) => {
+      let component: ComponentType | undefined;
+      try {
+        component = resolveGraphic(showcase.id, item.graphic).component;
+      } catch {
+        component = undefined;
+      }
+      return { key: item.graphic, at: item.at, size: item.size, component };
+    }),
+  };
+}
+
+/** The warnings a showcase's cover.yaml gives: it doesn't read, a field
+ *  has a bad value, a picture or graphic isn't there. */
+function coverWarnings(showcaseId: string): string[] {
+  const file = `showcases/${showcaseId}/cover.yaml`;
+  const parseError = coverParseErrors.get(showcaseId);
+  if (parseError) {
+    return [`${file} doesn't read as YAML, so the showcase shows without its cover: ${parseError}`];
+  }
+  const doc = coverDocs.get(showcaseId);
+  if (doc === undefined) return [];
+  const warnings = checkCover(doc).map((problem) => `${file}: ${problem} — it is left out`);
+  const blocks = [
+    doc,
+    ...Object.keys(COVER_DESTINATIONS).map((id) => (doc as Record<string, unknown>)[id]),
+  ];
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const { picture, graphics } = block as { picture?: unknown; graphics?: unknown };
+    if (typeof picture === "string" && !assetsByShowcase.get(showcaseId)?.has(picture)) {
+      warnings.push(`${file}: no asset named "${picture}" in assets/ — the cover shows a stand-in`);
+    }
+    if (Array.isArray(graphics)) {
+      for (const item of graphics as { graphic?: unknown }[]) {
+        if (typeof item?.graphic !== "string") continue;
+        try {
+          resolveGraphic(showcaseId, item.graphic);
+        } catch {
+          warnings.push(`${file}: no graphic named "${item.graphic}" in graphics/`);
+        }
+      }
+    }
+  }
+  return [...new Set(warnings)];
+}
 const resolvedThemes = new Map<string, ResolvedTheme>();
 /** Warnings from resolving each theme (own and inherited), cached and
  *  cleared with resolvedThemes; buildShowcase reports them. */
@@ -721,23 +819,26 @@ const themeWarnings = new Map<string, string[]>();
 function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
   const cached = resolvedThemes.get(showcaseId);
   if (cached) return cached;
-  if (stack.includes(showcaseId)) {
-    throw new Error(`Theme "extends" cycle: ${[...stack, showcaseId].join(" -> ")}`);
-  }
-
   const doc = themeDocs.get(showcaseId) ?? {};
   let vars: Record<string, string> = {};
   const fontLoads: string[] = [];
-  const warnings: string[] = [];
+  const warnings: string[] = [...(themeProblems.get(doc) ?? [])];
+  const chain = [...stack, showcaseId];
 
-  if (doc.extends) {
-    if (!rawDocs.has(doc.extends)) {
-      throw new Error(
-        `Showcase "${showcaseId}" extends unknown showcase "${doc.extends}" — ` +
-          `expected a folder under showcases/ with a showcase.yaml`,
-      );
-    }
-    const parent = resolveTheme(doc.extends, [...stack, showcaseId]);
+  /* A parent that can't be used is a warning, and the theme starts from
+   * the defaults instead — never a showcase that fails to load. */
+  if (doc.extends && !rawDocs.has(doc.extends)) {
+    warnings.push(
+      `Showcase "${showcaseId}" extends unknown showcase "${doc.extends}" (expected a folder ` +
+        `with a showcase.yaml), so its theme starts from the defaults`,
+    );
+  } else if (doc.extends && chain.includes(doc.extends)) {
+    warnings.push(
+      `Theme "extends" cycle: ${[...chain, doc.extends].join(" -> ")} — ` +
+        `"${showcaseId}" starts from the defaults instead`,
+    );
+  } else if (doc.extends) {
+    const parent = resolveTheme(doc.extends, chain);
     vars = { ...parent.vars };
     fontLoads.push(...parent.fontLoads);
     warnings.push(...(themeWarnings.get(doc.extends) ?? []));
@@ -761,8 +862,10 @@ function resolveTheme(showcaseId: string, stack: string[] = []): ResolvedTheme {
 
   const metaTheme = rawDocs.get(showcaseId)?.meta.theme;
   if (metaTheme) {
-    validateMetaTheme(showcaseId, metaTheme);
     for (const [name, value] of Object.entries(metaTheme)) {
+      /* A name that isn't themeable is the schema check's warning
+       * (showcase-schema.mjs lists the names under meta.theme). */
+      if (!THEMEABLE_VARS.has(name)) continue;
       if (typeof value === "string" && looksCutOff(value)) {
         warnings.push(cutOffWarning(`meta.theme "${name}" in showcase "${showcaseId}"`, value));
         continue;
@@ -954,6 +1057,7 @@ function buildShowcase(
    * ignored without a word. */
   const schema = schemaWarnings(doc);
   for (const message of schema.showcase) warn("", message);
+  for (const message of coverWarnings(showcaseId)) warn("", message);
   const baseWatermark = readWatermark(doc.meta.watermark, "meta.watermark", (message) =>
     warn("", message),
   );
@@ -1098,6 +1202,7 @@ function buildShowcase(
       (message) => warn("", message),
     ),
     soundtrack: resolveSoundtrack(showcaseId, doc.meta.soundtrack),
+    coverDoc: coverDocs.get(showcaseId),
     theme: showcaseTheme,
     scenes,
     /* footage defaults out of the screenshot set (a paused frame of
@@ -1122,6 +1227,9 @@ export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]
   rawTexts.clear();
   themeDocs.clear();
   rawThemeTexts.clear();
+  coverDocs.clear();
+  rawCoverTexts.clear();
+  coverParseErrors.clear();
   resolvedThemes.clear();
   themeWarnings.clear();
   assetsByShowcase.clear();
@@ -1140,13 +1248,12 @@ export async function loadFromSource(source: ShowcaseSource): Promise<Showcase[]
     assetsByShowcase.set(entry.id, entry.assets);
     wordTimingsByShowcase.set(entry.id, entry.words);
     dataGraphicsByShowcase.set(entry.id, entry.graphics);
+    readCoverText(entry.id, entry.coverYaml);
     try {
       rawDocs.set(entry.id, parse(entry.yaml) as RawDoc);
       rawTexts.set(entry.id, entry.yaml);
       if (entry.themeYaml != null) {
-        const doc = (parse(entry.themeYaml) ?? {}) as RawTheme;
-        validateThemeDoc(entry.id, doc);
-        themeDocs.set(entry.id, doc);
+        themeDocs.set(entry.id, readTheme(entry.id, entry.themeYaml));
         rawThemeTexts.set(entry.id, entry.themeYaml);
       }
     } catch (error) {
@@ -1328,6 +1435,7 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
   if (
     rawTexts.get(showcaseId) === entry.yaml &&
     rawThemeTexts.get(showcaseId) === entry.themeYaml &&
+    rawCoverTexts.get(showcaseId) === entry.coverYaml &&
     sameUrls(assetsByShowcase.get(showcaseId), entry.assets) &&
     sameUrls(dataGraphicsByShowcase.get(showcaseId), entry.graphics) &&
     sameUrls(wordTimingsByShowcase.get(showcaseId), entry.words)
@@ -1339,8 +1447,7 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
   try {
     doc = parse(entry.yaml) as RawDoc;
     if (entry.themeYaml != null) {
-      theme = (parse(entry.themeYaml) ?? {}) as RawTheme;
-      validateThemeDoc(showcaseId, theme);
+      theme = readTheme(showcaseId, entry.themeYaml);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -1357,6 +1464,7 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
     text: rawTexts.get(showcaseId),
     theme: themeDocs.get(showcaseId),
     themeText: rawThemeTexts.get(showcaseId),
+    coverText: rawCoverTexts.get(showcaseId),
     assets: assetsByShowcase.get(showcaseId),
     words: wordTimingsByShowcase.get(showcaseId),
     graphics: dataGraphicsByShowcase.get(showcaseId),
@@ -1370,6 +1478,7 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
     themeDocs.delete(showcaseId);
     rawThemeTexts.delete(showcaseId);
   }
+  readCoverText(showcaseId, entry.coverYaml);
   /* Themes resolve through `extends`, so every cached one may depend on
    * this one; they rebuild as their showcases do. */
   resolvedThemes.clear();
@@ -1393,6 +1502,7 @@ export async function refreshShowcase(showcaseId: string): Promise<RefreshOutcom
   else themeDocs.delete(showcaseId);
   if (before.themeText != null) rawThemeTexts.set(showcaseId, before.themeText);
   else rawThemeTexts.delete(showcaseId);
+  readCoverText(showcaseId, before.coverText);
   if (before.assets) assetsByShowcase.set(showcaseId, before.assets);
   if (before.words) wordTimingsByShowcase.set(showcaseId, before.words);
   if (before.graphics) dataGraphicsByShowcase.set(showcaseId, before.graphics);
@@ -1428,6 +1538,38 @@ export function showcaseYamlText(showcaseId: string): string | undefined {
  *  has no theme file yet. */
 export function showcaseThemeText(showcaseId: string): string | undefined {
   return rawThemeTexts.get(showcaseId);
+}
+
+/** Same, for cover.yaml (Cover page edits); undefined when the showcase
+ *  has no cover yet. */
+export function showcaseCoverText(showcaseId: string): string | undefined {
+  return rawCoverTexts.get(showcaseId);
+}
+
+/** Applies one Cover page edit to the in-memory model (see the "cover"
+ *  SceneEdit variant) and returns the inverse edit, or undefined when
+ *  the rebuild fails. A null or "" value removes the field. */
+export function applyCoverEditLocal(
+  showcaseId: string,
+  edit: { destination?: CoverDestination | undefined; name: CoverField; value: unknown },
+): SceneEdit | undefined {
+  if (!rawDocs.has(showcaseId)) return undefined;
+  const before = coverDocs.get(showcaseId);
+  const doc = structuredClone((before ?? {}) as Record<string, unknown>);
+  const block = edit.destination
+    ? ((doc[edit.destination] ??= {}) as Record<string, unknown>)
+    : doc;
+  const previous = Object.hasOwn(block, edit.name) ? block[edit.name] : null;
+  if (edit.value === null || edit.value === "") delete block[edit.name];
+  else block[edit.name] = edit.value;
+  if (edit.destination && Object.keys(block).length === 0) delete doc[edit.destination];
+  coverDocs.set(showcaseId, doc);
+  if (rebuildShowcase(showcaseId)) {
+    return { field: "cover", destination: edit.destination, name: edit.name, value: previous };
+  }
+  if (before === undefined) coverDocs.delete(showcaseId);
+  else coverDocs.set(showcaseId, before);
+  return undefined;
 }
 
 /** Applies one style-panel theme edit to the in-memory model (see the
@@ -1501,7 +1643,7 @@ export function applySceneEditLocal(
     return undefined;
   }
   /* Theme edits are routed to applyThemeEditLocal, never here. */
-  if (edit.field === "theme") return undefined;
+  if (edit.field === "theme" || edit.field === "cover") return undefined;
   /* Scene insertion addresses a position, not a scene. */
   if (edit.field === "scene.insert") {
     if (!Number.isInteger(edit.index) || edit.index < 0 || edit.index > doc.scenes.length) {
@@ -1663,6 +1805,21 @@ export function showcaseAssets(showcase: Showcase): {
     const cover = entries.get(showcase.cover);
     if (cover) mark(usedBy, cover.file, "cover");
     else mark(missing, showcase.cover, "cover");
+  }
+  /* cover.yaml's picture: the default's, and each destination's own. */
+  if (showcase.coverDoc !== undefined) {
+    const pictures = [
+      resolveCover(showcase.coverDoc).picture,
+      ...(Object.keys(COVER_DESTINATIONS) as CoverDestination[]).map(
+        (id) => resolveCover(showcase.coverDoc, id).picture,
+      ),
+    ];
+    for (const key of new Set(pictures)) {
+      if (!key) continue;
+      const picture = entries.get(key);
+      if (picture) mark(usedBy, picture.file, "cover");
+      else mark(missing, key, "cover");
+    }
   }
 
   const assets: AssetInfo[] = [];

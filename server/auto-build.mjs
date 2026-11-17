@@ -26,13 +26,19 @@
  * one more quiet period after. A build that fails, or a cut list that
  * doesn't read yet (a take missing while the author is still writing
  * the list), is reported once: not again until the inputs change, so a
- * half-written showcase doesn't fail the list on every keystroke. The
- * "Build media when it changes" switch turns the whole thing off; the
- * build_media and build_voiceover tools still run on request.
+ * half-written showcase doesn't fail the list on every keystroke, and a
+ * build that failed (whoever started it) isn't run again until they do.
+ * The quiet period is 3 s (`delayMs`; the studio's `buildDelayMs`). A
+ * cut list that doesn't read is reported as a failed record with Try
+ * again.
+ * The "Build media when it changes" switch turns the whole thing off; the
+ * build_media and build_voiceover tools still run on request. The switch
+ * is the studio's `media-auto-build` action, saved as `autoBuild` in
+ * settings and reported as `autoBuild` in the studio's info.
  *
- * ensureBuilt() is the same check for an export or a screenshot: build
- * first when anything is stale, and wait for it, so nothing renders
- * from stale clips. */
+ * ensureBuilt() is the same check for an export, a screenshot or the
+ * face check: build first when anything is stale, and wait for it, so
+ * nothing renders from stale clips. */
 import { describeStale } from "./media-status.mjs";
 
 /** How long after a build ends its own writes may still echo through
@@ -48,6 +54,10 @@ const WAIT_POLL_MS = 100;
  *   enabled()            the switch: false turns the automatic build off
  *   delayMs              the quiet period after a change
  */
+/** Files in a showcase folder that no build reads: the cover is drawn
+ *  from its own file and never touches the voiceover or the clips. */
+const NOT_INPUTS = ["cover.yaml"];
+
 export function createAutoBuild({
   buildJobs,
   status,
@@ -221,6 +231,7 @@ export function createAutoBuild({
       if (file == null) return;
       const [first, ...rest] = String(file).split(/[/\\]/);
       if (!first || first.startsWith(".") || rest.length === 0) return;
+      if (rest.length === 1 && NOT_INPUTS.includes(rest[0])) return;
       if (building(first) || now() - (endedAt.get(first) ?? 0) < SETTLE_MS) return;
       schedule(first, `${first} changed`);
     },
@@ -228,10 +239,12 @@ export function createAutoBuild({
     /** A change the studio logged for a showcase (change-log.mjs): an
      *  edit to showcase.yaml, an asset added, renamed, deleted or
      *  encoded, a transcript saved. The build's own log line, a commit
-     *  and a setting are not changes to its inputs. */
-    noteShowcase(showcaseId, kind) {
+     *  and a setting are not changes to its inputs, and nor is an edit to
+     *  a file the build never reads (`file`, from the log line). */
+    noteShowcase(showcaseId, kind, file) {
       if (!showcaseId || !kind) return;
       if (["build", "commit", "setting", "showcase.create"].includes(kind)) return;
+      if (NOT_INPUTS.includes(file)) return;
       const what =
         kind === "edit"
           ? "showcase.yaml changed"
@@ -257,8 +270,10 @@ export function createAutoBuild({
         if (id && actions && actions.get(id)?.state === "failed") {
           actions.update(id, { dismissed: true });
         }
-      } else if (job.status === "failed" && job.by === "studio") {
-        /* Not again on the same inputs: the job's own record says why. */
+      } else if (job.status === "failed") {
+        /* Not again on the same inputs, whoever started it: a build Claude
+         * ran fails for the same reason the studio's would, and the job's
+         * own record says why already. */
         try {
           const current = status(showcaseId);
           if (current.built && current.ok) failures.set(showcaseId, current.print);

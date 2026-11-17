@@ -1,6 +1,7 @@
 /* Background jobs: the async layer between long work and its callers —
  * the MCP tools and the studio's buttons. A studio runs two of these, one
- * for exports and one for media builds. Starting a job returns
+ * for exports and one for media builds, so neither blocks the other.
+ * Starting a job returns
  * immediately; callers poll status, or follow onChange, and can cancel
  * (cooperative — the work checks an AbortSignal between steps). One job
  * of each kind runs at a time, whoever started it.
@@ -20,8 +21,9 @@
 
 /** `name` names the job kind in its ids and refusals ("export", "build"),
  *  and `poll` is the tool a caller should poll. Anything passed to
- *  start() after the showcase id reaches the runner unchanged; `by` and
- *  `why` are also kept on the job's status. */
+ *  start() after the showcase id reaches the runner unchanged, with the
+ *  job's own id as `jobId`; `by` and `why` are also kept on the job's
+ *  status. */
 export function createExportJobs(
   runner,
   { onChange = () => {}, name = "export", poll = "export_status" } = {},
@@ -65,6 +67,7 @@ export function createExportJobs(
       changed(job);
       runner(kind, showcaseId, {
         ...options,
+        jobId: job.id,
         onProgress: (label, { step, steps } = {}) => {
           if (job.status !== "running") return;
           job.progress = label;

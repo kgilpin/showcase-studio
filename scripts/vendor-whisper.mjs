@@ -8,6 +8,8 @@
  *
  * macOS: built from source, because whisper.cpp publishes no whisper-cli
  * for macOS — only an xcframework. Needs cmake and a C/C++ toolchain.
+ * The cmake must be one for this Mac's architecture: an Intel cmake
+ * under Rosetta can only make an x86_64 binary, so it is refused.
  *
  * Windows: downloaded, because there is a build to download. It comes
  * from one pinned release, checked against its SHA-256, and only the
@@ -15,7 +17,8 @@
  * parakeet and the test programs).
  *
  * Packaging fails when this hasn't been run, rather than shipping an app
- * that can't transcribe. */
+ * that can't transcribe. npm run package:desktop and release:desktop run
+ * it first. */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";

@@ -20,6 +20,13 @@ import { clearPageError, recordPageError } from "../src/lib/page-error.mjs";
 import { createExportRecords } from "./export-records.mjs";
 import { contentHash } from "./scene-edit.mjs";
 import { changesByShowcase, createStudio, isLocalRequest } from "./studio-server.mjs";
+import { whisperPath } from "./transcribe.mjs";
+
+/* Pin the whisper lookup. whisperPath keeps a miss for only 15 s, so
+ * whether a test's studio looks again depended on the clock and on the
+ * tests before it, and the gold traces gained or lost a findWhisper call.
+ * A find is kept for the whole process. */
+whisperPath({ probe: () => "/test/whisper-cli" });
 
 const cleanups = [];
 afterEach(async () => {
@@ -82,6 +89,9 @@ async function startStudio({
   settings = memorySettings(),
   licensing = () => allowAll,
   buildDelayMs,
+  /* The aws command's configuration: a default profile with a region, so
+   * a voiced showcase's build gets as far as calling aws. */
+  aws = { profiles: () => ["default"], regionOf: () => "us-east-1" },
 } = {}) {
   const library = libraryWith(...ids);
   const exportDir = tempDir("studio-exports-");
@@ -99,6 +109,7 @@ async function startStudio({
     openUrl,
     copyText,
     sendToPhone,
+    aws,
     ...(buildDelayMs != null ? { buildDelayMs } : {}),
     /* No file watcher unless a test asks for one: its 250 ms reload timer
      * would race each test's end, and the gold traces would record it only
@@ -165,6 +176,11 @@ describe("createStudio", () => {
     );
     expect(schema.title).toBe("showcase.yaml");
     expect(Object.keys(schema.properties.scenes.items.properties)).toContain("take");
+    const themeSchema = JSON.parse(
+      readFileSync(path.join(library, ".studio", "theme.schema.json"), "utf8"),
+    );
+    expect(themeSchema.title).toBe("theme.yaml");
+    expect(Object.keys(themeSchema.properties.colors.properties)).toContain("caption-text");
     const mcpConfig = JSON.parse(readFileSync(path.join(library, ".studio", "mcp.json"), "utf8"));
     expect(mcpConfig.mcpServers["showcase-studio"].url).toBe(`${url}/mcp`);
   });
@@ -317,6 +333,23 @@ describe("createStudio", () => {
     });
   });
 
+  it("moves the cover's picture along when its file is renamed", async () => {
+    const { library, post } = await startStudio();
+    const files = [{ name: "frame.jpg", data: Buffer.from("jpg").toString("base64") }];
+    await post("asset-add", { showcaseId: "nova", files });
+    const cover = path.join(library, "nova", "cover.yaml");
+    writeFileSync(
+      cover,
+      "picture: frame # the hero\nheadline: frame\ntiktok:\n  picture: frame.jpg\n",
+    );
+    expect(
+      await post("asset-rename", { showcaseId: "nova", from: "frame.jpg", to: "hero" }),
+    ).toMatchObject({ ok: true, name: "hero.jpg", updatedReferences: 2 });
+    expect(readFileSync(cover, "utf8")).toBe(
+      "picture: hero # the hero\nheadline: frame\ntiktok:\n  picture: hero.jpg\n",
+    );
+  });
+
   it("renames only references to the renamed asset, leaving a missing asset's alone", async () => {
     const yaml = `meta:
   title: Nova
@@ -438,8 +471,19 @@ scenes:
       );
     });
 
+    it("counts a showcase's own folder entry as that showcase's change", () => {
+      /* Windows reports the folder beside the file written in it. */
+      const lib = libraryWith("nova");
+      expect(changesByShowcase(lib, [path.join(lib, "nova")])).toEqual(new Map([["nova", []]]));
+      expect(
+        changesByShowcase(lib, [path.join(lib, "nova"), path.join(lib, "nova", "showcase.yaml")]),
+      ).toEqual(new Map([["nova", ["showcase.yaml"]]]));
+      /* A folder that isn't there any more is the library changing. */
+      expect(changesByShowcase(lib, [path.join(lib, "gone")])).toBeNull();
+    });
+
     it("asks for a reload when the library itself changed", () => {
-      /* A showcase folder appearing or going. */
+      /* A showcase folder that went. */
       expect(changesByShowcase("/lib", ["/lib/nova"])).toBeNull();
       /* A file at the library's root. */
       expect(changesByShowcase("/lib", ["/lib/showcase_settings.yaml"])).toBeNull();
@@ -527,6 +571,7 @@ scenes:
       showcases: ["nova"],
       guide: path.join(library, ".studio", "GUIDE.md"),
       schema: path.join(library, ".studio", "showcase.schema.json"),
+      themeSchema: path.join(library, ".studio", "theme.schema.json"),
     });
   });
 
@@ -996,6 +1041,30 @@ describe("the automatic build", () => {
     expect((await post("build-current")).job.jobId).toBe(job.jobId);
   }, 30_000);
 
+  it("answers a voice build that can't start with the problem, and starts no job", async () => {
+    /* A machine with named profiles only, and nothing naming one: the
+     * user is to be asked, and the Actions list already says so once. */
+    const { studio, post } = await startStudio({
+      ids: ["talk"],
+      before: (lib) => writeFileSync(path.join(lib, "talk", "showcase.yaml"), VOICED_YAML),
+      aws: { profiles: () => ["work"], regionOf: () => undefined },
+    });
+    const refused = studio.callTool({ name: "build_voiceover", arguments: { showcaseId: "talk" } });
+    await expect(refused).rejects.toThrow(/^No AWS profile for Polly.*profiles: work\./);
+    expect((await post("build-current")).job).toBeNull();
+    const info = await studio
+      .callTool({ name: "studio_info", arguments: {} })
+      .then((r) => JSON.parse(r.content[0].text));
+    expect(info.media).toEqual([
+      {
+        showcaseId: "talk",
+        kind: "voiceover",
+        upToDate: false,
+        problem: expect.stringContaining("Ask the user which one"),
+      },
+    ]);
+  });
+
   it("has a switch, studio-wide, logged like the commit one", async () => {
     const { post, info, library } = await startStudio({
       ids: ["talk"],
@@ -1282,6 +1351,179 @@ scenes:
     expect(refused.message).toContain(`The current version is ${contentHash(afterUi)}`);
     expect(readFileSync(file, "utf8")).toBe(afterUi);
     expect(changesIn(library).map((entry) => entry.source)).toEqual(["mcp", "ui"]);
+  });
+
+  it("edit_theme writes theme.yaml, logs it, and refuses a stale ifVersion with the style-panel edits since", async () => {
+    const { studio, library } = await startStudio();
+    const file = path.join(library, "nova", "theme.yaml");
+
+    const read = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(read.content[0].text).themeVersion).toBeNull();
+    expect(read.content).toHaveLength(2);
+
+    const edited = await studio.callTool({
+      name: "edit_theme",
+      arguments: {
+        showcaseId: "nova",
+        edits: [
+          { key: "colors.primary", value: "#4ade80" },
+          { key: "fonts.display", value: "Inter" },
+        ],
+      },
+    });
+    const { applied, version } = JSON.parse(edited.content[0].text);
+    expect(applied).toBe(2);
+    expect(version).toBe(contentHash(readFileSync(file)));
+    expect(readFileSync(file, "utf8")).toContain('primary: "#4ade80"');
+    expect(changesIn(library).at(-1)).toMatchObject({
+      source: "mcp",
+      tool: "edit_theme",
+      kind: "edit",
+      file: "theme.yaml",
+      previousVersion: null,
+      version,
+      edits: [
+        { field: "theme.set", key: "colors.primary", value: "#4ade80" },
+        { field: "theme.set", key: "fonts.display", value: "Inter" },
+      ],
+    });
+    const reread = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(reread.content[0].text).themeVersion).toBe(version);
+    expect(reread.content[2].text).toBe(`# theme.yaml\n${readFileSync(file, "utf8")}`);
+
+    /* The user picks a caption color in the style panel. */
+    await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/scene-edit",
+      body: {
+        showcaseId: "nova",
+        field: "theme",
+        group: "colors",
+        name: "caption-text",
+        value: "#ffd166",
+        baseHash: version,
+      },
+    });
+    const afterUi = readFileSync(file, "utf8");
+
+    const refused = await studio
+      .callTool({
+        name: "edit_theme",
+        arguments: {
+          showcaseId: "nova",
+          ifVersion: version,
+          edits: [{ key: "colors.primary", value: "#22d3ee" }],
+        },
+      })
+      .catch((error) => error);
+    expect(refused).toBeInstanceOf(Error);
+    expect(refused.message).toContain("theme.yaml changed since version");
+    expect(refused.message).toContain("The studio logged these changes since then");
+    expect(refused.message).toContain('"caption-text"');
+    expect(refused.message).toContain(`The current version is ${contentHash(afterUi)}`);
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
+
+    const bad = await studio
+      .callTool({
+        name: "edit_theme",
+        arguments: { showcaseId: "nova", edits: [{ key: "colors.glow", value: "red" }] },
+      })
+      .catch((error) => error);
+    expect(bad.message).toContain('Unknown colors key "glow"');
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
+  });
+
+  it("edit_cover makes cover.yaml, logs it, and refuses a stale ifVersion with the Cover page's edits since", async () => {
+    const { studio, library } = await startStudio();
+    const file = path.join(library, "nova", "cover.yaml");
+
+    const read = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(read.content[0].text).coverVersion).toBeNull();
+
+    /* Claude makes the cover: no cover yet, so ifVersion is null. */
+    const edited = await studio.callTool({
+      name: "edit_cover",
+      arguments: {
+        showcaseId: "nova",
+        ifVersion: null,
+        edits: [
+          { name: "headline", value: "Mirror your iPhone" },
+          { destination: "instagram", name: "layout", value: "band" },
+        ],
+      },
+    });
+    const { applied, version } = JSON.parse(edited.content[0].text);
+    expect(applied).toBe(2);
+    expect(version).toBe(contentHash(readFileSync(file)));
+    expect(changesIn(library).at(-1)).toMatchObject({
+      source: "mcp",
+      tool: "edit_cover",
+      kind: "edit",
+      file: "cover.yaml",
+      previousVersion: null,
+      version,
+      edits: [
+        { field: "cover", name: "headline", value: "Mirror your iPhone" },
+        { field: "cover", destination: "instagram", name: "layout", value: "band" },
+      ],
+    });
+    const reread = await studio.callTool({
+      name: "read_showcase",
+      arguments: { showcaseId: "nova" },
+    });
+    expect(JSON.parse(reread.content[0].text).coverVersion).toBe(version);
+    expect(reread.content.at(-1).text).toBe(`# cover.yaml\n${readFileSync(file, "utf8")}`);
+
+    /* The user makes the fade stronger on the Cover page. */
+    await handleDirectly(studio, {
+      method: "POST",
+      url: "/studio/api/scene-edit",
+      body: {
+        showcaseId: "nova",
+        sceneId: "",
+        field: "cover",
+        name: "fade",
+        value: "strong",
+        baseHash: version,
+      },
+    });
+    const afterUi = readFileSync(file, "utf8");
+    expect(afterUi).toContain("fade: strong");
+
+    const refused = await studio
+      .callTool({
+        name: "edit_cover",
+        arguments: {
+          showcaseId: "nova",
+          ifVersion: version,
+          edits: [{ name: "fade", value: "light" }],
+        },
+      })
+      .catch((error) => error);
+    expect(refused).toBeInstanceOf(Error);
+    expect(refused.message).toContain("cover.yaml changed since version");
+    expect(refused.message).toContain("The studio logged these changes since then");
+    expect(refused.message).toContain('"strong"');
+    expect(refused.message).toContain(`The current version is ${contentHash(afterUi)}`);
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
+
+    const bad = await studio
+      .callTool({
+        name: "edit_cover",
+        arguments: { showcaseId: "nova", edits: [{ name: "layout", value: "poster" }] },
+      })
+      .catch((error) => error);
+    expect(bad.message).toContain("layout must be one of fade, band, split");
+    expect(readFileSync(file, "utf8")).toBe(afterUi);
   });
 
   it("says so when showcase.yaml changed outside the studio", async () => {
@@ -1748,6 +1990,86 @@ describe("recording exports", () => {
     expect(frames).toBeGreaterThan(0);
     expect(renderMs).toBeGreaterThan(0);
     expect(share.exports.video.estimateMs).toBe(Math.round(frames * (renderMs / frames)));
+  }, 30_000);
+
+  /* A video renders for minutes; the showcase can change meanwhile
+   * (issue #29). The export reads from a snapshot taken when it started,
+   * served beside the library, and the Share page then says the video is
+   * behind the showcase. */
+  it("renders from a snapshot of the showcase, untouched by an edit made meanwhile", async () => {
+    const ffmpeg = createRequire(import.meta.url)("ffmpeg-static");
+    const { width, height } = VIDEO_FORMATS["video-draft"];
+    const png = path.join(tempDir("studio-frame-"), "frame.png");
+    execFileSync(
+      ffmpeg,
+      ["-f", "lavfi", "-i", `color=c=red:s=${width}x${height}`, "-frames:v", "1", png],
+      { stdio: "ignore" },
+    );
+    const frame = readFileSync(png);
+    let post;
+    let url;
+    const opened = [];
+    const seen = {};
+    let edited = false;
+    const renderer = {
+      openPage: async () => ({
+        goto: async (pageUrl) => opened.push(pageUrl),
+        evaluate: async (script) => {
+          if (!script.includes("__record.seek(") || edited) return undefined;
+          edited = true;
+          /* The first frame is on screen: the user retitles the scene,
+           * and the page the export drives would re-read the showcase. */
+          const snapshot = new URL(opened[0]).searchParams.get("snapshot");
+          const text = async (p) => (await fetch(`${url}${p}`)).text();
+          expect(
+            (
+              await post("scene-edit", {
+                showcaseId: "nova",
+                baseHash: contentHash(SHOWCASE_YAML),
+                field: "scene.set",
+                sceneId: "intro",
+                name: "title",
+                value: "Hello again",
+              })
+            ).ok,
+          ).toBe(true);
+          seen.live = await text("/showcase-data/nova/showcase.yaml");
+          seen.snapshot = await text(`/showcase-data-snapshot/${snapshot}/nova/showcase.yaml`);
+          seen.index = JSON.parse(await text(`/showcase-data-snapshot/${snapshot}/index.json`));
+          return undefined;
+        },
+        capture: async () => frame,
+        close: async () => {},
+      }),
+    };
+    ({ post, url } = await startStudio({ renderer }));
+    const { job } = await post("export", { kind: "video-draft", showcaseId: "nova" });
+    let status = job;
+    for (let i = 0; i < 200 && status.status === "running"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      status = (await post("export-status", { jobId: job.jobId })).job;
+    }
+    expect(status).toMatchObject({ status: "done" });
+    expect(edited).toBe(true);
+    /* The page was opened on the snapshot, named for this studio and the job. */
+    expect(opened).toEqual([
+      `${url}/showcase/nova/record?controlled=1&snapshot=${process.pid}-${job.jobId}`,
+    ]);
+    /* While it rendered: the library had the edit, the snapshot did not. */
+    expect(seen.live).toContain("Hello again");
+    expect(seen.snapshot).toBe(SHOWCASE_YAML);
+    expect(seen.index.showcases.map((s) => s.id)).toEqual(["nova"]);
+    /* The snapshot went with the job. */
+    const gone = await fetch(
+      `${url}/showcase-data-snapshot/${process.pid}-${job.jobId}/nova/showcase.yaml`,
+    );
+    expect(gone.status).toBe(404);
+    /* The video is of the showcase as it was, and the Share page says so. */
+    const share = (await post("share-status", { showcaseId: "nova" })).status;
+    expect(share.exports["video-draft"]).toMatchObject({
+      current: null,
+      latest: { file: status.out, current: false },
+    });
   }, 30_000);
 });
 

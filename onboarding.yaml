@@ -44,9 +44,9 @@ entries:
       {
         source: person,
         file: CLAUDE.md,
-        section: "## Setup and commands",
-        sha256: 8bc72bc8,
-        date: 2026-10-13,
+        section: "## Setup",
+        sha256: 1fbb686f,
+        date: 2026-11-14,
       }
 
   - id: npm-deps
@@ -81,9 +81,9 @@ entries:
       {
         source: guessed,
         file: CLAUDE.md,
-        section: "## Setup and commands",
-        sha256: 8bc72bc8,
-        date: 2026-10-13,
+        section: "## Setup",
+        sha256: 1fbb686f,
+        date: 2026-11-14,
       }
 
   - id: google-chrome
@@ -109,9 +109,9 @@ entries:
       {
         source: guessed,
         file: CLAUDE.md,
-        section: "## Setup and commands",
-        sha256: 8bc72bc8,
-        date: 2026-10-13,
+        section: "## Commands",
+        sha256: ffa99c21,
+        date: 2026-11-14,
       }
 
   - id: cmake
@@ -128,9 +128,9 @@ entries:
       {
         source: guessed,
         file: CLAUDE.md,
-        section: "## Setup and commands",
-        sha256: 8bc72bc8,
-        date: 2026-10-13,
+        section: "## Commands",
+        sha256: ffa99c21,
+        date: 2026-11-14,
       }
 
   - id: whisper
@@ -148,9 +148,9 @@ entries:
       {
         source: guessed,
         file: CLAUDE.md,
-        section: "## Setup and commands",
-        sha256: 8bc72bc8,
-        date: 2026-10-13,
+        section: "## Commands",
+        sha256: ffa99c21,
+        date: 2026-11-14,
       }
 
   - id: appmap-skills

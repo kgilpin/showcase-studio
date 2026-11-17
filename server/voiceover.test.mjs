@@ -13,17 +13,34 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
+import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { mediaDuration, runFfmpeg } from "./ffmpeg.mjs";
 import {
+  DEFAULT_REGION,
   buildVoiceover,
   captionSegment,
   captionWords,
   hasVoiceover,
   layOutWindows,
   readVoiceoverPlan,
+  resolveAws,
   splitHeardWords,
   voicedSpan,
+  voiceoverStatus,
 } from "./voiceover.mjs";
+
+/** The aws command's configuration, as a machine with a default profile
+ *  and a region would answer — the showcase names neither. */
+const AWS = {
+  profiles: () => ["default", "work"],
+  regionOf: (profile) => (profile === "work" ? "eu-west-1" : "us-west-2"),
+};
+/** This Mac: named profiles only, one of them with no region. */
+const NO_DEFAULT = {
+  profiles: () => ["personal", "work"],
+  regionOf: (profile) => (profile === "work" ? "eu-west-1" : undefined),
+};
+const NO_ENV = {};
 
 const toneSeconds = (text) => 0.4 + text.length * 0.02;
 
@@ -119,8 +136,12 @@ function build(options = {}) {
     synthesize: async (args) => {
       await synth(args);
       spoken.set(args.out.replace(/\.partial$/, ""), args.text);
+      calls[calls.length - 1].profile = args.profile;
+      calls[calls.length - 1].region = args.region;
     },
     transcribe: fakeWhisper((file) => spoken.get(file)),
+    aws: AWS,
+    env: NO_ENV,
     ...options,
   });
 }
@@ -289,6 +310,8 @@ describe("buildVoiceover", () => {
       showcasesDir: library,
       showcaseId: "voiced",
       transcribe: null,
+      aws: AWS,
+      env: NO_ENV,
       synthesize: async (args) => {
         await synth(args);
         if (args.text.startsWith("Make")) {
@@ -302,6 +325,85 @@ describe("buildVoiceover", () => {
     expect(result).toMatchObject({ ok: false });
     expect(result.error).toMatch(/changed while/);
     expect(captionPins(docOf()).every((pin) => pin == null)).toBe(true);
+  });
+
+  /* Some scenes read, the rest left alone (issue #48). */
+  it("reads only the scenes meta.voiceover.scenes names, and leaves the others their own timing", async () => {
+    const yaml = SHOWCASE.replace(
+      "track: voiceover-synth }",
+      "track: voiceover-synth, scenes: [plugin] }",
+    );
+    writeFileSync(path.join(library, "voiced", "showcase.yaml"), yaml);
+    const before = voiceoverStatus({
+      showcasesDir: library,
+      showcaseId: "voiced",
+      aws: AWS,
+      env: NO_ENV,
+    });
+    expect(before.stale[0]).toBe("2 captions to voice");
+
+    const result = await build();
+    expect(result).toMatchObject({ ok: true, synthesized: 2, reused: 0 });
+    expect(calls.map((c) => c.text)).toEqual([
+      "Type /showcase, and the studio opens.",
+      'Export in "shorts" format.',
+    ]);
+    const doc = docOf();
+    const [open, plugin, card, outro] = doc.scenes;
+    /* The scenes the voice doesn't read: no pins written, theirs to time. */
+    expect(open.captions[0].durationMs).toBeUndefined();
+    expect(open.durationMs).toBeUndefined();
+    expect(outro.captions[0].durationMs).toBeUndefined();
+    expect(card.durationMs).toBe(2000);
+    expect(plugin.captions.map((c) => c.durationMs).every((ms) => ms > 0)).toBe(true);
+    /* On the track they are silence for as long as the player shows
+     * them, so the plugin's words start after the open scene's time and
+     * the track ends after the outro's. */
+    const openMs = resolveSceneTiming(open).durationMs;
+    const outroMs = resolveSceneTiming(outro).durationMs;
+    const pluginMs = plugin.captions[0].durationMs + plugin.captions[1].durationMs;
+    expect(result.totalMs).toBe(openMs + pluginMs + 2000 + outroMs);
+    const words = JSON.parse(
+      readFileSync(path.join(library, "voiced", "assets", "voiceover-synth.words.json"), "utf8"),
+    );
+    expect(words.segments).toHaveLength(2);
+    expect(words.segments[0].startMs).toBe(openMs);
+    expect(words.segments[1].endMs).toBe(openMs + pluginMs);
+    expect(
+      voiceoverStatus({ showcasesDir: library, showcaseId: "voiced", aws: AWS, env: NO_ENV }),
+    ).toMatchObject({ upToDate: true });
+    /* The whole list is in the print: reading another scene is a rebuild. */
+    writeFileSync(
+      path.join(library, "voiced", "showcase.yaml"),
+      yamlOf().replace("scenes: [ plugin ]", "scenes: [ plugin, outro ]"),
+    );
+    const after = voiceoverStatus({
+      showcasesDir: library,
+      showcaseId: "voiced",
+      aws: AWS,
+      env: NO_ENV,
+    });
+    expect(after.upToDate).toBe(false);
+    expect(after.stale).toContain("outro caption 1 (to voice)");
+  });
+
+  it("writes the scenes `only` names into the showcase, so the next build keeps to them", async () => {
+    const result = await build({ only: ["outro"] });
+    expect(result).toMatchObject({ ok: true, synthesized: 1 });
+    expect(calls.map((c) => c.text)).toEqual(["Make your first video today."]);
+    expect(docOf().meta.voiceover).toEqual({
+      voice: "Matthew",
+      engine: "generative",
+      track: "voiceover-synth",
+      scenes: ["outro"],
+    });
+    expect(yamlOf()).toContain("# the opening line");
+    expect(docOf().scenes[0].captions[0].durationMs).toBeUndefined();
+    /* A plain build afterwards — the automatic one — reads the same scene
+     * and no other, and has nothing to do. */
+    const again = await build();
+    expect(again).toMatchObject({ ok: true, synthesized: 0, built: [] });
+    expect(calls).toHaveLength(1);
   });
 
   it("says what to do on a showcase with no meta.voiceover", async () => {
@@ -323,6 +425,143 @@ describe("buildVoiceover", () => {
     );
     const result = await build();
     expect(result.error).toMatch(/not both/);
+  });
+});
+
+/* Which AWS profile and region the voice is made with (resolveAws): the
+ * showcase, else the library's showcase_settings.yaml, else the
+ * environment, else the aws command's default profile — checked against
+ * the profiles the machine has before the first Polly call, so a missing
+ * profile is a question for the user rather than a failed build. */
+describe("the AWS setup", () => {
+  const settingsOf = (voiceover = {}) =>
+    readVoiceoverPlan({ meta: { voiceover }, scenes: [{ id: "a", captions: [{ text: "Hi" }] }] })
+      .settings;
+  const resolve = (voiceover, { aws = AWS, env = NO_ENV } = {}) =>
+    resolveAws({ settings: settingsOf(voiceover), showcasesDir: library, aws, env });
+  const librarySettings = (text) =>
+    writeFileSync(path.join(library, "showcase_settings.yaml"), text);
+
+  it("uses the default profile and its region when nothing names one", () => {
+    expect(resolve({})).toEqual({
+      ok: true,
+      profile: undefined,
+      region: "us-west-2",
+      note: undefined,
+    });
+    expect(resolve({ profile: "work" })).toMatchObject({ profile: "work", region: "eu-west-1" });
+    expect(resolve({ profile: "work", region: "ap-south-1" })).toMatchObject({
+      region: "ap-south-1",
+    });
+  });
+
+  it("asks for a profile, naming the machine's, when there is no default one", () => {
+    const result = resolve({}, { aws: NO_DEFAULT });
+    expect(result.ok).toBe(false);
+    expect(result.problem).toMatch(
+      /^No AWS profile for Polly: this machine has no default profile/,
+    );
+    expect(result.problem).toContain("profiles: personal, work.");
+    expect(result.problem).toContain("Ask the user which one");
+    expect(result.problem).toContain("aws_profile in showcase_settings.yaml");
+    /* The showcase's own, the library's, or the environment's profile
+     * settles it. */
+    expect(resolve({ profile: "work" }, { aws: NO_DEFAULT })).toMatchObject({ ok: true });
+    librarySettings("aws_profile: personal\n");
+    expect(resolve({}, { aws: NO_DEFAULT })).toMatchObject({ ok: true, profile: "personal" });
+    librarySettings("");
+    expect(resolve({}, { aws: NO_DEFAULT, env: { AWS_PROFILE: "work" } })).toMatchObject({
+      ok: true,
+      profile: "work",
+      region: "eu-west-1",
+    });
+  });
+
+  it("refuses a profile the machine doesn't have, saying where it came from", () => {
+    expect(resolve({ profile: "nobody" }).problem).toBe(
+      'No AWS profile named "nobody" on this machine (meta.voiceover.profile). ' +
+        "This machine's profiles: default, work.",
+    );
+    librarySettings("aws_profile: nobody\n");
+    expect(resolve({}).problem).toContain("(aws_profile in showcase_settings.yaml)");
+    librarySettings("");
+    expect(resolve({}, { env: { AWS_PROFILE: "nobody" } }).problem).toContain(
+      "(AWS_PROFILE in the environment)",
+    );
+  });
+
+  it("reads the library's setting with its variables expanded, and reports one that isn't set", () => {
+    librarySettings("aws_profile: ${LOGIN}\naws_region: ${PLACE}\n");
+    expect(
+      resolve({}, { aws: NO_DEFAULT, env: { LOGIN: "personal", PLACE: "ca-central-1" } }),
+    ).toEqual({ ok: true, profile: "personal", region: "ca-central-1", note: undefined });
+    const result = resolve({}, { aws: NO_DEFAULT, env: { LOGIN: "personal" } });
+    expect(result.ok).toBe(false);
+    expect(result.problem).toBe(
+      "showcase_settings.yaml aws_region: ${PLACE} — PLACE isn't set in the environment",
+    );
+  });
+
+  it("falls back to a region, and says so, when the profile has none", () => {
+    expect(resolve({ profile: "personal" }, { aws: NO_DEFAULT })).toEqual({
+      ok: true,
+      profile: "personal",
+      region: DEFAULT_REGION,
+      note: expect.stringMatching(
+        /profile "personal" has no region set, so Polly was called in us-east-1/,
+      ),
+    });
+    librarySettings("aws_region: eu-north-1\n");
+    expect(resolve({ profile: "personal" }, { aws: NO_DEFAULT })).toMatchObject({
+      region: "eu-north-1",
+      note: undefined,
+    });
+    librarySettings("");
+    expect(
+      resolve(
+        { profile: "personal" },
+        { aws: NO_DEFAULT, env: { AWS_DEFAULT_REGION: "sa-east-1" } },
+      ),
+    ).toMatchObject({ region: "sa-east-1" });
+  });
+
+  it("says the aws command isn't installed, or has no profiles at all", () => {
+    expect(
+      resolve({}, { aws: { profiles: () => undefined, regionOf: () => undefined } }).problem,
+    ).toMatch(/^The aws command isn't installed/);
+    const none = resolve({}, { aws: { profiles: () => [], regionOf: () => undefined } });
+    expect(none.problem).toContain("has no profiles yet");
+    expect(none.problem).not.toContain("Ask the user");
+  });
+
+  it("is what the status reports, before any build, and what the build refuses on", async () => {
+    const status = voiceoverStatus({
+      showcasesDir: library,
+      showcaseId: "voiced",
+      aws: NO_DEFAULT,
+      env: NO_ENV,
+    });
+    expect(status).toMatchObject({
+      built: true,
+      kind: "voiceover",
+      ok: false,
+      problem: expect.stringMatching(/^No AWS profile for Polly/),
+    });
+    expect(await build({ aws: NO_DEFAULT })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/^No AWS profile for Polly/),
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("hands the resolved profile and region to Polly, and notes a region it chose", async () => {
+    librarySettings("aws_profile: ${LOGIN}\n");
+    const result = await build({ aws: NO_DEFAULT, env: { LOGIN: "personal" } });
+    expect(result).toMatchObject({ ok: true, synthesized: 4 });
+    expect(calls[0]).toMatchObject({ profile: "personal", region: DEFAULT_REGION });
+    expect(result.notes.filter((note) => note.includes("no region set"))).toHaveLength(1);
+    /* Nothing to voice again: no Polly call, and no note about it. */
+    expect((await build({ aws: NO_DEFAULT, env: { LOGIN: "personal" } })).notes).toEqual([]);
   });
 });
 
@@ -362,6 +601,28 @@ describe("readVoiceoverPlan", () => {
 
   it("drops an extension from the track name", () => {
     expect(plan({ track: "voice.m4a" }).settings.track).toBe("voice");
+  });
+
+  it("checks the scenes the voice reads against the showcase", () => {
+    const scenes = [
+      { id: "a", captions: [{ text: "Hi" }] },
+      { id: "b", captions: [{ text: "There" }] },
+      { id: "card" },
+    ];
+    const read = (voiceover) => readVoiceoverPlan({ meta: { voiceover }, scenes });
+    expect(read({}).scenes.map((s) => s.voiced)).toEqual([true, true, true]);
+    const some = read({ scenes: ["b"] });
+    expect(some.ok).toBe(true);
+    expect(some.scenes.map((s) => s.voiced)).toEqual([false, true, false]);
+    expect(some.settings.scenes).toEqual(["b"]);
+    expect(read({ scenes: "b" }).errors.join()).toMatch(/scenes must be a list of scene ids/);
+    expect(read({ scenes: [] }).errors.join()).toMatch(/scenes is empty/);
+    expect(read({ scenes: ["ghost"] }).errors.join()).toMatch(
+      /names "ghost", and no scene has that id/,
+    );
+    expect(read({ scenes: ["card"] }).errors.join()).toMatch(
+      /None of the scenes .* has a caption to read/,
+    );
   });
 });
 

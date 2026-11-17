@@ -19,23 +19,24 @@
  *
  * `kind` is "recording" or "voiceover". `print` fingerprints the
  * comparison, so a caller can tell whether anything changed since it
- * last looked. */
+ * last looked. mediaSummary is the same answer for every built showcase
+ * in the library: studio_info reports it as `media`. */
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { recordingStatus } from "./build-media.mjs";
 import { hasVoiceover, voiceoverStatus } from "./voiceover.mjs";
 
 /** One showcase's status (above). */
-export function mediaStatus({ showcasesDir, showcaseId }) {
+export function mediaStatus({ showcasesDir, showcaseId, aws }) {
   return hasVoiceover(showcasesDir, showcaseId)
-    ? voiceoverStatus({ showcasesDir, showcaseId })
+    ? voiceoverStatus({ showcasesDir, showcaseId, aws })
     : recordingStatus({ showcasesDir, showcaseId });
 }
 
 /** Every built showcase in the library with its status, for studio_info:
  *  `[{showcaseId, kind, upToDate, stale, problem}]`, the showcases that
  *  derive nothing left out. */
-export function mediaSummary(showcasesDir) {
+export function mediaSummary(showcasesDir, { aws } = {}) {
   let ids;
   try {
     ids = readdirSync(showcasesDir, { withFileTypes: true })
@@ -46,7 +47,7 @@ export function mediaSummary(showcasesDir) {
     return [];
   }
   return ids.flatMap((showcaseId) => {
-    const status = mediaStatus({ showcasesDir, showcaseId });
+    const status = mediaStatus({ showcasesDir, showcaseId, aws });
     if (!status.built) return [];
     const { kind, ok, stale, upToDate, problem } = status;
     return [{ showcaseId, kind, ...(ok ? { upToDate, stale } : { upToDate: false, problem }) }];

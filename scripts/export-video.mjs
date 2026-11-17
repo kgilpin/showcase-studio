@@ -28,6 +28,9 @@
  *
  * Env: BASE_URL (default http://localhost:8080), OUT_DIR (default exports),
  *      FPS (default 30), SCALE (frame-by-frame deviceScaleFactor, default 3).
+ *
+ * npm run dev picks a free port, so pass the URL it prints ("studio:
+ * <url>") as BASE_URL.
  */
 import { readFile, readdir, mkdir, mkdtemp, rm, copyFile } from "node:fs/promises";
 import { execFile } from "node:child_process";

@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Home } from "lucide-react";
 import { useWindowLock } from "@/lib/studio";
 
-/* Home, pinned top-left on the screens outside a showcase's tabs (the
+/* Home, pinned top-left on the screens outside a showcase's places (the
  * home page, New showcase, Export), with an optional back link to the
- * previous screen beside it. The player, Script, and Assets screens use
- * the tab bar (ShowcaseNav) instead. Folder and export
+ * previous screen beside it. The player, Script, Assets and Share screens
+ * use the top bar and rail (ShowcaseFrame) instead. Folder and export
  * actions live in the system File menu (electron/main.mjs), not here.
  * A locked window (--open / --new) has no Home: it can't switch
  * showcases. Clicks don't bubble (the player toggles pause on background

@@ -1,21 +1,24 @@
 /* The showcase data-folder shape, shared by every server that exposes a
  * folder of showcases to the app's httpSource (src/content/source.ts):
- * the vite dev middleware (vite.config.ts) and the Electron shell
- * (electron/main.mjs).
+ * the studio server (studio-server.mjs) serves it in every mode, and the
+ * Electron shell (electron/main.mjs) reads showcaseIndex from it.
  *
- *   GET <base>/index.json               → { showcases: [{ id, hasTheme, assets, graphics,
+ *   GET <base>/index.json               → { showcases: [{ id, hasTheme, hasCover, assets, graphics,
  *                                                     modifiedMs }] }
  *                                         (modifiedMs: showcase.yaml's
  *                                         modified time, for the home
  *                                         page's order)
  *   GET <base>/<id>/showcase.yaml
  *   GET <base>/<id>/theme.yaml
+ *   GET <base>/<id>/cover.yaml
  *   GET <base>/<id>/assets/<file>
  *   GET <base>/<id>/graphics/<key>.tsx  → raw source
  *   GET <base>/<id>/graphics/<key>.js   → the source compiled with esbuild
  *                                         (CJS, automatic JSX) for the app's
  *                                         graphics runtime; compile errors
  *                                         return 500 with the message
+ *
+ * Assets answer byte-range requests, which media elements need to seek.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
@@ -63,6 +66,7 @@ export function showcaseIndex(dir) {
       return {
         id,
         hasTheme: existsSync(path.join(dir, id, "theme.yaml")),
+        hasCover: existsSync(path.join(dir, id, "cover.yaml")),
         assets,
         graphics,
         modifiedMs: statSync(path.join(dir, id, "showcase.yaml")).mtimeMs,
@@ -93,13 +97,16 @@ function fileVersions(folder, files) {
   return versions;
 }
 
+/* The YAML files a showcase folder may hold at its top level. */
+const YAML_FILES = ["showcase.yaml", "theme.yaml", "cover.yaml"];
+
 /** Maps a data-shape URL path (no query) to a file under `dir`, or
  *  undefined when the path is not part of the shape or doesn't exist. */
 export function showcaseFile(dir, urlPath) {
   const parts = urlPath.split("/").filter(Boolean).map(decodeURIComponent);
   if (parts.some((part) => part === "..")) return undefined;
   const file =
-    parts.length === 2 && (parts[1] === "showcase.yaml" || parts[1] === "theme.yaml")
+    parts.length === 2 && YAML_FILES.includes(parts[1])
       ? path.join(dir, parts[0], parts[1])
       : parts.length === 3 && (parts[1] === "assets" || parts[1] === "graphics")
         ? path.join(dir, parts[0], parts[1], parts[2])

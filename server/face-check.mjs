@@ -3,7 +3,8 @@
  * A phone selfie fills the TikTok frame with the face in the middle,
  * right where the bottom captions go. Nothing in the YAML says where the
  * face is, so the check looks: for every caption on a scene whose
- * picture fills the frame, it renders the frame at the middle of that
+ * picture fills the frame (facesPossible: the same scenes a TikTok fit
+ * applies to), it renders the frame at the middle of that
  * caption, the way the video export renders it (screenshotFrame), asks
  * the page where the caption's chip is (window.__record.at().caption.box)
  * and the face finder (faces.mjs) where the faces are, and compares the

@@ -9,6 +9,7 @@
  * of a dropped file (window.showcaseStudioShell, electron/preload.cjs). */
 import { useMemo, useSyncExternalStore } from "react";
 import type { DestinationId, PostedText, PublishField } from "@/content/publish-rules.mjs";
+import type { CoverDestination, CoverField } from "@/content/cover-rules.mjs";
 import type { PlayerView } from "./export-kinds.mjs";
 import { isCapturePage, type WindowLock } from "./window-lock.mjs";
 
@@ -228,10 +229,21 @@ export type SceneEdit =
   /** Style-panel edits to theme.yaml (sceneId is ignored — pass "").
    *  Whitelisted keys only (server/edit-theme.mjs); empty value deletes,
    *  restoring the default. */
-  | { field: "theme"; group: "colors" | "atmosphere"; name: string; value: string };
+  | { field: "theme"; group: "colors" | "atmosphere"; name: string; value: string }
+  /** Cover page edits to cover.yaml (sceneId is ignored — pass ""): one
+   *  field of the default cover, or of one destination's own block
+   *  (src/content/cover-rules.mjs). null or "" removes it. The first
+   *  edit makes the file. */
+  | {
+      field: "cover";
+      destination?: CoverDestination | undefined;
+      name: CoverField;
+      value: unknown;
+    };
 
 /** `baseHash` names the target file's content the edit was made against
- *  (sha256 hex; showcase.yaml, or theme.yaml for theme edits); the studio
+ *  (sha256 hex; showcase.yaml, theme.yaml for theme edits, cover.yaml for
+ *  cover edits); the studio
  *  refuses the write when the file no longer matches. */
 export type SceneEditPayload = {
   showcaseId: string;
@@ -472,6 +484,14 @@ export type ShowcaseStudio = {
      *  references are left alone — a dangling key shows in the
      *  "referenced but missing" list. */
     remove(payload: { showcaseId: string; name: string }): Promise<{ ok: boolean; error?: string }>;
+    /** Saves the frame of a scene's video at `clipMs` (a time in the clip
+     *  file) into assets/ as a still, for the cover's picture
+     *  (server/cover-frame.mjs). */
+    saveFrame(payload: { showcaseId: string; sceneId: string; clipMs: number }): Promise<{
+      ok: boolean;
+      asset?: { name: string; key: string };
+      error?: string;
+    }>;
   };
 };
 
@@ -848,6 +868,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
       rename: (payload) => post("asset-rename", payload),
       add: (payload) => post("asset-add", payload),
       remove: (payload) => post("asset-delete", payload),
+      saveFrame: (payload) => post("cover-frame", payload),
     },
   };
 }

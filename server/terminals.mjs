@@ -18,6 +18,17 @@
  * minimal PATH on macOS). When it's installed, each terminal launches
  * straight into it; otherwise it opens a plain shell so the user can
  * install it.
+ *
+ * A showcase whose terminal ran before resumes with `claude --continue`.
+ * A terminal shows in the studio's own panel (xterm), or opens outside
+ * it in macOS Terminal.app. The studio passes each terminal a few
+ * variables (studio-server.mjs): SHOWCASE_STUDIO_ROOT,
+ * SHOWCASE_STUDIO_FFMPEG and SHOWCASE_STUDIO_WHISPER, plus
+ * SHOWCASE_STUDIO_SRC and SHOWCASE_STUDIO_NODE from source. SHOWCASE_STUDIO_NODE is the Node the
+ * studio runs on, so the plugin's launcher in that terminal doesn't pick
+ * an old one off PATH. The studio Claude Code starts turns terminals
+ * off. npm strips the exec bit from node-pty's spawn-helper, and the
+ * postinstall script (scripts/postinstall.mjs) puts it back.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";

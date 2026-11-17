@@ -6,7 +6,9 @@
  * vendor:whisper`; the folder name predates the studio server), then from
  * the user's PATH (e.g. Homebrew's whisper-cpp). The speech model
  * (base.en, ~142MB) is not shipped: it downloads once into the studio's
- * data folder on first use and is cached forever.
+ * data folder on first use and is cached forever. The packaged app ships
+ * the vendored binary, and packaging refuses to build without it;
+ * whisper-binary.mjs is the one place its name and path are decided.
  *
  * transcribe() extracts/resamples the audio with the bundled ffmpeg
  * (16kHz mono WAV — whisper's required input), runs whisper with full

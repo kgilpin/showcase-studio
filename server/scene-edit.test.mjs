@@ -2,7 +2,12 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { applySceneEditsToFolder, applySceneEditToFolder, contentHash } from "./scene-edit.mjs";
+import {
+  applySceneEditsToFolder,
+  applySceneEditToFolder,
+  applyThemeEditsToFolder,
+  contentHash,
+} from "./scene-edit.mjs";
 
 const DOC = `# The header comment survives every edit.
 meta:
@@ -196,5 +201,81 @@ describe("applySceneEditsToFolder", () => {
     );
     expect(stale.ok).toBe(false);
     expect(readFileSync(file, "utf8")).toBe(DOC);
+  });
+});
+
+describe("applyThemeEditsToFolder", () => {
+  const themeFile = () => path.join(dir, "demo", "theme.yaml");
+  const batch = (edits, payload, hooks) =>
+    applyThemeEditsToFolder(dir, { showcaseId: "demo", edits, ...payload }, hooks);
+  const showcase = (id, theme) => {
+    mkdirSync(path.join(dir, id));
+    writeFileSync(path.join(dir, id, "showcase.yaml"), DOC);
+    if (theme) writeFileSync(path.join(dir, id, "theme.yaml"), theme);
+  };
+
+  it("creates theme.yaml with every edit in one write, and returns the count and hash", () => {
+    const writes = [];
+    const result = batch(
+      [
+        { key: "colors.primary", value: "#4ade80" },
+        { key: "atmosphere.gradient-stage", value: "#101018" },
+      ],
+      {},
+      { beforeWrite: (f, text) => writes.push(f, text) },
+    );
+    const written = readFileSync(themeFile(), "utf8");
+    expect(result).toEqual({
+      ok: true,
+      applied: 2,
+      previousHash: null,
+      hash: contentHash(written),
+    });
+    expect(writes).toEqual([themeFile(), written]);
+    expect(written).toContain("#4ade80");
+  });
+
+  it("writes nothing when an edit fails or the base is stale", () => {
+    writeFileSync(themeFile(), "colors:\n  primary: red\n");
+    const bad = batch([
+      { key: "colors.primary", value: "blue" },
+      { key: "colors.nope", value: "blue" },
+    ]);
+    expect(bad.ok).toBe(false);
+    expect(bad.error).toContain("Edit 2 of 2");
+    expect(bad.error).toContain("no edits were applied");
+    const stale = batch([{ key: "colors.primary", value: "blue" }], {
+      baseHash: contentHash("other"),
+    });
+    expect(stale).toMatchObject({
+      ok: false,
+      stale: true,
+      hash: contentHash("colors:\n  primary: red\n"),
+    });
+    expect(readFileSync(themeFile(), "utf8")).toBe("colors:\n  primary: red\n");
+  });
+
+  it("refuses an unknown showcase, an empty batch, and a missing theme.yaml named by version", () => {
+    expect(
+      applyThemeEditsToFolder(dir, { showcaseId: "nope", edits: [{ key: "extends" }] }).error,
+    ).toBe('No showcase named "nope"');
+    expect(batch([]).error).toBe("No edits given");
+    expect(
+      batch([{ key: "colors.primary", value: "red" }], { baseHash: contentHash("x") }).stale,
+    ).toBe(true);
+  });
+
+  it("checks extends: another showcase, never itself, and no cycle", () => {
+    showcase("base");
+    showcase("child", "extends: demo\n");
+    expect(batch([{ key: "extends", value: "base" }]).ok).toBe(true);
+    expect(batch([{ key: "extends", value: "demo" }]).error).toContain("can't extend its own");
+    expect(batch([{ key: "extends", value: "ghost" }]).error).toContain(
+      '"ghost", which is not a showcase',
+    );
+    expect(batch([{ key: "extends", value: "child" }]).error).toContain(
+      "cycle: demo -> child -> demo",
+    );
+    expect(readFileSync(themeFile(), "utf8")).toBe("extends: base\n");
   });
 });

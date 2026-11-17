@@ -10,7 +10,7 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react";
-import { ShowcaseNav } from "./ShowcaseNav";
+import { ShowcaseFrame } from "./ShowcaseFrame";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
 import { isTypingTarget } from "@/lib/typing-target";
@@ -250,15 +250,16 @@ export function ShowcasePlayer({
   const captionText = caption?.text ?? scene.body;
 
   return (
-    <main
+    <ShowcaseFrame
+      showcaseId={showcase.id}
+      title={showcase.title}
+      current="player"
+      fill
       /* Stage clicks don't touch playback — pausing is as explicit as
        * playing (the pause button or space), so stray clicks while the
        * show runs can't stop it. */
-      className="relative flex h-dvh w-full flex-col select-none overflow-hidden"
-      style={{ background: "var(--gradient-stage)" }}
+      className="relative flex flex-col select-none overflow-hidden"
     >
-      {/* The tab bar takes the first row; the stage fills the rest. */}
-      <ShowcaseNav showcaseId={showcase.id} title={showcase.title} current="player" />
       <div
         ref={stageRef}
         className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pt-4 sm:flex-row sm:gap-4 md:gap-5"
@@ -536,7 +537,7 @@ export function ShowcasePlayer({
       </div>
       {picker && <MediaPicker showcase={showcase} scene={scene} onClose={() => setPicker(false)} />}
       <DiagnosticsTray />
-    </main>
+    </ShowcaseFrame>
   );
 }
 

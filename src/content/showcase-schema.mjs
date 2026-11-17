@@ -2,7 +2,10 @@
  * what it may hold. The loader (src/content/showcases.ts) checks each
  * document against it and reports what doesn't fit as warnings — an
  * unknown field, a field in the wrong place, a wrong type — so a
- * misplaced field is never silently ignored. The studio writes it into
+ * misplaced field is never silently ignored. A misplaced field's warning
+ * says where it belongs ("clip" isn't a scene field: it goes in
+ * scenes[].take), and a typo gets a "did you mean". Each warning is on
+ * the scene or on the showcase. The studio writes it into
  * every library as .studio/showcase.schema.json, the field reference a
  * session reads beside the guide, and the edit tool's whitelists are
  * tested against it (server/edit-yaml.test.mjs), so the four can't drift.
@@ -10,9 +13,9 @@
  * It is JSON Schema (the subset below), kept as data so one copy serves
  * the page, the studio and the reader. The values that other rule files
  * already decide — caption positions, TikTok fits, the brand mark, the
- * publish block — are imported from them, never retyped. Plain ESM, like
- * those files, so the server and the page read one copy; types live in
- * showcase-schema.d.mts.
+ * publish block, meta.theme's variable names — are imported from them,
+ * never retyped. Plain ESM, like those files, so the server and the page
+ * read one copy; types live in showcase-schema.d.mts.
  *
  * What checkShowcase understands of JSON Schema: type (string, number,
  * integer, boolean, object, array), properties, required,
@@ -40,6 +43,7 @@ import {
   WATERMARK_SHADE,
 } from "./watermark-rules.mjs";
 import { DESTINATIONS, PUBLISH_FIELDS } from "./publish-rules.mjs";
+import { THEME_VARS } from "./theme-rules.mjs";
 import { PLAYER_VIEWS } from "../lib/export-kinds.mjs";
 
 export const SCENE_THEMES = ["statement", "feature", "console", "footage"];
@@ -321,20 +325,31 @@ const META = object(
     voiceover: object("voiceover", "A synthesized voice that reads the captions (AWS Polly).", {
       voice: string("The Polly voice (default Matthew)."),
       engine: oneOf(VOICEOVER_ENGINES),
-      profile: string("The AWS profile to use."),
-      region: string("The AWS region."),
+      profile: string(
+        "The AWS profile, when not the library's aws_profile in showcase_settings.yaml.",
+      ),
+      region: string("The AWS region, when not the library's aws_region or the profile's own."),
       track: string("The track's asset key (default voiceover)."),
       leadMs: number("Silence before each caption's words."),
       tailMs: number("Silence after."),
       holdMs: number("Extra hold on the last caption."),
+      scenes: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "The scenes the voice reads, by id; the others keep their own timing and are silence " +
+          "on the track. Unset: every scene.",
+      },
     }),
     watermark: WATERMARK,
     tiktok: TIKTOK_FIT,
     theme: {
       type: "object",
       title: "theme overrides",
-      description: "Quick style overrides by CSS variable name, on top of theme.yaml.",
-      additionalProperties: { type: "string" },
+      description:
+        "Quick style overrides by CSS variable name (no leading --), on top of theme.yaml. The names are theme.yaml's own variables (theme-rules.mjs).",
+      additionalProperties: false,
+      properties: Object.fromEntries(THEME_VARS.map((name) => [name, { type: "string" }])),
     },
   },
   ["title"],

@@ -7,7 +7,7 @@
 import { Toaster } from "@/components/ui/sonner";
 
 export function StudioToaster() {
-  /* Top right, just under the tab bar (h-14), clear of the player's
+  /* Top right, just under the top bar (h-14), clear of the player's
    * controls and the agent button at the bottom; in the app's colors. */
   return (
     <Toaster

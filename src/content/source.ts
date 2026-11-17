@@ -16,7 +16,13 @@
  *                  desktop shell can point it at a user folder instead.
  *                  It can also re-read one showcase (loadOne), which is
  *                  how a change on disk reaches the page without a
- *                  reload (src/lib/live-updates.ts).
+ *                  reload (src/lib/live-updates.ts). Every studio mode
+ *                  sets VITE_SHOWCASES_URL to /showcase-data, which the
+ *                  studio server serves from the library folder.
+ *
+ * A page opened with ?snapshot=<id> (a video export's record page) reads
+ * the export's copy of the showcase from /showcase-data-snapshot/<id>/
+ * instead (server/export-snapshot.mjs).
  *
  * TSX graphics travel both ways: the bundled source compiles repo
  * graphics into the app, and the HTTP source lists folder graphics that
@@ -33,6 +39,8 @@ export type ShowcaseData = {
   yaml: string;
   /** theme.yaml text, when the showcase has one. */
   themeYaml?: string | undefined;
+  /** cover.yaml text, when the showcase has a cover. */
+  coverYaml?: string | undefined;
   /** Asset key (file name without extension) → URL + display name. */
   assets: Map<string, ShowcaseAsset>;
   /** Voiceover word-timestamp sidecars: `assets/<name>.words.json` raw
@@ -94,6 +102,12 @@ const themeModules = import.meta.glob("../../showcases/*/theme.yaml", {
   eager: true,
 }) as Record<string, string>;
 
+const coverModules = import.meta.glob("../../showcases/*/cover.yaml", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
 const assetModules = import.meta.glob("../../showcases/*/assets/*", {
   query: "?url",
   import: "default",
@@ -119,6 +133,9 @@ export const bundledSource: ShowcaseSource = {
       const themeYaml = Object.entries(themeModules).find(
         ([path]) => path.split("/").at(-2) === id,
       )?.[1];
+      const coverYaml = Object.entries(coverModules).find(
+        ([path]) => path.split("/").at(-2) === id,
+      )?.[1];
       const words = new Map(
         Object.entries(wordsModules)
           .filter(([path]) => path.split("/").at(-3) === id)
@@ -134,6 +151,7 @@ export const bundledSource: ShowcaseSource = {
         id,
         yaml,
         themeYaml,
+        coverYaml,
         assets: assetMap(id, files),
         words,
         graphics: new Map<string, string>(),
@@ -146,6 +164,7 @@ export const bundledSource: ShowcaseSource = {
 type ShowcaseIndexEntry = {
   id: string;
   hasTheme: boolean;
+  hasCover?: boolean;
   assets: string[];
   graphics?: string[];
   modifiedMs?: number;
@@ -172,6 +191,7 @@ export function httpSource(base: string): ShowcaseSource {
   const load = async ({
     id,
     hasTheme,
+    hasCover,
     assets,
     graphics,
     modifiedMs,
@@ -181,6 +201,7 @@ export function httpSource(base: string): ShowcaseSource {
     modifiedMs,
     yaml: await text(`${base}/${id}/showcase.yaml`),
     themeYaml: hasTheme ? await text(`${base}/${id}/theme.yaml`) : undefined,
+    coverYaml: hasCover ? await text(`${base}/${id}/cover.yaml`) : undefined,
     assets: assetMap(
       id,
       assets.map((name) => ({
@@ -233,5 +254,21 @@ export function activeSource(): ShowcaseSource {
   if (base.startsWith("/") && typeof window === "undefined") {
     return { load: () => Promise.resolve([]) };
   }
-  return httpSource(base.replace(/\/$/, ""));
+  const root = base.replace(/\/$/, "");
+  /* A page opened with ?snapshot=<id> is an export's: it reads the copy
+   * of the showcase the studio took when the export started
+   * (server/export-snapshot.mjs), served beside the library at
+   * <base>-snapshot/<id>, so an edit made while the frames render never
+   * reaches it. A re-read of a showcase (the "showcase-changed" event)
+   * finds the copy unchanged. */
+  const snapshot = exportSnapshotId();
+  return httpSource(snapshot ? `${root}-snapshot/${snapshot}` : root);
+}
+
+/** The export snapshot this page reads from, from its URL; undefined on
+ *  every ordinary page. */
+export function exportSnapshotId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const id = new URLSearchParams(window.location.search).get("snapshot");
+  return id && /^[0-9]+-[A-Za-z0-9_-]+$/.test(id) ? id : undefined;
 }

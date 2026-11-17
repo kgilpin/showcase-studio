@@ -1,4 +1,4 @@
-/* The tab bar's one slot for what the studio is doing, and the Actions
+/* The top bar's one slot for what the studio is doing, and the Actions
  * list behind it. The slot shows the one thing that matters most right
  * now, in one line, and clicking it opens the list:
  *
@@ -16,14 +16,19 @@
  * Cancel, Try again, Rebuild everything, Show in Finder, Dismiss. A
  * failure stays marked in the slot until the user dismisses it or the
  * same thing succeeds; a finished job shows for a moment and goes quiet,
- * so the bar carries only what needs the user (ShowcaseNav). Canceling
+ * so the bar carries only what needs the user (ShowcaseFrame). Canceling
  * a running job is only offered in the list, next to the job's name: a
  * ✕ on the pill would read as "dismiss", and with the name hidden in a
  * narrow bar the user couldn't tell what they were stopping.
  *
  * The bar is a container, so the pill grows by the room the bar has, not
  * the window's width — beside the studio agent's dock the bar is half
- * the window. Hidden without a studio. */
+ * the window. Hidden without a studio.
+ *
+ * The slot picks, in order: a running job, then a pending one, then a
+ * failure not yet dismissed, then a result for a few seconds. The list's
+ * groups are headed Now, Needs you and Earlier. That choice (slotFor)
+ * and the words are in activity-text.ts. The records come from server/actions-log.mjs. */
 import { useEffect, useState } from "react";
 import { Check, CircleAlert, Clock, History, Loader2, X } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

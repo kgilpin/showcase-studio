@@ -124,6 +124,16 @@ entries:
     test_name: edit_showcase returns a version, and refuses a stale ifVersion with the UI edits since
     appmap_path: "vitest/edit_showcase_returns_a_version,_and_refuses_a_stale_ifVersion_with_the_UI_edits_since.appmap.json"
     summary: The stale-write guard's refused branch — a UI edit lands in the change log, then edit_showcase refuses an edit made against the older version and reads the log back to say what changed.
+  - feature: change-log
+    test_file: server/studio-server.test.mjs
+    test_name: edit_theme writes theme.yaml, logs it, and refuses a stale ifVersion with the style-panel edits since
+    appmap_path: "vitest/edit_theme_writes_theme.yaml,_logs_it,_and_refuses_a_stale_ifVersion_with_the_style-panel_edits_since.appmap.json"
+    summary: Claude's theme.yaml write path — edit_theme creates the file, logs an mcp edit, then refuses a stale ifVersion after a style-panel edit and rejects a key the loader doesn't accept (theme-rules.mjs).
+  - feature: change-log
+    test_file: server/studio-server.test.mjs
+    test_name: edit_cover makes cover.yaml, logs it, and refuses a stale ifVersion with the Cover page's edits since
+    appmap_path: "vitest/edit_cover_makes_cover.yaml,_logs_it,_and_refuses_a_stale_ifVersion_with_the_Cover_page's_edits_since.appmap.json"
+    summary: Claude's cover.yaml write path — edit_cover makes the file (ifVersion null), logs an mcp edit, then refuses a stale ifVersion after a Cover page edit and rejects a value the cover rules don't accept (cover-rules.mjs, edit-cover.mjs).
   - feature: history
     test_file: server/showcase-history.test.mjs
     test_name: "commits only the showcase folder: other staged work stays staged"
@@ -164,11 +174,21 @@ entries:
     test_name: refuses to pin captions that changed while it was talking
     appmap_path: vitest/refuses_to_pin_captions_that_changed_while_it_was_talking.appmap.json
     summary: The stale-write gate, refused — showcase.yaml changes while the clips are being made, so the pins are checked against the text the build read and none are written.
+  - feature: voiceover
+    test_file: server/voiceover.test.mjs
+    test_name: is what the status reports, before any build, and what the build refuses on
+    appmap_path: vitest/is_what_the_status_reports,_before_any_build,_and_what_the_build_refuses_on.appmap.json
+    summary: The AWS setup gate, refused — a machine with named profiles only and nothing naming one; the status reports the problem (the machine's profiles, and that the user is to be asked) before any build, and the build refuses on the same check without calling Polly. The negative branch of resolveAws, which the build trace above only passes.
   - feature: exporter
     test_file: server/exporter.test.mjs
     test_name: renders the frames asked, in order, from the page the video export records
     appmap_path: vitest/renders_the_frames_asked,_in_order,_from_the_page_the_video_export_records.appmap.json
     summary: A frame of the video at given times (screenshot_frame) — the showcase read and its length checked, the record page opened at half size with the safe area, its ready gate passed, then for each time a seek, the animations finished, the page asked what it shows, and a capture checked for size.
+  - feature: exporter
+    test_file: server/exporter.test.mjs
+    test_name: captures each destination at its own size and file type
+    appmap_path: vitest/captures_each_destination_at_its_own_size_and_file_type.appmap.json
+    summary: Saving a cover (the Cover page's Save button, screenshot_cover) — each destination's size and file type looked up, the still page opened at that size, and the capture checked as a PNG for the 9:16 covers or a JPEG for the 1280×720 YouTube thumbnail.
   - feature: face-check
     test_file: server/face-check.test.mjs
     test_name: "renders each caption's moment, finds the faces, and warns where they meet"
@@ -179,6 +199,11 @@ entries:
     test_name: warns about a field in the wrong place, on the scene it is in
     appmap_path: vitest/warns_about_a_field_in_the_wrong_place,_on_the_scene_it_is_in.appmap.json
     summary: The loader checking a document against the showcase.yaml schema — checkShowcase walking meta, the scenes and their fields, an unknown field on a scene turned into a warning that names where it belongs (scenes[].take.clip), and that warning landing on the scene it is in while the scene before it stays clean.
+  - feature: theme-schema
+    test_file: src/content/showcases.test.ts
+    test_name: leaves out an unknown key, an unknown section and a value of the wrong kind
+    appmap_path: "vitest/leaves_out_an_unknown_key,_an_unknown_section_and_a_value_of_the_wrong_kind.appmap.json"
+    summary: The loader reading a broken theme.yaml — readTheme and cleanTheme (theme-rules.mjs) leaving out what breaks a rule, each dropped key a warning, and the showcase still loading with the rest of its theme instead of failing.
   - feature: auto-build
     test_file: server/auto-build.test.mjs
     test_name: builds after a quiet period when something is out of date, as the studio

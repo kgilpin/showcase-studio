@@ -1,6 +1,6 @@
 /* The showcase authoring guide — the domain knowledge every Claude Code
  * session in a showcases folder needs. The studio writes it into
- * <folder>/.studio/GUIDE.md on every launch (electron/main.mjs), so it
+ * <folder>/.studio/GUIDE.md on every launch (server/studio-server.mjs), so it
  * always matches the running app; the seeded, user-owned CLAUDE.md
  * imports it with Claude Code's @-import syntax. */
 
@@ -19,9 +19,9 @@ showcase.yaml (the fields, their types and where each goes are in .studio/showca
 - Timing derives from the copy by default: each caption prices out at its reading time (words at meta.pace plus settle and punctuation beats), and a slide is exactly long enough to speak its lines. Only pin durationMs when there is a concrete reason — and on a showcase cut from a recording, never by hand: its take decides, and build_media writes the pin.
 - Length: a generated showcase runs long when its slides carry too many words, and nothing says so until someone watches it. Set meta.sceneMaxMs (the longest any scene should run, in ms — 8000 is a good default for a product video) and meta.targetMs (what the whole video should add up to — 60000 for a TikTok). They change nothing in the timing: the linter warns about every scene over its maximum, saying how far over and why ("24.4 s long, 12.4 s over the 8 s maximum: pinned by durationMs (a video clip: media.speed plays it faster); 5 captions, 61 words"), and about a showcase over its target, naming its longest scenes; validate returns the same warnings, and the player's scene rail marks the long scenes in amber and shows the total against the target. One scene that must run long (a clip that can't be cut) sets its own maxMs. Draft to the limit from the start: two captions per slide, one idea per slide, and at 2.5 words a second an 8 s slide holds about 15 words. To bring a scene down, from the best fix to the least: cut the copy (too many captions, a list of jargon, a detail the story doesn't need — no setting fixes this, and the scene rail shows each scene's caption and word count on hover); play a video clip faster with media.speed (2 halves a screen recording's time in the player and every export, with no re-encoding; then shorten the scene's durationMs to the clip's length ÷ speed); split a long scene in two. When a pinned scene's durationMs changes through edit_showcase, captions that carry their own durationMs are re-scaled by the same ratio, so they still add up — no arithmetic by hand. Never fix a long scene with a faster meta.pace: that hides long copy instead of cutting it, and captions become unreadable.
 
-theme.yaml (optional): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme. Put quotes around any value that contains a # (a hex color, a gradient): in YAML a space followed by # starts a comment, so an unquoted "linear-gradient(100deg, #34e7d6, #0a8f95)" is cut to "linear-gradient(100deg,". The studio warns about a value cut like this and leaves it out.
+theme.yaml (optional; its keys and what each holds are in .studio/theme.schema.json, a JSON Schema the studio writes beside this guide. A key that isn't in it, a value of the wrong kind, or an extends naming no showcase is left out with a validate warning — the showcase still shows, with the rest of its theme): whitelisted styling — colors, fonts {display, body, load: [stylesheet urls]}, shape {radius}, atmosphere {gradient-stage, gradient-accent, shadow-device}; extends: <other-showcase-id> inherits another showcase's theme. Change it with the edit_theme tool ({showcaseId, edits: [{key: "colors.primary", value: "#4ade80"}], ifVersion}), not by hand: the tool checks each key and value, quotes what needs quoting, keeps the file's comments, and the studio logs and commits the write. If you do edit theme.yaml by hand, put quotes around any value that contains a # (a hex color, a gradient): in YAML a space followed by # starts a comment, so an unquoted "linear-gradient(100deg, #34e7d6, #0a8f95)" is cut to "linear-gradient(100deg,". The studio warns about a value cut like this and leaves it out.
 
-showcase_settings.yaml (in the library root, beside the showcase folders): settings for the whole library, not for one showcase. It also marks the folder as a library; the studio writes it, all comments, when it opens a library that has none. Its settings: show_in_recent: false keeps the folder out of File > Open Recent in the desktop app; export_dir: <folder> puts the library's exports there (relative to the library root, or absolute; one subfolder per showcase) instead of ~/Downloads/showcase-exports. Don't delete it, and don't put a showcase.yaml in the library root — that name belongs to each showcase's script. (Older libraries kept these settings in a root showcase.yaml; the studio renames it when it opens the library.)
+showcase_settings.yaml (in the library root, beside the showcase folders): settings for the whole library, not for one showcase. It also marks the folder as a library; the studio writes it, all comments, when it opens a library that has none. Its settings: show_in_recent: false keeps the folder out of File > Open Recent in the desktop app; export_dir: <folder> puts the library's exports there (relative to the library root, or absolute; one subfolder per showcase) instead of ~/Downloads/showcase-exports; aws_profile: <name> is the AWS profile the synthesized voiceovers are made with, and aws_region its region when the profile has none (see "Synthesized voiceovers"). A setting may name an environment variable as \${NAME}, replaced when the file is read: a committed aws_profile: \${USER} works for everyone whose profile is named after their login. Don't delete it, and don't put a showcase.yaml in the library root — that name belongs to each showcase's script. (Older libraries kept these settings in a root showcase.yaml; the studio renames it when it opens the library.)
 
 ## Brand mark (the corner "bug")
 meta.watermark draws a small logo in one corner of every slide, the way a TV network's bug sits in the corner of a broadcast — for branded editorial cuts (an interview, a founder clip) where the viewer should see whose work it is throughout.
@@ -75,7 +75,7 @@ A talking-head recording — a phone selfie video, an interview — becomes a sh
         theme: footage
         take: {from: 28.300, to: 35.600}   # seconds in the recording
 
-The studio builds it a few seconds after the cut list, the recording or the transcript changes, and before any export or screenshot, so there is nothing to press: the Actions list (the slot in the tab bar) shows the build waiting, running and done, and studio_info's media says whether a showcase is up to date. build_media is the way to force a rebuild, to build only some scenes, or to get a jobId to wait on with build_status {waitMs} before you look at the result. The build writes:
+The studio builds it a few seconds after the cut list, the recording or the transcript changes, and before any export or screenshot, so there is nothing to press: the Actions list (the slot in the top bar) shows the build waiting, running and done, and studio_info's media says whether a showcase is up to date. build_media is the way to force a rebuild, to build only some scenes, or to get a jobId to wait on with build_status {waitMs} before you look at the result. The build writes:
 - assets/<voiceover>.mp3 — every scene's audio spans joined in order and retimed, which is the showcase's voice. It is set as meta.soundtrack {sync: true} on the first build.
 - assets/clip-<scene>.mp4 — one muted clip per footage scene, cut frame-accurately.
 - assets/<voiceover>.words.json — the recording's transcript remapped onto this cut, for karaoke and reveal captions.
@@ -119,8 +119,8 @@ A showcase with no recording can be read aloud by a synthesized voice: AWS Polly
       voiceover:
         voice: Matthew            # a Polly voice id (default Matthew)
         engine: generative        # generative | neural | standard | long-form
-        profile: my-aws-profile   # optional — else AWS_PROFILE or the default profile
-        region: us-east-1         # optional — else the profile's region
+        profile: my-aws-profile   # optional — else the library's aws_profile (see below)
+        region: us-east-1         # optional — else the library's aws_region, else the profile's, else us-east-1
         track: voiceover          # the asset key (default voiceover)
 
 The studio builds it a few seconds after a caption or the voice settings change, and before any export or screenshot; build_voiceover forces a rebuild or gives you a jobId to wait on. The build writes:
@@ -130,10 +130,14 @@ The studio builds it a few seconds after a caption or the voice settings change,
 
 A caption edit is rebuilt on its own, and it is quick: clips are cached by voice, engine and text, so only the captions that changed call Polly. force makes every clip again. Never pin durationMs by hand on a voiced showcase, and never make the voice with your own Polly or ffmpeg calls or a script — the pins would stop matching the track.
 
-The voice reads the caption exactly as written, so spell a caption the way it should sound. A showcase is either voiced (meta.voiceover) or cut from a recording (meta.source), never both. The profile and region are only how to reach Polly: leave them out of a showcase that ships to other people, so their own AWS settings apply. If the build says the aws command isn't signed in, tell the user the command it names (e.g. aws sso login --profile <name>) — it's theirs to run. Without whisper the words file still gets written, with word times spread by length, and the build's notes say so: tell the user, as with any estimated timing.
+The voice reads the caption exactly as written, so spell a caption the way it should sound. A showcase is either voiced (meta.voiceover) or cut from a recording (meta.source), never both.
+
+To voice some scenes and not others — a voice tried on one scene before the whole script, or one spoken scene among slides that time themselves — list them in meta.voiceover.scenes: [open, outro], or call build_voiceover {showcaseId, only: [sceneId, …]}, which writes that list for you. The voice reads only those scenes; every other scene keeps its own timing (its pins, or the reading model) and is silence on the track for as long as it shows, so the track and the pins still add up. Leave the list out to voice every scene. A scene with no captions is silence either way.
+
+Which AWS account pays for the voice is the user's choice, never yours. Polly is called through the aws command with the showcase's profile, else the library's aws_profile in showcase_settings.yaml, else AWS_PROFILE, else the aws command's default profile — and a machine with named profiles only has no default. Before voicing the first showcase in a library, ask the user which AWS profile to use and put it in showcase_settings.yaml at the library root as aws_profile (\${USER} there names the profile called after the login name, so the committed file works for a team; aws_region sets the region when the profile has none, else the build uses us-east-1 and says so in its notes). The studio checks the setup before any build: when nothing names a profile this machine has, the media status in studio_info and validate, and the Actions list, say so and list the machine's profiles — ask the user, don't pick one. Keep profile and region out of the showcase itself unless the user wants that one showcase on another account: a showcase ships to other people. If the build says the aws command isn't signed in, tell the user the command it names (e.g. aws sso login --profile <name>) — it's theirs to run. Without whisper the words file still gets written, with word times spread by length, and the build's notes say so: tell the user, as with any estimated timing.
 
 ## Sharing (TikTok, Instagram, YouTube Shorts, YouTube)
-The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (a tab beside Script and Assets) walks through it; the share tools do the same from here.
+The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (in the rail down the left, below Video, Cover, Script and Assets) walks through it; the share tools do the same from here.
 
 What each destination takes (the id is what share, share_record and publish.set call it):
 
@@ -173,6 +177,51 @@ Posting:
 - To post from a phone, send the user to the Share page (share_status gives its URL as page): on a Mac it AirDrops the video, which lands in Photos, and the copied caption reaches an iPhone's clipboard too.
 - When the user has posted, ask for the post's link and keep it with share_record {showcaseId, destination, url}. The Share page lists every hand-off with its link.
 - The studio keeps its records of exports and hand-offs in .studio/exports/ and .studio/publishes/ (one small JSON file each). Don't edit them; the videos stay in ~/Downloads/showcase-exports/<id>.
+
+## Cover
+A cover is the still image TikTok, Instagram and YouTube Shorts show before the video plays: in the profile grid, and as a Short's thumbnail. The regular YouTube video (youtube43) gets one too: its 16:9 thumbnail. It is never part of the video. Without one, each platform picks a frame of the video. The user edits it on the Cover page (in the rail, under Video); you edit it with edit_cover.
+
+It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are in .studio/cover.schema.json. A default for every destination, and overrides for each one, like the publish: block:
+
+    picture: shot-hero            # an image in assets/, by key
+    focus: top                    # which part of the picture the crop keeps
+    layout: fade                  # fade | band | split
+    fade: strong                  # light | medium | strong (fade layout only)
+    headline: Mirror your iPhone
+    textPosition: bottom          # top | middle | bottom
+    textSize: l                   # s | m | l
+    graphics:                     # TSX graphics from graphics/, drawn finished
+      - { graphic: arrow, at: bottom-right, size: 30 }
+    instagram:                    # changes just these fields for Instagram
+      headline: Mirror your iPhone. Link in bio.
+    youtube43:                    # the regular YouTube video's 16:9 thumbnail
+      layout: split
+
+    destination   frame                       saved as
+    tiktok        9:16, 1080×1920             PNG
+    instagram     9:16, 1080×1920             PNG
+    youtube       9:16, 1080×1920 (Shorts)    PNG
+    youtube43     16:9, 1280×720              JPEG (YouTube takes 2 MB at most)
+
+    layout   picture                         text
+    fade     fills the frame                 large, over a dark fade
+    band     fills the frame                 in a band of the theme's primary color
+    split    the rest of the frame, whole    at the top or bottom, as much room as it needs — for an app screenshot
+             16:9: fills the right side      in a column on the left, placed top, middle (the default) or bottom
+
+- focus says which part of the picture fill keeps (fade and band): top, center or bottom for a picture taller than the frame, left, center or right for a wider one. A picture the frame's own shape — a frame of phone footage on a 9:16 cover — isn't cropped, so focus does nothing there, and the Cover page hides it.
+- fade says how dark the fade layout's darkening behind the text is: light, medium (the default) or strong. Strong for a bright picture (a sky, a white screen) where white text won't read; light for a dark one, where medium hides more of the picture than it needs to.
+
+- The picture is an image in assets/. On the Cover page the user picks it from the video (any moment of a scene's footage, saved as assets/cover-<scene>-t<ms>.jpg, without captions) or from the images, and can add one from their computer. To use a frame yourself, take it from the scene's clip with the ffmpeg tool — {output: "cover-<scene>-t<ms>.jpg", args: ["-ss", "<seconds>", "-i", "assets/<clip file>", "-frames:v", "1", "-q:v", "2"]} — then set picture to its key. Renaming the file on the Assets page updates the cover too.
+- Pick the layout by the picture: a photo or a frame of footage takes fade or band (band when the picture is busy and text over it won't read); an app screenshot takes split, so it isn't cropped.
+- The profile grids show only the middle 3:4 of the 9:16 frame: they cut 12.5% off the top and the bottom. The cover keeps its text and graphics inside that on its own; don't place anything that matters in those strips.
+- The YouTube thumbnail (youtube43) starts from the same default as the 9:16 covers, so give it its own block only for what should differ. Text size and a graphic's size are measured against the frame's shorter side, so they look the same at 9:16 and 16:9. A tall picture — a frame of phone footage — would be cropped hard in a 16:9 fade or band, so a thumbnail of a portrait picture is split unless the youtube43 block sets its own layout (the default block's layout doesn't count): the picture fills the right side (focus picks what stays) beside the text. A landscape picture fills the whole thumbnail in fade; give youtube43 a picture of its own if there is one. YouTube shows the video's length over the bottom-right corner: keep that corner clear (no graphic at bottom-right).
+- The headline is the only text: a few words, readable at thumbnail size — the hook, not the caption.
+- Anything beyond the headline — an arrow, a badge, a label — is a graphic: write a TSX file in graphics/ as for a scene, then add it to graphics with a place (at: top-left, top, top-right, left, center, right, bottom-left, bottom or bottom-right) and a width in percent of the frame (size).
+- Write it with edit_cover {showcaseId, edits: [{destination?, name, value}], ifVersion}. Leave destination out for the default. null or "" removes a field, so the destination falls back to the default. The first edit makes cover.yaml. read_showcase returns the cover and its coverVersion to pass as ifVersion (null before there is a cover).
+- Check it with screenshot_cover {showcaseId, destination?} — destination: youtube43 for the thumbnail — and look at the text over the picture: it has to read at a glance.
+- A cover.yaml that breaks a rule never stops the showcase from opening: what doesn't fit is left out, with a warning in the studio and in validate.
+- The Share page offers each destination's cover as an image to upload with the video, and the YouTube thumbnail with the regular YouTube video.
 
 ## Working rules
 - Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
@@ -427,7 +476,11 @@ change the files, but nothing tells you. So:
   | --------------- | ----------------------------------------------------- |
   | edit            | file, previousVersion, version, edits — in            |
   |                 | edit_showcase's shape; theme.yaml edits are           |
-  |                 | {field: "theme", group, name, value}                  |
+  |                 | {field: "theme", group, name, value} from the style   |
+  |                 | panel, {field: "theme.set", key, value} from          |
+  |                 | edit_theme; cover.yaml edits are {field: "cover",     |
+  |                 | destination?, name, value} from the Cover page and    |
+  |                 | edit_cover                                            |
   | asset.rename    | from, to, references (each {path, from, to}, plus     |
   |                 | sceneId inside a scene), and file and versions when   |
   |                 | references were rewritten                             |
@@ -452,7 +505,7 @@ change the files, but nothing tells you. So:
   as a record that is pending (a commit waiting out its quiet period),
   running, done, failed or canceled, with who started it and why. The
   user sees it behind the activity slot at the right of the showcase's
-  tab bar, where a failure stays marked until they dismiss it, and where
+  top bar, where a failure stays marked until they dismiss it, and where
   they can skip a waiting commit, cancel a running job, try a failure
   again, or rebuild everything. Your own exports and builds show there
   as "Started by Claude", so the user can follow what you do. studio_info
@@ -468,6 +521,11 @@ change the files, but nothing tells you. So:
   written, and the error lists the logged changes since your version.
   Read the showcase again, check your edits against it, and retry with
   the new version.
+- edit_theme works the same way for theme.yaml: pass the themeVersion
+  read_showcase returned (null when there is no theme.yaml yet — then
+  leave ifVersion out), or the version your last edit_theme returned.
+  So does edit_cover for cover.yaml, with coverVersion (null before the
+  showcase has a cover).
 - Your own file-editing tool has no such check. Read the file right
   before you change it.
 
@@ -480,21 +538,26 @@ available is false when commits can't happen here at all (no git, no
 repository, or the library is in .gitignore). reason says why, whenever
 the studio isn't committing on its own.
 
-    a studio write to <id>/ ──► ~5 s with no more writes ──► commit of <id>/ only
+    a studio write to <id>/  ──► ~5 s with no more changes  ──► commit of <id>/ only
+    any other change in <id>/ ──► ~30 s with no more changes ──► commit of <id>/ only
 
-- Only the studio's own writes start that clock: studio edits,
-  edit_showcase, asset changes on the Assets page, a media build, a
-  saved transcript. A file you or the user change directly (a TSX
-  graphic, theme.yaml, a file in assets/) never starts a commit. It
-  rides along in the next commit the studio makes of that showcase,
-  listed as "files changed directly". Only that showcase's folder goes
-  into a commit; other work in the repository is left alone, staged or
-  not.
+- The studio's own writes start the short clock: studio edits,
+  edit_showcase, edit_theme, asset changes on the Assets page, a media
+  build, a saved transcript.
+- A file you or the user change directly (a TSX graphic, a file in
+  assets/) starts the longer one. Each further change restarts it.
+  When it ends, the studio commits that showcase, and the message lists
+  those files as "files changed directly".
+- One showcase has one clock. A studio write and a direct change made
+  close together end up in one commit.
+- Changes under .studio/ and files at the library's root are never
+  committed this way. Only that showcase's folder goes into a commit;
+  other work in the repository is left alone, staged or not.
 - In the studio Claude Code starts, the studio makes no commits on its
   own (autoCommit is false, and reason says so). Committing is your job
   there: when you finish a meaningful step, call commit_showcase. That
-  matters most for files you wrote with your own tools — a graphic or a
-  theme.yaml stays uncommitted until you do.
+  matters most for files you wrote with your own tools — a graphic
+  stays uncommitted until you do.
 - Messages say what changed and who changed it:
 
       nova: edit intro caption 1 text, point hook at shot-2

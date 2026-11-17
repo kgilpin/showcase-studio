@@ -10,6 +10,11 @@
  * options (Electron's, Chromium's, the script path) are returned in
  * `unknown` (--flags only) or ignored; the shell can't reject them, the
  * dev script can.
+ *
+ * --open and --new lock the studio to one showcase. Which pages are
+ * inside a lock, and which capture pages ignore it, is decided in
+ * src/lib/window-lock.mjs. libraryForClaude picks the library for the
+ * studio Claude Code starts.
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
