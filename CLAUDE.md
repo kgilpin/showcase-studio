@@ -80,7 +80,7 @@ The marketing site (`site/`) is its own npm package:
 
 | Path                                          | What's there                                                                                                                                                                                     |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `showcases/<id>/`                             | One folder per showcase: `showcase.yaml` (the script), optional `theme.yaml`, `assets/`. Found automatically.                                                                                    |
+| `showcases/<id>/`                             | One folder per showcase: `showcase.yaml` (the script), optional `theme.yaml` and `cover.yaml`, `assets/`. Found automatically.                                                                   |
 | `src/content/`                                | Loading showcases (`showcases.ts`), the showcase.yaml schema (`showcase-schema.mjs`), where data comes from (`source.ts`), shared rule files (`*-rules.mjs`).                                    |
 | `src/components/showcase/`                    | The player and `ShowcaseFrame`, the frame around a showcase's screens.                                                                                                                           |
 | `src/components/script/`, `share/`, `studio/` | The script page, the Share page, the studio panels.                                                                                                                                              |
@@ -115,7 +115,8 @@ The marketing site (`site/`) is its own npm package:
   YAML, themes). That's why `ScriptPlayer` imports the timing model
   directly.
 - A new showcase screen gets its place in `ShowcaseFrame`'s `PLACES` list,
-  one line each. Capture pages (`/export`, `/record`) don't use the frame.
+  one line each. Capture pages (`/export`, `/record`, `/cover/still`)
+  don't use the frame.
 - Screenshots and exports draw pages with Google Chrome when installed:
   Playwright's bundled Chromium can't play MP4 video.
 - When server code changes, the running studio doesn't see it until it
@@ -181,6 +182,15 @@ The marketing site (`site/`) is its own npm package:
   stylesheets. Structural CSS variables can't be overridden. `meta.theme`
   in showcase.yaml still works as a flat override on top. Don't fork
   component styles per showcase.
+- A showcase's cover (the still image TikTok, Instagram and Shorts show
+  before the video plays) goes in `showcases/<id>/cover.yaml`: a default
+  plus overrides per destination, like the `publish:` block. Its fields
+  and layouts are `src/content/cover-rules.mjs`, shared by the loader,
+  the Cover page's edits and Claude's `edit_cover`: add a new field
+  there. A cover problem is a warning, never a showcase that fails to
+  load. Layouts are a fixed set drawn by `src/components/cover/CoverView.tsx`;
+  anything beyond the headline is a TSX graphic, not a new field. The
+  video never reads the cover, and the cover is not a build input.
 - In-app editing: pause to edit. Edits are structured patches to a
   whitelist of fields, not a generic YAML editor. They apply to the
   in-memory model first (`applySceneEditLocal` + `useShowcase`), then go

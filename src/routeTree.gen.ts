@@ -17,6 +17,8 @@ import { Route as ShowcaseShowcaseIdAssetsRouteImport } from './routes/showcase.
 import { Route as ShowcaseShowcaseIdRecordRouteImport } from './routes/showcase.$showcaseId.record'
 import { Route as ShowcaseShowcaseIdScriptRouteImport } from './routes/showcase.$showcaseId.script'
 import { Route as ShowcaseShowcaseIdShareRouteImport } from './routes/showcase.$showcaseId.share'
+import { Route as ShowcaseShowcaseIdCoverIndexRouteImport } from './routes/showcase.$showcaseId.cover.index'
+import { Route as ShowcaseShowcaseIdCoverStillRouteImport } from './routes/showcase.$showcaseId.cover.still'
 import { Route as ShowcaseShowcaseIdExportIndexRouteImport } from './routes/showcase.$showcaseId.export.index'
 import { Route as ShowcaseShowcaseIdExportSceneIdRouteImport } from './routes/showcase.$showcaseId.export.$sceneId'
 
@@ -63,6 +65,18 @@ const ShowcaseShowcaseIdShareRoute = ShowcaseShowcaseIdShareRouteImport.update({
   path: '/share',
   getParentRoute: () => ShowcaseShowcaseIdRoute,
 } as any)
+const ShowcaseShowcaseIdCoverIndexRoute =
+  ShowcaseShowcaseIdCoverIndexRouteImport.update({
+    id: '/cover/',
+    path: '/cover/',
+    getParentRoute: () => ShowcaseShowcaseIdRoute,
+  } as any)
+const ShowcaseShowcaseIdCoverStillRoute =
+  ShowcaseShowcaseIdCoverStillRouteImport.update({
+    id: '/cover/still',
+    path: '/cover/still',
+    getParentRoute: () => ShowcaseShowcaseIdRoute,
+  } as any)
 const ShowcaseShowcaseIdExportIndexRoute =
   ShowcaseShowcaseIdExportIndexRouteImport.update({
     id: '/export/',
@@ -85,7 +99,9 @@ export interface FileRoutesByFullPath {
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
   '/showcase/$showcaseId/share': typeof ShowcaseShowcaseIdShareRoute
   '/showcase/$showcaseId/': typeof ShowcaseShowcaseIdIndexRoute
+  '/showcase/$showcaseId/cover/still': typeof ShowcaseShowcaseIdCoverStillRoute
   '/showcase/$showcaseId/export/$sceneId': typeof ShowcaseShowcaseIdExportSceneIdRoute
+  '/showcase/$showcaseId/cover/': typeof ShowcaseShowcaseIdCoverIndexRoute
   '/showcase/$showcaseId/export/': typeof ShowcaseShowcaseIdExportIndexRoute
 }
 export interface FileRoutesByTo {
@@ -96,7 +112,9 @@ export interface FileRoutesByTo {
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
   '/showcase/$showcaseId/share': typeof ShowcaseShowcaseIdShareRoute
   '/showcase/$showcaseId': typeof ShowcaseShowcaseIdIndexRoute
+  '/showcase/$showcaseId/cover/still': typeof ShowcaseShowcaseIdCoverStillRoute
   '/showcase/$showcaseId/export/$sceneId': typeof ShowcaseShowcaseIdExportSceneIdRoute
+  '/showcase/$showcaseId/cover': typeof ShowcaseShowcaseIdCoverIndexRoute
   '/showcase/$showcaseId/export': typeof ShowcaseShowcaseIdExportIndexRoute
 }
 export interface FileRoutesById {
@@ -109,7 +127,9 @@ export interface FileRoutesById {
   '/showcase/$showcaseId/script': typeof ShowcaseShowcaseIdScriptRoute
   '/showcase/$showcaseId/share': typeof ShowcaseShowcaseIdShareRoute
   '/showcase/$showcaseId/': typeof ShowcaseShowcaseIdIndexRoute
+  '/showcase/$showcaseId/cover/still': typeof ShowcaseShowcaseIdCoverStillRoute
   '/showcase/$showcaseId/export/$sceneId': typeof ShowcaseShowcaseIdExportSceneIdRoute
+  '/showcase/$showcaseId/cover/': typeof ShowcaseShowcaseIdCoverIndexRoute
   '/showcase/$showcaseId/export/': typeof ShowcaseShowcaseIdExportIndexRoute
 }
 export interface FileRouteTypes {
@@ -123,7 +143,9 @@ export interface FileRouteTypes {
     | '/showcase/$showcaseId/script'
     | '/showcase/$showcaseId/share'
     | '/showcase/$showcaseId/'
+    | '/showcase/$showcaseId/cover/still'
     | '/showcase/$showcaseId/export/$sceneId'
+    | '/showcase/$showcaseId/cover/'
     | '/showcase/$showcaseId/export/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -134,7 +156,9 @@ export interface FileRouteTypes {
     | '/showcase/$showcaseId/script'
     | '/showcase/$showcaseId/share'
     | '/showcase/$showcaseId'
+    | '/showcase/$showcaseId/cover/still'
     | '/showcase/$showcaseId/export/$sceneId'
+    | '/showcase/$showcaseId/cover'
     | '/showcase/$showcaseId/export'
   id:
     | '__root__'
@@ -146,7 +170,9 @@ export interface FileRouteTypes {
     | '/showcase/$showcaseId/script'
     | '/showcase/$showcaseId/share'
     | '/showcase/$showcaseId/'
+    | '/showcase/$showcaseId/cover/still'
     | '/showcase/$showcaseId/export/$sceneId'
+    | '/showcase/$showcaseId/cover/'
     | '/showcase/$showcaseId/export/'
   fileRoutesById: FileRoutesById
 }
@@ -214,6 +240,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShowcaseShowcaseIdShareRouteImport
       parentRoute: typeof ShowcaseShowcaseIdRoute
     }
+    '/showcase/$showcaseId/cover/': {
+      id: '/showcase/$showcaseId/cover/'
+      path: '/cover'
+      fullPath: '/showcase/$showcaseId/cover/'
+      preLoaderRoute: typeof ShowcaseShowcaseIdCoverIndexRouteImport
+      parentRoute: typeof ShowcaseShowcaseIdRoute
+    }
+    '/showcase/$showcaseId/cover/still': {
+      id: '/showcase/$showcaseId/cover/still'
+      path: '/cover/still'
+      fullPath: '/showcase/$showcaseId/cover/still'
+      preLoaderRoute: typeof ShowcaseShowcaseIdCoverStillRouteImport
+      parentRoute: typeof ShowcaseShowcaseIdRoute
+    }
     '/showcase/$showcaseId/export/': {
       id: '/showcase/$showcaseId/export/'
       path: '/export'
@@ -237,7 +277,9 @@ interface ShowcaseShowcaseIdRouteChildren {
   ShowcaseShowcaseIdScriptRoute: typeof ShowcaseShowcaseIdScriptRoute
   ShowcaseShowcaseIdShareRoute: typeof ShowcaseShowcaseIdShareRoute
   ShowcaseShowcaseIdIndexRoute: typeof ShowcaseShowcaseIdIndexRoute
+  ShowcaseShowcaseIdCoverStillRoute: typeof ShowcaseShowcaseIdCoverStillRoute
   ShowcaseShowcaseIdExportSceneIdRoute: typeof ShowcaseShowcaseIdExportSceneIdRoute
+  ShowcaseShowcaseIdCoverIndexRoute: typeof ShowcaseShowcaseIdCoverIndexRoute
   ShowcaseShowcaseIdExportIndexRoute: typeof ShowcaseShowcaseIdExportIndexRoute
 }
 
@@ -247,7 +289,9 @@ const ShowcaseShowcaseIdRouteChildren: ShowcaseShowcaseIdRouteChildren = {
   ShowcaseShowcaseIdScriptRoute: ShowcaseShowcaseIdScriptRoute,
   ShowcaseShowcaseIdShareRoute: ShowcaseShowcaseIdShareRoute,
   ShowcaseShowcaseIdIndexRoute: ShowcaseShowcaseIdIndexRoute,
+  ShowcaseShowcaseIdCoverStillRoute: ShowcaseShowcaseIdCoverStillRoute,
   ShowcaseShowcaseIdExportSceneIdRoute: ShowcaseShowcaseIdExportSceneIdRoute,
+  ShowcaseShowcaseIdCoverIndexRoute: ShowcaseShowcaseIdCoverIndexRoute,
   ShowcaseShowcaseIdExportIndexRoute: ShowcaseShowcaseIdExportIndexRoute,
 }
 

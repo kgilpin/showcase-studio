@@ -137,7 +137,7 @@ To voice some scenes and not others — a voice tried on one scene before the wh
 Which AWS account pays for the voice is the user's choice, never yours. Polly is called through the aws command with the showcase's profile, else the library's aws_profile in showcase_settings.yaml, else AWS_PROFILE, else the aws command's default profile — and a machine with named profiles only has no default. Before voicing the first showcase in a library, ask the user which AWS profile to use and put it in showcase_settings.yaml at the library root as aws_profile (\${USER} there names the profile called after the login name, so the committed file works for a team; aws_region sets the region when the profile has none, else the build uses us-east-1 and says so in its notes). The studio checks the setup before any build: when nothing names a profile this machine has, the media status in studio_info and validate, and the Actions list, say so and list the machine's profiles — ask the user, don't pick one. Keep profile and region out of the showcase itself unless the user wants that one showcase on another account: a showcase ships to other people. If the build says the aws command isn't signed in, tell the user the command it names (e.g. aws sso login --profile <name>) — it's theirs to run. Without whisper the words file still gets written, with word times spread by length, and the build's notes say so: tell the user, as with any estimated timing.
 
 ## Sharing (TikTok, Instagram, YouTube Shorts, YouTube)
-The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (in the rail down the left, below Video, Script and Assets) walks through it; the share tools do the same from here.
+The studio doesn't post for the user, and it uses none of the platforms' APIs. It gets everything ready, and the user posts on the platform's own upload page or from their phone. The studio's Share page (in the rail down the left, below Video, Cover, Script and Assets) walks through it; the share tools do the same from here.
 
 What each destination takes (the id is what share, share_record and publish.set call it):
 
@@ -177,6 +177,41 @@ Posting:
 - To post from a phone, send the user to the Share page (share_status gives its URL as page): on a Mac it AirDrops the video, which lands in Photos, and the copied caption reaches an iPhone's clipboard too.
 - When the user has posted, ask for the post's link and keep it with share_record {showcaseId, destination, url}. The Share page lists every hand-off with its link.
 - The studio keeps its records of exports and hand-offs in .studio/exports/ and .studio/publishes/ (one small JSON file each). Don't edit them; the videos stay in ~/Downloads/showcase-exports/<id>.
+
+## Cover
+A cover is the still image TikTok, Instagram and YouTube Shorts show before the video plays: in the profile grid, and as a Short's thumbnail. It is never part of the video. Without one, each platform picks a frame of the video. The user edits it on the Cover page (in the rail, under Video); you edit it with edit_cover.
+
+It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are in .studio/cover.schema.json. A default for every destination, and overrides for each one, like the publish: block:
+
+    picture: shot-hero            # an image in assets/, by key
+    focus: top                    # which part of the picture the crop keeps
+    layout: fade                  # fade | band | split
+    fade: strong                  # light | medium | strong (fade layout only)
+    headline: Mirror your iPhone
+    textPosition: bottom          # top | middle | bottom
+    textSize: l                   # s | m | l
+    graphics:                     # TSX graphics from graphics/, drawn finished
+      - { graphic: arrow, at: bottom-right, size: 30 }
+    instagram:                    # changes just these fields for Instagram
+      headline: Mirror your iPhone. Link in bio.
+
+    layout   picture                         text
+    fade     fills the frame                 large, over a dark fade
+    band     fills the frame                 in a band of the theme's primary color
+    split    the rest of the frame, whole    at the top or bottom, as much room as it needs — for an app screenshot
+
+- focus says which part of the picture fill keeps (fade and band): top, center or bottom for a picture taller than 9:16, left, center or right for a wider one. A 9:16 picture — a frame of phone footage — isn't cropped, so focus does nothing there, and the Cover page hides it.
+- fade says how dark the fade layout's darkening behind the text is: light, medium (the default) or strong. Strong for a bright picture (a sky, a white screen) where white text won't read; light for a dark one, where medium hides more of the picture than it needs to.
+
+- The picture is an image in assets/. On the Cover page the user picks it from the video (any moment of a scene's footage, saved as assets/cover-<scene>-t<ms>.jpg, without captions) or from the images, and can add one from their computer. To use a frame yourself, take it from the scene's clip with the ffmpeg tool — {output: "cover-<scene>-t<ms>.jpg", args: ["-ss", "<seconds>", "-i", "assets/<clip file>", "-frames:v", "1", "-q:v", "2"]} — then set picture to its key. Renaming the file on the Assets page updates the cover too.
+- Pick the layout by the picture: a photo or a frame of footage takes fade or band (band when the picture is busy and text over it won't read); an app screenshot takes split, so it isn't cropped.
+- The profile grids show only the middle 3:4 of the 9:16 frame: they cut 12.5% off the top and the bottom. The cover keeps its text and graphics inside that on its own; don't place anything that matters in those strips.
+- The headline is the only text: a few words, readable at thumbnail size — the hook, not the caption.
+- Anything beyond the headline — an arrow, a badge, a label — is a graphic: write a TSX file in graphics/ as for a scene, then add it to graphics with a place (at: top-left, top, top-right, left, center, right, bottom-left, bottom or bottom-right) and a width in percent of the frame (size).
+- Write it with edit_cover {showcaseId, edits: [{destination?, name, value}], ifVersion}. Leave destination out for the default. null or "" removes a field, so the destination falls back to the default. The first edit makes cover.yaml. read_showcase returns the cover and its coverVersion to pass as ifVersion (null before there is a cover).
+- Check it with screenshot_cover {showcaseId, destination?}, and look at the text over the picture: it has to read at a glance.
+- A cover.yaml that breaks a rule never stops the showcase from opening: what doesn't fit is left out, with a warning in the studio and in validate.
+- The Share page offers each destination's cover as an image to upload with the video. The regular YouTube video (youtube43) takes a 16:9 thumbnail, which the studio doesn't make yet.
 
 ## Working rules
 - Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
@@ -433,7 +468,9 @@ change the files, but nothing tells you. So:
   |                 | edit_showcase's shape; theme.yaml edits are           |
   |                 | {field: "theme", group, name, value} from the style   |
   |                 | panel, {field: "theme.set", key, value} from          |
-  |                 | edit_theme                                            |
+  |                 | edit_theme; cover.yaml edits are {field: "cover",     |
+  |                 | destination?, name, value} from the Cover page and    |
+  |                 | edit_cover                                            |
   | asset.rename    | from, to, references (each {path, from, to}, plus     |
   |                 | sceneId inside a scene), and file and versions when   |
   |                 | references were rewritten                             |
@@ -477,6 +514,8 @@ change the files, but nothing tells you. So:
 - edit_theme works the same way for theme.yaml: pass the themeVersion
   read_showcase returned (null when there is no theme.yaml yet — then
   leave ifVersion out), or the version your last edit_theme returned.
+  So does edit_cover for cover.yaml, with coverVersion (null before the
+  showcase has a cover).
 - Your own file-editing tool has no such check. Read the file right
   before you change it.
 

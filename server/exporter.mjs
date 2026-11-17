@@ -20,6 +20,9 @@
  *                    exactly.
  *   exportScript     the narration as plain text (instant).
  *   screenshotSlide  one slide at half size, for the MCP tool.
+ *   screenshotCover  the showcase's cover (cover.yaml) as a PNG, for the
+ *                    Cover page's Save button and the screenshot_cover
+ *                    tool.
  *   screenshotFrame  one frame of the video at a given time (the record
  *                    page the video export records, in the TikTok 9:16
  *                    or 4:3 embed view), for the screenshot_frame MCP
@@ -41,6 +44,7 @@ import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { moveIntoPlace, partialPath, removePartial } from "./export-output.mjs";
 import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
+import { COVER_DESTINATIONS, COVER_SIZE } from "../src/content/cover-rules.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
@@ -490,6 +494,55 @@ export function screenshotSlide(renderer, appUrl, { showcaseId, sceneId } = {}) 
       `("${sceneId}"), and whether the showcase loads at all (run validate).`,
     { path: pagePath },
   );
+}
+
+/** A showcase's cover as a PNG (`/showcase/<id>/cover/still`): one
+ *  destination's cover, or the default, graphics drawn finished. Full
+ *  size is the cover itself, 1080×1920 (the Cover page's Save button);
+ *  half size is for the screenshot_cover tool. Returns the PNG's bytes. */
+export async function screenshotCover(
+  renderer,
+  appUrl,
+  showcasesDir,
+  { showcaseId, destination, size = "full" } = {},
+) {
+  if (!showcaseId) throw new Error("showcaseId is required");
+  if (destination != null && !Object.hasOwn(COVER_DESTINATIONS, destination)) {
+    throw new Error(
+      `No cover destination "${destination}" — use one of: ${Object.keys(COVER_DESTINATIONS).join(", ")}`,
+    );
+  }
+  if (size !== "half" && size !== "full") throw new Error('size must be "half" or "full"');
+  if (!existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))) {
+    throw new Error(`No showcase named "${showcaseId}"`);
+  }
+  if (!existsSync(path.join(showcasesDir, showcaseId, "cover.yaml"))) {
+    throw new Error(
+      `"${showcaseId}" has no cover yet — make one with edit_cover (or the Cover page)`,
+    );
+  }
+  const scale = size === "half" ? 0.5 : 1;
+  const pagePath = `/showcase/${showcaseId}/cover/still`;
+  const query = destination ? `?destination=${destination}` : "";
+  return withTimeout(
+    withPage(
+      renderer,
+      { width: COVER_SIZE.width * scale, height: COVER_SIZE.height * scale },
+      async (page) => {
+        await page.goto(`${appUrl}${pagePath}${query}`);
+        await page.evaluate(EXPORT_PAGE_READY);
+        return page.capture();
+      },
+    ),
+    `The cover did not render — check the showcase id ("${showcaseId}"), and whether the ` +
+      "showcase loads at all (run validate).",
+    { path: pagePath },
+  );
+}
+
+/** The file a saved cover gets: nova-cover.png, nova-cover-instagram.png. */
+export function coverFileName(showcaseId, destination) {
+  return `${showcaseId}-cover${destination ? `-${destination}` : ""}.png`;
 }
 
 /** The most frames one screenshot_frame call renders: a review checks a

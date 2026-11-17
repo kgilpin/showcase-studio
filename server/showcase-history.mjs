@@ -226,6 +226,8 @@ function describeEdit(edit = {}) {
         (Array.isArray(edit.value) && !edit.value.length)
         ? `reset theme ${edit.key}`
         : `set theme ${edit.key}`;
+    case "cover":
+      return `${edit.value == null || edit.value === "" ? "clear" : "set"} cover ${edit.name}${edit.destination ? ` for ${edit.destination}` : ""}`;
     default:
       return `edit ${scene} ${edit.field ?? ""}`;
   }

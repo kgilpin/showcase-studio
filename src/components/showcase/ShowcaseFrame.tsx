@@ -1,18 +1,19 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { FileText, Film, Home, Images, Send } from "lucide-react";
+import { FileText, Film, Home, Image as ImageIcon, Images, Send } from "lucide-react";
 import { StudioActivity } from "@/components/studio/StudioActivity";
 import { StudioSettings } from "@/components/studio/StudioSettings";
 import { studio, useWindowLock } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
-/* The frame around a showcase's screens — the player (Video), Script,
- * Assets and Share:
+/* The frame around a showcase's screens — the player (Video), Cover,
+ * Script, Assets and Share:
  *
  *   ┌──────┬──────────────────────────────┐
  *   │  ⌂   │ title             activity  ⚙│  top bar
  *   ├──────┼──────────────────────────────┤
  *   │Video │                              │
+ *   │Cover │                              │
  *   │Script│          the page            │
  *   │Assets│                              │
  *   │ ──── │                              │
@@ -55,6 +56,13 @@ import { cn } from "@/lib/utils";
  * of it. Otherwise the page scrolls and the top bar and rail stay put. */
 const PLACES = [
   { key: "player", label: "Video", to: "/showcase/$showcaseId", icon: Film, group: "make" },
+  {
+    key: "cover",
+    label: "Cover",
+    to: "/showcase/$showcaseId/cover",
+    icon: ImageIcon,
+    group: "make",
+  },
   {
     key: "script",
     label: "Script",

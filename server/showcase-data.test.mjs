@@ -82,6 +82,7 @@ describe("showcaseIndex", () => {
     expect(beta).toEqual({
       id: "beta",
       hasTheme: false,
+      hasCover: false,
       assets: [],
       graphics: [],
       modifiedMs: statSync(path.join(dir, "beta", "showcase.yaml")).mtimeMs,

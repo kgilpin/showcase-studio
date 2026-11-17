@@ -18,8 +18,10 @@
  * edit that can't be applied. A page reload clears them. */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
+  applyCoverEditLocal,
   applySceneEditLocal,
   applyThemeEditLocal,
+  showcaseCoverText,
   showcaseThemeText,
   showcaseYamlText,
 } from "@/content/showcases";
@@ -61,8 +63,8 @@ export function useEditFailures(): readonly EditFailure[] {
 }
 
 /* Every edit names the content of the file it targets as it was when
- * the edit was made — showcase.yaml, or theme.yaml for style-panel
- * edits — so the shell can refuse to patch a file that changed
+ * the edit was made — showcase.yaml, theme.yaml for style-panel edits,
+ * or cover.yaml for Cover page edits — so the shell can refuse to patch a file that changed
  * underneath the page (an agent or hand edit landing in the same
  * instant). The first edit to a file hashes the text the page loaded;
  * each successful write returns the new file's hash, which becomes the
@@ -73,7 +75,11 @@ const baseHashes = new Map<string, string>();
 
 /** Which file an edit patches — the key of its stale-write protection. */
 function editTarget(showcaseId: string, edit: SceneEdit): string {
-  return `${showcaseId}/${edit.field === "theme" ? "theme" : "showcase"}`;
+  return `${showcaseId}/${fileOf(edit)}`;
+}
+
+function fileOf(edit: SceneEdit): "theme" | "cover" | "showcase" {
+  return edit.field === "theme" || edit.field === "cover" ? edit.field : "showcase";
 }
 
 /** Drops what this page knows about a showcase's files — called when
@@ -82,6 +88,7 @@ function editTarget(showcaseId: string, edit: SceneEdit): string {
 export function forgetEditBase(showcaseId: string): void {
   baseHashes.delete(`${showcaseId}/showcase`);
   baseHashes.delete(`${showcaseId}/theme`);
+  baseHashes.delete(`${showcaseId}/cover`);
 }
 
 /* Edits in flight: applied to the model, not yet written. A re-read of
@@ -102,8 +109,13 @@ async function sha256Hex(text: string): Promise<string> {
 async function editBaseHash(showcaseId: string, edit: SceneEdit): Promise<string | undefined> {
   const known = baseHashes.get(editTarget(showcaseId, edit));
   if (known) return known;
+  const file = fileOf(edit);
   const text =
-    edit.field === "theme" ? showcaseThemeText(showcaseId) : showcaseYamlText(showcaseId);
+    file === "theme"
+      ? showcaseThemeText(showcaseId)
+      : file === "cover"
+        ? showcaseCoverText(showcaseId)
+        : showcaseYamlText(showcaseId);
   return text == null ? undefined : sha256Hex(text);
 }
 
@@ -120,6 +132,14 @@ export function useCanEditScenes(): boolean {
   return canEdit;
 }
 
+/** Applies an edit to the in-memory model, by the file it belongs to;
+ *  returns its inverse, or undefined when it didn't apply. */
+function applyLocal(showcaseId: string, sceneId: string, edit: SceneEdit): SceneEdit | undefined {
+  if (edit.field === "theme") return applyThemeEditLocal(showcaseId, edit);
+  if (edit.field === "cover") return applyCoverEditLocal(showcaseId, edit);
+  return applySceneEditLocal(showcaseId, sceneId, edit);
+}
+
 /** Optimistic model update + file write; returns the inverse edit, or
  *  undefined when the edit didn't apply (and the model is unchanged). */
 async function apply(
@@ -130,10 +150,7 @@ async function apply(
   const bridge = studio()?.scenes;
   if (!bridge) return undefined;
   const baseHash = await editBaseHash(showcaseId, edit);
-  const inverse =
-    edit.field === "theme"
-      ? applyThemeEditLocal(showcaseId, edit)
-      : applySceneEditLocal(showcaseId, sceneId, edit);
+  const inverse = applyLocal(showcaseId, sceneId, edit);
   if (!inverse) {
     reportEditFailure({ showcaseId, sceneId, message: "the edit could not be applied" });
     return undefined;
@@ -145,7 +162,7 @@ async function apply(
     const message = result.error ?? "unknown error";
     console.error(`Scene edit failed: ${message}`);
     reportEditFailure({ showcaseId, sceneId, message });
-    applySceneEditLocal(showcaseId, sceneId, inverse);
+    applyLocal(showcaseId, sceneId, inverse);
     return undefined;
   }
   if (result.hash) baseHashes.set(editTarget(showcaseId, edit), result.hash);
