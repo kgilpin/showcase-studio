@@ -1,0 +1,9 @@
+picture: cover-profile-grid
+layout: fade
+fade: light
+headline: Your video needs a cover
+textPosition: bottom
+textSize: l
+youtube43:
+  picture: shot-cover-page
+  layout: split

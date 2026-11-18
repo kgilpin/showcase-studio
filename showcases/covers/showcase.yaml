@@ -1,0 +1,113 @@
+meta:
+  title: Covers
+  description: A cover is the still picture people see before your video plays. Showcase Studio's Cover page makes one for TikTok, Instagram, YouTube Shorts and YouTube, and the Share page hands it over with the video.
+  loop: true
+  captionStyle: karaoke
+  sceneMaxMs: 8000
+  targetMs: 60000
+  notes: "For people who already use Showcase Studio: what a cover is, and why making it in the studio beats making it somewhere else. No voiceover yet, so timing comes from the captions. The diagrams in graphics/ are staged to their scene's captions; restage a diagram's animation delays if its captions change. The screenshots (shot-cover-page-narrow, shot-cover-controls, shot-share-cover) are the studio's own Cover and Share pages in a 640-wide window, showing this showcase's cover; take them again if those pages or the cover change. shot-cover-page is the same Cover page in a wide window, used as the YouTube thumbnail's picture."
+  view: embed
+
+publish:
+  caption: "Before your video plays, people see its cover. Showcase Studio 1.0 has a Cover page: pick a picture, write a headline, and get the right image for TikTok, Instagram, Shorts and YouTube."
+  hashtags: [ showcasestudio, claudecode, videomarketing, indiedev ]
+  title: "Covers in Showcase Studio 1.0: give your video a first impression"
+  youtube43:
+    title: "Covers in Showcase Studio: give your video a first impression"
+
+scenes:
+  - id: hook
+    theme: footage
+    eyebrow: The problem
+    note: "graphics/profile-grid.tsx fills the slide: a profile grid where five tiles are frames the platform picked and one is a designed cover. This showcase's own cover uses a still of it (assets/cover-profile-grid.png)."
+    captions:
+      - text: Before your video plays, people see its cover.
+      - text: Skip it, and the platform picks a frame.
+    media:
+      kind: graphic
+      graphic: profile-grid
+      alt: "A profile grid of six videos: five show a blurred frame with a caption cut off mid-word, one shows a designed cover with a headline"
+  - id: cover-page
+    theme: footage
+    eyebrow: The Cover page
+    captions:
+      - text: Showcase Studio now has a Cover page.
+        position: top
+      - text: Pick a picture and write a headline.
+        position: top
+    media:
+      kind: image
+      asset: shot-cover-page-narrow
+      alt: "The studio's Cover page: this showcase's cover, with the strips a profile grid cuts off marked at the top and bottom"
+      motion: still
+      fadeTo:
+        asset: shot-cover-controls
+        alt: "The Cover page's settings: layout, picture, fade, text position and text size"
+    note: "Two screenshots of the studio's own Cover page in a narrow window, showing this showcase's cover: the cover with its safe area, fading to the settings below it. Captions sit at the top so they stay off the cover's headline."
+  - id: layouts
+    theme: console
+    eyebrow: Layouts
+    title: Three layouts
+    captions:
+      - text: Choose fade or band for a photo.
+      - text: Choose split to show an app screenshot whole.
+    media:
+      kind: graphic
+      graphic: layouts
+      alt: "Three small covers: fade puts the headline over a dark fade, band puts it in a color band, split puts it above a whole app screenshot"
+      frame: full
+  - id: destinations
+    theme: console
+    eyebrow: Destinations
+    title: One cover, every destination
+    captions:
+      - text: One cover fits TikTok, Instagram and Shorts.
+      - text: YouTube gets its own widescreen thumbnail.
+    media:
+      kind: graphic
+      graphic: destinations
+      alt: cover.yaml becomes three 1080 by 1920 covers for TikTok, Instagram and Shorts, and a 1280 by 720 thumbnail for YouTube
+      frame: full
+  - id: grid-crop
+    theme: console
+    eyebrow: The crop
+    title: Safe from the crop
+    captions:
+      - text: Profile grids cut off the top and bottom.
+      - text: The studio keeps your headline inside what's left.
+    media:
+      kind: graphic
+      graphic: grid-crop
+      alt: A 9:16 cover with its top and bottom strips marked as cut off, and the 3:4 tile a profile grid shows, with the headline intact
+      frame: full
+  - id: claude
+    theme: console
+    eyebrow: With Claude
+    title: Or ask Claude
+    captions:
+      - text: Or ask Claude. It edits the cover and checks the result.
+    media:
+      kind: graphic
+      graphic: ask-claude
+      alt: A request to Claude to make the headline bigger, the edit_cover and screenshot_cover tools each checked off, and the finished cover
+      frame: full
+  - id: share
+    theme: footage
+    eyebrow: Posting
+    captions:
+      - text: The Share page hands you the cover with the video.
+        position: top
+    media:
+      kind: image
+      asset: shot-share-cover
+      alt: "The studio's Share page for TikTok: the video, and under it the cover with a Save cover image button"
+      motion: still
+    note: A screenshot of the studio's own Share page in a narrow window, with a draft export of this showcase and its cover. The caption sits at the top so it stays off the Cover card.
+  - id: outro
+    theme: statement
+    title: Give your video a cover
+    support: The Cover page, new in Showcase Studio 1.0
+    captions:
+      - text: Try it on your next video.
+    media:
+      kind: none
