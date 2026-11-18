@@ -10,6 +10,7 @@ import features from "../content/features.yaml";
 import home from "../content/home.yaml";
 import pricing from "../content/pricing.yaml";
 import site from "../content/shared.yaml";
+import videos from "../content/videos.yaml";
 
 export const ORIGIN = "https://showcasestudio.dev";
 
@@ -17,7 +18,7 @@ export const ORIGIN = "https://showcasestudio.dev";
  * shared links. */
 export type Head = { title: string; description: string };
 
-export type Page = "features" | "faq" | "pricing" | "download";
+export type Page = "features" | "videos" | "faq" | "pricing" | "download";
 
 export type SiteContent = {
   head: Head & { social_description: string };
@@ -91,7 +92,9 @@ export type StageArt =
       views: string[];
       view: string;
     }
-  | { type: "share"; label: string; exports: string[] };
+  | { type: "share"; label: string; exports: string[] }
+  /* One of the videos in content/videos.yaml, by its id. */
+  | { type: "video"; video: string };
 
 export type Stage = {
   id: string;
@@ -126,6 +129,24 @@ export type PricingContent = {
   questions: Question[];
 };
 
+/* A video on YouTube (content/videos.yaml). */
+export type Video = {
+  id: string;
+  youtube: string;
+  title: string;
+  text: string;
+  length: string;
+  date: string;
+};
+
+export type VideosContent = {
+  head: Head;
+  title: string;
+  lede: string;
+  feed: string;
+  videos: Video[];
+};
+
 export type DownloadContent = { head: Head; title: string; lede: string; next: string };
 
 export const SITE = site as SiteContent;
@@ -134,6 +155,15 @@ export const FEATURES = features as FeaturesContent;
 export const FAQ = faq as FaqContent;
 export const PRICING = pricing as PricingContent;
 export const DOWNLOAD = download as DownloadContent;
+export const VIDEOS = videos as VideosContent;
+
+/* A video by its id in content/videos.yaml. A wrong id stops the build
+ * rather than leaving a hole in the page. */
+export function videoById(id: string): Video {
+  const video = VIDEOS.videos.find((v) => v.id === id);
+  if (!video) throw new Error(`No video "${id}" in content/videos.yaml`);
+  return video;
+}
 
 /* A page's <head>: its title with the site's name after it, its
  * description, the same for shared links, and its canonical address. */

@@ -1,0 +1,44 @@
+# The Videos page: short videos about Showcase Studio, each one made with
+# Showcase Studio. The inline tags allowed in text are listed at the top of
+# shared.yaml.
+#
+# Every video plays from YouTube. The page shows the video's YouTube
+# thumbnail, and loads YouTube's player (from youtube-nocookie.com) only
+# when someone clicks play. To add a video: post it on YouTube, check that
+# embedding is allowed in YouTube Studio, and add an entry here.
+#
+# The same list is the page's RSS feed, /videos.xml
+# (scripts/videos-feed.mjs). A feed reader shows each video once, by its
+# YouTube ID, so don't change an ID after the video is published.
+
+head:
+  title: Videos
+  description: >-
+    Short videos about Showcase Studio's features, each one made with
+    Showcase Studio.
+
+title: Videos
+# The link to the RSS feed, under the lede.
+feed: RSS feed
+lede: Each of these was made with Showcase Studio, from a showcase in its own repo.
+
+# Newest first. Each entry:
+#
+#   id        a name for the video; the Features page uses it to show a
+#             video in one of its sections (art: {type: video, video: <id>}).
+#             Use the showcase's folder name in showcases/.
+#   youtube   the video's ID: the part after watch?v= in its link
+#   title     the video's name on this page
+#   text      a sentence or two under it
+#   length    how long it runs, as m:ss
+#   date      the day it went up on YouTube, as YYYY-MM-DD: its date in
+#             the feed and on the page
+videos:
+  - id: covers
+    youtube: ePFLpARajfE
+    title: Covers
+    text: >-
+      Before your video plays, people see its cover. The Cover page makes
+      one for TikTok, Instagram, YouTube Shorts and YouTube.
+    length: "0:50"
+    date: 2026-11-17

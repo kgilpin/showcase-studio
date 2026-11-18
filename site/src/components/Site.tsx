@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 import { SITE, type Page } from "../content";
 import { PORTAL_SIGN_IN_URL } from "../license-service";
 
-/* The pages in the top bar and the footer, in order. The first two leave
- * the top bar on a narrow screen. */
-const PAGES: Page[] = ["features", "faq", "pricing", "download"];
+/* The pages in the top bar and the footer, in order. On a narrow screen
+ * the top bar puts them in a row under the name. */
+const PAGES: Page[] = ["features", "videos", "faq", "pricing", "download"];
 
 /* The top bar and the footer, the same on every page. The links are
  * absolute, so they work from any page; current names the page we are
@@ -16,13 +16,8 @@ export function SiteHeader({ current }: { current?: Page }) {
     <header className="top">
       <Brand />
       <nav>
-        {PAGES.map((page, i) => (
-          <a
-            key={page}
-            className={i < 2 ? "optional" : undefined}
-            href={`/${page}`}
-            aria-current={current === page ? "page" : undefined}
-          >
+        {PAGES.map((page) => (
+          <a key={page} href={`/${page}`} aria-current={current === page ? "page" : undefined}>
             {SITE.nav[page]}
           </a>
         ))}

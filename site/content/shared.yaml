@@ -1,6 +1,6 @@
 # The text that every page of showcasestudio.dev shares. Each page's own
 # text is in the file named for it: home.yaml, features.yaml, faq.yaml,
-# pricing.yaml, download.yaml.
+# pricing.yaml, download.yaml, videos.yaml.
 #
 # Any text here may use a few inline tags: <strong>, <code>, <small>,
 # <mark> and <a href="...">. Tags don't nest. A link's href is a path on
@@ -30,6 +30,7 @@ brand:
 # The links in the top bar and the footer, in order.
 nav:
   features: Features
+  videos: Videos
   faq: FAQ
   pricing: Pricing
   download: Download

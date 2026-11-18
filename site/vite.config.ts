@@ -3,6 +3,9 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { parse } from "yaml";
 
+// @ts-expect-error: a plain .mjs script, with no types
+import { videosFeed } from "./scripts/videos-feed.mjs";
+
 /* The site's text lives in content/*.yaml (src/content.ts reads them). An
  * import of a .yaml file becomes a module whose default export is the
  * file's data, parsed here at build time, so the page ships no parser.
@@ -18,6 +21,20 @@ function yaml(): Plugin {
   };
 }
 
+/* The Videos page's RSS feed at /videos.xml in npm run dev. npm run build
+ * writes the same feed into dist/client (scripts/videos-feed.mjs). */
+function videosFeedInDev(): Plugin {
+  return {
+    name: "site-videos-feed",
+    configureServer(server) {
+      server.middlewares.use("/videos.xml", (_req, res) => {
+        res.setHeader("Content-Type", "application/rss+xml; charset=utf-8");
+        res.end(videosFeed());
+      });
+    },
+  };
+}
+
 /* The site is a TanStack Start app, prerendered at build time: vite build
  * writes finished HTML for every page into dist/client, beside the JS, the
  * CSS and everything in public/. wrangler.toml serves that folder as static
@@ -26,6 +43,7 @@ function yaml(): Plugin {
 export default defineConfig({
   plugins: [
     yaml(),
+    videosFeedInDev(),
     tanstackStart({
       /* Only the pages listed here: no crawling, since the page links to
        * /download/*, which only the Worker answers, and no finding routes
@@ -44,6 +62,7 @@ export default defineConfig({
       pages: [
         { path: "/" },
         { path: "/features" },
+        { path: "/videos" },
         { path: "/faq" },
         { path: "/pricing" },
         { path: "/download" },

@@ -37,6 +37,8 @@ title: Features
 #             one shown on)
 #   share     the exports in a row (in order: the tall video, the 4:3
 #             video, the App Store screenshots) above the Share window
+#   video     one of the videos in videos.yaml, by its id (video: covers).
+#             It has no pins, so the items are a plain list.
 stages:
   - id: code
     title: Built on your code
@@ -181,6 +183,25 @@ stages:
       background: Background
       views: [App Screens, TikTok, "4:3"]
       view: TikTok
+
+  - id: covers
+    title: Covers
+    items:
+      - feature: A cover for every video.
+        text: >-
+          Pick a picture and write a headline. That still is what people see
+          before your video plays, instead of a frame the platform picked.
+      - feature: Three layouts.
+        text: >-
+          Fade or band for a photo, or split to show an app screenshot whole.
+      - feature: Every destination.
+        text: >-
+          One cover fits TikTok, Instagram and YouTube Shorts, and YouTube
+          gets its own widescreen thumbnail. The Share page hands the right
+          one over with the video.
+    art:
+      type: video
+      video: covers
 
   - id: share
     title: Export and share

@@ -1481,6 +1481,16 @@ main {
   margin-top: 24px;
 }
 
+/* A section whose picture is a video has no pins: its items keep the
+   small highlight square. */
+.numbered.plain > ul > li {
+  padding-left: 22px;
+}
+
+.numbered.plain > ul > li::before {
+  content: "";
+}
+
 .numbered > ul > li.on {
   color: var(--text);
 }
@@ -1930,8 +1940,8 @@ footer .brand {
   }
 
   .top nav {
-    gap: 16px;
-    font-size: 15px;
+    gap: 12px;
+    font-size: 14px;
   }
 
   main {
@@ -2041,22 +2051,31 @@ footer .brand {
   }
 }
 
-/* Phones: only two links fit beside the name, so Features and FAQ go
-   (the footer links them) */
-@media (max-width: 480px) {
-  .top nav .optional {
-    display: none;
-  }
-}
-
-/* The narrowest phones: a smaller top bar keeps it on one line */
-@media (max-width: 400px) {
-  .brand {
-    font-size: 16px;
+/* Narrow screens: the five links don't fit beside the name, so they get
+   their own row under it. The footer's name goes on its own line too,
+   with its links in a row under it. */
+@media (max-width: 720px) {
+  .top {
+    flex-wrap: wrap;
+    row-gap: 14px;
   }
 
   .top nav {
-    gap: 12px;
+    width: 100%;
+    gap: 22px;
+    overflow-x: auto;
+  }
+
+  footer .brand {
+    flex-basis: 100%;
+    margin-bottom: 4px;
+  }
+}
+
+/* The narrowest phones: smaller links keep them on one row */
+@media (max-width: 400px) {
+  .top nav {
+    gap: 10px;
     font-size: 14px;
   }
 }
@@ -2137,4 +2156,100 @@ footer .brand {
   position: absolute;
   top: -8px;
   left: -8px;
+}
+
+/* A video from YouTube (YouTubeVideo.tsx): its thumbnail and a play
+   button until clicked, then YouTube's player in the same 16:9 frame. */
+.yt {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #000;
+  box-shadow: 0 24px 48px rgba(18, 19, 22, 0.22);
+}
+
+.yt button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.yt img,
+.yt iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: cover;
+}
+
+.yt-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 56px;
+  padding: 0 22px 0 16px;
+  border-radius: 28px;
+  background: var(--mark);
+  color: var(--ink);
+  font: 700 16px var(--font);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s;
+}
+
+.yt-play svg {
+  width: 28px;
+  height: 28px;
+}
+
+.yt button:hover .yt-play {
+  transform: scale(1.06);
+}
+
+/* The Videos page: a grid of videos on paper, each with its title and a
+   line under it. */
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 56px 40px;
+}
+
+.video-card h2 {
+  margin: 20px 0 6px;
+}
+
+.video-card p {
+  margin: 0;
+  color: var(--soft);
+}
+
+.video-card .watch {
+  margin-top: 10px;
+  font-size: 15px;
+}
+
+/* The RSS feed link under the Videos page's lede. */
+.feed {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+.feed svg {
+  width: 18px;
+  height: 18px;
+  color: var(--mark);
 }

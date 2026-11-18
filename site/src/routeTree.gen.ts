@@ -15,6 +15,7 @@ import { Route as DownloadRouteImport } from './routes/download'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as VideosRouteImport } from './routes/videos'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VideosRoute = VideosRouteImport.update({
+  id: '/videos',
+  path: '/videos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/pricing': typeof PricingRoute
+  '/videos': typeof VideosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/pricing': typeof PricingRoute
+  '/videos': typeof VideosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,14 +79,23 @@ export interface FileRoutesById {
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/pricing': typeof PricingRoute
+  '/videos': typeof VideosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/404' | '/download' | '/faq' | '/features' | '/pricing'
+  fullPaths:
+    '/' | '/404' | '/download' | '/faq' | '/features' | '/pricing' | '/videos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/404' | '/download' | '/faq' | '/features' | '/pricing'
+  to: '/' | '/404' | '/download' | '/faq' | '/features' | '/pricing' | '/videos'
   id:
-    '__root__' | '/' | '/404' | '/download' | '/faq' | '/features' | '/pricing'
+    | '__root__'
+    | '/'
+    | '/404'
+    | '/download'
+    | '/faq'
+    | '/features'
+    | '/pricing'
+    | '/videos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -88,6 +105,7 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   FeaturesRoute: typeof FeaturesRoute
   PricingRoute: typeof PricingRoute
+  VideosRoute: typeof VideosRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -134,6 +152,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/videos': {
+      id: '/videos'
+      path: '/videos'
+      fullPath: '/videos'
+      preLoaderRoute: typeof VideosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -144,6 +169,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   FeaturesRoute: FeaturesRoute,
   PricingRoute: PricingRoute,
+  VideosRoute: VideosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

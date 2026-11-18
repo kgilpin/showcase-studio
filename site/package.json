@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node scripts/static-404.mjs",
+    "build": "vite build && node scripts/static-404.mjs && node scripts/videos-feed.mjs",
     "preview": "vite preview --port 8098",
     "typecheck": "tsc --noEmit",
     "dev:wrangler": "npm run build && wrangler dev --port ${PORT:-8098}",

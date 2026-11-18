@@ -5,7 +5,8 @@ import { Destinations } from "../components/Destinations";
 import { Markup } from "../components/Markup";
 import { PageIntro, SiteFooter, SiteHeader, TryIt } from "../components/Site";
 import { Window, WindowBar } from "../components/Window";
-import { FEATURES, pageHead, type Stage, type StageArt } from "../content";
+import { YouTubeVideo } from "../components/YouTubeVideo";
+import { FEATURES, pageHead, videoById, type Stage, type StageArt } from "../content";
 
 export const Route = createFileRoute("/features")({
   head: () => pageHead("/features", FEATURES.head),
@@ -68,6 +69,8 @@ function Art({ art, pin }: { art: StageArt; pin: Pin }) {
       return <EditArt art={art} pin={pin} />;
     case "share":
       return <ShareArt art={art} pin={pin} />;
+    case "video":
+      return <YouTubeVideo video={videoById(art.video)} />;
   }
 }
 
@@ -354,7 +357,8 @@ function ShareArt({ art, pin }: { art: ArtOf<"share">; pin: Pin }) {
 }
 
 /* One section. Pointing at an item (or tapping it) lights up its pin,
- * and pointing at a pin lights up its item. */
+ * and pointing at a pin lights up its item. A video has no pins, so its
+ * items are a plain list. */
 function StageView({ stage }: { stage: Stage }) {
   const [active, setActive] = useState<number | null>(null);
   const pin = (n: number) => (
@@ -366,8 +370,9 @@ function StageView({ stage }: { stage: Stage }) {
       {n}
     </span>
   );
+  const pinned = stage.art.type !== "video";
   return (
-    <article className="stage numbered" id={stage.id}>
+    <article className={pinned ? "stage numbered" : "stage numbered plain"} id={stage.id}>
       <div className="stage-head">
         <h2>{stage.title}</h2>
       </div>
@@ -383,9 +388,11 @@ function StageView({ stage }: { stage: Stage }) {
             onMouseLeave={() => setActive(null)}
             onClick={() => setActive(i + 1)}
           >
-            <span className="pin" aria-hidden="true">
-              {i + 1}
-            </span>
+            {pinned && (
+              <span className="pin" aria-hidden="true">
+                {i + 1}
+              </span>
+            )}
             <strong>{feature}</strong> <Markup text={text} />
           </li>
         ))}
