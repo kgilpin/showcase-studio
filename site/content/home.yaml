@@ -19,6 +19,11 @@ hero:
     label: "Showcase Studio's own showcase: a one-minute video made with Showcase Studio"
     # The line under it.
     caption: This video was made with Showcase Studio.
+    # For search engines: the day public/media/hero.mp4 last changed
+    # (YYYY-MM-DD) and how long it runs (m:ss). Update both when
+    # npm run media makes a new one.
+    date: 2026-10-16
+    length: "0:45"
 
 # The "how it works" rows: a title, the paragraphs, and a picture beside
 # them (the pictures alternate sides). The picture is one of:

@@ -5,13 +5,14 @@ import { Markup } from "../components/Markup";
 import { PageIntro, SiteFooter, SiteHeader } from "../components/Site";
 import { PRICING, pageHead } from "../content";
 import { CHECKOUT_URL } from "../license-service";
+import { appData, jsonLd } from "../structured-data";
 
 /* The words are in content/pricing.yaml. Every line after the first is
  * the same on both plans: the trial has everything, and only the number of
  * full-quality exports differs (the license service's /export,
  * cdk/lambda-license/license-core.mjs). */
 export const Route = createFileRoute("/pricing")({
-  head: () => pageHead("/pricing", PRICING.head),
+  head: () => ({ ...pageHead("/pricing", PRICING.head), scripts: [jsonLd(appData())] }),
   component: Pricing,
 });
 

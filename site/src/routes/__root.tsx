@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { NotFound } from "../components/NotFound";
 import { ORIGIN, SITE } from "../content";
+import { jsonLd, siteData } from "../structured-data";
 
 import styles from "../styles.css?url";
 
@@ -32,6 +33,7 @@ export const Route = createRootRoute({
       },
       { rel: "stylesheet", href: styles },
     ],
+    scripts: [jsonLd(siteData())],
   }),
   shellComponent: Shell,
   component: Outlet,

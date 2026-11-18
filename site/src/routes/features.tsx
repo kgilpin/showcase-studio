@@ -7,9 +7,18 @@ import { PageIntro, SiteFooter, SiteHeader, TryIt } from "../components/Site";
 import { Window, WindowBar } from "../components/Window";
 import { YouTubeVideo } from "../components/YouTubeVideo";
 import { FEATURES, pageHead, videoById, type Stage, type StageArt } from "../content";
+import { jsonLd, videoListData } from "../structured-data";
+
+/* The videos shown in the sections, for search engines. */
+const STAGE_VIDEOS = FEATURES.stages.flatMap(({ art }) =>
+  art.type === "video" ? [videoById(art.video)] : [],
+);
 
 export const Route = createFileRoute("/features")({
-  head: () => pageHead("/features", FEATURES.head),
+  head: () => ({
+    ...pageHead("/features", FEATURES.head),
+    scripts: STAGE_VIDEOS.length ? [jsonLd(videoListData(STAGE_VIDEOS))] : [],
+  }),
   component: Features,
 });
 

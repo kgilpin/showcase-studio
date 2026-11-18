@@ -9,10 +9,14 @@ import { Markup } from "../components/Markup";
 import { SiteFooter, SiteHeader } from "../components/Site";
 import { Window, WindowBar } from "../components/Window";
 import { HOME, ORIGIN, type HomeArt } from "../content";
+import { appData, heroVideoData, jsonLd } from "../structured-data";
 
 /* The words are in content/home.yaml. */
 export const Route = createFileRoute("/")({
-  head: () => ({ links: [{ rel: "canonical", href: `${ORIGIN}/` }] }),
+  head: () => ({
+    links: [{ rel: "canonical", href: `${ORIGIN}/` }],
+    scripts: [jsonLd(appData()), jsonLd(heroVideoData())],
+  }),
   component: Home,
 });
 

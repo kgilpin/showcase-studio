@@ -4,6 +4,7 @@ import { Markup } from "../components/Markup";
 import { PageIntro, SiteFooter, SiteHeader, TryIt } from "../components/Site";
 import { YouTubeVideo } from "../components/YouTubeVideo";
 import { VIDEOS, pageHead } from "../content";
+import { jsonLd, videoListData } from "../structured-data";
 
 export const Route = createFileRoute("/videos")({
   head: () => {
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/videos")({
         ...head.links,
         { rel: "alternate", type: "application/rss+xml", title: FEED_TITLE, href: "/videos.xml" },
       ],
+      scripts: [jsonLd(videoListData(VIDEOS.videos))],
     };
   },
   component: Videos,

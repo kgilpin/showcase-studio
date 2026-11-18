@@ -24,6 +24,7 @@ export type SiteContent = {
   head: Head & { social_description: string };
   brand: { name: string; mark: string };
   nav: Record<Page, string> & { manage: string };
+  links: { github: string; youtube: string };
   try: { title: string; lede: string; button: string };
   install: {
     plugin: { pill: string; title: string; intro: string; commands: string; then: string };
@@ -63,7 +64,7 @@ export type HomeContent = {
     headline: string[][];
     lede: string;
     button: string;
-    video: { label: string; caption: string };
+    video: { label: string; caption: string; date: string; length: string };
   };
   features: { title: string; text: string[]; art: HomeArt }[];
   more: string;

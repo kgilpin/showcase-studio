@@ -37,6 +37,12 @@ nav:
   # Footer only: the link to Stripe's Customer Portal.
   manage: Manage subscription
 
+# The places Showcase Studio has besides this site. Search engines read
+# them as the same product as the site (src/structured-data.ts).
+links:
+  github: https://github.com/kgilpin/showcase-studio
+  youtube: https://www.youtube.com/@ShowcaseStudioDev
+
 # The block that closes the Features and FAQ pages.
 try:
   title: Try it on your app
