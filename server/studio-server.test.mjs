@@ -604,6 +604,27 @@ scenes:
     expect(next).toContain("subagent");
   });
 
+  it("check_titles asks for the story on a showcase made from the worked-example template", async () => {
+    const { studio } = await startStudio();
+    await studio.callTool({
+      name: "create_showcase",
+      arguments: { name: "Busy Device", template: "worked-example" },
+    });
+    const story = JSON.parse(
+      (await studio.callTool({ name: "check_titles", arguments: { showcaseId: "busy-device" } }))
+        .content[0].text,
+    );
+    expect(story.check).toBe("story");
+    expect(story.brief).toContain("retell what happens");
+    expect(story.next).toContain("meta.notes");
+    const screen = JSON.parse(
+      (await studio.callTool({ name: "check_titles", arguments: { showcaseId: "nova" } }))
+        .content[0].text,
+    );
+    expect(screen.check).toBe("screen");
+    expect(screen.brief).toContain("what you expect to see on the screen");
+  });
+
   it("create_showcase scaffolds a showcase through the studio's own + card path", async () => {
     const { studio, library } = await startStudio();
     const made = await studio.callTool({

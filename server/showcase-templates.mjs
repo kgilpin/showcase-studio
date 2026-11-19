@@ -16,6 +16,8 @@
  *   titles:                          a few good and bad titles
  *     good: [...]
  *     bad: [...]
+ *   titleCheck: story                what check_titles asks its reader
+ *                                    (TITLE_CHECKS; screen when unset)
  *   scenes:                          the starting scenes, written into
  *     - id: hook                     showcase.yaml as they are; a scene
  *       theme: statement             with no media gets `kind: none`
@@ -63,6 +65,11 @@ const TEMPLATE_META = {
 
 const ID = /^[a-z0-9][a-z0-9-]*$/;
 
+/** What check_titles asks its reader, set by a template's titleCheck:
+ *    screen  "what does each slide show?" (titles say what is on screen)
+ *    story   "retell what happened" (titles are claims that tell a story) */
+export const TITLE_CHECKS = ["screen", "story"];
+
 /** One template file read and checked: {template} or {problem}. */
 function readTemplate(file, id, source) {
   const where = source === "library" ? `${LIBRARY_TEMPLATES_DIR}/${id}.yaml` : `${id}.yaml`;
@@ -99,6 +106,9 @@ function readTemplate(file, id, source) {
     if (ids.has(scene.id)) return { problem: `${where}: two scenes are named ${scene.id}` };
     ids.add(scene.id);
   }
+  if (raw.titleCheck !== undefined && !TITLE_CHECKS.includes(raw.titleCheck)) {
+    return { problem: `${where}: titleCheck must be ${TITLE_CHECKS.join(" or ")}` };
+  }
   const list = (value) => (Array.isArray(value) ? value.map(String) : []);
   return {
     template: {
@@ -109,6 +119,7 @@ function readTemplate(file, id, source) {
       meta,
       guidance: typeof raw.guidance === "string" ? raw.guidance.trim() : "",
       titles: { good: list(raw.titles?.good), bad: list(raw.titles?.bad) },
+      titleCheck: raw.titleCheck ?? "screen",
       scenes,
     },
   };
@@ -180,6 +191,7 @@ export function templateGuidance(template) {
     name: template.name,
     guidance: template.guidance,
     titles: template.titles,
+    titleCheck: template.titleCheck,
   };
 }
 

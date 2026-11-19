@@ -43,6 +43,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { moveIntoPlace, partialPath, removePartial } from "./export-output.mjs";
+import { findTemplate } from "./showcase-templates.mjs";
 import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
 import { COVER_DESTINATIONS, coverImage } from "../src/content/cover-rules.mjs";
@@ -288,16 +289,30 @@ export function titleCheck(showcasesDir, showcaseId) {
       title: oneLine(scene.title),
       ...(scene.note ? { note: oneLine(scene.note) } : {}),
     }));
+  /* A template whose titles tell a story (titleCheck: story) asks the
+   * reader to retell it; every other showcase asks what each slide shows. */
+  const templateId = doc.meta?.template;
+  const check =
+    (templateId && findTemplate(showcasesDir, String(templateId))?.titleCheck) || "screen";
+  const question =
+    check === "story"
+      ? [
+          "In a few sentences, retell what happens in this video, as you understand it from the titles.",
+          "Then list each slide whose title you couldn't fit into that story, and say why.",
+        ]
+      : [
+          "For each slide, say in one sentence what you expect to see on the screen.",
+          "If a title doesn't tell you, write \"Can't tell\" and say what is missing.",
+        ];
   const brief = [
     "Below are the on-screen titles of the slides in a short product video, in order.",
     "You know nothing else about the video or the product. Answer from the titles alone.",
     "",
-    "For each slide, say in one sentence what you expect to see on the screen.",
-    "If a title doesn't tell you, write \"Can't tell\" and say what is missing.",
+    ...question,
     "",
     ...slides.map((s) => `${s.slide}. ${s.title}`),
   ].join("\n");
-  return { brief, slides };
+  return { brief, check, slides };
 }
 
 /** Writes the narration script as <id>_script.txt — the instant export. */

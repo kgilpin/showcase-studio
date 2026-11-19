@@ -247,7 +247,8 @@ Then write the outline (see "A new showcase: outline first" below): replace each
 A showcase whose meta.template names a template keeps that template's guidance: when you pick up work on one in a new session, call list_templates {id} for it before you change the script.
 
 Where templates come from:
-- The studio ships a few (feature-explainer, product-launch, how-to). They update when the app does.
+- The studio ships a few (feature-explainer, worked-example, product-launch, how-to). They update when the app does.
+- feature-explainer and worked-example both introduce one feature, in two different ways. Help the user pick by asking how the feature shows its value. If people get it as soon as they see it used, it's a feature explainer: a quick demo, with titles that say what is on screen. If its value is what it finds or prevents (a bug, a mistake, a slow step), it's a worked example: one real case followed from the problem to the proof, with titles that tell that story.
 - A library adds its own as <library>/showcase_templates/<id>.yaml, beside showcase_settings.yaml, so a team keeps them in git. One with the same id as a shipped template replaces it. The file holds name, description, meta (targetMs, sceneMaxMs, view only), guidance (text), titles {good: [...], bad: [...]} and scenes (a list written into showcase.yaml as it is). Copy a shipped one from list_templates {id} as a start. A file with a problem is left out of the list and named in its problems.
 
 ## A new showcase: outline first
@@ -262,7 +263,7 @@ Write an outline before you build anything, and stop for the user to review it. 
 An outline is an ordinary showcase.yaml. Each scene has only:
 - id and theme (the theme tells the reader what kind of slide it will be: a statement, a phone screen, a wide panel, footage)
 - title (what the slide will show on screen; leave it out on footage)
-- eyebrow (the section the scene belongs to)
+- eyebrow (the section the scene belongs to, or for a worked example the step in the case; the template's starting scenes show which)
 - note: one line on what the scene shows and why it is there
 
 No captions and no media. The linter doesn't warn about a scene with no captions or media, so validate stays clean, and the script page marks the showcase "Outline, waiting for your review" until a scene has either.
@@ -286,7 +287,7 @@ Skip the outline only when the user says to, or the change is to a showcase that
 These are the defaults for every showcase. Follow them without asking the user who the audience is.
 
 Background first
-- Open with what a newcomer needs to know before the feature makes sense: the problem, and where the feature fits.
+- Open with what a newcomer needs to know before the feature makes sense: the problem, and where the feature fits. Show the problem before you name the product.
 
 Plain words
 - Everyday words. Use a technical term only when it is the real name of a thing: a command, a button, a file.
@@ -294,7 +295,8 @@ Plain words
 - Call each of the product's things by the product's own name for it, and use the same word every time.
 
 Titles
-- A title says what is on screen, names the feature, or states a benefit. A clever phrase that says nothing is wrong.
+- A template's guidance and its good and bad titles say how its titles work, and come first. A worked example's titles are claims that tell its story; check_titles checks them that way.
+- Otherwise, a title says what is on screen, names the feature, or states a benefit. A clever phrase that says nothing is wrong.
 
     Avoid                                  Write instead
     "From one recording to one page"       what happens, the feature's name, or a benefit
@@ -315,6 +317,7 @@ Check the titles
                                                  │
                     can't say, or says it wrong ─┴─► rewrite that title, check again
 
+- For a template whose titles tell a story, check is "story": brief asks the reader to retell what happens, and to name the titles that don't fit. Compare the retelling with the case in meta.notes. A title it left out or got wrong is rewritten.
 - Hand brief to the subagent exactly as check_titles returns it. Give it nothing more: no notes, no captions, no repository, no hint about the product.
 - Compare each answer with the scene's note (slides in the result maps each number to its scene). A scene with no note: compare with what the slide shows. The reader rarely says "Can't tell": it makes a confident guess, so a wrong guess is the usual sign of a bad title. An answer that is vague, wrong, or "Can't tell" means the title is rewritten. An answer that is right in other words is fine.
 - Run it before you show an outline to the user, and again before you report a showcase as done.

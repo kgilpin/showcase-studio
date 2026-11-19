@@ -23,10 +23,15 @@ const addLibraryTemplate = (file, text) => {
 };
 
 describe("the shipped templates", () => {
-  it("are a feature explainer, a product launch and a how-to, all readable", () => {
+  it("are a feature explainer, a how-to, a product launch and a worked example, all readable", () => {
     const { templates, problems } = listTemplates(library);
     expect(problems).toEqual([]);
-    expect(templates.map((t) => t.id)).toEqual(["feature-explainer", "how-to", "product-launch"]);
+    expect(templates.map((t) => t.id)).toEqual([
+      "feature-explainer",
+      "how-to",
+      "product-launch",
+      "worked-example",
+    ]);
     for (const t of templates) {
       expect(t.source).toBe("studio");
       expect(t.meta.targetMs).toBeGreaterThan(0);
@@ -50,6 +55,13 @@ describe("the shipped templates", () => {
   });
 });
 
+describe("what check_titles asks", () => {
+  it("is the story question for a worked example, and what each slide shows otherwise", () => {
+    expect(findTemplate(library, "worked-example").titleCheck).toBe("story");
+    expect(findTemplate(library, "feature-explainer").titleCheck).toBe("screen");
+  });
+});
+
 describe("a library's own templates", () => {
   it("are added to the list, and one with a shipped id replaces it", () => {
     addLibraryTemplate("team-update.yaml", "name: Team update\nscenes:\n  - id: news\n");
@@ -60,6 +72,7 @@ describe("a library's own templates", () => {
       "feature-explainer:studio",
       "how-to:library",
       "product-launch:studio",
+      "worked-example:studio",
       "team-update:library",
     ]);
     expect(findTemplate(library, "how-to").name).toBe("Our how-to");
@@ -72,9 +85,11 @@ describe("a library's own templates", () => {
     addLibraryTemplate("bad-view.yaml", "name: Bad\nmeta:\n  view: cinema\n");
     addLibraryTemplate("other.yaml", "name: Other\n");
     addLibraryTemplate("Capital.yaml", "name: Capital\n");
+    addLibraryTemplate("odd-check.yaml", "name: Odd\ntitleCheck: vibes\n");
     const { templates, problems } = listTemplates(library);
-    expect(templates).toHaveLength(3);
-    expect(problems).toHaveLength(6);
+    expect(templates).toHaveLength(4);
+    expect(problems).toHaveLength(7);
+    expect(problems.join("\n")).toContain("odd-check.yaml: titleCheck must be screen or story");
     expect(problems.join("\n")).toContain("meta.captionStyle can't be set by a template");
     expect(problems.join("\n")).toContain(`${LIBRARY_TEMPLATES_DIR}/no-name.yaml: needs a name`);
   });

@@ -1,5 +1,5 @@
 name: Feature explainer
-description: One feature, shown working, in under a minute. For a TikTok, a Short or a release note.
+description: One feature, shown working, in under a minute. For a feature people understand as soon as they see it used. A TikTok, a Short or a release note.
 
 meta:
   targetMs: 45000
@@ -19,6 +19,14 @@ guidance: |
     to the result instead of showing every step.
   - payoff: what the viewer gets: time saved, a mistake avoided, a result.
   - end: the product name and where to get it, with a cta.
+
+  Each title says what is on screen, names the feature, or states a
+  benefit, so a viewer who only reads the titles knows what each slide
+  shows.
+
+  If the feature's value only shows when it catches something (a bug, a
+  mistake, a slow step), a quick demo won't show it: the worked-example
+  template fits better.
 
   Keep each scene to one idea and under the longest scene length. Ask the
   user for the screenshots or the recording before you write captions

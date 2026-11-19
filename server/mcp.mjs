@@ -334,7 +334,7 @@ export const TOOLS = [
     name: "list_templates",
     description:
       "The video templates a new showcase can start from: what kind of video it is (a " +
-      "feature explainer, a product launch, a how-to, or one the library added in " +
+      "feature explainer, a worked example, a product launch, a how-to, or one the library added in " +
       "showcase_templates/). Each has a name, a one-line description, its settings " +
       "(targetMs, sceneMaxMs, view) and its starting scenes. Before you write a new " +
       "showcase, show the user these names and descriptions and ask them to pick one, or " +
@@ -781,9 +781,10 @@ export const TOOLS = [
   {
     name: "check_titles",
     description:
-      "The slide titles alone, for a reader with none of your context. Returns {brief, slides, next}: " +
-      "brief is the whole prompt — the titles in order, numbered, and the question 'what does each " +
-      "slide show?' — to hand verbatim to a fresh subagent that sees nothing else (no notes, no " +
+      "The slide titles alone, for a reader with none of your context. Returns {brief, check, slides, next}: " +
+      "brief is the whole prompt — the titles in order, numbered, and the question: 'what does each " +
+      "slide show?', or for a template whose titles tell a story (check: story) 'retell what " +
+      "happens' — to hand verbatim to a fresh subagent that sees nothing else (no notes, no " +
       "captions, no repository). slides maps each number to its sceneId, title and note, so you can " +
       "compare each answer with what the slide is meant to show. Run it before showing an outline to " +
       "the user and before reporting a showcase as done; see the guide's 'Check the titles'.",
@@ -1379,11 +1380,17 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
   }
   if (name === "check_titles") {
     const check = titleCheck(showcasesDir, String(args.showcaseId ?? ""));
-    const next = check.slides.length
-      ? "Hand brief, exactly as it is, to a new subagent with no other context. Then compare each " +
-        "answer with that slide's note. Rewrite every title the reader couldn't explain or explained " +
-        "wrongly, so it says what is on the screen, and run the check again."
-      : "No scene has a title, so there is nothing to check.";
+    const handOver = "Hand brief, exactly as it is, to a new subagent with no other context. ";
+    const next = !check.slides.length
+      ? "No scene has a title, so there is nothing to check."
+      : check.check === "story"
+        ? handOver +
+          "Then compare its retelling with the case in meta.notes and each scene's note. Rewrite " +
+          "every title it left out, misread, or that the story would not miss, so the titles tell " +
+          "the story on their own, and run the check again."
+        : handOver +
+          "Then compare each answer with that slide's note. Rewrite every title the reader couldn't " +
+          "explain or explained wrongly, so it says what is on the screen, and run the check again.";
     return { content: [{ type: "text", text: JSON.stringify({ ...check, next }, null, 2) }] };
   }
   if (name === "build_media" || name === "build_voiceover") {
