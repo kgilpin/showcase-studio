@@ -29,7 +29,10 @@
  *   screenshot_cover   exporter.mjs screenshotCover: the cover's still page
  *   read_showcase      here: showcase.yaml, plus theme.yaml and cover.yaml
  *                      with their themeVersion and coverVersion
- *   create_showcase    the studio's own scaffold, through the context
+ *   create_showcase    the studio's own scaffold, through the context,
+ *                      started from a video template when one is named
+ *   list_templates     showcase-templates.mjs: the shipped templates and
+ *                      the library's showcase_templates/
  *   add_asset          asset-files.mjs: files on disk copied into a
  *                      showcase's assets/
  *   ffmpeg             asset-files.mjs encodeAsset: the bundled ffmpeg,
@@ -79,6 +82,12 @@ import {
 } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { librarySay } from "./library-config.mjs";
+import {
+  LIBRARY_TEMPLATES_DIR,
+  listTemplates,
+  templateGuidance,
+  templateSummary,
+} from "./showcase-templates.mjs";
 import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
@@ -319,17 +328,51 @@ export const TOOLS = [
     },
   },
   {
+    name: "list_templates",
+    description:
+      "The video templates a new showcase can start from: what kind of video it is (a " +
+      "feature explainer, a product launch, a how-to, or one the library added in " +
+      "showcase_templates/). Each has a name, a one-line description, its settings " +
+      "(targetMs, sceneMaxMs, view) and its starting scenes. Before you write a new " +
+      "showcase, show the user these names and descriptions and ask them to pick one, or " +
+      '"other". With id, returns that template\'s guidance in full: what this kind of video ' +
+      "is for, what each scene should do, and good and bad titles. Follow it while you " +
+      "write a showcase whose meta.template names it. problems lists template files that " +
+      "couldn't be read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "A template's id, for its full guidance" },
+      },
+    },
+  },
+  {
     name: "create_showcase",
     description:
       "Make a new showcase folder in the library from a name — the same scaffold as the " +
-      "studio's + card: <id>/showcase.yaml with a one-scene starter script and an empty " +
-      "assets/ folder, the id made from the name (lower case, dashes). Returns {id, path}. " +
-      "Then write the script with edit_showcase, and add the recording and pictures with " +
-      "add_asset. Refused when a showcase of that id exists, or the studio is locked to one " +
-      "showcase.",
+      "studio's + card: <id>/showcase.yaml and an empty assets/ folder, the id made from " +
+      "the name (lower case, dashes). Ask the user for the template first (list_templates). " +
+      "With template, the showcase gets that template's settings (meta.targetMs, " +
+      "meta.sceneMaxMs, meta.view), meta.template naming it, and its starting scenes, and " +
+      "the result carries the template's guidance to follow while you write. template: " +
+      '"other" (or none) gives a one-scene starter; with "other", ask the user what the ' +
+      "video is for and pass the answer as purpose (it goes in meta.notes). Returns {id, " +
+      "path, template?}. Then write the script with edit_showcase, and add the recording " +
+      "and pictures with add_asset. Refused when a showcase of that id exists, the template " +
+      "isn't one, or the studio is locked to one showcase.",
     inputSchema: {
       type: "object",
-      properties: { name: { type: "string", description: "The showcase's title" } },
+      properties: {
+        name: { type: "string", description: "The showcase's title" },
+        template: {
+          type: "string",
+          description: 'A template id from list_templates, or "other"',
+        },
+        purpose: {
+          type: "string",
+          description: 'What the video is for, in the user\'s words (for "other")',
+        },
+      },
       required: ["name"],
     },
   },
@@ -1418,10 +1461,29 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     }
     return { content };
   }
+  if (name === "list_templates") {
+    const { templates, problems } = listTemplates(showcasesDir);
+    if (args.id != null) {
+      const template = templates.find((t) => t.id === String(args.id));
+      if (!template) {
+        throw new Error(
+          `No template named "${args.id}". The templates are: ${templates.map((t) => t.id).join(", ")}`,
+        );
+      }
+      return json({ ...templateSummary(template), ...templateGuidance(template) });
+    }
+    return json({
+      templates: templates.map(templateSummary),
+      other: "None of these: a one-scene starter. Ask the user what the video is for.",
+      libraryFolder: path.join(showcasesDir, LIBRARY_TEMPLATES_DIR),
+      ...(problems.length > 0 ? { problems } : {}),
+    });
+  }
   if (name === "create_showcase") {
     if (!context.createShowcase) throw new Error("This studio can't create showcases");
     const title = String(args.name ?? "").trim();
-    const result = context.createShowcase(title);
+    const template = args.template == null ? undefined : String(args.template).trim();
+    const result = context.createShowcase(title, { template, purpose: args.purpose });
     if (!result.ok) throw new Error(result.error);
     context.changeLog?.append({
       source: "mcp",
@@ -1429,8 +1491,13 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       showcaseId: result.id,
       kind: "showcase.create",
       title,
+      ...(template ? { template } : {}),
     });
-    return json({ id: result.id, path: path.join(showcasesDir, result.id) });
+    return json({
+      id: result.id,
+      path: path.join(showcasesDir, result.id),
+      ...(result.template ? { template: templateGuidance(result.template) } : {}),
+    });
   }
   if (name === "check_framing") {
     const showcaseId = String(args.showcaseId ?? "");

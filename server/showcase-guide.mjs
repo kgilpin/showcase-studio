@@ -234,6 +234,22 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
 - A cover.yaml that breaks a rule never stops the showcase from opening: what doesn't fit is left out, with a warning in the studio and in validate.
 - The Share page offers each destination's cover as an image to upload with the video, and the YouTube thumbnail with the regular YouTube video.
 
+## Video templates (start here for a new showcase)
+A video template says what kind of video a showcase is: its target length, its longest scene, the view it opens in, a starting list of scenes, and guidance on what each scene should do. (A template is not a slide layout: a scene's theme keeps its meaning.)
+
+Before you write anything for a new showcase:
+1. Call list_templates. Show the user each template's name and description, and ask them to pick one, or "other" (use your question tool when you have one).
+2. For a template: create_showcase {name, template: <id>}. The showcase gets meta.targetMs, meta.sceneMaxMs, meta.view, meta.template and the template's starting scenes, each with a note saying what it is for. The result carries the template's guidance and good and bad titles: follow them while you write.
+3. For "other": ask the user one question, what the video is for, then create_showcase {name, template: "other", purpose: <their answer>}. It starts with one scene, and the answer goes in meta.notes.
+
+Then replace each starting scene's placeholder title and captions, and delete or add scenes as the material needs. Keep each scene's note up to date or remove it once the scene is done.
+
+A showcase whose meta.template names a template keeps that template's guidance: when you pick up work on one in a new session, call list_templates {id} for it before you change the script.
+
+Where templates come from:
+- The studio ships a few (feature-explainer, product-launch, how-to). They update when the app does.
+- A library adds its own as <library>/showcase_templates/<id>.yaml, beside showcase_settings.yaml, so a team keeps them in git. One with the same id as a shipped template replaces it. The file holds name, description, meta (targetMs, sceneMaxMs, view only), guidance (text), titles {good: [...], bad: [...]} and scenes (a list written into showcase.yaml as it is). Copy a shipped one from list_templates {id} as a start. A file with a problem is left out of the list and named in its problems.
+
 ## Working rules
 - Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
 - Working context lives in note fields, not YAML comments: a scene's note (what the take is, what's pending) and meta.notes (showcase-level context) travel with the data through every edit and show on the script page. Don't add YAML comments — they aren't addressable by the edit tool, and a comment above a scene does NOT follow it through scene.move or scene.delete, so banners end up labeling the wrong scene. Section labels belong in eyebrow.
@@ -377,10 +393,12 @@ ${whisperAdvice(platform)}
 - The studio exposes MCP tools (server "showcase-studio", preloaded in
   studio-opened sessions; a session you start yourself gets them with
   \`claude --mcp-config .studio/mcp.json\` from the library root):
-  create_showcase {name} makes a new showcase folder from a name (the
-  studio's + card: a one-scene starter showcase.yaml and an empty
-  assets/) and returns its id — start a new showcase with it, never by
-  writing the folder yourself; read_showcase {showcaseId} returns
+  create_showcase {name, template?, purpose?} makes a new showcase
+  folder from a name (showcase.yaml started from a video template, or
+  the + card's one-scene starter, and an empty assets/) and returns its
+  id — ask the user for the template first (list_templates; see "Video
+  templates"), and start a new showcase with it, never by writing the
+  folder yourself; read_showcase {showcaseId} returns
   showcase.yaml as it is now, with
   its version; add_asset {showcaseId, files: [{path, name?}]} copies
   files on this machine into the showcase's assets/ and returns each

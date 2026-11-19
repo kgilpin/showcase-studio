@@ -607,6 +607,47 @@ scenes:
     );
   });
 
+  it("create_showcase starts a showcase from a video template, and list_templates lists them", async () => {
+    const { studio, library } = await startStudio();
+    const list = JSON.parse(
+      (await studio.callTool({ name: "list_templates", arguments: {} })).content[0].text,
+    );
+    expect(list.templates.map((t) => t.id)).toContain("product-launch");
+    const made = JSON.parse(
+      (
+        await studio.callTool({
+          name: "create_showcase",
+          arguments: { name: "Tally", template: "product-launch" },
+        })
+      ).content[0].text,
+    );
+    expect(made.template).toMatchObject({ id: "product-launch", name: "Product launch" });
+    expect(made.template.guidance).toContain("hook");
+    const yaml = readFileSync(path.join(library, "tally", "showcase.yaml"), "utf8");
+    expect(yaml).toContain("template: product-launch");
+    expect(yaml).toContain("targetMs: 60000");
+    const full = JSON.parse(
+      (await studio.callTool({ name: "list_templates", arguments: { id: "product-launch" } }))
+        .content[0].text,
+    );
+    expect(full.guidance).toBe(made.template.guidance);
+    await expect(
+      studio.callTool({ name: "create_showcase", arguments: { name: "Nope", template: "vlog" } }),
+    ).rejects.toThrow('No template named "vlog"');
+    const other = JSON.parse(
+      (
+        await studio.callTool({
+          name: "create_showcase",
+          arguments: { name: "Odd", template: "other", purpose: "A thank-you" },
+        })
+      ).content[0].text,
+    );
+    expect(other.template).toBeUndefined();
+    expect(readFileSync(path.join(library, "odd", "showcase.yaml"), "utf8")).toContain(
+      "What this video is for: A thank-you",
+    );
+  });
+
   it("screenshot_frame returns each frame as an image, with what the page showed", async () => {
     /* A renderer that draws a PNG header of whatever size the page is
      * opened at, and answers the record page's own questions. */

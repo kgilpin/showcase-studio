@@ -313,6 +313,9 @@ const META = object(
     ),
     view: oneOf(PLAYER_VIEWS, "The view the player opens in; unset opens in TikTok view."),
     cover: string("The home-page card image, by asset key."),
+    template: string(
+      "The video template the showcase started from (list_templates gives its guidance); written by create_showcase.",
+    ),
     notes: string("Showcase-level authoring notes; shown on the script page, never rendered."),
     soundtrack: object(
       "soundtrack",

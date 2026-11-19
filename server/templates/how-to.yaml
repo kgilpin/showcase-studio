@@ -1,0 +1,77 @@
+name: How-to
+description: Step-by-step instructions for one task, for YouTube or a help page. Two minutes or less.
+
+meta:
+  targetMs: 120000
+  sceneMaxMs: 15000
+  view: embed
+
+guidance: |
+  A how-to teaches one task to someone who already wants to do it. They
+  chose to watch, so skip the sales pitch. Be clear and steady, and show
+  every step on screen.
+
+  - goal: what the viewer will be able to do at the end, in one line.
+  - before: anything they need first (an account, a file, a setting).
+    Delete this scene if there is nothing.
+  - step-1, step-2, step-3: one step per scene, in order. Each title is an
+    instruction that starts with a verb. Add or remove step scenes to match
+    the task; split a step that needs more than the longest scene length.
+  - result: the finished result, so the viewer can check theirs matches.
+  - next: one related task or where to learn more.
+
+  Desktop screenshots and recordings suit the console theme; phone ones
+  suit feature. Say what to click by its label on screen. Ask the user for
+  a screenshot or a recording of each step before you write its captions.
+
+titles:
+  good:
+    - Export your project as a PDF
+    - Click Share, then Export
+  bad:
+    - Exporting overview
+    - The export functionality
+
+scenes:
+  - id: goal
+    theme: statement
+    title: What you will be able to do
+    note: The task, in one line.
+    captions:
+      - text: Say what the viewer will be able to do at the end.
+  - id: before
+    theme: statement
+    title: Before you start
+    note: What the viewer needs first. Delete this scene if there is nothing.
+    captions:
+      - text: Say what the viewer needs before starting.
+  - id: step-1
+    theme: console
+    title: Start with a verb
+    note: The first step, shown on screen.
+    captions:
+      - text: Say what to click, by its label on screen.
+  - id: step-2
+    theme: console
+    title: Start with a verb
+    note: The next step.
+    captions:
+      - text: Say what to click, by its label on screen.
+  - id: step-3
+    theme: console
+    title: Start with a verb
+    note: The next step. Add or delete step scenes to match the task.
+    captions:
+      - text: Say what to click, by its label on screen.
+  - id: result
+    theme: console
+    title: The finished result
+    note: What the result looks like, so the viewer can check theirs.
+    captions:
+      - text: Say what the viewer should see now.
+  - id: next
+    theme: statement
+    title: What to try next
+    note: One related task, or where to learn more.
+    captions:
+      - text: Say what to try next.

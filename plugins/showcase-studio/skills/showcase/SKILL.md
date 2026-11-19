@@ -137,9 +137,12 @@ the full list.
 
 ## 3. Make changes
 
-- A new showcase: `create_showcase` with its name. It makes the folder,
-  a starter `showcase.yaml` and an empty `assets/`, and returns the id.
-  Don't write the folder yourself.
+- A new showcase: first call `list_templates` and ask the user to pick
+  a video template, or "other". For "other", also ask what the video is
+  for. Then `create_showcase` with its name, `template`, and for "other"
+  `purpose`. It makes the folder, a starter `showcase.yaml` and an empty
+  `assets/`, and returns the id and the template's guidance. Follow the
+  guidance while you write. Don't write the folder yourself.
 - A recorded or voiced showcase builds its media on its own a few
   seconds after you change the cut list, the recording, the transcript
   or the captions, and before any export or screenshot. `studio_info`'s
