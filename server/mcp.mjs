@@ -54,6 +54,8 @@
  *                      (both builds answer with a build of the showcase
  *                      already running, since the studio builds on its
  *                      own; validate adds each showcase's media status)
+ *   check_titles       exporter.mjs titleCheck: the titles alone, for a
+ *                      fresh subagent
  *   share_status, share, share_record
  *                      share.mjs
  *   export, export_status, export_cancel
@@ -78,6 +80,7 @@ import {
   screenshotFrame,
   screenshotSlide,
   scriptText,
+  titleCheck,
   validateShowcases,
 } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
@@ -776,6 +779,23 @@ export const TOOLS = [
     },
   },
   {
+    name: "check_titles",
+    description:
+      "The slide titles alone, for a reader with none of your context. Returns {brief, slides, next}: " +
+      "brief is the whole prompt — the titles in order, numbered, and the question 'what does each " +
+      "slide show?' — to hand verbatim to a fresh subagent that sees nothing else (no notes, no " +
+      "captions, no repository). slides maps each number to its sceneId, title and note, so you can " +
+      "compare each answer with what the slide is meant to show. Run it before showing an outline to " +
+      "the user and before reporting a showcase as done; see the guide's 'Check the titles'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
     name: "share_status",
     description:
       "Where a showcase stands for posting to TikTok, Instagram, YouTube Shorts and YouTube " +
@@ -1356,6 +1376,15 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return {
       content: [{ type: "text", text: scriptText(showcasesDir, String(args.showcaseId ?? "")) }],
     };
+  }
+  if (name === "check_titles") {
+    const check = titleCheck(showcasesDir, String(args.showcaseId ?? ""));
+    const next = check.slides.length
+      ? "Hand brief, exactly as it is, to a new subagent with no other context. Then compare each " +
+        "answer with that slide's note. Rewrite every title the reader couldn't explain or explained " +
+        "wrongly, so it says what is on the screen, and run the check again."
+      : "No scene has a title, so there is nothing to check.";
+    return { content: [{ type: "text", text: JSON.stringify({ ...check, next }, null, 2) }] };
   }
   if (name === "build_media" || name === "build_voiceover") {
     const showcaseId = String(args.showcaseId ?? "");

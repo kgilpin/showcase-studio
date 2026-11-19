@@ -282,6 +282,48 @@ Then:
 
 Skip the outline only when the user says to, or the change is to a showcase that is already built.
 
+## Writing the script
+These are the defaults for every showcase. Follow them without asking the user who the audience is.
+
+Background first
+- Open with what a newcomer needs to know before the feature makes sense: the problem, and where the feature fits.
+
+Plain words
+- Everyday words. Use a technical term only when it is the real name of a thing: a command, a button, a file.
+- Never make up a term or a shorthand.
+- Call each of the product's things by the product's own name for it, and use the same word every time.
+
+Titles
+- A title says what is on screen, names the feature, or states a benefit. A clever phrase that says nothing is wrong.
+
+    Avoid                                  Write instead
+    "From one recording to one page"       what happens, the feature's name, or a benefit
+    "A changed trace marks every step"     "See what changed between two traces"
+
+- A statement slide has its title and at most one more line. Never two subtitles.
+
+Check the titles
+- Rules don't catch a title that names an idea instead of what is on the screen. You know what each title means, so it reads fine to you. Check with a reader who knows nothing else:
+
+    check_titles {showcaseId} ──► brief: the titles alone, in order
+                                     │
+                                     ▼
+              a new subagent, given brief and nothing else
+                                     │
+                                     ▼
+              "what does each slide show?" ──► compare with each scene's note
+                                                 │
+                    can't say, or says it wrong ─┴─► rewrite that title, check again
+
+- Hand brief to the subagent exactly as check_titles returns it. Give it nothing more: no notes, no captions, no repository, no hint about the product.
+- Compare each answer with the scene's note (slides in the result maps each number to its scene). A scene with no note: compare with what the slide shows. The reader rarely says "Can't tell": it makes a confident guess, so a wrong guess is the usual sign of a bad title. An answer that is vague, wrong, or "Can't tell" means the title is rewritten. An answer that is right in other words is fine.
+- Run it before you show an outline to the user, and again before you report a showcase as done.
+
+Content
+- Show how to use the feature (what to type, what comes back), not how it works inside.
+- Every command on screen is one a user would really type.
+- Captions describe what is visible. Check them again after a picture is cropped or replaced.
+
 ## Working rules
 - Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
 - Working context lives in note fields, not YAML comments: a scene's note (what the take is, what's pending) and meta.notes (showcase-level context) travel with the data through every edit and show on the script page. Don't add YAML comments — they aren't addressable by the edit tool, and a comment above a scene does NOT follow it through scene.move or scene.delete, so banners end up labeling the wrong scene. Section labels belong in eyebrow.

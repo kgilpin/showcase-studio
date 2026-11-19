@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parse } from "yaml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publish } from "../cdk/lambda/publish-core.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
@@ -581,6 +582,26 @@ scenes:
     expect(JSON.parse(result.content[0].text)).toMatchObject({ url, showcases: ["nova"] });
     const script = await studio.callTool({ name: "script", arguments: { showcaseId: "nova" } });
     expect(script.content[0].text).toContain("NOVA");
+  });
+
+  it("check_titles returns the titles alone, and a key back to the scenes", async () => {
+    const { studio, library } = await startStudio();
+    const doc = parse(readFileSync(path.join(library, "nova", "showcase.yaml"), "utf8"));
+    const titled = doc.scenes.filter((scene) => scene.title);
+    const result = await studio.callTool({
+      name: "check_titles",
+      arguments: { showcaseId: "nova" },
+    });
+    const { brief, slides, next } = JSON.parse(result.content[0].text);
+    expect(slides.map((s) => s.sceneId)).toEqual(titled.map((scene) => scene.id));
+    expect(brief).toContain(`1. ${String(titled[0].title).replace(/\s+/g, " ").trim()}`);
+    for (const scene of doc.scenes) {
+      for (const caption of scene.captions ?? []) {
+        if (caption.text !== scene.title) expect(brief).not.toContain(caption.text);
+      }
+      if (scene.note) expect(brief).not.toContain(scene.note);
+    }
+    expect(next).toContain("subagent");
   });
 
   it("create_showcase scaffolds a showcase through the studio's own + card path", async () => {

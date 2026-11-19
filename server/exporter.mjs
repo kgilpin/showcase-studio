@@ -19,6 +19,7 @@
  *                    video at 0, so a timeline-synced voiceover lands
  *                    exactly.
  *   exportScript     the narration as plain text (instant).
+ *   titleCheck       the slide titles alone, for the check_titles tool.
  *   screenshotSlide  one slide at half size, for the MCP tool.
  *   screenshotCover  the showcase's cover (cover.yaml) as a PNG, for the
  *                    Cover page's Save button and the screenshot_cover
@@ -265,6 +266,38 @@ export function scriptText(showcasesDir, showcaseId) {
     if (scene.support) out.push(`    ${oneLine(scene.support)}`);
   });
   return out.join("\n") + "\n";
+}
+
+/** The title check: the slide titles alone, for a reader who has seen
+ *  nothing else. `brief` is the whole prompt for that reader — the
+ *  titles in order, numbered, and the question to answer. `slides` maps
+ *  each number back to its scene, with the scene's note, so the writer
+ *  can compare each answer with what the slide was meant to show.
+ *  Scenes with no title (footage) are left out of both. */
+export function titleCheck(showcasesDir, showcaseId) {
+  if (!existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))) {
+    throw new Error(`No showcase named "${showcaseId}" in ${showcasesDir}`);
+  }
+  const doc = readDoc(showcasesDir, showcaseId);
+  const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
+  const slides = (doc.scenes ?? [])
+    .filter((scene) => scene?.title && oneLine(scene.title))
+    .map((scene, i) => ({
+      slide: i + 1,
+      sceneId: scene.id,
+      title: oneLine(scene.title),
+      ...(scene.note ? { note: oneLine(scene.note) } : {}),
+    }));
+  const brief = [
+    "Below are the on-screen titles of the slides in a short product video, in order.",
+    "You know nothing else about the video or the product. Answer from the titles alone.",
+    "",
+    "For each slide, say in one sentence what you expect to see on the screen.",
+    "If a title doesn't tell you, write \"Can't tell\" and say what is missing.",
+    "",
+    ...slides.map((s) => `${s.slide}. ${s.title}`),
+  ].join("\n");
+  return { brief, slides };
 }
 
 /** Writes the narration script as <id>_script.txt — the instant export. */
