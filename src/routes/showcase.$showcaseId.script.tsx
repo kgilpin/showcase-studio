@@ -1,7 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { ImagePlus, Play, Plus, Trash2, X } from "lucide-react";
-import { captionTimeline, getShowcase, useShowcase, type Scene } from "@/content/showcases";
+import {
+  captionTimeline,
+  getShowcase,
+  isOutline,
+  useShowcase,
+  type Scene,
+} from "@/content/showcases";
 import { dataMode } from "@/content/source";
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { EditableText } from "@/components/studio/EditableText";
@@ -132,6 +138,21 @@ function ScriptScreen() {
             <p className="mt-4 whitespace-pre-line border-l-2 border-border pl-3 text-xs leading-relaxed text-support">
               {showcase.notes}
             </p>
+          )}
+          {/* An outline: titles and notes only, nothing built yet. Say
+           * what the user is asked to do with it. */}
+          {isOutline(scenes) && (
+            <div
+              role="status"
+              className="mt-6 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm leading-relaxed text-foreground"
+            >
+              <p className="font-medium">Outline, waiting for your review</p>
+              <p className="mt-1 text-muted-foreground">
+                Nothing is built yet. Check the titles, the order, and the note on each slide. Edit
+                a title by clicking it, or add and delete slides here. Then tell Claude what to
+                change, or to go ahead and build the pictures and captions.
+              </p>
+            </div>
           )}
         </header>
 

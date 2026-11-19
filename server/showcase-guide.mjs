@@ -242,13 +242,45 @@ Before you write anything for a new showcase:
 2. For a template: create_showcase {name, template: <id>}. The showcase gets meta.targetMs, meta.sceneMaxMs, meta.view, meta.template and the template's starting scenes, each with a note saying what it is for. The result carries the template's guidance and good and bad titles: follow them while you write.
 3. For "other": ask the user one question, what the video is for, then create_showcase {name, template: "other", purpose: <their answer>}. It starts with one scene, and the answer goes in meta.notes.
 
-Then replace each starting scene's placeholder title and captions, and delete or add scenes as the material needs. Keep each scene's note up to date or remove it once the scene is done.
+Then write the outline (see "A new showcase: outline first" below): replace each starting scene's placeholder title and note, and delete or add scenes as the material needs. Captions come after the user approves the outline. Keep each scene's note up to date or remove it once the scene is done.
 
 A showcase whose meta.template names a template keeps that template's guidance: when you pick up work on one in a new session, call list_templates {id} for it before you change the script.
 
 Where templates come from:
 - The studio ships a few (feature-explainer, product-launch, how-to). They update when the app does.
 - A library adds its own as <library>/showcase_templates/<id>.yaml, beside showcase_settings.yaml, so a team keeps them in git. One with the same id as a shipped template replaces it. The file holds name, description, meta (targetMs, sceneMaxMs, view only), guidance (text), titles {good: [...], bad: [...]} and scenes (a list written into showcase.yaml as it is). Copy a shipped one from list_templates {id} as a start. A file with a problem is left out of the list and named in its problems.
+
+## A new showcase: outline first
+Write an outline before you build anything, and stop for the user to review it. Titles, scene order, and which scenes to split or merge are what users change most. In an outline each of those is one line. Once the slides exist, each is a graphic, a picture or a set of captions made again.
+
+    the user asks for a video ──► you read the repository ──► outline ──► the user reviews it
+                                                                              │
+                         ┌─── changes: edit the outline, ask again ◄──────────┤
+                         │                                                    │
+                         └──────────────────────────────────────── "go ahead" ┴──► graphics, pictures, captions
+
+An outline is an ordinary showcase.yaml. Each scene has only:
+- id and theme (the theme tells the reader what kind of slide it will be: a statement, a phone screen, a wide panel, footage)
+- title (what the slide will show on screen; leave it out on footage)
+- eyebrow (the section the scene belongs to)
+- note: one line on what the scene shows and why it is there
+
+No captions and no media. The linter doesn't warn about a scene with no captions or media, so validate stays clean, and the script page marks the showcase "Outline, waiting for your review" until a scene has either.
+
+Put what you worked out from the repository in meta.notes, so the user can catch a wrong reading before anything is built:
+- what exists already, and what is different about this feature
+- the one example that runs through the whole video (one project, one command, one screen)
+
+Work these out yourself, from the repository's code, README, docs and recent commits. Don't ask the user for them; the outline is where they correct you.
+
+Then:
+1. Run validate.
+2. Open the script page in the preview (the Script tab beside Video, at /showcase/<id>/script on the studio's address), and ask the user to review it there: the titles, the order, the note on each slide, and meta.notes at the top. Say they can edit a title by clicking it, or add and delete slides, and tell you the rest.
+3. Stop. Build nothing until the user says to go ahead.
+4. Before you change anything, read the showcase again: the user's edits on the script page come to you through the change log (see "Working alongside the user"). Make their changes to the outline, and ask again if they changed much.
+5. On a yes, fill in the captions and media scene by scene. Keep each scene's note up to date with what the scene now is.
+
+Skip the outline only when the user says to, or the change is to a showcase that is already built.
 
 ## Working rules
 - Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.

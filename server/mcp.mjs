@@ -357,8 +357,10 @@ export const TOOLS = [
       "the result carries the template's guidance to follow while you write. template: " +
       '"other" (or none) gives a one-scene starter; with "other", ask the user what the ' +
       "video is for and pass the answer as purpose (it goes in meta.notes). Returns {id, " +
-      "path, template?}. Then write the script with edit_showcase, and add the recording " +
-      "and pictures with add_asset. Refused when a showcase of that id exists, the template " +
+      "path, template?}. Then write an outline (titles and notes, no captions or media) and " +
+      "stop for the user to review it on the script page; see the guide's 'A new showcase: " +
+      "outline first'. Once they say go ahead, write the script with edit_showcase, and add " +
+      "the recording and pictures with add_asset. Refused when a showcase of that id exists, the template " +
       "isn't one, or the studio is locked to one showcase.",
     inputSchema: {
       type: "object",

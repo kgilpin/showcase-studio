@@ -143,6 +143,11 @@ the full list.
   `purpose`. It makes the folder, a starter `showcase.yaml` and an empty
   `assets/`, and returns the id and the template's guidance. Follow the
   guidance while you write. Don't write the folder yourself.
+- Then write an outline, not the slides: titles, eyebrows and a note on
+  each scene, no captions or media, and what you learned from the
+  repository in `meta.notes`. Open the script page in the preview, ask
+  the user to review it, and stop. Build nothing until they say go
+  ahead. The guide's "A new showcase: outline first" has the steps.
 - A recorded or voiced showcase builds its media on its own a few
   seconds after you change the cut list, the recording, the transcript
   or the captions, and before any export or screenshot. `studio_info`'s
