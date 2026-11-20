@@ -664,7 +664,7 @@ scenes:
       ).content[0].text,
     );
     expect(made.template).toMatchObject({ id: "product-launch", name: "Product launch" });
-    expect(made.template.guidance).toContain("hook");
+    expect(made.template.guidance).toContain("proof-1");
     const yaml = readFileSync(path.join(library, "tally", "showcase.yaml"), "utf8");
     expect(yaml).toContain("template: product-launch");
     expect(yaml).toContain("targetMs: 60000");

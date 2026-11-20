@@ -1,0 +1,115 @@
+name: Code change
+description: One change to the code (a pull request, branch or commit), for the people who review or use it. The problem, the same case before and after, and how to check it. About 90 seconds.
+
+meta:
+  targetMs: 90000
+  sceneMaxMs: 12000
+
+titleCheck: story
+
+guidance: |
+  A code change video shows what one change does, so a reviewer or a
+  user understands it before reading the diff. The viewer is a
+  developer. It follows one case through the change: the same input or
+  steps, before and after.
+
+  Work from the change itself: the diff, its commit messages, the issue
+  it addresses, and the tests it adds or changes. Put the pull request,
+  branch or commit, the issue it fixes, and the case the video follows
+  in meta.notes, one line each. Pick the case from the tests the change
+  adds when there is one. Never invent a result: before and after come
+  from real runs, or the user's recordings of them.
+
+  - title: what the change does, in one plain sentence, on a statement
+    slide.
+  - problem: the issue the change addresses, in one sentence. Link the
+    issue in the note, not on the slide.
+  - before: the case going wrong on the code before the change.
+  - change: what the code now does differently, as a few lines of the
+    diff or a simple flow. The idea of the change, not every file.
+  - after: the same case, now right. Same input, same view as before,
+    so the difference is the only thing that moves.
+  - check: how to see it yourself: the test to run, the command, the
+    screen to open.
+  - watch: what else the change touches, or what a reviewer should look
+    at closely. Delete it if there is nothing.
+  - end: the pull request, branch or commit, and the issue it closes.
+
+  Titles are claims about this change, written as sentences: "Before:
+  two saves make two drafts", "After: the second save updates the
+  first", not "Overview" or "Changes in this PR". Read them in order as
+  one paragraph: they should explain the change without the pictures.
+
+  Code on screen is a short real excerpt of the diff, a few lines, drawn
+  as a TSX graphic with added and removed lines marked. Leave out
+  renames, formatting and moved code. Ask the user for screenshots or
+  recordings of before and after before you write captions that
+  describe them.
+
+titles:
+  good:
+    - "Before: two saves make two drafts"
+    - "After: the second save updates the first"
+    - Run the drafts test to see it pass
+  bad:
+    - Changes in this PR
+    - Refactor save logic
+    - Overview
+
+scenes:
+  - id: title
+    theme: statement
+    eyebrow: title
+    title: What the change does, in one plain sentence
+    note: The title scene, with what the change does, in one line. The pull request or branch can go in a support line.
+    captions:
+      - text: Say what the change does, in one plain sentence.
+  - id: problem
+    theme: statement
+    eyebrow: the problem
+    title: The problem this change fixes
+    note: The issue it addresses, in one sentence. The issue link goes here, in the note.
+    captions:
+      - text: Say the problem in one sentence.
+  - id: before
+    theme: console
+    eyebrow: before
+    title: The case going wrong, before the change
+    note: One case, on the code before the change.
+    captions:
+      - text: Say what goes wrong.
+  - id: change
+    theme: console
+    eyebrow: the change
+    title: What the code now does differently
+    note: A few lines of the diff, or a simple flow. The idea, not every file.
+    captions:
+      - text: Say what changed.
+  - id: after
+    theme: console
+    eyebrow: after
+    title: The same case, now right
+    note: Same input and same view as before, so only the result changes.
+    captions:
+      - text: Say what happens now.
+  - id: check
+    theme: console
+    eyebrow: check it
+    title: How to see it yourself
+    note: The test to run, the command, or the screen to open.
+    captions:
+      - text: Say how to check it.
+  - id: watch
+    theme: console
+    eyebrow: look closely
+    title: What else it touches
+    note: What a reviewer should look at closely. Delete it if there is nothing.
+    captions:
+      - text: Say what else it touches.
+  - id: end
+    theme: statement
+    eyebrow: the end
+    title: The pull request and the issue it closes
+    note: The pull request, branch or commit, and the issue it closes. Add a cta.
+    captions:
+      - text: Say where to find the change.

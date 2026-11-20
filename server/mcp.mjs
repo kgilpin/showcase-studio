@@ -336,7 +336,8 @@ export const TOOLS = [
     name: "list_templates",
     description:
       "The video templates a new showcase can start from: what kind of video it is (a " +
-      "feature explainer, a worked example, a product launch, a how-to, or one the library added in " +
+      "feature explainer, a worked example, a product launch, a how-to, a code issue, a code change, or one " +
+      "the library added in " +
       "showcase_templates/). Each has a name, a one-line description, its settings " +
       "(targetMs, sceneMaxMs, view) and its starting scenes. Before you write a new " +
       "showcase, show the user these names and descriptions and ask them to pick one, or " +

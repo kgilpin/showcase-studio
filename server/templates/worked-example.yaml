@@ -1,5 +1,5 @@
 name: Worked example
-description: One real case, followed from the problem to the proof. For a feature whose value is what it finds or prevents, which a quick demo can't show. About 90 seconds, for YouTube or a docs page.
+description: One feature, shown through one real case from the problem to the proof. For a feature whose value is what it finds or prevents, which a quick demo can't show. About 90 seconds.
 
 meta:
   targetMs: 90000
@@ -10,20 +10,20 @@ titleCheck: story
 guidance: |
   A worked example follows one concrete case from start to finish: one
   bug, one task, one before and after, with its real numbers and names.
-  The viewer doesn't know yet that they need the feature. Watching the
-  case unfold is what convinces them.
+  The case is the evidence: state each step of it plainly, with no
+  build-up.
 
   Find the case before you write any scene. Look in the repository's
   README, tests, examples and demos for the one that shows the feature at
   its best. Put it in meta.notes in one sentence. If there isn't one,
   ask the user for one before you outline.
 
-  - setup: the case as the viewer would meet it. It looks fine. No product
-    name yet.
+  - title: the name of the feature and one line on what it does, on a
+    statement slide.
+  - setup: the case: what the code or task is, stated plainly.
   - problem: what actually happens, with the specific number or result.
   - gap: why the usual tools, tests or reviews miss it.
-  - move: the product does the one thing that catches it. Name the
-    product here, for the first time.
+  - move: what the product does that catches it, for this case.
   - proof: the evidence, on screen, for this same case.
   - wider: one slide at most on what else it does or another way to use
     it. Delete it if the case says enough.
@@ -54,7 +54,7 @@ guidance: |
 
 titles:
   good:
-    - This code passed review.
+    - The client polls the device until a timeout
     - When the device is busy, it reads 4,309 times for one command
     - No test caught it, because no test makes the device busy
   bad:
@@ -63,11 +63,18 @@ titles:
     - You get a report that starts with the bugs
 
 scenes:
+  - id: title
+    theme: statement
+    eyebrow: title
+    title: The feature's name and what it does
+    note: The title scene, with the feature's name and one line on what it does.
+    captions:
+      - text: Say the name and what it does, in one plain sentence.
   - id: setup
     theme: statement
     eyebrow: the case
-    title: The case as the viewer would meet it, looking fine
-    note: The one case the video follows, before anything goes wrong. No product name.
+    title: The case the video follows
+    note: The one case the video follows, stated plainly, before anything goes wrong.
     captions:
       - text: Replace this with the case, in one short sentence.
   - id: problem
@@ -88,7 +95,7 @@ scenes:
     theme: console
     eyebrow: the fix
     title: What the product does to catch it
-    note: The product doing the one thing that catches this case. Its name appears here first.
+    note: The product doing the one thing that catches this case.
     captions:
       - text: Say what the product does, for this case.
   - id: proof

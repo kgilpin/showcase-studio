@@ -1,5 +1,5 @@
 name: How-to
-description: Step-by-step instructions for one task, for YouTube or a help page. Two minutes or less.
+description: One task, step by step, for a viewer who already wants to do it. Two minutes or less.
 
 meta:
   targetMs: 120000
@@ -10,7 +10,8 @@ guidance: |
   chose to watch, so skip the sales pitch. Be clear and steady, and show
   every step on screen.
 
-  - goal: what the viewer will be able to do at the end, in one line.
+  - title: the task, as an instruction, and one line on what the viewer
+    will be able to do at the end, on a statement slide.
   - before: anything they need first (an account, a file, a setting).
     Delete this scene if there is nothing.
   - step-1, step-2, step-3: one step per scene, in order. Each title is an
@@ -32,12 +33,13 @@ titles:
     - The export functionality
 
 scenes:
-  - id: goal
+  - id: title
     theme: statement
-    title: What you will be able to do
-    note: The task, in one line.
+    eyebrow: title
+    title: The task, as an instruction
+    note: The title scene, with the task, and what the viewer will be able to do at the end, in one line.
     captions:
-      - text: Say what the viewer will be able to do at the end.
+      - text: Say the task and what the viewer will be able to do at the end.
   - id: before
     theme: statement
     title: Before you start

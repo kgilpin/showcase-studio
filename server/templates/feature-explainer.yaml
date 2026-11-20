@@ -1,5 +1,5 @@
 name: Feature explainer
-description: One feature, shown working, in under a minute. For a feature people understand as soon as they see it used. A TikTok, a Short or a release note.
+description: One feature, shown working in a quick demo. For a feature people understand as soon as they see it used. Under a minute.
 
 meta:
   targetMs: 45000
@@ -10,8 +10,10 @@ guidance: |
   finish knowing what the feature does, why they would want it, and that
   it is easy. Leave out every other feature, even good ones.
 
-  - hook: the problem the feature solves, in the viewer's words. One short
-    sentence. No product name yet.
+  - title: the name of the feature and one line on what it does, on a
+    statement slide.
+  - problem: the problem the feature solves, stated plainly in one
+    sentence.
   - feature: the feature in action, on a real screenshot or recording.
     Narrate what the viewer is seeing, not the settings behind it.
   - how: the one or two steps it takes. If it takes more than three, cut
@@ -38,12 +40,20 @@ titles:
   bad:
     - Introducing Smart Search 2.0
     - Powerful AI-driven organization
+    - Ever lost a receipt?
 
 scenes:
-  - id: hook
+  - id: title
     theme: statement
-    title: The problem, in the viewer's words
-    note: The problem this feature solves. One sentence, no product name.
+    eyebrow: title
+    title: The feature's name and what it does
+    note: The title scene, with the feature's name and one line on what it does.
+    captions:
+      - text: Say the name and what it does, in one plain sentence.
+  - id: problem
+    theme: statement
+    title: The problem it solves
+    note: The problem this feature solves, stated plainly in one sentence.
     captions:
       - text: Replace this with the problem, in one short sentence.
   - id: feature

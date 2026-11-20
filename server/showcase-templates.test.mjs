@@ -24,10 +24,12 @@ const addLibraryTemplate = (file, text) => {
 };
 
 describe("the shipped templates", () => {
-  it("are a feature explainer, a how-to, a product launch and a worked example, all readable", () => {
+  it("are the six shipped templates, all readable", () => {
     const { templates, problems } = listTemplates(library);
     expect(problems).toEqual([]);
     expect(templates.map((t) => t.id)).toEqual([
+      "code-change",
+      "code-issue",
       "feature-explainer",
       "how-to",
       "product-launch",
@@ -42,6 +44,12 @@ describe("the shipped templates", () => {
       expect(t.titles.good.length).toBeGreaterThan(0);
       expect(t.titles.bad.length).toBeGreaterThan(0);
       expect(t.scenes.length).toBeGreaterThan(2);
+    }
+  });
+
+  it("each open with a title scene", () => {
+    for (const t of listTemplates(library).templates) {
+      expect(t.scenes[0]).toMatchObject({ id: "title", theme: "statement" });
     }
   });
 
@@ -70,6 +78,8 @@ describe("a library's own templates", () => {
     const { templates, problems } = listTemplates(library);
     expect(problems).toEqual([]);
     expect(templates.map((t) => `${t.id}:${t.source}`)).toEqual([
+      "code-change:studio",
+      "code-issue:studio",
       "feature-explainer:studio",
       "how-to:library",
       "product-launch:studio",
@@ -88,7 +98,7 @@ describe("a library's own templates", () => {
     addLibraryTemplate("Capital.yaml", "name: Capital\n");
     addLibraryTemplate("odd-check.yaml", "name: Odd\ntitleCheck: vibes\n");
     const { templates, problems } = listTemplates(library);
-    expect(templates).toHaveLength(4);
+    expect(templates).toHaveLength(6);
     expect(problems).toHaveLength(7);
     expect(problems.join("\n")).toContain("odd-check.yaml: titleCheck must be screen or story");
     expect(problems.join("\n")).toContain("meta.captionStyle can't be set by a template");

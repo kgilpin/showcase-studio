@@ -1,5 +1,5 @@
 name: Product launch
-description: A new product or a big release, from the problem to where to get it. About a minute.
+description: A whole product, new to the viewer. One promise, then two or three of its features as proof. About a minute.
 
 meta:
   targetMs: 60000
@@ -11,12 +11,14 @@ guidance: |
   but it still makes one promise and shows two or three things that keep
   it.
 
-  - hook: the moment the viewer knows too well. Something that goes wrong,
-    or takes too long. No product name yet.
-  - reveal: the product name and its promise in one line.
+  - title: the name of the product and one line on what it does, on a
+    statement slide.
+  - problem: what goes wrong or takes too long without it, stated plainly.
   - proof-1, proof-2, proof-3: one feature each, shown working, each tied
     back to the promise. Use the strongest first. Two is fine; never more
-    than three.
+    than three. They are separate features, not several results of one
+    feature: for one feature that finds several things, use the
+    worked-example template.
   - who: who it is for, so the right viewer knows it is them.
   - end: where to get it, the price if it is free or simple, and a cta.
 
@@ -26,25 +28,28 @@ guidance: |
 
 titles:
   good:
-    - Stop retyping your week
-    - Meet Tally. Your budget, done for you.
+    - Tally fills in your budget from your bank statements
+    - Tally files every receipt you photograph
   bad:
+    - Stop retyping your week
+    - Tired of budgeting?
     - The next generation of productivity
     - Tally v1.0 is now available on all platforms
 
 scenes:
-  - id: hook
+  - id: title
     theme: statement
-    title: The moment the viewer knows too well
-    note: The problem, as the viewer lives it. No product name yet.
+    eyebrow: title
+    title: The product's name and what it does
+    note: The title scene, with the product's name and its promise in one line. App mark media fits here.
     captions:
-      - text: Replace this with the problem, in one short sentence.
-  - id: reveal
+      - text: Say the name and what it does, in one plain sentence.
+  - id: problem
     theme: statement
-    title: Product name
-    note: The product name and its promise in one line. App mark media fits here.
+    title: The problem it solves
+    note: What goes wrong or takes too long without it, stated plainly.
     captions:
-      - text: Say the product name and what it promises.
+      - text: Say the problem in one plain sentence.
   - id: proof-1
     theme: feature
     title: The strongest feature

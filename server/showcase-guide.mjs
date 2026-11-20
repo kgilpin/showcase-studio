@@ -238,7 +238,19 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
 A video template says what kind of video a showcase is: its target length, its longest scene, a starting list of scenes, and guidance on what each scene should do. It doesn't say where the video goes: any kind of video can be a TikTok or a 4:3 YouTube video, so you ask. (A template is not a slide layout: a scene's theme keeps its meaning.)
 
 Before you write anything for a new showcase:
-1. Call list_templates. Show the user each template's name and description, and ask them to pick one, or "other" (use your question tool when you have one).
+1. Call list_templates. Show the user each template's name and description, and ask them to pick one, or "other" (use your question tool when you have one). Recommend one by asking what the video introduces, not by how many things it has to show:
+
+       What does it introduce?
+       ├─ a whole product, new to the viewer ──────────► product-launch
+       ├─ one task, step by step ──────────────────────► how-to
+       ├─ a problem in the code (an issue) ────────────► code-issue
+       ├─ a change to the code (a PR, branch, commit) ─► code-change
+       └─ one feature
+            How does it show its value?
+            ├─ as soon as you see it used ─────────────► feature-explainer
+            └─ by what it finds or prevents ───────────► worked-example
+
+   A feature that finds several things (bugs, mistakes, slow steps) is still one feature: a worked example follows the clearest of them. A library's own templates aren't on the chart: read their descriptions.
 2. Ask where the video will go, in the same round of questions when your tool takes several:
 
        TikTok, Instagram or YouTube Shorts      view: tiktok   (9:16)
@@ -254,9 +266,8 @@ Then write the outline (see "A new showcase: outline first" below): replace each
 A showcase whose meta.template names a template keeps that template's guidance: when you pick up work on one in a new session, call list_templates {id} for it before you change the script.
 
 Where templates come from:
-- The studio ships a few (feature-explainer, worked-example, product-launch, how-to). They update when the app does.
-- feature-explainer and worked-example both introduce one feature, in two different ways. Help the user pick by asking how the feature shows its value. If people get it as soon as they see it used, it's a feature explainer: a quick demo, with titles that say what is on screen. If its value is what it finds or prevents (a bug, a mistake, a slow step), it's a worked example: one real case followed from the problem to the proof, with titles that tell that story.
-- A library adds its own as <library>/showcase_templates/<id>.yaml, beside showcase_settings.yaml, so a team keeps them in git. One with the same id as a shipped template replaces it. The file holds name, description, meta (targetMs, sceneMaxMs, view only), guidance (text), titles {good: [...], bad: [...]} and scenes (a list written into showcase.yaml as it is). Copy a shipped one from list_templates {id} as a start. A file with a problem is left out of the list and named in its problems.
+- The studio ships a few (feature-explainer, worked-example, product-launch, how-to, code-issue, code-change). They update when the app does.
+- A library adds its own as <library>/showcase_templates/<id>.yaml, beside showcase_settings.yaml, so a team keeps them in git. One with the same id as a shipped template replaces it. The file holds name, description, meta (targetMs, sceneMaxMs, view only), guidance (text), titles {good: [...], bad: [...]}, captions {good: [...], bad: [...]}, titleCheck (screen or story) and scenes (a list written into showcase.yaml as it is). Copy a shipped one from list_templates {id} as a start. A file with a problem is left out of the list and named in its problems.
 
 ## A new showcase: outline first
 Write an outline before you build anything, and stop for the user to review it. Titles, scene order, and which scenes to split or merge are what users change most. In an outline each of those is one line. Once the slides exist, each is a graphic, a picture or a set of captions made again.
@@ -293,8 +304,12 @@ Skip the outline only when the user says to, or the change is to a showcase that
 ## Writing the script
 These are the defaults for every showcase. Follow them without asking the user who the audience is.
 
-Background first
-- Open with what a newcomer needs to know before the feature makes sense: the problem, and where the feature fits. Show the problem before you name the product.
+Opening
+- Open with a title scene: a statement slide with the name of the product, feature, task, issue or change, and one line on what it does. Add one when the template has none.
+- Then the background a newcomer needs before the feature makes sense: the problem, and where the feature fits.
+
+Plain facts
+- State facts plainly, for a technical viewer. No teasers: no questions to the viewer ("Ever lost a receipt?"), no "what if", and no holding back the name or the point for a reveal.
 
 Plain words
 - Everyday words. Use a technical term only when it is the real name of a thing: a command, a button, a file.

@@ -1,0 +1,105 @@
+name: Code issue
+description: One problem in the code, for the people who will fix it. What goes wrong, how to see it, and what a fix needs. About a minute.
+
+meta:
+  targetMs: 60000
+  sceneMaxMs: 10000
+
+titleCheck: story
+
+guidance: |
+  A code issue video explains one problem so that someone who has never
+  seen it can understand it and pick it up. The viewer is a developer:
+  a maintainer, a contributor, a reviewer. Skip the sales pitch.
+
+  Work from the issue itself: its text, its comments, the code it points
+  to, and any logs or failing tests. Put the issue's number or link and
+  a one-sentence summary in meta.notes. Never invent a symptom, a step
+  or a number: if the issue doesn't say how to see the problem, ask the
+  user, or show only what is known.
+
+  - title: the issue in one plain sentence (what goes wrong, and in which
+    part of the product), on a statement slide.
+  - symptom: what goes wrong, as the person who hit it saw it. One
+    concrete case, with its real numbers or messages.
+  - reproduce: the steps or the command that shows it, exactly as
+    someone would type them.
+  - expected: what should happen next to what does happen, side by side.
+  - cause: where in the code it goes wrong, as a short excerpt or a
+    simple flow. Only what is known: if the cause isn't found yet, say
+    what has been ruled out, or delete the scene.
+  - impact: who it hits and how often. Delete it if the issue doesn't
+    say.
+  - ask: what a fix needs to do, and where to pick it up (the issue
+    link, a cta).
+
+  Titles are claims about this problem, written as sentences: "Saving a
+  draft twice makes two copies", not "Bug report" or "Steps to
+  reproduce". Read them in order as one paragraph: they should explain
+  the issue without the pictures.
+
+  Code on screen is a short real excerpt, a few lines, drawn as a TSX
+  graphic with the line that matters marked. Ask the user for a
+  screenshot or recording of the symptom before you write captions that
+  describe it.
+
+titles:
+  good:
+    - Saving a draft twice makes two copies
+    - It only happens when the network is slow
+    - The second save never sees the first one's id
+  bad:
+    - Bug report
+    - Steps to reproduce
+    - "Issue #142: draft duplication"
+
+scenes:
+  - id: title
+    theme: statement
+    eyebrow: title
+    title: The issue, in one plain sentence
+    note: The title scene, with what goes wrong and where, in one line. The issue's number can go in a support line.
+    captions:
+      - text: Say the issue in one plain sentence.
+  - id: symptom
+    theme: console
+    eyebrow: the symptom
+    title: What goes wrong, as the person who hit it saw it
+    note: One concrete case of the problem, with its real numbers or messages.
+    captions:
+      - text: Say what goes wrong.
+  - id: reproduce
+    theme: console
+    eyebrow: how to see it
+    title: The steps or command that show it
+    note: Exactly what someone would type or click to see the problem.
+    captions:
+      - text: Say how to see it.
+  - id: expected
+    theme: console
+    eyebrow: expected
+    title: What should happen, next to what does
+    note: Expected and actual, side by side.
+    captions:
+      - text: Say what should happen instead.
+  - id: cause
+    theme: console
+    eyebrow: the cause
+    title: Where in the code it goes wrong
+    note: A short code excerpt or flow, only what is known. Delete it if the cause isn't found yet.
+    captions:
+      - text: Say where it goes wrong.
+  - id: impact
+    theme: statement
+    eyebrow: who it hits
+    title: Who it hits and how often
+    note: Delete it if the issue doesn't say.
+    captions:
+      - text: Say who it hits.
+  - id: ask
+    theme: statement
+    eyebrow: the fix
+    title: What a fix needs to do
+    note: What a fix must do, and the issue link as a cta.
+    captions:
+      - text: Say what a fix needs, and where to pick it up.
