@@ -43,6 +43,8 @@ describe("the shipped templates", () => {
       expect(t.guidance.length).toBeGreaterThan(100);
       expect(t.titles.good.length).toBeGreaterThan(0);
       expect(t.titles.bad.length).toBeGreaterThan(0);
+      expect(t.captions.good.length).toBeGreaterThan(0);
+      expect(t.captions.bad.length).toBeGreaterThan(0);
       expect(t.scenes.length).toBeGreaterThan(2);
     }
   });

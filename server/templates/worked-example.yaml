@@ -62,6 +62,14 @@ titles:
     - Some bugs only show up when the code runs
     - You get a report that starts with the bugs
 
+captions:
+  good:
+    - "That was a single command, and it read the device 4,309 times without pausing once."
+    - "No test caught it, because none of them ever makes the device busy."
+  bad:
+    - "One command. 4,309 reads, with no wait between them."
+    - "Bugs found by running the code."
+
 scenes:
   - id: title
     theme: statement

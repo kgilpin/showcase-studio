@@ -53,6 +53,14 @@ titles:
     - Steps to reproduce
     - "Issue #142: draft duplication"
 
+captions:
+  good:
+    - "If you save a draft twice in a row, you end up with two copies of it."
+    - "It only happens when the network is slow, which is why nobody saw it in testing."
+  bad:
+    - "Duplicate drafts on double save."
+    - "Repro: save, save again."
+
 scenes:
   - id: title
     theme: statement

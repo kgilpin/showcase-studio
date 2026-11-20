@@ -56,6 +56,14 @@ titles:
     - Refactor save logic
     - Overview
 
+captions:
+  good:
+    - "Here's the same test, run on the code before this change."
+    - "Now the second save finds the first draft and updates it, so there's just one."
+  bad:
+    - "One test, traced before and after the change."
+    - "Fix: idempotent save."
+
 scenes:
   - id: title
     theme: statement

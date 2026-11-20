@@ -17,6 +17,9 @@
  *   titles:                          a few good and bad titles
  *     good: [...]
  *     bad: [...]
+ *   captions:                        a few good (spoken) and bad
+ *     good: [...]                    (clipped) captions
+ *     bad: [...]
  *   titleCheck: story                what check_titles asks its reader
  *                                    (TITLE_CHECKS; screen when unset)
  *   scenes:                          the starting scenes, written into
@@ -120,6 +123,7 @@ function readTemplate(file, id, source) {
       meta,
       guidance: typeof raw.guidance === "string" ? raw.guidance.trim() : "",
       titles: { good: list(raw.titles?.good), bad: list(raw.titles?.bad) },
+      captions: { good: list(raw.captions?.good), bad: list(raw.captions?.bad) },
       titleCheck: raw.titleCheck ?? "screen",
       scenes,
     },
@@ -216,6 +220,7 @@ export function templateGuidance(template) {
     name: template.name,
     guidance: template.guidance,
     titles: template.titles,
+    captions: template.captions,
     titleCheck: template.titleCheck,
   };
 }

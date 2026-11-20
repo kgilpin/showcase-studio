@@ -54,6 +54,8 @@
  *                      (both builds answer with a build of the showcase
  *                      already running, since the studio builds on its
  *                      own; validate adds each showcase's media status)
+ *   check_script       exporter.mjs scriptCheck: the narration alone, for a
+ *                      fresh reader to read aloud
  *   check_titles       exporter.mjs titleCheck: the titles alone, for a
  *                      fresh subagent
  *   share_status, share, share_record
@@ -80,6 +82,7 @@ import {
   screenshotFrame,
   screenshotSlide,
   scriptText,
+  scriptCheck,
   titleCheck,
   validateShowcases,
 } from "./exporter.mjs";
@@ -789,6 +792,23 @@ export const TOOLS = [
     },
   },
   {
+    name: "check_script",
+    description:
+      "The narration alone, for a reader with none of your context. Returns {brief, lines, " +
+      "recorded, next}: brief is the whole prompt — every caption in order, numbered, and the " +
+      "request to read it aloud and mark each line a person wouldn't say — to hand verbatim to a " +
+      "fresh subagent that sees nothing else. lines maps each number to its sceneId and text. " +
+      "Rewrite the lines it marks with edit_showcase, keeping what each one says. Run it before " +
+      "reporting captions as done; see the guide's 'Narration'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
     name: "check_titles",
     description:
       "The slide titles alone, for a reader with none of your context. Returns {brief, check, slides, next}: " +
@@ -1387,6 +1407,18 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return {
       content: [{ type: "text", text: scriptText(showcasesDir, String(args.showcaseId ?? "")) }],
     };
+  }
+  if (name === "check_script") {
+    const check = scriptCheck(showcasesDir, String(args.showcaseId ?? ""));
+    const next = !check.lines.length
+      ? "No scene has a caption yet, so there is nothing to check."
+      : check.recorded
+        ? "This showcase is cut from a recording (meta.source): its captions are what was " +
+          "said, so don't rewrite them."
+        : "Hand brief, exactly as it is, to a new subagent with no other context. Rewrite every " +
+          "line it marks so a person would say it, keeping what the line says and its scene's " +
+          "length, and run the check again.";
+    return { content: [{ type: "text", text: JSON.stringify({ ...check, next }, null, 2) }] };
   }
   if (name === "check_titles") {
     const check = titleCheck(showcasesDir, String(args.showcaseId ?? ""));

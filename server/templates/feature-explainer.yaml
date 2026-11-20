@@ -42,6 +42,14 @@ titles:
     - Powerful AI-driven organization
     - Ever lost a receipt?
 
+captions:
+  good:
+    - "Tap the search bar, type a store's name, and there's every receipt from it."
+    - "That's two taps, and you never had to sort anything."
+  bad:
+    - "Search. Two taps. Done."
+    - "Instant receipt search."
+
 scenes:
   - id: title
     theme: statement

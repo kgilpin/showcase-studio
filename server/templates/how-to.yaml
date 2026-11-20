@@ -32,6 +32,14 @@ titles:
     - Exporting overview
     - The export functionality
 
+captions:
+  good:
+    - "First, open the project you want to share."
+    - "Then click Share, and choose Export as PDF."
+  bad:
+    - "Step one: project selection."
+    - "Share menu. Export option."
+
 scenes:
   - id: title
     theme: statement

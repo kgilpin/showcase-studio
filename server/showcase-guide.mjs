@@ -310,6 +310,34 @@ Opening
 
 Plain facts
 - State facts plainly, for a technical viewer. No teasers: no questions to the viewer ("Ever lost a receipt?"), no "what if", and no holding back the name or the point for a reveal.
+- Plain is not clipped. A plain fact is still a whole spoken sentence (see "Narration").
+
+Narration
+- The captions are one person talking through the whole video, from the first scene to the last. Each line follows on from the one before, with joining words like "first", "then", "here" and "so".
+- Captions are a script for a person to read aloud. Write them the way a friendly colleague would explain this to you at their desk: whole sentences with a subject and a verb, contractions, and the small words that join one thought to the next ("so", "and then", "that's why").
+- Pick the subject of each sentence by who does the thing. The product does its work: "it" ("It records each test as it runs"). The viewer does theirs: "you" ("You ask for an analysis of your branch"). Use "we" only when the narrator really does something on screen, as in a how-to walkthrough; never as a stand-in for what the product does ("We'll take one test…").
+- Titles can be short. Captions can't: never write a caption like a slide title, a bullet or a telegram.
+
+    Clipped (wrong)                                        Spoken (right)
+    "One test, traced before and after the change."        "It runs each test twice: once before your change, and once after."
+    "One command. 4,309 reads, with no wait between them." "That was a single command, and it read the device 4,309 times without pausing once."
+
+- Some warmth is welcome: a short reaction ("That's a lot of reads for one command."), or why it matters to the person watching. Warmth comes from how a person talks, not from hype: no superlatives, no teasers.
+- When a line runs past the scene's length, cut an idea or split the scene. Don't save words by dropping verbs.
+- A template's good and bad captions show the voice for that kind of video. Follow them.
+- Check with a reader who knows nothing else, as for the titles:
+
+    check_script {showcaseId} ──► brief: every caption, in order, numbered
+                                     │
+                                     ▼
+              a new subagent, given brief and nothing else
+                                     │
+                                     ▼
+              "read it aloud; mark each line a person wouldn't say"
+                                     │
+                     marked lines ───┴─► rewrite them (same meaning), check again
+
+  You wrote the lines, so they sound fine to you; a fresh reader hears the labels and fragments. Run it before you report captions as done. Skip it for a showcase cut from a recording: its captions are what was said.
 
 Plain words
 - Everyday words. Use a technical term only when it is the real name of a thing: a command, a button, a file.
@@ -354,7 +382,7 @@ Content
 - Working context lives in note fields, not YAML comments: a scene's note (what the take is, what's pending) and meta.notes (showcase-level context) travel with the data through every edit and show on the script page. Don't add YAML comments — they aren't addressable by the edit tool, and a comment above a scene does NOT follow it through scene.move or scene.delete, so banners end up labeling the wrong scene. Section labels belong in eyebrow.
 - Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed. Referencing an asset or graphic that doesn't exist yet is fine: the slide renders a "missing asset" placeholder with a linter warning, and heals when the file lands in assets/.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, or to paste or drag them onto the studio's Assets page, then reference them by key. (An image pasted into the Claude chat never reaches a file you can read.)
-- Keep narration natural to read aloud, and slides focused — one idea per slide.
+- Keep narration natural to read aloud (see "Narration"), and slides focused — one idea per slide.
 - Never run destructive git operations (reset --hard, force pushes, deleting branches) — see "History" above for how to undo a change safely.`;
 
 /** True when a user-owned CLAUDE.md still carries an inline copy of the

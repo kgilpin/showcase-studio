@@ -604,6 +604,25 @@ scenes:
     expect(next).toContain("subagent");
   });
 
+  it("check_script returns the narration alone, numbered, and a key back to the scenes", async () => {
+    const { studio, library } = await startStudio();
+    const doc = parse(readFileSync(path.join(library, "nova", "showcase.yaml"), "utf8"));
+    const captions = doc.scenes.flatMap((scene) =>
+      (scene.captions ?? []).map((c) => ({ sceneId: scene.id, text: c.text })),
+    );
+    const { brief, lines, next } = JSON.parse(
+      (await studio.callTool({ name: "check_script", arguments: { showcaseId: "nova" } }))
+        .content[0].text,
+    );
+    expect(lines.map((l) => l.sceneId)).toEqual(captions.map((c) => c.sceneId));
+    expect(brief).toContain("Read it aloud");
+    expect(brief).toContain(`1. ${String(captions[0].text).replace(/\s+/g, " ").trim()}`);
+    for (const scene of doc.scenes) {
+      if (scene.note) expect(brief).not.toContain(scene.note);
+    }
+    expect(next).toMatch(/subagent|recording/);
+  });
+
   it("check_titles asks for the story on a showcase made from the worked-example template", async () => {
     const { studio } = await startStudio();
     await studio.callTool({

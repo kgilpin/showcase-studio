@@ -36,6 +36,14 @@ titles:
     - The next generation of productivity
     - Tally v1.0 is now available on all platforms
 
+captions:
+  good:
+    - "Tally reads your bank statements and fills in your budget for you."
+    - "So at the end of the month, the numbers are already there."
+  bad:
+    - "Your budget. Automated."
+    - "AI-powered budgeting for everyone."
+
 scenes:
   - id: title
     theme: statement

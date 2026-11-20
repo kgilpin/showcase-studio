@@ -215,7 +215,8 @@ the full list.
 1. Run `validate` after changing YAML.
    When titles changed, run `check_titles` too, and hand its `brief` to a
    new subagent that sees nothing else. The guide's "Check the titles"
-   says how to read the answers.
+   says how to read the answers. When captions changed, do the same with
+   `check_script` (the guide's "Narration").
 2. Look at the result. In the preview panel, read the page first: the
    user may have moved to another page or slide. Without a panel, use
    `screenshot_slide`. For anything about the video at a moment — a
