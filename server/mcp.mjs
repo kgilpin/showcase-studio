@@ -87,10 +87,12 @@ import { showcaseIndex } from "./showcase-data.mjs";
 import { librarySay } from "./library-config.mjs";
 import {
   LIBRARY_TEMPLATES_DIR,
+  libraryViews,
   listTemplates,
   templateGuidance,
   templateSummary,
 } from "./showcase-templates.mjs";
+import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
 import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
@@ -356,8 +358,10 @@ export const TOOLS = [
       "studio's + card: <id>/showcase.yaml and an empty assets/ folder, the id made from " +
       "the name (lower case, dashes). Ask the user for the template first (list_templates). " +
       "With template, the showcase gets that template's settings (meta.targetMs, " +
-      "meta.sceneMaxMs, meta.view), meta.template naming it, and its starting scenes, and " +
+      "meta.sceneMaxMs), meta.template naming it, and its starting scenes, and " +
       "the result carries the template's guidance to follow while you write. template: " +
+      "view is where the user said the video goes (list_templates' views says how to ask), " +
+      "written as meta.view. " +
       '"other" (or none) gives a one-scene starter; with "other", ask the user what the ' +
       "video is for and pass the answer as purpose (it goes in meta.notes). Returns {id, " +
       "path, template?}. Then write an outline (titles and notes, no captions or media) and " +
@@ -369,6 +373,11 @@ export const TOOLS = [
       type: "object",
       properties: {
         name: { type: "string", description: "The showcase's title" },
+        view: {
+          type: "string",
+          enum: PLAYER_VIEWS,
+          description: "Where the video goes: tiktok (9:16), embed (4:3) or screens (App Store)",
+        },
         template: {
           type: "string",
           description: 'A template id from list_templates, or "other"',
@@ -1513,6 +1522,14 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json({
       templates: templates.map(templateSummary),
       other: "None of these: a one-scene starter. Ask the user what the video is for.",
+      views: {
+        ...libraryViews(showcasesDir),
+        ask:
+          "Templates don't say where a video goes. After the template, ask the user: TikTok, " +
+          "Instagram or YouTube Shorts (tiktok, 9:16); YouTube, a docs page or LinkedIn (embed, " +
+          "4:3); or App Store screenshots (screens). Offer suggested first: it is what most of " +
+          "this library's showcases use. Pass the answer to create_showcase as view.",
+      },
       libraryFolder: path.join(showcasesDir, LIBRARY_TEMPLATES_DIR),
       ...(problems.length > 0 ? { problems } : {}),
     });
@@ -1521,7 +1538,14 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     if (!context.createShowcase) throw new Error("This studio can't create showcases");
     const title = String(args.name ?? "").trim();
     const template = args.template == null ? undefined : String(args.template).trim();
-    const result = context.createShowcase(title, { template, purpose: args.purpose });
+    if (args.view != null && !PLAYER_VIEWS.includes(args.view)) {
+      throw new Error(`view must be one of: ${PLAYER_VIEWS.join(", ")}`);
+    }
+    const result = context.createShowcase(title, {
+      template,
+      purpose: args.purpose,
+      view: args.view,
+    });
     if (!result.ok) throw new Error(result.error);
     context.changeLog?.append({
       source: "mcp",

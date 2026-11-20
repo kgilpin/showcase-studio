@@ -235,12 +235,19 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
 - The Share page offers each destination's cover as an image to upload with the video, and the YouTube thumbnail with the regular YouTube video.
 
 ## Video templates (start here for a new showcase)
-A video template says what kind of video a showcase is: its target length, its longest scene, the view it opens in, a starting list of scenes, and guidance on what each scene should do. (A template is not a slide layout: a scene's theme keeps its meaning.)
+A video template says what kind of video a showcase is: its target length, its longest scene, a starting list of scenes, and guidance on what each scene should do. It doesn't say where the video goes: any kind of video can be a TikTok or a 4:3 YouTube video, so you ask. (A template is not a slide layout: a scene's theme keeps its meaning.)
 
 Before you write anything for a new showcase:
 1. Call list_templates. Show the user each template's name and description, and ask them to pick one, or "other" (use your question tool when you have one).
-2. For a template: create_showcase {name, template: <id>}. The showcase gets meta.targetMs, meta.sceneMaxMs, meta.view, meta.template and the template's starting scenes, each with a note saying what it is for. The result carries the template's guidance and good and bad titles: follow them while you write.
-3. For "other": ask the user one question, what the video is for, then create_showcase {name, template: "other", purpose: <their answer>}. It starts with one scene, and the answer goes in meta.notes.
+2. Ask where the video will go, in the same round of questions when your tool takes several:
+
+       TikTok, Instagram or YouTube Shorts      view: tiktok   (9:16)
+       YouTube, a docs page or LinkedIn         view: embed    (4:3)
+       App Store screenshots                    view: screens
+
+   list_templates' views.suggested is the view most of this library's showcases use: offer it first. With none, offer no default.
+3. For a template: create_showcase {name, template: <id>, view}. The showcase gets meta.view, meta.targetMs, meta.sceneMaxMs, meta.template and the template's starting scenes, each with a note saying what it is for. The result carries the template's guidance and its good and bad titles and captions: follow them while you write.
+4. For "other": ask the user one more question, what the video is for, then create_showcase {name, template: "other", purpose: <their answer>, view}. It starts with one scene, and the answer goes in meta.notes.
 
 Then write the outline (see "A new showcase: outline first" below): replace each starting scene's placeholder title and note, and delete or add scenes as the material needs. Captions come after the user approves the outline. Keep each scene's note up to date or remove it once the scene is done.
 
@@ -470,11 +477,11 @@ ${whisperAdvice(platform)}
 - The studio exposes MCP tools (server "showcase-studio", preloaded in
   studio-opened sessions; a session you start yourself gets them with
   \`claude --mcp-config .studio/mcp.json\` from the library root):
-  create_showcase {name, template?, purpose?} makes a new showcase
+  create_showcase {name, template?, purpose?, view?} makes a new showcase
   folder from a name (showcase.yaml started from a video template, or
   the + card's one-scene starter, and an empty assets/) and returns its
-  id — ask the user for the template first (list_templates; see "Video
-  templates"), and start a new showcase with it, never by writing the
+  id — ask the user for the template and where the video goes first
+  (list_templates; see "Video templates"), and start a new showcase with it, never by writing the
   folder yourself; read_showcase {showcaseId} returns
   showcase.yaml as it is now, with
   its version; add_asset {showcaseId, files: [{path, name?}]} copies

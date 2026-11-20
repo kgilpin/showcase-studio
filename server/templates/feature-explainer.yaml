@@ -4,7 +4,6 @@ description: One feature, shown working, in under a minute. For a feature people
 meta:
   targetMs: 45000
   sceneMaxMs: 8000
-  view: tiktok
 
 guidance: |
   A feature explainer shows one feature doing one job. The viewer should

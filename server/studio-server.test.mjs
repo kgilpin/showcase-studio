@@ -659,7 +659,7 @@ scenes:
       (
         await studio.callTool({
           name: "create_showcase",
-          arguments: { name: "Tally", template: "product-launch" },
+          arguments: { name: "Tally", template: "product-launch", view: "embed" },
         })
       ).content[0].text,
     );
@@ -668,6 +668,11 @@ scenes:
     const yaml = readFileSync(path.join(library, "tally", "showcase.yaml"), "utf8");
     expect(yaml).toContain("template: product-launch");
     expect(yaml).toContain("targetMs: 60000");
+    expect(yaml).toContain("view: embed");
+    expect(list.views.ask).toContain("view");
+    await expect(
+      studio.callTool({ name: "create_showcase", arguments: { name: "Wide", view: "cinema" } }),
+    ).rejects.toThrow("view must be one of");
     const full = JSON.parse(
       (await studio.callTool({ name: "list_templates", arguments: { id: "product-launch" } }))
         .content[0].text,

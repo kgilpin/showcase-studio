@@ -928,8 +928,9 @@ add notes specific to this library below, and the studio won't touch them.
   /** Scaffolds a new showcase folder (the "+" card and the /new page,
    *  and create_showcase). `template` is a video template's id
    *  (server/showcase-templates.mjs) or "other"; `purpose` is the user's
-   *  answer to "what is this video for?". The page passes neither. */
-  function createShowcase(name, { template: templateId, purpose } = {}) {
+   *  answer to "what is this video for?"; `view` is where the user said
+   *  the video goes. The page passes none of them. */
+  function createShowcase(name, { template: templateId, purpose, view } = {}) {
     /* Creating opens the new showcase, which would leave this one. */
     if (lock?.kind === "showcase") {
       return { ok: false, error: "This studio is locked to one showcase" };
@@ -957,7 +958,7 @@ add notes specific to this library below, and the studio won't touch them.
     mkdirSync(path.join(showcasesDir, id, "assets"), { recursive: true });
     writeFileSync(
       path.join(showcasesDir, id, "showcase.yaml"),
-      starterShowcaseYaml(title, { template, purpose }),
+      starterShowcaseYaml(title, { template, purpose, view }),
     );
     /* A --new studio is now locked to the showcase it created. */
     if (lock?.kind === "new") {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   LIBRARY_TEMPLATES_DIR,
   findTemplate,
+  libraryViews,
   listTemplates,
   starterShowcaseYaml,
 } from "./showcase-templates.mjs";
@@ -36,7 +37,7 @@ describe("the shipped templates", () => {
       expect(t.source).toBe("studio");
       expect(t.meta.targetMs).toBeGreaterThan(0);
       expect(t.meta.sceneMaxMs).toBeGreaterThan(0);
-      expect(t.meta.view).toBeTruthy();
+      expect(t.meta.view).toBeUndefined();
       expect(t.guidance.length).toBeGreaterThan(100);
       expect(t.titles.good.length).toBeGreaterThan(0);
       expect(t.titles.bad.length).toBeGreaterThan(0);
@@ -114,9 +115,36 @@ describe("a new showcase's starter showcase.yaml", () => {
     expect(doc.scenes.every((s) => s.media?.kind === "none")).toBe(true);
   });
 
+  it("opens in the view the user chose, and ignores one that isn't a view", () => {
+    const template = findTemplate(library, "worked-example");
+    expect(parse(starterShowcaseYaml("Busy", { template, view: "embed" })).meta.view).toBe("embed");
+    expect(parse(starterShowcaseYaml("Busy", { template })).meta.view).toBeUndefined();
+    expect(parse(starterShowcaseYaml("Busy", { view: "cinema" })).meta.view).toBeUndefined();
+  });
+
   it('keeps the answer to "what is this video for?" in meta.notes', () => {
     const doc = parse(starterShowcaseYaml("Odd One", { purpose: "A thank-you to our testers" }));
     expect(doc.meta.notes).toBe("What this video is for: A thank-you to our testers");
     expect(doc.meta.template).toBeUndefined();
+  });
+});
+
+describe("the views a library's showcases use", () => {
+  const addShowcase = (id, text) => {
+    mkdirSync(path.join(library, id), { recursive: true });
+    writeFileSync(path.join(library, id, "showcase.yaml"), text);
+  };
+
+  it("suggests the most used one", () => {
+    addShowcase("a", "meta:\n  view: embed\nscenes: []\n");
+    addShowcase("b", "meta:\n  view: embed\nscenes: []\n");
+    addShowcase("c", "meta:\n  view: tiktok\nscenes: []\n");
+    addShowcase("d", "meta:\n  title: No view\nscenes: []\n");
+    addShowcase("e", "meta: [unclosed\n");
+    expect(libraryViews(library)).toEqual({ counts: { embed: 2, tiktok: 1 }, suggested: "embed" });
+  });
+
+  it("suggests nothing in a library where no showcase sets one", () => {
+    expect(libraryViews(library)).toEqual({ counts: {} });
   });
 });

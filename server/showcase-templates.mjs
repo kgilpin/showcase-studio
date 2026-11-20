@@ -7,9 +7,10 @@
  *   name: Feature explainer          what the user picks from
  *   description: One line.           what it is for, in the list
  *   meta:                            copied into the new showcase's meta
- *     targetMs: 45000                  (only the keys in TEMPLATE_META)
- *     sceneMaxMs: 8000
- *     view: tiktok
+ *     targetMs: 45000                  (only the keys in TEMPLATE_META;
+ *     sceneMaxMs: 8000                 the shipped ones leave view out:
+ *                                      where a video goes is asked, not
+ *                                      part of what kind of video it is)
  *   guidance: |                      what this kind of video is for and
  *     ...                            what each scene should do; Claude
  *                                    follows it while writing
@@ -45,7 +46,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
-import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
+import { PLAYER_VIEWS, playerView } from "../src/lib/export-kinds.mjs";
 
 export const SHIPPED_TEMPLATES_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -184,6 +185,30 @@ export function templateSummary(template) {
   };
 }
 
+/** Which player view the library's showcases open in: how many use each
+ *  (`counts`), and the most used (`suggested`, undefined when none sets
+ *  one). A template says what kind of video it is, not where it goes, so
+ *  Claude asks the user where a new one goes and offers this as the
+ *  likely answer. */
+export function libraryViews(libraryDir) {
+  const counts = {};
+  if (!libraryDir || !existsSync(libraryDir)) return { counts };
+  for (const entry of readdirSync(libraryDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const file = path.join(libraryDir, entry.name, "showcase.yaml");
+    if (!existsSync(file)) continue;
+    let view;
+    try {
+      view = playerView(parse(readFileSync(file, "utf8"))?.meta?.view);
+    } catch {
+      continue;
+    }
+    if (view) counts[view] = (counts[view] ?? 0) + 1;
+  }
+  const suggested = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  return suggested ? { counts, suggested } : { counts };
+}
+
 /** What Claude follows while writing a showcase made from the template. */
 export function templateGuidance(template) {
   return {
@@ -200,8 +225,10 @@ export function templateGuidance(template) {
  *  - "other": the same, with the user's answer to "what is this video
  *    for?" in meta.notes
  *  - a template: its meta settings, meta.template naming it, and its
- *    starting scenes */
-export function starterShowcaseYaml(title, { template, purpose } = {}) {
+ *    starting scenes
+ *  `view` is where the user said the video goes (one of PLAYER_VIEWS);
+ *  it wins over a library template's own meta.view. */
+export function starterShowcaseYaml(title, { template, purpose, view } = {}) {
   const meta = {
     title,
     description: `Describe ${title} in a sentence.`,
@@ -224,6 +251,8 @@ export function starterShowcaseYaml(title, { template, purpose } = {}) {
       }));
     }
   }
+  const chosen = playerView(view);
+  if (chosen) meta.view = chosen;
   const why = String(purpose ?? "").trim();
   if (why) meta.notes = `What this video is for: ${why}`;
   return stringify({ meta, scenes }, { lineWidth: 0 }).replace(/\nscenes:/, "\n\nscenes:");

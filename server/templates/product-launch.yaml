@@ -4,7 +4,6 @@ description: A new product or a big release, from the problem to where to get it
 meta:
   targetMs: 60000
   sceneMaxMs: 8000
-  view: tiktok
 
 guidance: |
   A product launch tells the viewer something new exists and gives them a

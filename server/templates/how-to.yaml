@@ -4,7 +4,6 @@ description: Step-by-step instructions for one task, for YouTube or a help page.
 meta:
   targetMs: 120000
   sceneMaxMs: 15000
-  view: embed
 
 guidance: |
   A how-to teaches one task to someone who already wants to do it. They

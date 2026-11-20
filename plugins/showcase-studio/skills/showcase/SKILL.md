@@ -138,9 +138,10 @@ the full list.
 ## 3. Make changes
 
 - A new showcase: first call `list_templates` and ask the user to pick
-  a video template, or "other". For "other", also ask what the video is
-  for. Then `create_showcase` with its name, `template`, and for "other"
-  `purpose`. It makes the folder, a starter `showcase.yaml` and an empty
+  a video template, or "other", and ask where the video will go (the
+  guide's "Video templates" lists the answers). For "other", also ask
+  what the video is for. Then `create_showcase` with its name,
+  `template`, `view`, and for "other" `purpose`. It makes the folder, a starter `showcase.yaml` and an empty
   `assets/`, and returns the id and the template's guidance. Follow the
   guidance while you write. Don't write the folder yourself.
 - Then write an outline, not the slides: titles, eyebrows and a note on

@@ -4,7 +4,6 @@ description: One real case, followed from the problem to the proof. For a featur
 meta:
   targetMs: 90000
   sceneMaxMs: 10000
-  view: embed
 
 titleCheck: story
 
