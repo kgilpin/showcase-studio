@@ -48,7 +48,8 @@ meta.watermark draws a small logo in one corner of every slide, the way a TV net
 - The wordmark is white. theme.yaml's colors.watermark-text changes it (caption colors don't affect it).
 - The mark is decorative chrome: it is hidden from screen readers (so the same logo isn't announced on every slide) and never takes a click.
 
-Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram; style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
+Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram. The first part of a graphic is on screen from the scene's first frame, with no fade-in. Only the later parts animate in. A scene never opens on an empty panel. Style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
+The first part of a graphic is on screen from the scene's first frame, with no fade-in. Only the later parts animate in. A scene never opens on an empty panel.
 
 ## Pointing at things in a recording (overlays)
 A screen recording or a game replay plays through, and the viewer can't tell where to look. media.overlay draws a TSX graphic on top of an image or video — a ring round the fleet that matters, an arrow to a star, a label on a player's territory — timed to the clip:
@@ -343,6 +344,8 @@ Plain words
 - Everyday words. Use a technical term only when it is the real name of a thing: a command, a button, a file.
 - Never make up a term or a shorthand.
 - Call each of the product's things by the product's own name for it, and use the same word every time.
+- When a feature is used through an AI agent, write "your AI agent". Name one agent (Claude, say) only when the feature works with that one alone.
+- When you draw a prompt or a chat, keep it plain. Don't copy the look of one agent's product unless the feature works with that one alone.
 
 Titles
 - A template's guidance and its good and bad titles say how its titles work, and come first. A worked example's titles are claims that tell its story; check_titles checks them that way.
