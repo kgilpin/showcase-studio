@@ -202,7 +202,9 @@ export const TOOLS = [
       '- {field: "meta.set", name, value} — meta title, description, loop, pace, sceneMaxMs ' +
       "(the longest any scene should run, in ms: validate and the player warn about each " +
       "scene over it, saying why it is long), targetMs (what the whole video should add up " +
-      "to, in ms: a warning names the longest scenes when it runs over), captionStyle, " +
+      "to, in ms: a warning names the longest scenes when it runs over) — both are for " +
+      "short-form: on a 4:3 YouTube video set neither unless the user gives a length — " +
+      "captionStyle, " +
       "embedCaptions (true/false: overlay captions in the 4:3 embed; null returns to the " +
       'default, which hides them when a synced voiceover is set), view ("tiktok", "screens" ' +
       'or "embed" — the player view the showcase opens in, for a showcase made for one ' +
@@ -729,7 +731,9 @@ export const TOOLS = [
       "that destination's overrides; `from` says where each came from), `paste` (the " +
       'caption box\'s text), `exportKind` (the video it takes: the 9:16 "video" for the ' +
       'first three, the 4:3 "video-43" for a regular YouTube upload), and `problems` (over ' +
-      "a limit, too long a video, no title); the full-quality exports by kind and whether " +
+      "a limit, too long a video, no title — all four destinations are checked, so act only " +
+      "on those the user is posting to, and never shorten a video to suit one they " +
+      "aren't); the full-quality exports by kind and whether " +
       "each is `current` (it matches the showcase as it is now); and the hand-offs so far, " +
       "with their post links. `page` is the Share page's URL — open it for the user. Write " +
       "the text with edit_showcase (publish.set).",

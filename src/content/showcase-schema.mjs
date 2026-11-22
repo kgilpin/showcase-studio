@@ -278,10 +278,10 @@ const META = object(
     loop: boolean("Whether the player loops back to the first scene."),
     pace: number("Reading speed for derived timing, in words per second (default 2.5)."),
     sceneMaxMs: number(
-      "The longest any scene should run, in ms (8000 suits a product video); a scene's own maxMs overrides it. The linter warns past it.",
+      "The longest any scene should run, in ms (8000 suits a short-form product video; leave unset for long-form YouTube unless the user gives a limit); a scene's own maxMs overrides it. The linter warns past it.",
     ),
     targetMs: number(
-      "What the whole video should add up to, in ms (60000 for a TikTok). The linter warns past it, naming the longest scenes.",
+      "What the whole video should add up to, in ms (60000 for a TikTok; leave unset for long-form YouTube unless the user gives a length). The linter warns past it, naming the longest scenes.",
     ),
     captionStyle: oneOf(CAPTION_STYLES, "The overlay caption painting for every scene."),
     embedCaptions: boolean(

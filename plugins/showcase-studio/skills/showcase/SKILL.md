@@ -222,14 +222,16 @@ the full list.
 
 - Exports: `export`, then `export_status` with `waitMs` (up to two minutes
   a call) until it's done. Don't poll with sleeps.
-- Posting to TikTok, Instagram or YouTube Shorts: the guide's "Sharing"
-  section has the steps. In short: write the caption and hashtags with
-  `edit_showcase` (`publish.set`), check them with `share_status`, and
-  make sure there is a current full-quality export. Then open the Share
-  page (`share_status` returns its URL as `page`) in the preview, or call
-  `share` to hand the video off from this computer. Nothing is posted
-  for the user; they post on the platform's own page. Afterwards, keep
-  the post's link with `share_record`.
+- Posting to TikTok, Instagram, YouTube Shorts or YouTube (a regular
+  video): the guide's "Sharing" section has the steps. In short: write
+  the post's text with `edit_showcase` (`publish.set`), check it with
+  `share_status` for the destinations the user is posting to, and make
+  sure there is a current full-quality export of the kind each one takes
+  (`video-43` for regular YouTube, `video` for the others). Then open
+  the Share page (`share_status` returns its URL as `page`) in the
+  preview, or call `share` to hand the video off from this computer.
+  Nothing is posted for the user; they post on the platform's own page.
+  Afterwards, keep the post's link with `share_record`.
 - History: when the library is in a git repository, `studio_start`
   reports `history`. If `history.autoCommit` is false, the studio makes
   no commits on its own: nothing is committed until you call
