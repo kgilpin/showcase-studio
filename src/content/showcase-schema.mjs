@@ -28,6 +28,7 @@
  * applies. The loader keeps those messages and drops this file's
  * duplicates (VALUE_CHECKED_ELSEWHERE in showcases.ts). */
 
+import { CAPTION_ID_PATTERN } from "./caption-starts-rules.mjs";
 import { CAPTION_PRESETS, CAPTION_PERCENT } from "./caption-position-rules.mjs";
 import {
   TIKTOK_AREA_SIDES,
@@ -200,6 +201,12 @@ const CAPTION = object(
   "One spoken line of the narration.",
   {
     text: string("The words, exactly as spoken."),
+    id: {
+      type: "string",
+      pattern: CAPTION_ID_PATTERN,
+      description:
+        "A name for the line, so a graphic can start when it starts: var(--caption-<id>-start).",
+    },
     durationMs: number("Pins how long the line shows; derived from the words when unset."),
     position: {
       anyOf: [{ type: "string", enum: CAPTION_PRESETS }, percent()],

@@ -33,6 +33,7 @@ import {
 } from "./timing.mjs";
 import { activeSource, type ShowcaseAsset, type ShowcaseSource } from "./source";
 import { remoteGraphic } from "./graphics-runtime";
+import { captionIdProblems } from "./caption-starts-rules.mjs";
 import { looksCutOff } from "./theme-value";
 import { THEME_GROUPS, cleanTheme } from "./theme-rules.mjs";
 import { ASSET_KINDS, assetKind, mediaKindWarning, type AssetKind } from "./asset-kind";
@@ -177,6 +178,8 @@ export type CaptionPosition = CaptionPreset | `${number}%`;
  *  the showcase has a voiceover word-timestamp sidecar — never authored. */
 export type SceneCaption = {
   text: string;
+  /** A name a graphic can time itself to: var(--caption-<id>-start). */
+  id?: string;
   durationMs?: number;
   position?: CaptionPosition;
   words?: WordWindow[];
@@ -1142,6 +1145,7 @@ function buildShowcase(
       const { position: _position, ...placed } = caption;
       return placed;
     });
+    warnings.push(...captionIdProblems(captions));
     const timing = { ...resolved, captions };
     /* The scene's own maxMs wins over the showcase's; a scene that runs
      * longer is warned about, with why, and marked for the scene rail. */

@@ -30,9 +30,19 @@ type Props = {
    *  (media.tiktok — fill with a focus, or fit with bands); "portrait"
    *  uses the everyday fit and align. */
   canvas?: "portrait" | "tiktok";
+  /** The scene's caption starts as CSS variables, for its graphic or
+   *  overlay to time itself to (caption-starts-rules.mjs). */
+  captionStarts?: Record<string, string>;
 };
 
-export function SceneMedia({ media, durationMs, paused, className, canvas = "portrait" }: Props) {
+export function SceneMedia({
+  media,
+  durationMs,
+  paused,
+  className,
+  canvas = "portrait",
+  captionStarts,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const bandVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoSrc = media.kind === "video" ? media.src : undefined;
@@ -120,6 +130,7 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
           paused && "media-paused",
           className,
         )}
+        style={captionStarts}
       >
         <div
           className={cn("h-full w-full", graphicMotion)}
@@ -230,7 +241,7 @@ export function SceneMedia({ media, durationMs, paused, className, canvas = "por
         <div
           aria-hidden
           className={cn("pointer-events-none absolute inset-0", motion, paused && "media-paused")}
-          style={style}
+          style={{ ...style, ...captionStarts }}
         >
           <div
             className="absolute"

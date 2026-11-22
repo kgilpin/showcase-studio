@@ -88,6 +88,7 @@ import {
 } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { librarySay } from "./library-config.mjs";
+import { graphicTimingWarnings } from "./graphic-timing.mjs";
 import {
   LIBRARY_TEMPLATES_DIR,
   libraryViews,
@@ -215,7 +216,8 @@ export const TOOLS = [
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom — each format places these at its " +
       "own height, clear of TikTok's interface in the TikTok video — or an exact height " +
-      'like "14%": the caption\'s top edge that far down, in every format).\n' +
+      'like "14%": the caption\'s top edge that far down, in every format), or id (a name, ' +
+      "so a graphic can start with the line: var(--caption-<id>-start)).\n" +
       '- {field: "caption.insert", sceneId, captionIndex, caption: {text, ...}} and ' +
       '{field: "caption.delete", sceneId, captionIndex}\n' +
       '- {field: "scene.insert", index, scene: {id, theme, captions, media, ...}}, ' +
@@ -592,6 +594,7 @@ export const TOOLS = [
       "showcases that loaded (id, title, slides, runtime, and the target runtime when " +
       "meta.targetMs sets one), the warnings (per scene: a field that isn't one or is in the " +
       "wrong place, against .studio/showcase.schema.json; a wrong value; themes and media; " +
+      "a graphic timed to a caption id its scene doesn't have; " +
       "length — a scene over its maxMs or meta.sceneMaxMs says how far over and why, a " +
       "showcase over meta.targetMs names its longest scenes), and, for any showcase that " +
       "failed, the error message; a warning with an empty showcaseId is about the library's " +
@@ -1641,6 +1644,11 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       const { kind, ok, stale, upToDate, problem } = media;
       loaded.media = { kind, ...(ok ? { upToDate, stale } : { upToDate: false, problem }) };
     }
+    /* Captions that graphics wait for and that aren't there. */
+    const untimed = (report.loaded ?? []).flatMap(({ id }) =>
+      graphicTimingWarnings(showcasesDir, id),
+    );
+    if (untimed.length) report.warnings = [...(report.warnings ?? []), ...untimed];
     return { content: [{ type: "text", text: JSON.stringify(report, null, 2) }] };
   }
   throw new Error(`Unknown tool: ${name}`);

@@ -105,6 +105,7 @@ for (const dir of ["electron", "server"]) {
 for (const shared of [
   "content/asset-kinds.mjs",
   "content/caption-position-rules.mjs",
+  "content/caption-starts-rules.mjs",
   "content/cover-rules.mjs",
   "content/publish-rules.mjs",
   "content/showcase-schema.mjs",
