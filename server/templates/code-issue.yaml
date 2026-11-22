@@ -18,13 +18,15 @@ guidance: |
   or a number: if the issue doesn't say how to see the problem, ask the
   user, or show only what is known.
 
-  - title: the issue in one plain sentence (what goes wrong, and in which
-    part of the product), on a statement slide.
+  - title: the issue in one plain sentence (what should happen and what
+    happens instead, and in which part of the product), on a statement
+    slide.
   - symptom: what goes wrong, as the person who hit it saw it. One
-    concrete case, with its real numbers or messages.
+    concrete case, with its real numbers or messages in the picture.
   - reproduce: the steps or the command that shows it, exactly as
     someone would type them.
-  - expected: what should happen next to what does happen, side by side.
+  - expected: one diagram of the case, with what should happen and what
+    does happen labeled on it. Not two panels of text.
   - cause: where in the code it goes wrong, as a short excerpt or a
     simple flow. Only what is known: if the cause isn't found yet, say
     what has been ruled out, or delete the scene.
@@ -34,9 +36,9 @@ guidance: |
     link, a cta).
 
   Titles are claims about this problem, written as sentences: "Saving a
-  draft twice makes two copies", not "Bug report" or "Steps to
-  reproduce". Read them in order as one paragraph: they should explain
-  the issue without the pictures.
+  draft again should update it, but creates a copy", not "Bug report" or
+  "Steps to reproduce". Read them in order as one paragraph: they should
+  explain the issue without the pictures.
 
   Code on screen is a short real excerpt, a few lines, drawn as a TSX
   graphic with the line that matters marked. Ask the user for a
@@ -45,9 +47,9 @@ guidance: |
 
 titles:
   good:
-    - Saving a draft twice makes two copies
+    - Saving a draft again should update it, but creates a copy
     - It only happens when the network is slow
-    - The second save never sees the first one's id
+    - The first save hasn't finished when the second one starts
   bad:
     - Bug report
     - Steps to reproduce
@@ -72,8 +74,8 @@ scenes:
   - id: symptom
     theme: console
     eyebrow: the symptom
-    title: What goes wrong, as the person who hit it saw it
-    note: One concrete case of the problem, with its real numbers or messages.
+    title: What should happen, and what happens instead
+    note: One concrete case of the problem, with its real numbers or messages in the picture.
     captions:
       - text: Say what goes wrong.
   - id: reproduce
@@ -86,8 +88,8 @@ scenes:
   - id: expected
     theme: console
     eyebrow: expected
-    title: What should happen, next to what does
-    note: Expected and actual, side by side.
+    title: Where what happens parts from what should happen
+    note: One diagram of the case, with expected and actual labeled on it.
     captions:
       - text: Say what should happen instead.
   - id: cause

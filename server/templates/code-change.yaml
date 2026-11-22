@@ -22,8 +22,9 @@ guidance: |
 
   - title: what the change does, in one plain sentence, on a statement
     slide.
-  - problem: the issue the change addresses, in one sentence. Link the
-    issue in the note, not on the slide.
+  - problem: the issue the change addresses, as what should happen and
+    what happens instead, in one sentence. Link the issue in the note,
+    not on the slide.
   - before: the case going wrong on the code before the change.
   - change: what the code now does differently, as a few lines of the
     diff or a simple flow. The idea of the change, not every file.
@@ -35,10 +36,11 @@ guidance: |
     at closely. Delete it if there is nothing.
   - end: the pull request, branch or commit, and the issue it closes.
 
-  Titles are claims about this change, written as sentences: "Before:
-  two saves make two drafts", "After: the second save updates the
-  first", not "Overview" or "Changes in this PR". Read them in order as
-  one paragraph: they should explain the change without the pictures.
+  Titles are claims about this change, written as sentences: "Saving a
+  draft again should update it, but creates a copy", "After: saving again
+  updates the draft", not "Overview" or "Changes in this PR". Read them
+  in order as one paragraph: they should explain the change without the
+  pictures.
 
   Code on screen is a short real excerpt of the diff, a few lines, drawn
   as a TSX graphic with added and removed lines marked. Leave out
@@ -48,8 +50,8 @@ guidance: |
 
 titles:
   good:
-    - "Before: two saves make two drafts"
-    - "After: the second save updates the first"
+    - Saving a draft again should update it, but creates a copy
+    - "After: saving again updates the draft"
     - Run the drafts test to see it pass
   bad:
     - Changes in this PR
@@ -75,7 +77,7 @@ scenes:
   - id: problem
     theme: statement
     eyebrow: the problem
-    title: The problem this change fixes
+    title: What should happen, and what happens instead
     note: The issue it addresses, in one sentence. The issue link goes here, in the note.
     captions:
       - text: Say the problem in one sentence.
@@ -97,7 +99,7 @@ scenes:
     theme: console
     eyebrow: after
     title: The same case, now right
-    note: Same input and same view as before, so only the result changes.
+    note: The same diagram or view as before, with what changed marked on it.
     captions:
       - text: Say what happens now.
   - id: check

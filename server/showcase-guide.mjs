@@ -49,7 +49,6 @@ meta.watermark draws a small logo in one corner of every slide, the way a TV net
 - The mark is decorative chrome: it is hidden from screen readers (so the same logo isn't announced on every slide) and never takes a click.
 
 Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram. The first part of a graphic is on screen from the scene's first frame, with no fade-in. Only the later parts animate in. A scene never opens on an empty panel. Style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
-The first part of a graphic is on screen from the scene's first frame, with no fade-in. Only the later parts animate in. A scene never opens on an empty panel.
 
 ## Pointing at things in a recording (overlays)
 A screen recording or a game replay plays through, and the viewer can't tell where to look. media.overlay draws a TSX graphic on top of an image or video — a ring round the fleet that matters, an arrow to a star, a label on a player's territory — timed to the clip:
@@ -348,7 +347,8 @@ Plain words
 - When you draw a prompt or a chat, keep it plain. Don't copy the look of one agent's product unless the feature works with that one alone.
 
 Titles
-- A template's guidance and its good and bad titles say how its titles work, and come first. A worked example's titles are claims that tell its story; check_titles checks them that way.
+- A template's guidance and its good and bad titles say how its titles work, and come first, except that a title naming a problem always follows the next rule. A worked example's titles are claims that tell its story; check_titles checks them that way.
+- A title that names a problem says what should happen and what happens instead, in words the viewer already knows: "Failed requests should be retried, but aren't". Describe the behavior. Don't name the function, loop or class that causes it. Put counts, error messages and other evidence in the picture. TikTok videos don't show titles, so say the problem in the scene's first caption too.
 - Otherwise, a title says what is on screen, names the feature, or states a benefit. A clever phrase that says nothing is wrong.
 
     Avoid                                  Write instead

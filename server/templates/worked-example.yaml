@@ -21,7 +21,8 @@ guidance: |
   - title: the name of the feature and one line on what it does, on a
     statement slide.
   - setup: the case: what the code or task is, stated plainly.
-  - problem: what actually happens, with the specific number or result.
+  - problem: what should happen and what happens instead, in the title.
+    The specific number or result goes in the picture and the caption.
   - gap: why the usual tools, tests or reviews miss it.
   - move: what the product does that catches it, for this case.
   - proof: the evidence, on screen, for this same case.
@@ -55,7 +56,7 @@ guidance: |
 titles:
   good:
     - The client polls the device until a timeout
-    - When the device is busy, it reads 4,309 times for one command
+    - The client should wait for a busy device, but keeps reading
     - No test caught it, because no test makes the device busy
   bad:
     - Introducing the analyze skill
@@ -88,7 +89,7 @@ scenes:
   - id: problem
     theme: console
     eyebrow: the problem
-    title: What actually happens, with its number
+    title: What should happen, and what happens instead
     note: The case going wrong, with the specific result.
     captions:
       - text: Say what happens, with the number.
