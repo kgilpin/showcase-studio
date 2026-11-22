@@ -1,0 +1,41 @@
+# What a good run of this scenario looks like. grade.py checks each line
+# against the transcript and prints a yes/no table. The brief names no
+# tool and states none of the rules, so whatever is followed was found
+# through the guide, the templates and the tool descriptions.
+#
+# This scenario exercises the guide's rules for graphics and for titles
+# of problems (issue 84). The issue text is a trap on purpose: it offers
+# counts, a function's name, and a "loop that never flushes" phrase, all
+# of which would make bad titles.
+#
+# grade.py can't judge these five. Look at the result and answer each in
+# the report, with the title, caption or frame as the evidence:
+#
+#   words    no line in a graphic repeats its caption's wording, and each
+#            number is on the thing it counts, with at most three words
+#   kind     expected and actual are one diagram with both labeled; no
+#            two panels of text, side by side or stacked
+#   titles   the problem's title says what should happen and what happens
+#            instead, with no count, function or loop in it, and the
+#            scene's first caption says the problem too
+#   timing   parts that belong to later captions use
+#            var(--caption-<id>-start), with no typed-in caption times;
+#            live frames just before and after each caption start agree
+#   clear    no caption covers a part of a graphic, in TikTok or 4:3
+
+tools_used:
+  - list_templates # the code-issue template, found without being named
+  - create_showcase # the folder made by the tool, not by hand
+  - screenshot_frame # the timing and the overlaps looked at
+  - check_titles # the titles read by someone with no context
+  - validate # a graphic waiting for a caption id that isn't there
+
+# Nothing in the brief asks for a video file, and timing can be checked
+# with frames.
+max_calls:
+  export: 1
+  build_voiceover: 0
+
+# No sleep loops: export_status takes waitMs.
+bash_must_not_match:
+  - "sleep [0-9]"

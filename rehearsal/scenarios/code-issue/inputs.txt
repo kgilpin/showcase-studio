@@ -1,0 +1,4 @@
+# The raw files the scenario starts from, copied from --inputs into the
+# scratch library's raw/ folder. They are committed with the scenario:
+#   --inputs rehearsal/scenarios/code-issue/inputs
+issue.md
