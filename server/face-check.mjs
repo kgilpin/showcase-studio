@@ -18,8 +18,8 @@
  * The result is cached in <library>/.studio/build/<showcase>.faces.json
  * under the same fingerprint an export records (export-records.mjs:
  * showcase.yaml, the themes, the assets, the graphics, the app
- * version), so a validate after an edit only re-renders the showcase
- * that changed. */
+ * version) and CHECK_REVISION, so a validate after an edit only
+ * re-renders the showcase that changed. */
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -31,6 +31,10 @@ import { formatClock, MAX_FRAMES_PER_CALL, screenshotFrame } from "./exporter.mj
 /** A caption covering less of a face's box than this is a touch, not a
  *  cover: Vision's box reaches a little past the chin. */
 export const COVERED_THRESHOLD = 0.05;
+/** Raise this when a fix changes what the check sees, so results cached
+ *  before the fix aren't given as answers. 2: frames are rendered at
+ *  their own time, not at the clip's first frame. */
+const CHECK_REVISION = 2;
 /** How far the face should clear the caption, in percent of the frame,
  *  and the step the suggested lift is rounded up to: a round number with
  *  room to spare, not the bare minimum. The first hand-made lift was
@@ -131,7 +135,11 @@ export async function checkCaptionsOverFaces({
   if (cacheFile && existsSync(cacheFile)) {
     try {
       const cached = JSON.parse(readFileSync(cacheFile, "utf8"));
-      if (cached?.fingerprint === fingerprint && Array.isArray(cached.checked)) {
+      if (
+        cached?.fingerprint === fingerprint &&
+        cached.revision === CHECK_REVISION &&
+        Array.isArray(cached.checked)
+      ) {
         return { checked: cached.checked, overlaps: cached.overlaps ?? [], fromCache: true };
       }
     } catch {
@@ -189,7 +197,8 @@ export async function checkCaptionsOverFaces({
     rmSync(scratch, { recursive: true, force: true });
   }
   const checked = moments;
-  if (cacheFile) writeRecordFile(cacheFile, { fingerprint, checked, overlaps });
+  if (cacheFile)
+    writeRecordFile(cacheFile, { fingerprint, revision: CHECK_REVISION, checked, overlaps });
   return { checked, overlaps, fromCache: false };
 }
 

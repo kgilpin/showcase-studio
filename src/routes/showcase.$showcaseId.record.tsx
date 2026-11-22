@@ -12,6 +12,7 @@ import { embedCaptionsSetting } from "@/content/embed-captions";
 import { SceneView, TIKTOK_ASPECT } from "@/components/showcase/SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "@/components/showcase/EmbedSceneView";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
+import { seekSceneMedia } from "@/lib/record-seek";
 
 /* The whole showcase as a playable 9:16 TikTok frame with no device chrome
  * and no player controls. `scripts/export-video.mjs` opens this page to render
@@ -23,7 +24,8 @@ import { collectSceneSources } from "@/components/showcase/useMediaPreload";
  *   totalMs  sum of all scene durations
  *   start()  begin real-time playback (approach A: screen recording)
  *   seek(ms) jump to an exact moment — scenes, captions, and CSS animations
- *            all land on the frame for `ms` (approach B: frame-by-frame)
+ *            all land on the frame for `ms`, whatever was seeked before
+ *            (approach B: frame-by-frame; src/lib/record-seek.ts)
  *   done     true once playback (or a seek) reaches the end
  *   at()     what the frame shows now: the scene and the caption on it
  *            (the screenshot_frame tool names them under each image)
@@ -101,43 +103,6 @@ function clockAt(scenes: Scene[], ms: number): Clock {
   }
   const last = scenes.length - 1;
   return { index: last, elapsedMs: scenes[last]!.durationMs, started: true, done: true };
-}
-
-/* CSS animations run on the document's real-time clock, so seeking the
- * showcase also has to seek every animation. Each one is pinned to the
- * virtual time at which it first appeared (i.e. when its element mounted),
- * then paused and scrubbed to `now - itsStart` on every frame. The same
- * treatment keeps <video> media in step. */
-const animationStarts = new WeakMap<Animation, number>();
-const videoStarts = new WeakMap<HTMLVideoElement, number>();
-
-function scrubToVirtualTime(nowMs: number) {
-  for (const animation of document.getAnimations()) {
-    if (!animationStarts.has(animation)) animationStarts.set(animation, nowMs);
-    animation.pause();
-    animation.currentTime = nowMs - animationStarts.get(animation)!;
-  }
-  for (const video of document.querySelectorAll("video")) {
-    if (!videoStarts.has(video)) videoStarts.set(video, nowMs);
-    video.pause();
-    /* A clip with media.speed covers more of itself per second of the
-     * scene (SceneMedia sets playbackRate), so the export plays it as
-     * fast as the player does. */
-    const seconds = ((nowMs - videoStarts.get(video)!) / 1000) * (video.playbackRate || 1);
-    const duration = video.duration;
-    if (!duration) {
-      video.currentTime = seconds;
-    } else if (seconds >= duration && seconds < duration + 1 / 30) {
-      /* A scene pinned a hair longer than its clip puts the last frame
-       * of the capture grid at (or just past) the clip's duration; `%`
-       * would wrap that frame to the clip's START — a one-frame replay
-       * of the opening right before the scene cut. Hold the final frame
-       * instead, and keep the modulo for genuine loops. */
-      video.currentTime = duration;
-    } else {
-      video.currentTime = seconds % duration;
-    }
-  }
 }
 
 /** Where `element` sits in `frame`, in percent of the frame. */
@@ -223,7 +188,7 @@ function Recorder({
       seek: (ms: number) => {
         const next = clockAt(scenes, ms);
         flushSync(() => setClock(next));
-        scrubToVirtualTime(ms);
+        seekSceneMedia(document, scenes[next.index]!, next.elapsedMs);
         api.done = next.done;
       },
       at: () => frameInfo(scenes, clockRef.current, frameRef.current),

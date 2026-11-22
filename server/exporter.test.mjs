@@ -14,6 +14,7 @@ import {
   screenshotCover,
   screenshotFrame,
   screenshotSlide,
+  seekScript,
   validateShowcases,
 } from "./exporter.mjs";
 import { withTimeLimit } from "./time-limit.mjs";
@@ -337,6 +338,23 @@ describe("a frame of the video", () => {
       safeArea: false,
     });
     expect(log.scripts.some((script) => script.includes("animation.finish()"))).toBe(false);
+  });
+
+  it("seeks again when a paint brings an animation it hasn't placed", async () => {
+    /* As in Chrome: a graphic in a size container gets its animation at
+     * the first paint after the seek that mounted it. */
+    const animations = [{ name: "caption-fade" }];
+    const placed = [];
+    const page = {
+      window: { __record: { seek: () => placed.push(animations.map((a) => a.name)) } },
+      document: { getAnimations: () => [...animations], querySelectorAll: () => [] },
+      requestAnimationFrame: (painted) => {
+        if (animations.length === 1) animations.push({ name: "graphic" });
+        painted();
+      },
+    };
+    await new Function(...Object.keys(page), `return ${seekScript(9000)}`)(...Object.values(page));
+    expect(placed).toEqual([["caption-fade"], ["caption-fade", "graphic"]]);
   });
 
   it("stops when the renderer draws the wrong size", async () => {

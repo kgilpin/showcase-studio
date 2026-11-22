@@ -174,14 +174,22 @@ const EXPORT_PAGE_READY = `(async () => {
  * the frame records the empty stage (a one-frame black flash at the cut).
  * Wait until every video has its frame, with a deadline so a broken
  * source degrades instead of hanging the export. */
-const seekScript = (ms) => `(async () => {
-  window.__record.seek(${ms});
-  const deadline = Date.now() + 2000;
+export const seekScript = (ms) => `(async () => {
   const settled = (v) => v.readyState >= 2 && !v.seeking;
-  while (!Array.from(document.querySelectorAll("video")).every(settled) && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 10));
+  const deadline = Date.now() + 2000;
+  for (let pass = 0; pass < 4; pass++) {
+    window.__record.seek(${ms});
+    const placed = new Set(document.getAnimations());
+    while (!Array.from(document.querySelectorAll("video")).every(settled) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    /* Some animations don't exist until a paint: a graphic's inside a
+     * size container, an overlay's that shows once its picture is
+     * measured. They would be captured at their first frame, so when the
+     * paint brought a new one, seek again. */
+    if (document.getAnimations().every((animation) => placed.has(animation))) break;
   }
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 })()`;
 
 /* The record page says when its fonts are loaded and its images decoded.

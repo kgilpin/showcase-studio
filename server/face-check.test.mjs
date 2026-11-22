@@ -284,6 +284,29 @@ describe("the check", () => {
     expect(fresh.fromCache).toBe(false);
   });
 
+  it("looks again at a result cached before the check was last fixed", async () => {
+    root = mkdtempSync(path.join(tmpdir(), "faces-"));
+    const dir = library(root);
+    const cacheFile = path.join(dir, ".studio", "build", "nova.faces.json");
+    const check = () =>
+      checkCaptionsOverFaces({
+        renderer: pageRenderer({ top: 62, left: 6, width: 78, height: 13 }).renderer,
+        appUrl: "http://localhost:1",
+        showcasesDir: dir,
+        showcaseId: "nova",
+        finder: finderSeeing({ top: 0.4, left: 0.35, width: 0.46, height: 0.26 }).finder,
+        cacheFile,
+        appVersion: "test",
+      });
+    await check();
+    /* A result saved before there were revisions: same showcase, same app version. */
+    const { fingerprint, checked } = JSON.parse(readFileSync(cacheFile, "utf8"));
+    writeFileSync(cacheFile, JSON.stringify({ fingerprint, checked, overlaps: [] }));
+    const again = await check();
+    expect(again.fromCache).toBe(false);
+    expect(again.overlaps).toHaveLength(3);
+  });
+
   it("checks nothing on a showcase with no picture a face could be in", async () => {
     root = mkdtempSync(path.join(tmpdir(), "faces-"));
     const dir = library(root);
