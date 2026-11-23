@@ -644,6 +644,56 @@ scenes:
     expect(screen.brief).toContain("what you expect to see on the screen");
   });
 
+  it("validate adds the graphics waiting for a missing caption and the library's bad say entries", async () => {
+    /* A page that loads the library and reports nova as built. */
+    const renderer = {
+      openPage: async () => ({
+        goto: async () => {},
+        evaluate: async () => ({
+          loaded: [{ id: "nova", title: "Nova", slides: 1, runtimeSeconds: 4 }],
+          errors: [],
+          warnings: [],
+        }),
+        capture: async () => Buffer.from(""),
+        close: async () => {},
+      }),
+    };
+    const { studio } = await startStudio({
+      renderer,
+      before: (library) => {
+        mkdirSync(path.join(library, "nova", "graphics"), { recursive: true });
+        writeFileSync(
+          path.join(library, "nova", "graphics", "proof.tsx"),
+          "export default () => <style>{`.a { animation-delay: var(--caption-reveal-start) }`}</style>;",
+        );
+        writeFileSync(
+          path.join(library, "nova", "showcase.yaml"),
+          SHOWCASE_YAML.replace(
+            "kind: image\n      asset: shot",
+            "kind: graphic\n      graphic: proof",
+          ),
+        );
+        writeFileSync(path.join(library, "showcase_settings.yaml"), "say:\n  AppMap: 3\n");
+      },
+    });
+    const report = JSON.parse(
+      (await studio.callTool({ name: "validate", arguments: {} })).content[0].text,
+    );
+    expect(report.loaded.map((s) => s.id)).toEqual(["nova"]);
+    expect(report.warnings).toEqual([
+      {
+        showcaseId: "",
+        sceneId: "",
+        message: expect.stringContaining("say.AppMap must be text"),
+      },
+      {
+        showcaseId: "nova",
+        sceneId: "intro",
+        message: expect.stringContaining("no caption in this scene has id: reveal"),
+      },
+    ]);
+  });
+
   it("create_showcase scaffolds a showcase through the studio's own + card path", async () => {
     const { studio, library } = await startStudio();
     const made = await studio.callTool({

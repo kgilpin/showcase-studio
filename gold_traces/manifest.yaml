@@ -14,8 +14,11 @@
 # stale-write refusal), a frame of the video captured from the record
 # page (screenshot_frame), the caption-over-face check (check_framing)
 # on such frames, the Actions list around a git commit (pending, skip,
-# try again, done), and the studio's side of licensing: its
-# checkout and its check before an export. (The license service's own traces are
+# try again, done), the studio's side of licensing: its
+# checkout and its check before an export, transcription (a job and the
+# speech model download), video templates, check_script and check_titles,
+# validate's extra warnings, the record page's seek, and the MCP server's
+# handling of a slow tool call. (The license service's own traces are
 # cdk/gold_traces/, with cdk's own appmap.yml.) Record command and entry paths are derived; see the
 # skill's SKILL.md.
 
@@ -239,3 +242,48 @@ entries:
     test_name: downloads with curl from PATH and follows the redirect
     appmap_path: vitest/downloads_with_curl_from_PATH_and_follows_the_redirect.appmap.json
     summary: The first transcription downloads the speech model with curl from PATH, following the redirect to the CDN, into a partial file it then renames.
+  - feature: transcribe
+    test_file: server/whisper-model.test.mjs
+    test_name: removes the partial file when the download fails, and tries again next time
+    appmap_path: vitest/removes_the_partial_file_when_the_download_fails,_and_tries_again_next_time.appmap.json
+    summary: A failed speech model download leaves no partial file, and the next call downloads again. The failure branch of the download entry above.
+  - feature: templates
+    test_file: server/studio-server.test.mjs
+    test_name: check_titles asks for the story on a showcase made from the worked-example template
+    appmap_path: vitest/check_titles_asks_for_the_story_on_a_showcase_made_from_the_worked-example_template.appmap.json
+    summary: create_showcase starts a showcase from a video template, then check_titles asks the story question for that template and the on-screen question for an ordinary showcase.
+  - feature: script-check
+    test_file: server/studio-server.test.mjs
+    test_name: check_script returns the narration alone, numbered, and a key back to the scenes
+    appmap_path: vitest/check_script_returns_the_narration_alone,_numbered,_and_a_key_back_to_the_scenes.appmap.json
+    summary: check_script reads the showcase and returns the narration alone, numbered, with a key back to the scenes.
+  - feature: voiceover
+    test_file: server/voiceover.test.mjs
+    test_name: sends the respelling to Polly and keeps the caption's own word on screen
+    appmap_path: "vitest/sends_the_respelling_to_Polly_and_keeps_the_caption's_own_word_on_screen.appmap.json"
+    summary: A say entry swaps the respelling into what Polly hears, and the heard words are matched back to the caption's own words for timing.
+  - feature: scene-edit
+    test_file: server/edit-yaml.test.mjs
+    test_name: swaps an image for a graphic in one edit
+    appmap_path: vitest/swaps_an_image_for_a_graphic_in_one_edit.appmap.json
+    summary: scene.set media merges the new media keys into the scene, checked against the schema.
+  - feature: scene-edit
+    test_file: server/edit-yaml.test.mjs
+    test_name: refuses a scene with a field showcase.yaml doesn't have, or a value of the wrong type
+    appmap_path: "vitest/refuses_a_scene_with_a_field_showcase.yaml_doesn't_have,_or_a_value_of_the_wrong_type.appmap.json"
+    summary: An inserted scene is checked against the schema, and a field it doesn't know or a value of the wrong type is refused.
+  - feature: validate
+    test_file: server/studio-server.test.mjs
+    test_name: validate adds the graphics waiting for a missing caption and the library's bad say entries
+    appmap_path: "vitest/validate_adds_the_graphics_waiting_for_a_missing_caption_and_the_library's_bad_say_entries.appmap.json"
+    summary: validate loads the library through the page, then adds a warning for a bad library say entry and one for a graphic waiting on a caption the scene doesn't have.
+  - feature: record-seek
+    test_file: src/lib/record-seek.test.ts
+    test_name: puts a jump straight into a scene at that moment, not at the start
+    appmap_path: vitest/puts_a_jump_straight_into_a_scene_at_that_moment,_not_at_the_start.appmap.json
+    summary: The record page's seek puts a scene's clip and animations at the moment asked for, which is what screenshot_frame captures.
+  - feature: mcp-stdio
+    test_file: server/mcp-stdio.test.mjs
+    test_name: doesn't restart a studio that is still running when a call gets no answer
+    appmap_path: "vitest/doesn't_restart_a_studio_that_is_still_running_when_a_call_gets_no_answer.appmap.json"
+    summary: A tool call that gets no answer from a studio still running is passed back as an error, and the studio is not restarted.
