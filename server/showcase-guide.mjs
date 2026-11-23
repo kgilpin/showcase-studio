@@ -520,6 +520,12 @@ ${
   to the word timestamps, cut with the ffmpeg tool at those boundaries), or
   verifying spoken words. ffmpeg's silencedetect only finds pauses;
   prefer transcribe for anything word-aware.
+  A long recording (half an hour, an hour) is fine. When transcribe
+  isn't done after 50 seconds it answers {jobId, status: "running"}
+  in place of the transcript: wait with transcribe_status {jobId,
+  waitMs: 120000}, as many calls as it takes, and tell the user
+  between them. transcribe_cancel stops it. Don't split a recording
+  just to make it transcribe faster.
 ${
   whisperPath
     ? `  It runs whisper.cpp, which ships with the studio (this one is at

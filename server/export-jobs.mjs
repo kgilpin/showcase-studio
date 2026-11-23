@@ -1,10 +1,11 @@
 /* Background jobs: the async layer between long work and its callers —
- * the MCP tools and the studio's buttons. A studio runs two of these, one
- * for exports and one for media builds, so neither blocks the other.
- * Starting a job returns
+ * the MCP tools and the studio's buttons. A studio runs three of these —
+ * exports, media builds and transcriptions (transcribe-jobs.mjs) — so
+ * none blocks another. Starting a job returns
  * immediately; callers poll status, or follow onChange, and can cancel
- * (cooperative — the work checks an AbortSignal between steps). One job
- * of each kind runs at a time, whoever started it.
+ * (cooperative — the work checks an AbortSignal between steps). One
+ * export and one build run at a time, whoever started it; transcriptions
+ * are `concurrent`.
  *
  *   start ──► running ──┬──► done      (out: the file or folder, or the
  *                       │               report a build hands back)
@@ -20,13 +21,14 @@
  * Actions list can say so. */
 
 /** `name` names the job kind in its ids and refusals ("export", "build"),
- *  and `poll` is the tool a caller should poll. Anything passed to
+ *  and `poll` is the tool a caller should poll; `concurrent` lets
+ *  several of its jobs run at once. Anything passed to
  *  start() after the showcase id reaches the runner unchanged, with the
  *  job's own id as `jobId`; `by` and `why` are also kept on the job's
  *  status. */
 export function createExportJobs(
   runner,
-  { onChange = () => {}, name = "export", poll = "export_status" } = {},
+  { onChange = () => {}, name = "export", poll = "export_status", concurrent = false } = {},
 ) {
   let seq = 0;
   /** id → job. Finished jobs are kept so late status polls still answer. */
@@ -44,7 +46,7 @@ export function createExportJobs(
 
   return {
     start(kind, showcaseId, options = {}) {
-      const active = running();
+      const active = concurrent ? undefined : running();
       if (active) {
         throw new Error(
           `${active.id} (${active.kind} of ${active.showcaseId}) is already running — ` +
