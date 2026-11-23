@@ -27,13 +27,19 @@ the tools:
    its SHA-256 hash, and puts it in `~/Applications`. It needs the GitHub
    CLI (`gh`), logged in with access to the Showcase Studio repository. If
    it stops with a message, tell the user what it says.
-2. The tools appear only after Claude Code reconnects to the server. Ask
-   the user to run `/mcp` and reconnect `showcase-studio`, or to start a
-   new session, then continue with step 1 below.
+2. The studio's tools load when a session starts, so this session still
+   doesn't have them. Tell the user, in these words or close to them:
+
+   > Showcase Studio is installed. Its tools load when a session starts,
+   > so please start a new session and ask again. (Or, to stay in this
+   > session: type `/mcp`, choose showcase-studio, then choose
+   > Reconnect.)
+
+   When the tools are there, continue with step 1 below.
 
 If `studio_start` works but the `version` it returns differs from
-`<plugin>/app-version`, run the installer too — it replaces the app with
-the expected version — and ask for the reconnect.
+`<plugin>/app-version`, run the installer too. It replaces the app with
+the expected version. Then tell the user the same thing as in step 2.
 
 **Running from source.** When the environment variable
 `SHOWCASE_STUDIO_SRC` is set, the tools run the studio from that source
@@ -130,10 +136,9 @@ from the app's source.
 
 `studio_start` also returns `schema`: `.studio/showcase.schema.json`, the
 fields of `showcase.yaml`, their types, and where each one goes. Read it
-before you write a `showcase.yaml` by hand (a new showcase's first draft
-usually is), and when `validate` warns that a field isn't one or sits in
-the wrong place: the warning names where it belongs, and the schema is
-the full list.
+before you write a new showcase's scenes, and when `validate` warns that
+a field isn't one or sits in the wrong place: the warning names where it
+belongs, and the schema is the full list.
 
 ## 3. Make changes
 
@@ -155,24 +160,24 @@ the full list.
   `media` says whether each one is up to date; `build_media` and
   `build_voiceover` are for a forced rebuild, or for a jobId to wait on
   with `build_status {waitMs}` before you look.
-- A voiced showcase is made on the user's own AWS account. Which profile
-  pays is their choice: before the first voiced build in a library, ask
-  them which AWS profile to use, and put it in `showcase_settings.yaml`
-  at the library root as `aws_profile`. When none is set up the media
-  status lists this machine's profiles; never pick one yourself, and
-  never write a profile into the showcase to get past the question.
-- `showcase.yaml`: use `edit_showcase` for anything it can express. One
-  call applies a whole batch — retiming every scene, say — as one write
-  that keeps the file's formatting. For anything else, use your
-  file-editing tool. Never sed, awk, or throwaway scripts.
+- A synthesized voice can cost the user money, on their own account.
+  Which account pays is always their choice: ask them, and never pick
+  one yourself. The guide's "Synthesized voiceovers" has the setup.
+- `showcase.yaml`: change it only with `edit_showcase`. It can set every
+  field, including a new showcase's scenes (`scene.insert`). One call
+  applies a whole batch — retiming every scene, say — as one checked
+  write that keeps the file's formatting. Never sed, awk, or throwaway
+  scripts. If the tool refuses a change you need, tell the user what it
+  said.
 - Always pass `ifVersion` to `edit_showcase`. Get it from `read_showcase`,
   or use the `version` your last `edit_showcase` returned. If the file
   changed since then, the call is refused and its error lists what
   changed. Read the showcase again before you retry.
-- The user may edit in the studio while you work. Those edits don't show
-  up anywhere you'd notice. `studio_start` returns `changes`, the
-  studio's change log: one JSON line per write. Once the studio is open,
-  watch it with the Monitor tool for the rest of the session:
+- The user may edit in the studio while you work, and you get no message
+  when they do. So what you read earlier can be out of date.
+  `studio_start` returns `changes`, the studio's change log: one JSON
+  line per write. Once the studio is open, watch it with the Monitor tool
+  for the rest of the session:
 
   ```bash
   tail -n 0 -F '<changes>' | grep --line-buffered '"source":"ui"'
@@ -181,21 +186,20 @@ the full list.
   Each line is one edit the user made. Take it into account before your
   next change, and don't undo it.
 
-- `theme.yaml`: use `edit_theme` when the studio has it (pass the
-  `themeVersion` from `read_showcase` as `ifVersion`). An older studio
-  has no such tool: then edit the file directly.
+- `theme.yaml`: use `edit_theme` (pass the `themeVersion` from
+  `read_showcase` as `ifVersion`).
 - `assets/`, `graphics/`: edit the files directly. The studio reloads by
   itself.
-- Media is either the user's real product or something you build, and
-  both belong in a showcase:
-  - **Their product** — screenshots and recordings. Don't fabricate
-    these. When the user drops an image or video into the chat, Claude
-    Code writes it to a file and gives you the path: pass that path to
-    `add_asset`, which copies it into the showcase's `assets/` and tells
-    you the key to use. Do the same with anything you captured yourself
-    (a simulator, a browser, their screen) when they asked for it, and
-    say what you captured. They can also drop files onto the studio's
-    Assets page, or into the folder.
+- A showcase's media is of two kinds, and both belong in it:
+  - **Screenshots and recordings of the product** — the product in the
+    folder the showcase is being made for. Don't fabricate these. When
+    the user gives you a path to an image or video (dragging a file into
+    the chat gives you its path), pass it to `add_asset`. It copies the
+    file into the showcase's `assets/` and tells you the key to use. An
+    image pasted into the chat has no path: ask the user to drag the file
+    in instead, or onto the studio's Assets page. Use `add_asset` too for
+    anything you captured yourself (a simulator, a browser, their screen)
+    when they asked for it, and say what you captured.
   - **Diagrams and explainers you draw** — write them as TSX graphics
     (`<id>/graphics/<key>.tsx`, used as
     `media {kind: graphic, graphic: <key>}`). The guide has the rules. A
@@ -205,10 +209,10 @@ the full list.
   One thing that is never source media: `screenshot_slide` captures a
   finished slide, not the product.
 
-- Footage of a person: a phone selfie puts the face where the bottom
-  captions go. `check_framing` finds every caption that sits over a face
-  and says how to move the picture or the caption. The guide's "Keep the
-  face clear of the captions" has the rule.
+- Video of a person talking to the camera: the bottom caption often
+  covers their chin or mouth. `check_framing` finds every caption that
+  covers a face and says how to move the picture or the caption. The
+  guide's "Keep the face clear of the captions" has the rule.
 
 ## 4. Check before you say it's done
 
@@ -233,8 +237,10 @@ the full list.
 
 ## 5. Finish
 
-- Exports: `export`, then `export_status` with `waitMs` (up to two minutes
-  a call) until it's done. Don't poll with sleeps.
+- Exports: `export`, then `export_status {waitMs: 120000}`. Each call
+  waits up to two minutes. If the export is still running, call it again:
+  a full-quality export of a long showcase can take several calls. Don't
+  wait with sleeps.
 - Posting to TikTok, Instagram, YouTube Shorts or YouTube (a regular
   video): the guide's "Sharing" section has the steps. In short: write
   the post's text with `edit_showcase` (`publish.set`), check it with
