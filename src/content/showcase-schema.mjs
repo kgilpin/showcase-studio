@@ -672,3 +672,27 @@ export function checkShowcase(doc) {
     return scene ? { ...problem, sceneIndex: Number(scene[1]) } : problem;
   });
 }
+
+/** The schema of one field, by its path in the document: ["meta",
+ *  "source"], or ["scenes", 0, "media", "motion"] (a number steps into a
+ *  list). Undefined for a path that isn't a field. */
+export function fieldSchema(path) {
+  let schema = SHOWCASE_SCHEMA;
+  for (const key of path) {
+    schema = typeof key === "number" ? schema?.items : schema?.properties?.[key];
+    if (!schema) return undefined;
+  }
+  return schema;
+}
+
+/** What is wrong with one field's value, by the field's path (as in
+ *  fieldSchema), in the same form as checkShowcase. The edit tool uses
+ *  it for fields that have no rule file of their own. */
+export function checkField(path, value) {
+  const schema = fieldSchema(path);
+  if (!schema)
+    return [{ kind: "unknown", path: joinPath(path), message: `${joinPath(path)} isn't a field` }];
+  const problems = [];
+  check(schema, value, path, problems, SHOWCASE_SCHEMA);
+  return problems;
+}

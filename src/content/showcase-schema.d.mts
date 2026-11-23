@@ -28,3 +28,9 @@ export type SchemaProblem = {
 };
 
 export function checkShowcase(doc: unknown): SchemaProblem[];
+
+/** The schema of one field, by its path (a number steps into a list). */
+export function fieldSchema(path: (string | number)[]): Record<string, unknown> | undefined;
+
+/** What is wrong with one field's value, by the field's path. */
+export function checkField(path: (string | number)[], value: unknown): SchemaProblem[];

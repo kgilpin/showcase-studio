@@ -40,7 +40,11 @@
  *   { field: "scene.set",   name, value }           one whitelisted scene
  *                                                   field (SCENE_FIELDS);
  *                                                   null/"" removes an
- *                                                   optional one. A new
+ *                                                   optional one. media
+ *                                                   sets the media keys
+ *                                                   given and keeps the
+ *                                                   rest (null removes
+ *                                                   one). A new
  *                                                   durationMs re-scales
  *                                                   the captions' own
  *                                                   durationMs with it
@@ -69,8 +73,10 @@
  * The page uses the named fields. scene.set, caption.set, meta.set and
  * scene.move are for the MCP edit tool (edit_showcase). A recorded
  * pitch's `take` is a scene.set field, checked by takeProblem in
- * build-plan.mjs. edit-yaml.test.mjs checks that every whitelisted field
- * is a field of the schema (src/content/showcase-schema.mjs).
+ * build-plan.mjs. edit-yaml.test.mjs checks that the whitelists and the
+ * schema (src/content/showcase-schema.mjs) hold the same fields, so
+ * every field of showcase.yaml can be edited here. A field with no rule
+ * file of its own is checked against its schema entry (kind "schema").
  */
 import { isDeepStrictEqual } from "node:util";
 import { isCollection, isMap, isScalar, isSeq, Scalar } from "yaml";
@@ -95,6 +101,7 @@ import { checkPublishEdit } from "../src/content/publish-rules.mjs";
 import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
 import { videoSpeedProblem } from "../src/content/timing.mjs";
 import { takeProblem } from "./build-plan.mjs";
+import { checkField, fieldSchema } from "../src/content/showcase-schema.mjs";
 
 const CAPTION_STYLES = ["chip", "karaoke", "reveal"];
 /* The brand mark sits in a corner — there is no banner position, and no
@@ -129,6 +136,14 @@ const SCENE_FIELDS = {
   /* How this scene's picture goes into TikTok's 9:16 frame — written to
    * media.tiktok (src/content/tiktok-fit.ts). */
   tiktok: { kind: "tiktok", path: ["media", "tiktok"], removable: true },
+  /* What the scene shows. scene.set media sets the keys it is given and
+   * keeps the others, so a one-key change (motion, fit) leaves the rest
+   * and its comments alone; media.set replaces the whole mapping. */
+  media: { kind: "media", removable: true },
+  /* Fields the loader still reads but no longer uses: they can only be
+   * removed. */
+  titleDurationMs: { kind: "obsolete", removable: true },
+  captionsIn: { kind: "obsolete", removable: true },
   /* The span of the master recording this scene owns, on a recorded
    * pitch (server/build-plan.mjs): {from, to}, a list of them, {silence},
    * or {audio, video}, plus clip: true|false. */
@@ -183,6 +198,13 @@ const META_FIELDS = {
   /* How every scene's picture goes into TikTok's 9:16 frame
    * (src/content/tiktok-fit.ts). */
   tiktok: { kind: "tiktok", removable: true },
+  /* The video template the showcase started from (create_showcase
+   * writes it). */
+  template: { kind: "string", removable: true },
+  /* The master recording a recorded pitch is cut from (build-plan.mjs). */
+  source: { kind: "schema", removable: true },
+  /* Flat style overrides on top of theme.yaml (theme-rules.mjs names). */
+  theme: { kind: "schema", removable: true },
 };
 
 const CAPTION_FIELDS = {
@@ -335,11 +357,104 @@ function checkFieldValue(fields, where, name, value) {
       }
       return { value, flow: true };
     }
+    case "schema": {
+      /* Checked against the field's own schema entry: a recorded pitch's
+       * source, meta.theme. */
+      const path = where === "scene" ? ["scenes", 0, name] : [where, name];
+      const problem = checkField(path, value)[0];
+      if (problem) throw new Error(problem.message.replace(/^scenes\[0\]/, "scene"));
+      return { value };
+    }
+    case "media": {
+      if (typeof value !== "object" || Array.isArray(value)) {
+        throw new Error(`${label} must be a map of ${mediaKeys().join(", ")}`);
+      }
+      const set = {};
+      for (const [key, field] of Object.entries(value)) {
+        if (field == null) {
+          set[key] = null;
+          continue;
+        }
+        /* speed and tiktok have rule files of their own. */
+        if (key === "speed" || key === "tiktok") {
+          set[key] = checkFieldValue(SCENE_FIELDS, where, key, field).value;
+          continue;
+        }
+        const problem = checkField(["scenes", 0, "media", key], field)[0];
+        if (problem) {
+          throw new Error(
+            problem.kind === "unknown"
+              ? `${label}.${key} is not a field — ${label} takes: ${mediaKeys().join(", ")}`
+              : problem.message.replace(/^scenes\[0\]/, "scene"),
+          );
+        }
+        set[key] = field;
+      }
+      return { value: set };
+    }
+    case "obsolete":
+      throw new Error(
+        `${label} is obsolete (${spec.why ?? fieldSchema(where === "scene" ? ["scenes", 0, name] : [where, name])?.description ?? "no longer used"}) — pass null to remove it`,
+      );
     /* v8 ignore next 2 -- every whitelist entry above names a kind */
     default:
       throw new Error(`${label} has no validator`);
   }
 }
+
+/** A whole scene or caption written by an insert: refused when it has a
+ *  field the schema doesn't know or a value of the wrong type. A value
+ *  outside a field's choices is left to validate, which warns about it
+ *  the way it does for a hand-written file (some, like a legacy theme,
+ *  still render). */
+function refuseMisshapen(path, value, what) {
+  const problem = checkField(path, value).find((p) => p.kind !== "value");
+  if (!problem) return;
+  const where = path.length > 2 ? "caption" : "scene";
+  const message = problem.message.replace(/^scenes\[0\](\.captions\[0\])?/, where);
+  throw new Error(`${what} doesn't fit showcase.yaml: ${message}`);
+}
+
+/** The keys a scene's media mapping takes. */
+const mediaKeys = () => Object.keys(fieldSchema(["scenes", 0, "media"]).properties);
+
+/** scene.set media: each key given is set (null removes it), the rest
+ *  stay as written. The result must still say what kind of media it is,
+ *  and a playing rate only means something on a video. */
+function mergeMedia(doc, index, sceneId, set) {
+  const at = ["scenes", index, "media"];
+  const node = doc.getIn(at);
+  if (node != null && !isMap(node)) throw new Error(`Scene "${sceneId}" media is not a mapping`);
+  const was = isMap(node) ? node.toJSON() : {};
+  const merged = { ...was };
+  for (const [key, field] of Object.entries(set)) {
+    if (field == null) delete merged[key];
+    else merged[key] = field;
+  }
+  if (typeof merged.kind !== "string") {
+    throw new Error(`Scene "${sceneId}" media needs a kind (${MEDIA_KINDS_HELP})`);
+  }
+  if (merged.speed != null && merged.kind !== "video") {
+    throw new Error(
+      `Scene "${sceneId}" shows a${merged.kind === "image" ? "n" : ""} ${merged.kind} — speed applies to a video`,
+    );
+  }
+  if (!isMap(node)) {
+    doc.setIn(at, doc.createNode(merged));
+    return;
+  }
+  for (const [key, field] of Object.entries(set)) {
+    if (field == null) {
+      doc.deleteIn([...at, key]);
+      continue;
+    }
+    const value = doc.createNode(field);
+    if (key === "tiktok") value.flow = true;
+    doc.setIn([...at, key], value);
+  }
+}
+
+const MEDIA_KINDS_HELP = fieldSchema(["scenes", 0, "media", "kind"]).enum.join(", ");
 
 /** setIn with removal-on-empty; object values keep the one-line flow
  *  style the authored files use (soundtrack: { src: ..., ... }). */
@@ -546,6 +661,7 @@ export function applySceneEdit(
     if (!Number.isInteger(insertIndex) || insertIndex < 0 || insertIndex > scenes.items.length) {
       throw new Error(`Scene index ${insertIndex} is out of range`);
     }
+    refuseMisshapen(["scenes", 0], scene, "The inserted scene");
     scenes.items.splice(insertIndex, 0, doc.createNode(scene));
     return editedText(doc);
   }
@@ -596,6 +712,7 @@ export function applySceneEdit(
     doc.setIn(["scenes", index, "captions", captionIndex, "text"], value.trim());
   } else if (field === "caption.insert") {
     if (typeof caption?.text !== "string") throw new Error("Missing caption text");
+    refuseMisshapen(["scenes", 0, "captions", 0], caption, "The inserted caption");
     const captions = doc.getIn(["scenes", index, "captions"]);
     if (captions != null && !isSeq(captions)) {
       throw new Error(`Scene "${sceneId}" captions is not a list`);
@@ -629,6 +746,10 @@ export function applySceneEdit(
     if (path.length > 1 && !isMap(doc.getIn(["scenes", index, ...path.slice(0, -1)]))) {
       if (checked.remove) return editedText(doc);
       throw new Error(`Scene "${sceneId}" has no ${path.slice(0, -1).join(".")} to set ${name} on`);
+    }
+    if (name === "media" && !checked.remove) {
+      mergeMedia(doc, index, sceneId, checked.value);
+      return editedText(doc);
     }
     /* A playing rate only means something on a clip. */
     if (name === "speed" && !checked.remove) {

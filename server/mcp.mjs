@@ -184,8 +184,8 @@ export const TOOLS = [
     name: "edit_showcase",
     description:
       "Apply structured edits to a showcase.yaml — the same comment-preserving write path as " +
-      "in-app editing. Use this instead of hand-editing, sed, or scripts for changes it can " +
-      "express: every comment, blank line, and quote style elsewhere in the file survives, " +
+      "in-app editing. It can set every field of showcase.yaml, so use it for every change " +
+      "to the file instead of hand-editing, sed, or scripts: every comment, blank line, and quote style elsewhere in the file survives, " +
       "values are validated, and a bad edit is refused with the reason. The edits apply in " +
       "order (later edits see earlier ones — an insert shifts the indexes after it) and land " +
       "as ONE write; if any edit fails, nothing is written. Each edit is an object with " +
@@ -207,7 +207,10 @@ export const TOOLS = [
       'asset or text ("") drops the image or the wordmark there), or tiktok ({fit?, focus?, ' +
       "bands?, area?} — written to media.tiktok: how the scene's picture goes into TikTok's " +
       "9:16 frame; fit fill|fit, focus top|center|bottom|<n>%, bands blur|color, area " +
-      "{top?, right?, bottom?, left?} insets in % of the frame). null removes " +
+      "{top?, right?, bottom?, left?} insets in % of the frame), media (a map of the media " +
+      "keys to change — kind, asset, graphic, alt, motion, frame, align, fit, speed, tiktok, " +
+      "overlay, fadeTo; the keys you leave out stay as they are, and null removes one), or " +
+      "titleDurationMs and captionsIn (obsolete: null removes them). null removes " +
       "an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom — each format places these at its " +
@@ -231,7 +234,9 @@ export const TOOLS = [
       "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), " +
       "voiceover (a synthesized voice's settings, see build_voiceover: send the whole map, its " +
       "say list included, since a field left out is removed; what didn't change keeps its " +
-      "comments), or watermark " +
+      "comments), source (a recorded pitch's master recording: {video, audio?, speed?, " +
+      "tonemap?, ...} — see the schema), theme (flat style overrides on top of theme.yaml; " +
+      "edit_theme is usually the better tool), template, or watermark " +
       "({asset?, text?, position?, inset?, shade?, opacity?, scale?}) — the brand mark drawn " +
       "in a corner of every slide, like a TV network's bug. position is one of the four " +
       "corners (top-left default); inset pushes the mark down from a top corner or up from " +
@@ -250,8 +255,8 @@ export const TOOLS = [
       "removes the field, so it inherits again. Check the result with share_status, which " +
       "reports each destination's final text and anything over a platform's limits.\n" +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +
-      "result. theme.yaml has its own tool, edit_theme; YAML comments are not covered — " +
-      "edit those directly.\n" +
+      "result. theme.yaml has its own tool, edit_theme. The one thing these edits don't " +
+      "write is a YAML comment; keep notes in a scene's note or meta.notes instead.\n" +
       "Returns {applied, version}. Pass ifVersion — the version read_showcase or your last " +
       "edit_showcase returned — so an edit the user made in the studio meanwhile is never " +
       "overwritten unseen: when showcase.yaml has changed since that version, nothing is " +
