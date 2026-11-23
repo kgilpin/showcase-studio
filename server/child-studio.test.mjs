@@ -31,6 +31,9 @@ const server = http.createServer(async (req, res) => {
   let body = "";
   for await (const chunk of req) body += chunk;
   const { id, params } = JSON.parse(body);
+  // A connection that drops while the studio keeps running, and a crash.
+  if (params.name === "drop") return req.socket.destroy();
+  if (params.name === "crash") process.exit(1);
   const text = JSON.stringify({ tool: params.name, args, cwd: process.cwd() });
   res.setHeader("content-type", "application/json");
   res.end(JSON.stringify({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } }));
@@ -107,6 +110,32 @@ describe("startChildStudio", () => {
       expect(existsSync(path.join(dir, "stopped"))).toBe(true);
     }
     await expect(studio.studio.callTool({ name: "studio_info" })).rejects.toMatchObject({
+      unreachable: true,
+    });
+  });
+
+  /* runTool (server/mcp-stdio.mjs) starts another studio and runs the
+   * tool again on `unreachable`. Before, every failed request counted,
+   * including fetch giving up after 300 s on a tool that was still
+   * working: a healthy studio was replaced and the work done twice. */
+  it("counts a call that got no answer as a crash only when the studio has exited", async () => {
+    const dir = folder();
+    const studio = await startChildStudio({
+      script: studioScript(dir),
+      cwd: dir,
+      log: () => {},
+      exitGraceMs: 300,
+    });
+    cleanups.push(() => studio.close());
+
+    const dropped = await studio.studio.callTool({ name: "drop" }).catch((error) => error);
+    expect(dropped.unreachable).toBeUndefined();
+    expect(dropped).toMatchObject({ noAnswer: true });
+    // Still the same studio, still answering.
+    const result = await studio.studio.callTool({ name: "studio_info" });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ tool: "studio_info" });
+
+    await expect(studio.studio.callTool({ name: "crash" })).rejects.toMatchObject({
       unreachable: true,
     });
   });

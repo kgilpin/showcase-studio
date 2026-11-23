@@ -364,7 +364,9 @@ export function createStudioMcp({
   /** Runs a tool on the running studio, starting one first if none is. A
    *  studio reached by its address (a child studio, from source) can crash;
    *  then the tool runs once more, on a studio started with the same
-   *  choices. */
+   *  choices. Only a studio whose process has exited counts as crashed
+   *  (`unreachable`, server/child-studio.mjs): a slow tool on a running
+   *  studio is never started twice. */
   async function runTool(params) {
     /* The first studio tool starts a studio when none runs — with the same
      * check as studio_start, or calling a tool directly would get around

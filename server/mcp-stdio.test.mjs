@@ -263,6 +263,34 @@ describe("the studio's MCP server", () => {
     expect(started[1]).toMatchObject({ lock: { kind: "showcase", showcaseId: "nova" } });
   });
 
+  it("doesn't restart a studio that is still running when a call gets no answer", async () => {
+    const lib = library("nova");
+    const { started, startStudio } = fakeStudios();
+    const calls = [];
+    const { call } = server({
+      defaultLibrary: () => lib,
+      startStudio: async (options) => {
+        const studio = await startStudio(options);
+        const answer = studio.studio.callTool;
+        studio.studio.callTool = async (params) => {
+          calls.push(params.name);
+          if (params.name !== "ffmpeg") return answer(params);
+          // What a busy child studio's call ends in: no answer, no exit.
+          throw Object.assign(new Error("The studio isn't answering"), { noAnswer: true });
+        };
+        return studio;
+      },
+    });
+    await call("studio_start", { showcase: "nova" });
+
+    const result = await call("ffmpeg", { args: [] });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/isn't answering/);
+    expect(started).toHaveLength(1);
+    expect(started[0].closed).toBe(false);
+    expect(calls.filter((name) => name === "ffmpeg")).toHaveLength(1);
+  });
+
   it("offers no source choice where there is only one build to run", async () => {
     const { rpc } = server({ ...fakeStudios(), defaultLibrary: () => "/lib" });
     const { result } = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" });
