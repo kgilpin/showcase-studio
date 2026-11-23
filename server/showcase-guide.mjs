@@ -48,7 +48,7 @@ meta.watermark draws a small logo in one corner of every slide, the way a TV net
 - The wordmark is white. theme.yaml's colors.watermark-text changes it (caption colors don't affect it).
 - The mark is decorative chrome: it is hidden from screen readers (so the same logo isn't announced on every slide) and never takes a click.
 
-Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram; style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
+Custom TSX diagrams: write <id>/graphics/<key>.tsx default-exporting a React component (no imports needed — JSX only; you may not import anything besides react), and reference it as media {kind: graphic, graphic: <key>, alt: ...} — usually with theme: console. Animate with CSS only (inline <style> keyframes; no JS timers) and make the resting state the fully revealed diagram. The first part of a graphic is on screen from the scene's first frame, with no fade-in. Only the later parts animate in. A scene never opens on an empty panel. Style with the theme's CSS variables (e.g. var(--card), var(--primary)). Compile or runtime errors render inside the slide, so read the slide's error and iterate until it renders.
 
 ## Pointing at things in a recording (overlays)
 A screen recording or a game replay plays through, and the viewer can't tell where to look. media.overlay draws a TSX graphic on top of an image or video — a ring round the fleet that matters, an arrow to a star, a label on a player's territory — timed to the clip:
@@ -234,12 +234,158 @@ It lives in its own file, <id>/cover.yaml, beside showcase.yaml. Its fields are 
 - A cover.yaml that breaks a rule never stops the showcase from opening: what doesn't fit is left out, with a warning in the studio and in validate.
 - The Share page offers each destination's cover as an image to upload with the video, and the YouTube thumbnail with the regular YouTube video.
 
+## Video templates (start here for a new showcase)
+A video template says what kind of video a showcase is: its target length, its longest scene, a starting list of scenes, and guidance on what each scene should do. It doesn't say where the video goes: any kind of video can be a TikTok or a 4:3 YouTube video, so you ask. (A template is not a slide layout: a scene's theme keeps its meaning.)
+
+Before you write anything for a new showcase:
+1. Call list_templates. Show the user each template's name and description, and ask them to pick one, or "other" (use your question tool when you have one). Recommend one by asking what the video introduces, not by how many things it has to show:
+
+       What does it introduce?
+       ├─ a whole product, new to the viewer ──────────► product-launch
+       ├─ one task, step by step ──────────────────────► how-to
+       ├─ a problem in the code (an issue) ────────────► code-issue
+       ├─ a change to the code (a PR, branch, commit) ─► code-change
+       └─ one feature
+            How does it show its value?
+            ├─ as soon as you see it used ─────────────► feature-explainer
+            └─ by what it finds or prevents ───────────► worked-example
+
+   A feature that finds several things (bugs, mistakes, slow steps) is still one feature: a worked example follows the clearest of them. A library's own templates aren't on the chart: read their descriptions.
+2. Ask where the video will go, in the same round of questions when your tool takes several:
+
+       TikTok, Instagram or YouTube Shorts      view: tiktok   (9:16)
+       YouTube, a docs page or LinkedIn         view: embed    (4:3)
+       App Store screenshots                    view: screens
+
+   list_templates' views.suggested is the view most of this library's showcases use: offer it first. With none, offer no default.
+3. For a template: create_showcase {name, template: <id>, view}. The showcase gets meta.view, meta.targetMs, meta.sceneMaxMs, meta.template and the template's starting scenes, each with a note saying what it is for. The result carries the template's guidance and its good and bad titles and captions: follow them while you write.
+4. For "other": ask the user one more question, what the video is for, then create_showcase {name, template: "other", purpose: <their answer>, view}. It starts with one scene, and the answer goes in meta.notes.
+
+Then write the outline (see "A new showcase: outline first" below): replace each starting scene's placeholder title and note, and delete or add scenes as the material needs. Captions come after the user approves the outline. Keep each scene's note up to date or remove it once the scene is done.
+
+A showcase whose meta.template names a template keeps that template's guidance: when you pick up work on one in a new session, call list_templates {id} for it before you change the script.
+
+Where templates come from:
+- The studio ships a few (feature-explainer, worked-example, product-launch, how-to, code-issue, code-change). They update when the app does.
+- A library adds its own as <library>/showcase_templates/<id>.yaml, beside showcase_settings.yaml, so a team keeps them in git. One with the same id as a shipped template replaces it. The file holds name, description, meta (targetMs, sceneMaxMs, view only), guidance (text), titles {good: [...], bad: [...]}, captions {good: [...], bad: [...]}, titleCheck (screen or story) and scenes (a list written into showcase.yaml as it is). Copy a shipped one from list_templates {id} as a start. A file with a problem is left out of the list and named in its problems.
+
+## A new showcase: outline first
+Write an outline before you build anything, and stop for the user to review it. Titles, scene order, and which scenes to split or merge are what users change most. In an outline each of those is one line. Once the slides exist, each is a graphic, a picture or a set of captions made again.
+
+    the user asks for a video ──► you read the repository ──► outline ──► the user reviews it
+                                                                              │
+                         ┌─── changes: edit the outline, ask again ◄──────────┤
+                         │                                                    │
+                         └──────────────────────────────────────── "go ahead" ┴──► graphics, pictures, captions
+
+An outline is an ordinary showcase.yaml. Each scene has only:
+- id and theme (the theme tells the reader what kind of slide it will be: a statement, a phone screen, a wide panel, footage)
+- title (what the slide will show on screen; leave it out on footage)
+- eyebrow (the section the scene belongs to, or for a worked example the step in the case; the template's starting scenes show which)
+- note: one line on what the scene shows and why it is there
+
+No captions and no media. The linter doesn't warn about a scene with no captions or media, so validate stays clean, and the script page marks the showcase "Outline, waiting for your review" until a scene has either.
+
+Put what you worked out from the repository in meta.notes, so the user can catch a wrong reading before anything is built:
+- what exists already, and what is different about this feature
+- the one example that runs through the whole video (one project, one command, one screen)
+
+Work these out yourself, from the repository's code, README, docs and recent commits. Don't ask the user for them; the outline is where they correct you.
+
+Then:
+1. Run validate.
+2. Open the script page in the preview (the Script tab beside Video, at /showcase/<id>/script on the studio's address), and ask the user to review it there: the titles, the order, the note on each slide, and meta.notes at the top. Say they can edit a title by clicking it, or add and delete slides, and tell you the rest.
+3. Stop. Build nothing until the user says to go ahead.
+4. Before you change anything, read the showcase again: the user's edits on the script page come to you through the change log (see "Working alongside the user"). Make their changes to the outline, and ask again if they changed much.
+5. On a yes, fill in the captions and media scene by scene. Keep each scene's note up to date with what the scene now is.
+
+Skip the outline only when the user says to, or the change is to a showcase that is already built.
+
+## Writing the script
+These are the defaults for every showcase. Follow them without asking the user who the audience is.
+
+Opening
+- Open with a title scene: a statement slide with the name of the product, feature, task, issue or change, and one line on what it does. Add one when the template has none.
+- Then the background a newcomer needs before the feature makes sense: the problem, and where the feature fits.
+
+Plain facts
+- State facts plainly, for a technical viewer. No teasers: no questions to the viewer ("Ever lost a receipt?"), no "what if", and no holding back the name or the point for a reveal.
+- Plain is not clipped. A plain fact is still a whole spoken sentence (see "Narration").
+
+Narration
+- The captions are one person talking through the whole video, from the first scene to the last. Each line follows on from the one before, with joining words like "first", "then", "here" and "so".
+- Captions are a script for a person to read aloud. Write them the way a friendly colleague would explain this to you at their desk: whole sentences with a subject and a verb, contractions, and the small words that join one thought to the next ("so", "and then", "that's why").
+- Pick the subject of each sentence by who does the thing. The product does its work: "it" ("It records each test as it runs"). The viewer does theirs: "you" ("You ask for an analysis of your branch"). Use "we" only when the narrator really does something on screen, as in a how-to walkthrough; never as a stand-in for what the product does ("We'll take one test…").
+- Titles can be short. Captions can't: never write a caption like a slide title, a bullet or a telegram.
+
+    Clipped (wrong)                                        Spoken (right)
+    "One test, traced before and after the change."        "It runs each test twice: once before your change, and once after."
+    "One command. 4,309 reads, with no wait between them." "That was a single command, and it read the device 4,309 times without pausing once."
+
+- Some warmth is welcome: a short reaction ("That's a lot of reads for one command."), or why it matters to the person watching. Warmth comes from how a person talks, not from hype: no superlatives, no teasers.
+- When a line runs past the scene's length, cut an idea or split the scene. Don't save words by dropping verbs.
+- A template's good and bad captions show the voice for that kind of video. Follow them.
+- Check with a reader who knows nothing else, as for the titles:
+
+    check_script {showcaseId} ──► brief: every caption, in order, numbered
+                                     │
+                                     ▼
+              a new subagent, given brief and nothing else
+                                     │
+                                     ▼
+              "read it aloud; mark each line a person wouldn't say"
+                                     │
+                     marked lines ───┴─► rewrite them (same meaning), check again
+
+  You wrote the lines, so they sound fine to you; a fresh reader hears the labels and fragments. Run it before you report captions as done. Skip it for a showcase cut from a recording: its captions are what was said.
+
+Plain words
+- Everyday words. Use a technical term only when it is the real name of a thing: a command, a button, a file.
+- Never make up a term or a shorthand.
+- Call each of the product's things by the product's own name for it, and use the same word every time.
+- When a feature is used through an AI agent, write "your AI agent". Name one agent (Claude, say) only when the feature works with that one alone.
+- When you draw a prompt or a chat, keep it plain. Don't copy the look of one agent's product unless the feature works with that one alone.
+
+Titles
+- A template's guidance and its good and bad titles say how its titles work, and come first, except that a title naming a problem always follows the next rule. A worked example's titles are claims that tell its story; check_titles checks them that way.
+- A title that names a problem says what should happen and what happens instead, in words the viewer already knows: "Failed requests should be retried, but aren't". Describe the behavior. Don't name the function, loop or class that causes it. Put counts, error messages and other evidence in the picture. TikTok videos don't show titles, so say the problem in the scene's first caption too.
+- Otherwise, a title says what is on screen, names the feature, or states a benefit. A clever phrase that says nothing is wrong.
+
+    Avoid                                  Write instead
+    "From one recording to one page"       what happens, the feature's name, or a benefit
+    "A changed trace marks every step"     "See what changed between two traces"
+
+- A statement slide has its title and at most one more line. Never two subtitles.
+
+Check the titles
+- Rules don't catch a title that names an idea instead of what is on the screen. You know what each title means, so it reads fine to you. Check with a reader who knows nothing else:
+
+    check_titles {showcaseId} ──► brief: the titles alone, in order
+                                     │
+                                     ▼
+              a new subagent, given brief and nothing else
+                                     │
+                                     ▼
+              "what does each slide show?" ──► compare with each scene's note
+                                                 │
+                    can't say, or says it wrong ─┴─► rewrite that title, check again
+
+- For a template whose titles tell a story, check is "story": brief asks the reader to retell what happens, and to name the titles that don't fit. Compare the retelling with the case in meta.notes. A title it left out or got wrong is rewritten.
+- Hand brief to the subagent exactly as check_titles returns it. Give it nothing more: no notes, no captions, no repository, no hint about the product.
+- Compare each answer with the scene's note (slides in the result maps each number to its scene). A scene with no note: compare with what the slide shows. The reader rarely says "Can't tell": it makes a confident guess, so a wrong guess is the usual sign of a bad title. An answer that is vague, wrong, or "Can't tell" means the title is rewritten. An answer that is right in other words is fine.
+- Run it before you show an outline to the user, and again before you report a showcase as done.
+
+Content
+- Show how to use the feature (what to type, what comes back), not how it works inside.
+- Every command on screen is one a user would really type.
+- Captions describe what is visible. Check them again after a picture is cropped or replaced.
+
 ## Working rules
-- Edit showcase.yaml through the edit_showcase MCP tool whenever it can express the change, and pass ifVersion (see "Working alongside the user" above) — one call applies a whole batch of field edits (retiming every scene, say) as a single validated write that preserves the file's formatting. What the tool can't express (wholesale restructuring), change with your own file-editing tool — never sed, awk, or throwaway scripts, which have mangled these files before.
+- Edit showcase.yaml through the edit_showcase MCP tool, and pass ifVersion (see "Working alongside the user" above). It can set every field of the file — a new showcase's scenes too, with scene.insert — and one call applies a whole batch of edits (retiming every scene, say) as a single checked write that keeps the file's formatting. Never edit showcase.yaml with sed, awk, or throwaway scripts, which have mangled these files before. If the tool refuses a change you need, tell the user what it said.
 - Working context lives in note fields, not YAML comments: a scene's note (what the take is, what's pending) and meta.notes (showcase-level context) travel with the data through every edit and show on the script page. Don't add YAML comments — they aren't addressable by the edit tool, and a comment above a scene does NOT follow it through scene.move or scene.delete, so banners end up labeling the wrong scene. Section labels belong in eyebrow.
 - Read a file before rewriting it, and keep YAML valid — a showcase that fails to parse is shown as an error card until fixed. Referencing an asset or graphic that doesn't exist yet is fine: the slide renders a "missing asset" placeholder with a linter warning, and heals when the file lands in assets/.
 - Screenshots are binary; you cannot create them. Ask the user to drop images into the showcase's assets/ folder, or to paste or drag them onto the studio's Assets page, then reference them by key. (An image pasted into the Claude chat never reaches a file you can read.)
-- Keep narration natural to read aloud, and slides focused — one idea per slide.
+- Keep narration natural to read aloud (see "Narration"), and slides focused — one idea per slide.
 - Never run destructive git operations (reset --hard, force pushes, deleting branches) — see "History" above for how to undo a change safely.`;
 
 /** True when a user-owned CLAUDE.md still carries an inline copy of the
@@ -377,10 +523,12 @@ ${whisperAdvice(platform)}
 - The studio exposes MCP tools (server "showcase-studio", preloaded in
   studio-opened sessions; a session you start yourself gets them with
   \`claude --mcp-config .studio/mcp.json\` from the library root):
-  create_showcase {name} makes a new showcase folder from a name (the
-  studio's + card: a one-scene starter showcase.yaml and an empty
-  assets/) and returns its id — start a new showcase with it, never by
-  writing the folder yourself; read_showcase {showcaseId} returns
+  create_showcase {name, template?, purpose?, view?} makes a new showcase
+  folder from a name (showcase.yaml started from a video template, or
+  the + card's one-scene starter, and an empty assets/) and returns its
+  id — ask the user for the template and where the video goes first
+  (list_templates; see "Video templates"), and start a new showcase with it, never by writing the
+  folder yourself; read_showcase {showcaseId} returns
   showcase.yaml as it is now, with
   its version; add_asset {showcaseId, files: [{path, name?}]} copies
   files on this machine into the showcase's assets/ and returns each

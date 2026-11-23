@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   getShowcase,
+  isOutline,
   loadFromSource,
   refreshShowcase,
   showcaseErrors,
@@ -488,6 +489,62 @@ scenes:
 
 /* The length limits: meta.sceneMaxMs, a scene's own maxMs, and
  * meta.targetMs. They only warn — the timing is unchanged. */
+/* An outline: a showcase.yaml with titles, eyebrows and notes but no
+ * captions or media yet, written for the user to review before anything
+ * is built. It must load without a warning, so a session isn't pushed to
+ * fill in pictures and captions before the user has said yes. */
+describe("an outline", () => {
+  const outline = `
+meta:
+  title: Outline
+  description: Waiting for review
+  sceneMaxMs: 8000
+  targetMs: 60000
+  notes: |
+    What exists already: a CLI that records one test at a time.
+    What is new: recording a whole test suite in one run.
+    The example all the way through: the checkout tests.
+scenes:
+  - id: open
+    theme: statement
+    eyebrow: Background
+    title: Record a whole test suite
+    note: The problem, before the feature.
+  - id: run
+    theme: console
+    title: One command records every test
+    note: The command and what it prints.
+  - id: result
+    theme: feature
+    title: Every test in the list
+    note: The list of recordings on the phone.
+`;
+
+  it("loads with no warnings", async () => {
+    const showcase = await load("outline", outline);
+    expect(showcase.scenes.map((scene) => scene.id)).toEqual(["open", "run", "result"]);
+    expect(showcaseWarnings.filter((warning) => warning.showcaseId === "outline")).toEqual([]);
+  });
+
+  it("is an outline until a scene has captions or media", async () => {
+    expect(isOutline((await load("outline", outline)).scenes)).toBe(true);
+    const captioned = outline.replace(
+      "    note: The problem, before the feature.\n",
+      "    note: The problem, before the feature.\n    captions:\n      - text: Hello.\n",
+    );
+    expect(isOutline((await load("outline", captioned)).scenes)).toBe(false);
+    const pictured = outline.replace(
+      "    note: The list of recordings on the phone.\n",
+      "    note: The list of recordings on the phone.\n    media:\n      kind: image\n      asset: list\n      alt: The list\n",
+    );
+    expect(isOutline((await load("outline", pictured, ["list.png"])).scenes)).toBe(false);
+  });
+
+  it("is not an outline with no scenes", () => {
+    expect(isOutline([])).toBe(false);
+  });
+});
+
 describe("scene and showcase length", () => {
   const yaml = `
 meta:

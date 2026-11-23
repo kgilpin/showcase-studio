@@ -1,0 +1,90 @@
+name: Feature explainer
+description: One feature, shown working in a quick demo. For a feature people understand as soon as they see it used. Under a minute.
+
+meta:
+  targetMs: 45000
+  sceneMaxMs: 8000
+
+guidance: |
+  A feature explainer shows one feature doing one job. The viewer should
+  finish knowing what the feature does, why they would want it, and that
+  it is easy. Leave out every other feature, even good ones.
+
+  - title: the name of the feature and one line on what it does, on a
+    statement slide.
+  - problem: the problem the feature solves, stated plainly in one
+    sentence.
+  - feature: the feature in action, on a real screenshot or recording.
+    Narrate what the viewer is seeing, not the settings behind it.
+  - how: the one or two steps it takes. If it takes more than three, cut
+    to the result instead of showing every step.
+  - payoff: what the viewer gets: time saved, a mistake avoided, a result.
+  - end: the product name and where to get it, with a cta.
+
+  Each title says what is on screen, names the feature, or states a
+  benefit, so a viewer who only reads the titles knows what each slide
+  shows.
+
+  If the feature's value only shows when it catches something (a bug, a
+  mistake, a slow step), a quick demo won't show it: the worked-example
+  template fits better.
+
+  Keep each scene to one idea and under the longest scene length. Ask the
+  user for the screenshots or the recording before you write captions
+  that describe them.
+
+titles:
+  good:
+    - Find any receipt in two taps
+    - Your notes, sorted while you sleep
+  bad:
+    - Introducing Smart Search 2.0
+    - Powerful AI-driven organization
+    - Ever lost a receipt?
+
+captions:
+  good:
+    - "Tap the search bar, type a store's name, and there's every receipt from it."
+    - "That's two taps, and you never had to sort anything."
+  bad:
+    - "Search. Two taps. Done."
+    - "Instant receipt search."
+
+scenes:
+  - id: title
+    theme: statement
+    eyebrow: title
+    title: The feature's name and what it does
+    note: The title scene, with the feature's name and one line on what it does.
+    captions:
+      - text: Say the name and what it does, in one plain sentence.
+  - id: problem
+    theme: statement
+    title: The problem it solves
+    note: The problem this feature solves, stated plainly in one sentence.
+    captions:
+      - text: Replace this with the problem, in one short sentence.
+  - id: feature
+    theme: feature
+    title: What the feature does
+    note: The feature working, on a real screenshot or recording.
+    captions:
+      - text: Say what the viewer sees happening.
+  - id: how
+    theme: feature
+    title: How you use it
+    note: The one or two steps it takes.
+    captions:
+      - text: Say the step, not the setting.
+  - id: payoff
+    theme: statement
+    title: What you get
+    note: The result for the viewer.
+    captions:
+      - text: Say what the viewer gets from it.
+  - id: end
+    theme: statement
+    title: Product name
+    note: The product name and where to get it. Add a cta.
+    captions:
+      - text: Say the product name and where to get it.

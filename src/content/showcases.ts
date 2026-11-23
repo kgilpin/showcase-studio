@@ -988,6 +988,19 @@ function lintScene(raw: RawScene): { theme: SceneTheme; warnings: string[] } {
   return { theme, warnings };
 }
 
+/** True while a showcase is still an outline: it has scenes, and none of
+ *  them has captions or media yet — only titles, eyebrows and notes,
+ *  written for the user to review before anything is built (the guide's
+ *  "A new showcase: outline first"). The linter has no warning for a
+ *  scene with no captions or no media, so an outline loads clean; the
+ *  script page says it is waiting for review. */
+export function isOutline(scenes: readonly Pick<Scene, "captions" | "media">[]): boolean {
+  return (
+    scenes.length > 0 &&
+    scenes.every((scene) => scene.captions.length === 0 && scene.media.kind === "none")
+  );
+}
+
 const CAPTION_STYLES = new Set<CaptionStyle>(["chip", "karaoke", "reveal"]);
 
 /** Validates an authored captionStyle; unknown values warn and fall back

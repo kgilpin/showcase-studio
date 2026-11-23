@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parse } from "yaml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publish } from "../cdk/lambda/publish-core.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
@@ -583,6 +584,66 @@ scenes:
     expect(script.content[0].text).toContain("NOVA");
   });
 
+  it("check_titles returns the titles alone, and a key back to the scenes", async () => {
+    const { studio, library } = await startStudio();
+    const doc = parse(readFileSync(path.join(library, "nova", "showcase.yaml"), "utf8"));
+    const titled = doc.scenes.filter((scene) => scene.title);
+    const result = await studio.callTool({
+      name: "check_titles",
+      arguments: { showcaseId: "nova" },
+    });
+    const { brief, slides, next } = JSON.parse(result.content[0].text);
+    expect(slides.map((s) => s.sceneId)).toEqual(titled.map((scene) => scene.id));
+    expect(brief).toContain(`1. ${String(titled[0].title).replace(/\s+/g, " ").trim()}`);
+    for (const scene of doc.scenes) {
+      for (const caption of scene.captions ?? []) {
+        if (caption.text !== scene.title) expect(brief).not.toContain(caption.text);
+      }
+      if (scene.note) expect(brief).not.toContain(scene.note);
+    }
+    expect(next).toContain("subagent");
+  });
+
+  it("check_script returns the narration alone, numbered, and a key back to the scenes", async () => {
+    const { studio, library } = await startStudio();
+    const doc = parse(readFileSync(path.join(library, "nova", "showcase.yaml"), "utf8"));
+    const captions = doc.scenes.flatMap((scene) =>
+      (scene.captions ?? []).map((c) => ({ sceneId: scene.id, text: c.text })),
+    );
+    const { brief, lines, next } = JSON.parse(
+      (await studio.callTool({ name: "check_script", arguments: { showcaseId: "nova" } }))
+        .content[0].text,
+    );
+    expect(lines.map((l) => l.sceneId)).toEqual(captions.map((c) => c.sceneId));
+    expect(brief).toContain("Read it aloud");
+    expect(brief).toContain(`1. ${String(captions[0].text).replace(/\s+/g, " ").trim()}`);
+    for (const scene of doc.scenes) {
+      if (scene.note) expect(brief).not.toContain(scene.note);
+    }
+    expect(next).toMatch(/subagent|recording/);
+  });
+
+  it("check_titles asks for the story on a showcase made from the worked-example template", async () => {
+    const { studio } = await startStudio();
+    await studio.callTool({
+      name: "create_showcase",
+      arguments: { name: "Busy Device", template: "worked-example" },
+    });
+    const story = JSON.parse(
+      (await studio.callTool({ name: "check_titles", arguments: { showcaseId: "busy-device" } }))
+        .content[0].text,
+    );
+    expect(story.check).toBe("story");
+    expect(story.brief).toContain("retell what happens");
+    expect(story.next).toContain("meta.notes");
+    const screen = JSON.parse(
+      (await studio.callTool({ name: "check_titles", arguments: { showcaseId: "nova" } }))
+        .content[0].text,
+    );
+    expect(screen.check).toBe("screen");
+    expect(screen.brief).toContain("what you expect to see on the screen");
+  });
+
   it("create_showcase scaffolds a showcase through the studio's own + card path", async () => {
     const { studio, library } = await startStudio();
     const made = await studio.callTool({
@@ -604,6 +665,52 @@ scenes:
     ).rejects.toThrow('A showcase named "play-together" already exists');
     await expect(studio.callTool({ name: "create_showcase", arguments: {} })).rejects.toThrow(
       "Give the showcase a name",
+    );
+  });
+
+  it("create_showcase starts a showcase from a video template, and list_templates lists them", async () => {
+    const { studio, library } = await startStudio();
+    const list = JSON.parse(
+      (await studio.callTool({ name: "list_templates", arguments: {} })).content[0].text,
+    );
+    expect(list.templates.map((t) => t.id)).toContain("product-launch");
+    const made = JSON.parse(
+      (
+        await studio.callTool({
+          name: "create_showcase",
+          arguments: { name: "Tally", template: "product-launch", view: "embed" },
+        })
+      ).content[0].text,
+    );
+    expect(made.template).toMatchObject({ id: "product-launch", name: "Product launch" });
+    expect(made.template.guidance).toContain("proof-1");
+    const yaml = readFileSync(path.join(library, "tally", "showcase.yaml"), "utf8");
+    expect(yaml).toContain("template: product-launch");
+    expect(yaml).toContain("targetMs: 60000");
+    expect(yaml).toContain("view: embed");
+    expect(list.views.ask).toContain("view");
+    await expect(
+      studio.callTool({ name: "create_showcase", arguments: { name: "Wide", view: "cinema" } }),
+    ).rejects.toThrow("view must be one of");
+    const full = JSON.parse(
+      (await studio.callTool({ name: "list_templates", arguments: { id: "product-launch" } }))
+        .content[0].text,
+    );
+    expect(full.guidance).toBe(made.template.guidance);
+    await expect(
+      studio.callTool({ name: "create_showcase", arguments: { name: "Nope", template: "vlog" } }),
+    ).rejects.toThrow('No template named "vlog"');
+    const other = JSON.parse(
+      (
+        await studio.callTool({
+          name: "create_showcase",
+          arguments: { name: "Odd", template: "other", purpose: "A thank-you" },
+        })
+      ).content[0].text,
+    );
+    expect(other.template).toBeUndefined();
+    expect(readFileSync(path.join(library, "odd", "showcase.yaml"), "utf8")).toContain(
+      "What this video is for: A thank-you",
     );
   });
 

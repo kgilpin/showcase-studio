@@ -71,3 +71,50 @@ describe("how the guide says to get whisper", () => {
     }
   });
 });
+
+/* Users change titles, order and splits most. In an outline each is one
+ * line; once the slides exist, each is a rebuilt graphic. So the guide
+ * has a session write the outline first and stop for review. */
+describe("what the guide says about a new showcase", () => {
+  it("writes an outline first and stops for the user's review", () => {
+    const text = guide();
+    expect(text).toContain("## A new showcase: outline first");
+    expect(text).toContain("No captions and no media.");
+    expect(text).toContain("Stop. Build nothing until the user says to go ahead.");
+    expect(text).toContain("/showcase/<id>/script");
+  });
+
+  it("puts what was read from the repository in meta.notes, without asking", () => {
+    const text = guide();
+    expect(text).toContain("what exists already, and what is different about this feature");
+    expect(text).toContain("the one example that runs through the whole video");
+    expect(text).toContain("Don't ask the user for them");
+  });
+});
+
+/* A title can pass every rule and still say nothing to a reader without
+ * the writer's context (issue 81). */
+describe("what the guide says about checking titles", () => {
+  it("sends the titles alone to a fresh reader, and says when", () => {
+    const text = guide();
+    expect(text).toContain("Check the titles");
+    expect(text).toContain("check_titles {showcaseId}");
+    expect(text).toContain("no notes, no captions, no repository");
+    expect(text).toContain("before you show an outline to the user");
+    expect(text).toContain("before you report a showcase as done");
+  });
+});
+
+/* Scripts came out with clever titles that said nothing, made-up terms
+ * and no background for a newcomer (issue 80). The guide sets the
+ * defaults, so a session doesn't ask the user about the audience. */
+describe("what the guide says about writing the script", () => {
+  it("has the defaults, with the title examples", () => {
+    const text = guide();
+    expect(text).toContain("## Writing the script");
+    expect(text).toContain("Never make up a term or a shorthand.");
+    expect(text).toContain('"From one recording to one page"');
+    expect(text).toContain('"See what changed between two traces"');
+    expect(text).toContain("at most one more line");
+  });
+});

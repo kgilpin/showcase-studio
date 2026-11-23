@@ -1,0 +1,130 @@
+name: Worked example
+description: One feature, shown through one real case from the problem to the proof. For a feature whose value is what it finds or prevents, which a quick demo can't show. About 90 seconds.
+
+meta:
+  targetMs: 90000
+  sceneMaxMs: 10000
+
+titleCheck: story
+
+guidance: |
+  A worked example follows one concrete case from start to finish: one
+  bug, one task, one before and after, with its real numbers and names.
+  The case is the evidence: state each step of it plainly, with no
+  build-up.
+
+  Find the case before you write any scene. Look in the repository's
+  README, tests, examples and demos for the one that shows the feature at
+  its best. Put it in meta.notes in one sentence. If there isn't one,
+  ask the user for one before you outline.
+
+  - title: the name of the feature and one line on what it does, on a
+    statement slide.
+  - setup: the case: what the code or task is, stated plainly.
+  - problem: what should happen and what happens instead, in the title.
+    The specific number or result goes in the picture and the caption.
+  - gap: why the usual tools, tests or reviews miss it.
+  - move: what the product does that catches it, for this case.
+  - proof: the evidence, on screen, for this same case.
+  - wider: one slide at most on what else it does or another way to use
+    it. Delete it if the case says enough.
+  - end: the command, download or link, and nothing to set up first if
+    that is true.
+
+  One case beats a list. "Four kinds of bug" on one slide is a category;
+  one bug with its numbers is a story. Don't widen out until the case is
+  done.
+
+  Leave out what only existing users care about: comparisons with sibling
+  tools, settings, modes, the layout of a report. For each slide ask what
+  the viewer would miss if it were gone. If the answer is a detail, cut
+  it.
+
+  Titles are claims about this case, written as sentences. They are not
+  labels for what is on screen ("The report", "How to use it"). Read the
+  titles in order as one paragraph: they should tell the story without
+  the pictures. A title that would still be true with a competitor's name
+  in it is too general.
+
+  Eyebrows name the step in the case ("the bug", "the test", "the
+  proof"), never a section such as "Why it exists" or "What you get".
+
+  When you show the outline, give the titles as one paragraph first, then
+  what each slide shows, and say in one sentence which case the video
+  follows.
+
+titles:
+  good:
+    - The client polls the device until a timeout
+    - The client should wait for a busy device, but keeps reading
+    - No test caught it, because no test makes the device busy
+  bad:
+    - Introducing the analyze skill
+    - Some bugs only show up when the code runs
+    - You get a report that starts with the bugs
+
+captions:
+  good:
+    - "That was a single command, and it read the device 4,309 times without pausing once."
+    - "No test caught it, because none of them ever makes the device busy."
+  bad:
+    - "One command. 4,309 reads, with no wait between them."
+    - "Bugs found by running the code."
+
+scenes:
+  - id: title
+    theme: statement
+    eyebrow: title
+    title: The feature's name and what it does
+    note: The title scene, with the feature's name and one line on what it does.
+    captions:
+      - text: Say the name and what it does, in one plain sentence.
+  - id: setup
+    theme: statement
+    eyebrow: the case
+    title: The case the video follows
+    note: The one case the video follows, stated plainly, before anything goes wrong.
+    captions:
+      - text: Replace this with the case, in one short sentence.
+  - id: problem
+    theme: console
+    eyebrow: the problem
+    title: What should happen, and what happens instead
+    note: The case going wrong, with the specific result.
+    captions:
+      - text: Say what happens, with the number.
+  - id: gap
+    theme: console
+    eyebrow: the gap
+    title: Why the usual tools miss it
+    note: Why tests, reviews or the usual tools don't catch this case.
+    captions:
+      - text: Say why it was missed.
+  - id: move
+    theme: console
+    eyebrow: the fix
+    title: What the product does to catch it
+    note: The product doing the one thing that catches this case.
+    captions:
+      - text: Say what the product does, for this case.
+  - id: proof
+    theme: console
+    eyebrow: the proof
+    title: The evidence for this same case
+    note: The proof on screen, for the same case.
+    captions:
+      - text: Say what the evidence shows.
+  - id: wider
+    theme: console
+    eyebrow: and also
+    title: One other thing it does
+    note: At most one slide on what else it does. Delete it if the case says enough.
+    captions:
+      - text: Say the one other thing.
+  - id: end
+    theme: statement
+    eyebrow: the end
+    title: The command or where to get it
+    note: The command, download or link. Add a cta if there is one.
+    captions:
+      - text: Say how to start.

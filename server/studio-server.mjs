@@ -109,6 +109,12 @@ import { handleShowcaseRequest, showcaseIndex } from "./showcase-data.mjs";
 import { createShowcaseHistory } from "./showcase-history.mjs";
 import { alreadyOpen, clearPresence, runningStudio, writePresence } from "./studio-presence.mjs";
 import { hasStaleInlineGuide, studioGuide } from "./showcase-guide.mjs";
+import {
+  findTemplate,
+  listTemplates,
+  OTHER_TEMPLATE,
+  starterShowcaseYaml,
+} from "./showcase-templates.mjs";
 import { ensureLibrarySettings, libraryExportDir, SETTINGS_FILE } from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { airDrop, canAirDrop } from "./airdrop.mjs";
@@ -919,8 +925,12 @@ add notes specific to this library below, and the studio won't touch them.
 
   /* ---------- page actions ---------- */
 
-  /** Scaffolds a new showcase folder (the "+" card and the /new page). */
-  function createShowcase(name) {
+  /** Scaffolds a new showcase folder (the "+" card and the /new page,
+   *  and create_showcase). `template` is a video template's id
+   *  (server/showcase-templates.mjs) or "other"; `purpose` is the user's
+   *  answer to "what is this video for?"; `view` is where the user said
+   *  the video goes. The page passes none of them. */
+  function createShowcase(name, { template: templateId, purpose, view } = {}) {
     /* Creating opens the new showcase, which would leave this one. */
     if (lock?.kind === "showcase") {
       return { ok: false, error: "This studio is locked to one showcase" };
@@ -934,30 +944,28 @@ add notes specific to this library below, and the studio won't touch them.
     if (existsSync(path.join(showcasesDir, id))) {
       return { ok: false, error: `A showcase named "${id}" already exists` };
     }
+    let template;
+    if (templateId != null && templateId !== OTHER_TEMPLATE) {
+      template = findTemplate(showcasesDir, String(templateId));
+      if (!template) {
+        const known = listTemplates(showcasesDir).templates.map((t) => t.id);
+        return {
+          ok: false,
+          error: `No template named "${templateId}". Pick one of: ${[...known, OTHER_TEMPLATE].join(", ")}`,
+        };
+      }
+    }
     mkdirSync(path.join(showcasesDir, id, "assets"), { recursive: true });
     writeFileSync(
       path.join(showcasesDir, id, "showcase.yaml"),
-      `meta:
-  title: ${title}
-  description: Describe ${title} in a sentence.
-  loop: true
-
-scenes:
-  - id: intro
-    theme: statement
-    title: ${title}
-    captions:
-      - text: Replace this narration with your opening line.
-    media:
-      kind: none
-`,
+      starterShowcaseYaml(title, { template, purpose, view }),
     );
     /* A --new studio is now locked to the showcase it created. */
     if (lock?.kind === "new") {
       lock = { kind: "showcase", showcaseId: id };
       emit("info", info());
     }
-    return { ok: true, id };
+    return { ok: true, id, ...(template ? { template } : {}) };
   }
 
   /* Renames an asset file and updates every YAML reference to it — the

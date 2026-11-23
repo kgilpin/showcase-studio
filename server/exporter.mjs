@@ -19,6 +19,8 @@
  *                    video at 0, so a timeline-synced voiceover lands
  *                    exactly.
  *   exportScript     the narration as plain text (instant).
+ *   titleCheck       the slide titles alone, for the check_titles tool.
+ *   scriptCheck      the narration alone, for the check_script tool.
  *   screenshotSlide  one slide at half size, for the MCP tool.
  *   screenshotCover  the showcase's cover (cover.yaml) as a PNG, for the
  *                    Cover page's Save button and the screenshot_cover
@@ -42,6 +44,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { moveIntoPlace, partialPath, removePartial } from "./export-output.mjs";
+import { findTemplate } from "./showcase-templates.mjs";
 import { currentPageError, pageLoadFailureMessage } from "../src/lib/page-error.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
 import { COVER_DESTINATIONS, coverImage } from "../src/content/cover-rules.mjs";
@@ -265,6 +268,85 @@ export function scriptText(showcasesDir, showcaseId) {
     if (scene.support) out.push(`    ${oneLine(scene.support)}`);
   });
   return out.join("\n") + "\n";
+}
+
+/** The title check: the slide titles alone, for a reader who has seen
+ *  nothing else. `brief` is the whole prompt for that reader — the
+ *  titles in order, numbered, and the question to answer. `slides` maps
+ *  each number back to its scene, with the scene's note, so the writer
+ *  can compare each answer with what the slide was meant to show.
+ *  Scenes with no title (footage) are left out of both. */
+export function titleCheck(showcasesDir, showcaseId) {
+  if (!existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))) {
+    throw new Error(`No showcase named "${showcaseId}" in ${showcasesDir}`);
+  }
+  const doc = readDoc(showcasesDir, showcaseId);
+  const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
+  const slides = (doc.scenes ?? [])
+    .filter((scene) => scene?.title && oneLine(scene.title))
+    .map((scene, i) => ({
+      slide: i + 1,
+      sceneId: scene.id,
+      title: oneLine(scene.title),
+      ...(scene.note ? { note: oneLine(scene.note) } : {}),
+    }));
+  /* A template whose titles tell a story (titleCheck: story) asks the
+   * reader to retell it; every other showcase asks what each slide shows. */
+  const templateId = doc.meta?.template;
+  const check =
+    (templateId && findTemplate(showcasesDir, String(templateId))?.titleCheck) || "screen";
+  const question =
+    check === "story"
+      ? [
+          "In a few sentences, retell what happens in this video, as you understand it from the titles.",
+          "Then list each slide whose title you couldn't fit into that story, and say why.",
+        ]
+      : [
+          "For each slide, say in one sentence what you expect to see on the screen.",
+          "If a title doesn't tell you, write \"Can't tell\" and say what is missing.",
+        ];
+  const brief = [
+    "Below are the on-screen titles of the slides in a short product video, in order.",
+    "You know nothing else about the video or the product. Answer from the titles alone.",
+    "",
+    ...question,
+    "",
+    ...slides.map((s) => `${s.slide}. ${s.title}`),
+  ].join("\n");
+  return { brief, check, slides };
+}
+
+/** The script check: the narration alone, for a reader who has seen
+ *  nothing else, asked to read it aloud and mark every line a person
+ *  wouldn't say. `brief` is the whole prompt; `lines` maps each number
+ *  back to its scene. `recorded` is true for a showcase cut from a
+ *  recording (meta.source): its captions are what was said, so there is
+ *  nothing to rewrite. */
+export function scriptCheck(showcasesDir, showcaseId) {
+  if (!existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))) {
+    throw new Error(`No showcase named "${showcaseId}" in ${showcasesDir}`);
+  }
+  const doc = readDoc(showcasesDir, showcaseId);
+  const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
+  const lines = [];
+  for (const scene of doc.scenes ?? []) {
+    for (const caption of scene.captions ?? []) {
+      const text = oneLine(caption?.text ?? "");
+      if (text) lines.push({ line: lines.length + 1, sceneId: scene.id, text });
+    }
+  }
+  const brief = [
+    "Below is the narration of a short video, in order. One narrator will read it aloud, as one",
+    "continuous voiceover. You know nothing else about the video. Answer from the text alone.",
+    "",
+    "Read it aloud in your head. List every line a person would not say out loud to a colleague:",
+    "a label, a fragment, a line with no verb, a run of numbers, anything that sounds like a slide",
+    "bullet or a press release. For each, give its number, say why, and write how a person would",
+    "say it. Then say in one sentence whether the whole script sounds like one person talking.",
+    "",
+    ...lines.map((l) => `${l.line}. ${l.text}`),
+  ].join("\n");
+  return { brief, lines, recorded: Boolean(doc.meta?.source) };
 }
 
 /** Writes the narration script as <id>_script.txt — the instant export. */

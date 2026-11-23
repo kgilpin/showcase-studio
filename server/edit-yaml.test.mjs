@@ -886,4 +886,102 @@ describe("the editable fields are schema fields", () => {
     for (const name of Object.keys(EDITABLE_FIELDS.caption))
       expect(caption[name], `caption.${name}`).toBeDefined();
   });
+
+  /* And the other way: every field of showcase.yaml can be set with
+   * edit_showcase, so a session never has to edit the file by hand.
+   * Captions are edited with caption.set / insert / delete. */
+  it("cover every field of the schema", () => {
+    const editable = (fields, where, skip = []) =>
+      Object.keys(fields)
+        .filter((name) => !skip.includes(name))
+        .filter((name) => !(name in EDITABLE_FIELDS[where]))
+        .map((name) => `${where}.${name}`);
+    expect([
+      ...editable(scene, "scene", ["captions"]),
+      ...editable(meta, "meta"),
+      ...editable(caption, "caption"),
+    ]).toEqual([]);
+  });
+});
+
+describe("scene.set media", () => {
+  const set = (value, sceneId = "intro") =>
+    applySceneEdit(DOC, { sceneId, field: "scene.set", name: "media", value });
+
+  it("changes one key and leaves the others and the comments alone", () => {
+    const out = set({ motion: "zoom-in", fit: "contain" });
+    expect(out).toBe(
+      DOC.replace(
+        "      alt: The first screenshot\n",
+        "      alt: The first screenshot\n      motion: zoom-in\n      fit: contain\n",
+      ),
+    );
+  });
+
+  it("removes a key given as null", () => {
+    expect(set({ alt: null })).not.toContain("The first screenshot");
+  });
+
+  it("swaps an image for a graphic in one edit", () => {
+    const out = set({ kind: "graphic", asset: null, graphic: "flow", alt: null });
+    expect(out).toContain("kind: graphic\n      graphic: flow");
+    expect(out).not.toContain("shot-one");
+  });
+
+  it("refuses a key media doesn't take, a bad value, or speed on an image", () => {
+    expect(() => set({ zoom: 2 })).toThrow(/scene.media.zoom is not a field — .*motion/);
+    expect(() => set({ motion: "spin" })).toThrow(/media.motion/);
+    expect(() => set({ speed: 2 })).toThrow(/speed applies to a video/);
+    expect(() => set({ kind: null })).toThrow(/needs a kind/);
+  });
+
+  it("removes the whole media mapping with null", () => {
+    expect(set(null)).not.toContain("shot-one");
+  });
+});
+
+describe("inserts are checked against the schema", () => {
+  it("refuses a scene with a field showcase.yaml doesn't have, or a value of the wrong type", () => {
+    const insert = (scene) =>
+      applySceneEdit(DOC, { field: "scene.insert", index: 1, scene: { id: "mid", ...scene } });
+    expect(() => insert({ theme: "feature", clip: true })).toThrow(
+      /The inserted scene doesn't fit showcase.yaml: .*clip/,
+    );
+    expect(() => insert({ theme: "feature", captions: "one line" })).toThrow(/captions/);
+    expect(insert({ theme: "feature", title: "Middle" })).toContain("id: mid");
+  });
+
+  it("refuses a caption with a field a caption doesn't have", () => {
+    expect(() =>
+      applySceneEdit(DOC, {
+        sceneId: "intro",
+        field: "caption.insert",
+        captionIndex: 0,
+        caption: { text: "Hi", duration: 900 },
+      }),
+    ).toThrow(/The inserted caption doesn't fit showcase.yaml: .*duration/);
+  });
+});
+
+describe("meta.set for the fields without a rule file of their own", () => {
+  const set = (name, value) => applySceneEdit(DOC, { field: "meta.set", name, value });
+
+  it("sets a recorded pitch's source, checked against the schema", () => {
+    expect(set("source", { video: "take-1", speed: 1.5 })).toMatch(
+      /source:\n {4}video: take-1\n {4}speed: 1.5/,
+    );
+    expect(() => set("source", { speed: 9 })).toThrow(/meta.source.speed: 9 is outside 0.5 to 2/);
+  });
+
+  it("sets meta.theme overrides and refuses a name theme.yaml doesn't have", () => {
+    expect(set("theme", { primary: "#4ade80" })).toContain('primary: "#4ade80"');
+    expect(() => set("theme", { glow: "red" })).toThrow(/glow/);
+  });
+
+  it("only removes an obsolete scene field", () => {
+    const edit = (value) =>
+      applySceneEdit(DOC, { sceneId: "intro", field: "scene.set", name: "titleDurationMs", value });
+    expect(() => edit(1200)).toThrow(/obsolete .* pass null to remove it/);
+    expect(edit(null)).toBe(DOC);
+  });
 });

@@ -29,7 +29,10 @@
  *   screenshot_cover   exporter.mjs screenshotCover: the cover's still page
  *   read_showcase      here: showcase.yaml, plus theme.yaml and cover.yaml
  *                      with their themeVersion and coverVersion
- *   create_showcase    the studio's own scaffold, through the context
+ *   create_showcase    the studio's own scaffold, through the context,
+ *                      started from a video template when one is named
+ *   list_templates     showcase-templates.mjs: the shipped templates and
+ *                      the library's showcase_templates/
  *   add_asset          asset-files.mjs: files on disk copied into a
  *                      showcase's assets/
  *   ffmpeg             asset-files.mjs encodeAsset: the bundled ffmpeg,
@@ -51,6 +54,10 @@
  *                      (both builds answer with a build of the showcase
  *                      already running, since the studio builds on its
  *                      own; validate adds each showcase's media status)
+ *   check_script       exporter.mjs scriptCheck: the narration alone, for a
+ *                      fresh reader to read aloud
+ *   check_titles       exporter.mjs titleCheck: the titles alone, for a
+ *                      fresh subagent
  *   share_status, share, share_record
  *                      share.mjs
  *   export, export_status, export_cancel
@@ -75,10 +82,20 @@ import {
   screenshotFrame,
   screenshotSlide,
   scriptText,
+  scriptCheck,
+  titleCheck,
   validateShowcases,
 } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
 import { librarySay } from "./library-config.mjs";
+import {
+  LIBRARY_TEMPLATES_DIR,
+  libraryViews,
+  listTemplates,
+  templateGuidance,
+  templateSummary,
+} from "./showcase-templates.mjs";
+import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
 import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
@@ -167,8 +184,8 @@ export const TOOLS = [
     name: "edit_showcase",
     description:
       "Apply structured edits to a showcase.yaml — the same comment-preserving write path as " +
-      "in-app editing. Use this instead of hand-editing, sed, or scripts for changes it can " +
-      "express: every comment, blank line, and quote style elsewhere in the file survives, " +
+      "in-app editing. It can set every field of showcase.yaml, so use it for every change " +
+      "to the file instead of hand-editing, sed, or scripts: every comment, blank line, and quote style elsewhere in the file survives, " +
       "values are validated, and a bad edit is refused with the reason. The edits apply in " +
       "order (later edits see earlier ones — an insert shifts the indexes after it) and land " +
       "as ONE write; if any edit fails, nothing is written. Each edit is an object with " +
@@ -190,7 +207,10 @@ export const TOOLS = [
       'asset or text ("") drops the image or the wordmark there), or tiktok ({fit?, focus?, ' +
       "bands?, area?} — written to media.tiktok: how the scene's picture goes into TikTok's " +
       "9:16 frame; fit fill|fit, focus top|center|bottom|<n>%, bands blur|color, area " +
-      "{top?, right?, bottom?, left?} insets in % of the frame). null removes " +
+      "{top?, right?, bottom?, left?} insets in % of the frame), media (a map of the media " +
+      "keys to change — kind, asset, graphic, alt, motion, frame, align, fit, speed, tiktok, " +
+      "overlay, fadeTo; the keys you leave out stay as they are, and null removes one), or " +
+      "titleDurationMs and captionsIn (obsolete: null removes them). null removes " +
       "an optional field.\n" +
       '- {field: "caption.set", sceneId, captionIndex, name, value} — a caption\'s text, ' +
       "durationMs, or position (top|center|lower|bottom — each format places these at its " +
@@ -214,7 +234,9 @@ export const TOOLS = [
       "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), " +
       "voiceover (a synthesized voice's settings, see build_voiceover: send the whole map, its " +
       "say list included, since a field left out is removed; what didn't change keeps its " +
-      "comments), or watermark " +
+      "comments), source (a recorded pitch's master recording: {video, audio?, speed?, " +
+      "tonemap?, ...} — see the schema), theme (flat style overrides on top of theme.yaml; " +
+      "edit_theme is usually the better tool), template, or watermark " +
       "({asset?, text?, position?, inset?, shade?, opacity?, scale?}) — the brand mark drawn " +
       "in a corner of every slide, like a TV network's bug. position is one of the four " +
       "corners (top-left default); inset pushes the mark down from a top corner or up from " +
@@ -233,8 +255,8 @@ export const TOOLS = [
       "removes the field, so it inherits again. Check the result with share_status, which " +
       "reports each destination's final text and anything over a platform's limits.\n" +
       "The studio's pages reload on the write; run validate or screenshot_slide to check the " +
-      "result. theme.yaml has its own tool, edit_theme; YAML comments are not covered — " +
-      "edit those directly.\n" +
+      "result. theme.yaml has its own tool, edit_theme. The one thing these edits don't " +
+      "write is a YAML comment; keep notes in a scene's note or meta.notes instead.\n" +
       "Returns {applied, version}. Pass ifVersion — the version read_showcase or your last " +
       "edit_showcase returned — so an edit the user made in the studio meanwhile is never " +
       "overwritten unseen: when showcase.yaml has changed since that version, nothing is " +
@@ -319,17 +341,61 @@ export const TOOLS = [
     },
   },
   {
+    name: "list_templates",
+    description:
+      "The video templates a new showcase can start from: what kind of video it is (a " +
+      "feature explainer, a worked example, a product launch, a how-to, a code issue, a code change, or one " +
+      "the library added in " +
+      "showcase_templates/). Each has a name, a one-line description, its settings " +
+      "(targetMs, sceneMaxMs, view) and its starting scenes. Before you write a new " +
+      "showcase, show the user these names and descriptions and ask them to pick one, or " +
+      '"other". With id, returns that template\'s guidance in full: what this kind of video ' +
+      "is for, what each scene should do, and good and bad titles. Follow it while you " +
+      "write a showcase whose meta.template names it. problems lists template files that " +
+      "couldn't be read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "A template's id, for its full guidance" },
+      },
+    },
+  },
+  {
     name: "create_showcase",
     description:
       "Make a new showcase folder in the library from a name — the same scaffold as the " +
-      "studio's + card: <id>/showcase.yaml with a one-scene starter script and an empty " +
-      "assets/ folder, the id made from the name (lower case, dashes). Returns {id, path}. " +
-      "Then write the script with edit_showcase, and add the recording and pictures with " +
-      "add_asset. Refused when a showcase of that id exists, or the studio is locked to one " +
-      "showcase.",
+      "studio's + card: <id>/showcase.yaml and an empty assets/ folder, the id made from " +
+      "the name (lower case, dashes). Ask the user for the template first (list_templates). " +
+      "With template, the showcase gets that template's settings (meta.targetMs, " +
+      "meta.sceneMaxMs), meta.template naming it, and its starting scenes, and " +
+      "the result carries the template's guidance to follow while you write. template: " +
+      "view is where the user said the video goes (list_templates' views says how to ask), " +
+      "written as meta.view. " +
+      '"other" (or none) gives a one-scene starter; with "other", ask the user what the ' +
+      "video is for and pass the answer as purpose (it goes in meta.notes). Returns {id, " +
+      "path, template?}. Then write an outline (titles and notes, no captions or media) and " +
+      "stop for the user to review it on the script page; see the guide's 'A new showcase: " +
+      "outline first'. Once they say go ahead, write the script with edit_showcase, and add " +
+      "the recording and pictures with add_asset. Refused when a showcase of that id exists, the template " +
+      "isn't one, or the studio is locked to one showcase.",
     inputSchema: {
       type: "object",
-      properties: { name: { type: "string", description: "The showcase's title" } },
+      properties: {
+        name: { type: "string", description: "The showcase's title" },
+        view: {
+          type: "string",
+          enum: PLAYER_VIEWS,
+          description: "Where the video goes: tiktok (9:16), embed (4:3) or screens (App Store)",
+        },
+        template: {
+          type: "string",
+          description: 'A template id from list_templates, or "other"',
+        },
+        purpose: {
+          type: "string",
+          description: 'What the video is for, in the user\'s words (for "other")',
+        },
+      },
       required: ["name"],
     },
   },
@@ -722,6 +788,41 @@ export const TOOLS = [
       "The showcase's narration script as share-ready plain text: a title header, the " +
       "description, then one block per scene — '--- Scene N · theme · eyebrow · title' over the " +
       "indented spoken lines (captions and support, read verbatim in order).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
+    name: "check_script",
+    description:
+      "The narration alone, for a reader with none of your context. Returns {brief, lines, " +
+      "recorded, next}: brief is the whole prompt — every caption in order, numbered, and the " +
+      "request to read it aloud and mark each line a person wouldn't say — to hand verbatim to a " +
+      "fresh subagent that sees nothing else. lines maps each number to its sceneId and text. " +
+      "Rewrite the lines it marks with edit_showcase, keeping what each one says. Run it before " +
+      "reporting captions as done; see the guide's 'Narration'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+      },
+      required: ["showcaseId"],
+    },
+  },
+  {
+    name: "check_titles",
+    description:
+      "The slide titles alone, for a reader with none of your context. Returns {brief, check, slides, next}: " +
+      "brief is the whole prompt — the titles in order, numbered, and the question: 'what does each " +
+      "slide show?', or for a template whose titles tell a story (check: story) 'retell what " +
+      "happens' — to hand verbatim to a fresh subagent that sees nothing else (no notes, no " +
+      "captions, no repository). slides maps each number to its sceneId, title and note, so you can " +
+      "compare each answer with what the slide is meant to show. Run it before showing an outline to " +
+      "the user and before reporting a showcase as done; see the guide's 'Check the titles'.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1312,6 +1413,33 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       content: [{ type: "text", text: scriptText(showcasesDir, String(args.showcaseId ?? "")) }],
     };
   }
+  if (name === "check_script") {
+    const check = scriptCheck(showcasesDir, String(args.showcaseId ?? ""));
+    const next = !check.lines.length
+      ? "No scene has a caption yet, so there is nothing to check."
+      : check.recorded
+        ? "This showcase is cut from a recording (meta.source): its captions are what was " +
+          "said, so don't rewrite them."
+        : "Hand brief, exactly as it is, to a new subagent with no other context. Rewrite every " +
+          "line it marks so a person would say it, keeping what the line says and its scene's " +
+          "length, and run the check again.";
+    return { content: [{ type: "text", text: JSON.stringify({ ...check, next }, null, 2) }] };
+  }
+  if (name === "check_titles") {
+    const check = titleCheck(showcasesDir, String(args.showcaseId ?? ""));
+    const handOver = "Hand brief, exactly as it is, to a new subagent with no other context. ";
+    const next = !check.slides.length
+      ? "No scene has a title, so there is nothing to check."
+      : check.check === "story"
+        ? handOver +
+          "Then compare its retelling with the case in meta.notes and each scene's note. Rewrite " +
+          "every title it left out, misread, or that the story would not miss, so the titles tell " +
+          "the story on their own, and run the check again."
+        : handOver +
+          "Then compare each answer with that slide's note. Rewrite every title the reader couldn't " +
+          "explain or explained wrongly, so it says what is on the screen, and run the check again.";
+    return { content: [{ type: "text", text: JSON.stringify({ ...check, next }, null, 2) }] };
+  }
   if (name === "build_media" || name === "build_voiceover") {
     const showcaseId = String(args.showcaseId ?? "");
     /* The studio may already be building this showcase on its own: that
@@ -1418,10 +1546,44 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     }
     return { content };
   }
+  if (name === "list_templates") {
+    const { templates, problems } = listTemplates(showcasesDir);
+    if (args.id != null) {
+      const template = templates.find((t) => t.id === String(args.id));
+      if (!template) {
+        throw new Error(
+          `No template named "${args.id}". The templates are: ${templates.map((t) => t.id).join(", ")}`,
+        );
+      }
+      return json({ ...templateSummary(template), ...templateGuidance(template) });
+    }
+    return json({
+      templates: templates.map(templateSummary),
+      other: "None of these: a one-scene starter. Ask the user what the video is for.",
+      views: {
+        ...libraryViews(showcasesDir),
+        ask:
+          "Templates don't say where a video goes. After the template, ask the user: TikTok, " +
+          "Instagram or YouTube Shorts (tiktok, 9:16); YouTube, a docs page or LinkedIn (embed, " +
+          "4:3); or App Store screenshots (screens). Offer suggested first: it is what most of " +
+          "this library's showcases use. Pass the answer to create_showcase as view.",
+      },
+      libraryFolder: path.join(showcasesDir, LIBRARY_TEMPLATES_DIR),
+      ...(problems.length > 0 ? { problems } : {}),
+    });
+  }
   if (name === "create_showcase") {
     if (!context.createShowcase) throw new Error("This studio can't create showcases");
     const title = String(args.name ?? "").trim();
-    const result = context.createShowcase(title);
+    const template = args.template == null ? undefined : String(args.template).trim();
+    if (args.view != null && !PLAYER_VIEWS.includes(args.view)) {
+      throw new Error(`view must be one of: ${PLAYER_VIEWS.join(", ")}`);
+    }
+    const result = context.createShowcase(title, {
+      template,
+      purpose: args.purpose,
+      view: args.view,
+    });
     if (!result.ok) throw new Error(result.error);
     context.changeLog?.append({
       source: "mcp",
@@ -1429,8 +1591,13 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       showcaseId: result.id,
       kind: "showcase.create",
       title,
+      ...(template ? { template } : {}),
     });
-    return json({ id: result.id, path: path.join(showcasesDir, result.id) });
+    return json({
+      id: result.id,
+      path: path.join(showcasesDir, result.id),
+      ...(result.template ? { template: templateGuidance(result.template) } : {}),
+    });
   }
   if (name === "check_framing") {
     const showcaseId = String(args.showcaseId ?? "");
