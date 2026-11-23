@@ -229,3 +229,8 @@ entries:
     test_name: allows two full-quality videos without a license, then refuses
     appmap_path: vitest/allows_two_full-quality_videos_without_a_license,_then_refuses.appmap.json
     summary: The studio's check before a full-quality export — two free ones allowed, the third refused with the limit message.
+  - feature: transcribe
+    test_file: server/transcribe-jobs.test.mjs
+    test_name: returns a short recording's transcript in the one call
+    appmap_path: vitest/returns_a_short_recording's_transcript_in_the_one_call.appmap.json
+    summary: The transcribe tool starts a background job and waits on it, then returns the transcript in the same call.
