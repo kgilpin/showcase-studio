@@ -98,6 +98,30 @@ const TIKTOK_FIT = object(
   },
 );
 
+/* How words are said by a synthesized voice. The build reads it with
+ * readSay (server/voiceover-say.mjs), which takes the same shapes. */
+const SAY = {
+  type: "object",
+  title: "say",
+  description:
+    "How a word is spoken, by the word as the captions spell it: a respelling (GitHub: Git Hub) " +
+    'or an exact sound (records: {ipa: "rɪˈkɔːrdz"}). Whole words. A key with no capital after ' +
+    "its first character matches in any case, one in capitals only as written, any other with " +
+    "its first character as written. Only the voice changes, never the caption. Wins over the " +
+    "say list in showcase_settings.yaml.",
+  additionalProperties: {
+    anyOf: [
+      { type: "string", pattern: "\\S" },
+      object(
+        "say",
+        "An exact sound.",
+        { ipa: { type: "string", pattern: "\\S", description: "The sound, in IPA." } },
+        ["ipa"],
+      ),
+    ],
+  },
+};
+
 const WATERMARK = {
   anyOf: [
     boolean(),
@@ -330,6 +354,7 @@ const META = object(
       ),
       region: string("The AWS region, when not the library's aws_region or the profile's own."),
       track: string("The track's asset key (default voiceover)."),
+      say: SAY,
       leadMs: number("Silence before each caption's words."),
       tailMs: number("Silence after."),
       holdMs: number("Extra hold on the last caption."),

@@ -5,7 +5,7 @@
  *   meta.voiceover + captions
  *          │
  *          ├──► one Polly clip per caption    cached by (engine, voice,
- *          │                                  text): only changed
+ *          │                                  text sent): only changed
  *          │                                  captions call Polly again
  *          ├──► assets/<track>.m4a            every clip in its window,
  *          │                                  joined from raw PCM
@@ -30,6 +30,12 @@
  * caption boundaries; heard clip by clip it has no boundary to drift
  * across. The spelling always comes from the caption.
  *
+ * What Polly is sent can differ from the caption: the say lists (the
+ * showcase's and the library's, voiceover-say.mjs) respell a word or give
+ * its sound as SSML. Only the sent text and the clip's key follow them.
+ * A respelled word's heard words count as the one caption word they
+ * stand for (alignHeard).
+ *
  * The settings live in showcase.yaml, beside the captions they voice:
  *
  *   meta:
@@ -42,6 +48,8 @@
  *       region: us-east-1     # optional: else the library's aws_region,
  *                             #   else the profile's region, else us-east-1
  *       track: voiceover-synth   # the asset key (default "voiceover")
+ *       say: { GitHub: Git Hub } # optional: how a word is said, on top
+ *                                #   of the library's own say list
  *       scenes: [open, outro]    # optional: only these scenes are read
  *                                #   (issue #48); the others keep their
  *                                #   own timing and are silence on the
@@ -93,10 +101,11 @@ import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { runFfmpeg } from "./ffmpeg.mjs";
-import { SETTINGS_FILE, libraryAwsSettings } from "./library-config.mjs";
+import { SETTINGS_FILE, libraryAwsSettings, librarySay } from "./library-config.mjs";
 import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import { transcribe as whisperTranscribe } from "./transcribe.mjs";
 import { transcriptJson } from "./transcript.mjs";
+import { readSay, sayCaption } from "./voiceover-say.mjs";
 
 /* Bumped when the recipe changes in a way that makes old outputs wrong. */
 const RECIPE_VERSION = 1;
@@ -133,8 +142,10 @@ const fingerprint = (value) => createHash("sha256").update(JSON.stringify(value)
  *  settings, scenes} or {ok: false, errors}; `voiced` is false when the
  *  showcase has no meta.voiceover at all. Each scene carries `voiced`:
  *  whether the voice reads it (every scene, unless meta.voiceover.scenes
- *  names the ones it does). */
-export function readVoiceoverPlan(doc) {
+ *  names the ones it does), and each caption `say`: what Polly is sent
+ *  for it, after the showcase's say list and `library`'s (librarySay).
+ *  `warnings` are the say entries left out. */
+export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] } } = {}) {
   const raw = doc?.meta?.voiceover;
   if (raw == null) return { voiced: false, ok: false, errors: [] };
   const errors = [];
@@ -183,7 +194,12 @@ export function readVoiceoverPlan(doc) {
       settings.scenes = [...voicedIds].sort();
     }
   }
-  const known = new Set([...Object.keys(VOICEOVER_DEFAULTS), "profile", "region", "scenes"]);
+  const own = readSay(raw.say, "meta.voiceover.say");
+  const sayLists = [own.entries, library.entries];
+  if (sayLists.some((entries) => entries.length > 0)) {
+    settings.say = { showcase: own.entries, library: library.entries };
+  }
+  const known = new Set([...Object.keys(VOICEOVER_DEFAULTS), "profile", "region", "scenes", "say"]);
   for (const key of Object.keys(raw)) {
     if (!known.has(key)) {
       errors.push(`meta.voiceover.${key} is not a setting — use: ${[...known].join(", ")}`);
@@ -202,10 +218,10 @@ export function readVoiceoverPlan(doc) {
     sceneIndex,
     scene,
     voiced: voicedIds ? voicedIds.has(scene?.id) : true,
-    captions: (Array.isArray(scene?.captions) ? scene.captions : []).map((caption, index) => ({
-      index,
-      text: typeof caption?.text === "string" ? caption.text.trim() : "",
-    })),
+    captions: (Array.isArray(scene?.captions) ? scene.captions : []).map((caption, index) => {
+      const text = typeof caption?.text === "string" ? caption.text.trim() : "";
+      return { index, text, say: sayCaption(text, sayLists) };
+    }),
   }));
   for (const scene of scenes) {
     if (typeof scene.id !== "string" || !scene.id) {
@@ -231,7 +247,13 @@ export function readVoiceoverPlan(doc) {
   }
   return errors.length > 0
     ? { voiced: true, ok: false, errors }
-    : { voiced: true, ok: true, settings, scenes };
+    : {
+        voiced: true,
+        ok: true,
+        settings,
+        scenes,
+        warnings: [...own.warnings, ...library.warnings],
+      };
 }
 
 /** How long a scene with nothing to read shows: its own pin, or what the
@@ -342,13 +364,103 @@ export function splitHeardWords(words) {
     .filter((word) => /[\p{L}\p{N}]/u.test(word.text));
 }
 
+const lettersOf = (text) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+const partsOf = (words) =>
+  words.flatMap((word) => word.split(/[-./]/)).filter((part) => lettersOf(part)).length;
+
+/** The caption's words in the groups whisper's words are matched to: a
+ *  word said as written alone, a replaced piece as one group with how
+ *  many heard words it may be. */
+function wordGroups(pieces) {
+  return pieces.flatMap(({ shown, said }) => {
+    const words = captionWords(shown);
+    if (said == null) return words.map((word) => ({ words: [word], letters: lettersOf(word) }));
+    const spokenAs = captionWords(said);
+    return [
+      {
+        words,
+        replaced: {
+          usual: spokenAs.length,
+          least: words.length > 0 ? 1 : 0,
+          /* "Git Hub" may be heard as one word or two, "Lih-nux" too. */
+          most: Math.max(partsOf(words), partsOf(spokenAs), words.length),
+          either: [lettersOf(shown), lettersOf(said)],
+        },
+      },
+    ];
+  });
+}
+
+/** Shares whisper's words out over the groups: how many each one takes,
+ *  or undefined when they can't be. A word said as written takes one. A
+ *  replaced one takes as many as it could be heard as, the split whose
+ *  letters agree best. Whisper can hear a respelling as more words than
+ *  that: with `anchored` a group takes any number, as long as every word
+ *  said as written is heard as itself. */
+function shareHeard(groups, heard, { anchored = false } = {}) {
+  let best = new Map([[0, { cost: 0, counts: [] }]]); // heard words used → the cheapest way
+  for (const { letters, replaced } of groups) {
+    const next = new Map();
+    for (const [used, { cost, counts }] of best) {
+      const least = replaced ? replaced.least : 1;
+      const most = !replaced ? 1 : anchored ? heard.length : replaced.most;
+      let joined = heard.slice(used, used + least).join("");
+      for (let count = least; count <= most && used + count <= heard.length; count++) {
+        if (count > least) joined += heard[used + count - 1];
+        let extra;
+        if (replaced) {
+          extra = replaced.either.includes(joined)
+            ? 0
+            : 0.5 + Math.abs(count - replaced.usual) / 100;
+        } else {
+          extra = joined === letters ? 0 : 1;
+          if (anchored && extra) continue;
+        }
+        const end = used + count;
+        if (!next.has(end) || cost + extra < next.get(end).cost) {
+          next.set(end, { cost: cost + extra, counts: [...counts, count] });
+        }
+      }
+    }
+    best = next;
+  }
+  return best.get(heard.length)?.counts;
+}
+
+/** For a caption with replaced words: its own words, each with the span
+ *  of what was heard for it, or undefined when whisper's words don't fit. */
+function alignHeard(pieces, heard) {
+  if (heard.length === 0) return undefined;
+  const groups = wordGroups(pieces);
+  const texts = heard.map((word) => lettersOf(word.text));
+  const counts = shareHeard(groups, texts) ?? shareHeard(groups, texts, { anchored: true });
+  if (!counts) return undefined;
+  let at = 0;
+  return groups.flatMap(({ words }, i) => {
+    const own = heard.slice(at, at + counts[i]);
+    at += counts[i];
+    if (own.length === words.length) return words.map((text, j) => ({ ...own[j], text }));
+    if (words.length === 0) return [];
+    const from = own[0].startMs;
+    const length = own.at(-1).endMs - from;
+    const total = words.reduce((n, word) => n + word.length, 0);
+    let used = 0;
+    return words.map((text) => {
+      const startMs = from + (length * used) / total;
+      used += text.length;
+      return { text, startMs, endMs: from + (length * used) / total };
+    });
+  });
+}
+
 /** One caption's words, timed on the track. `heard` is whisper's words
  *  for this caption's clip alone (clip-relative ms), or undefined when
  *  there is no transcription. When whisper heard as many words as the
  *  caption has, its times are fitted linearly into the voiced span;
  *  otherwise the words share the voiced span by length, and `fitted` is
- *  false so the caller can say so. */
-export function captionSegment({ text, startMs, durationMs, voiced, heard }, { leadMs }) {
+ *  false so the caller can say so. `say` is what was sent for it: a
+ *  replaced word's spoken words count as that one word. */
+export function captionSegment({ text, startMs, durationMs, voiced, heard, say }, { leadMs }) {
   const spoken = captionWords(text);
   const clipStart = startMs + leadMs;
   const onAt = clipStart + voiced.onMs;
@@ -357,14 +469,19 @@ export function captionSegment({ text, startMs, durationMs, voiced, heard }, { l
   const words = heard ? splitHeardWords(heard) : [];
   let timed;
   let fitted = false;
-  if (words.length === spoken.length && spoken.length > 0) {
+  const matched = say?.pieces
+    ? alignHeard(say.pieces, words)
+    : words.length === spoken.length && spoken.length > 0
+      ? spoken.map((word, i) => ({ ...words[i], text: word }))
+      : undefined;
+  if (matched) {
     const from = words[0].startMs;
     const to = Math.max(words.at(-1).endMs, from + 1);
     const fit = (t) => clamp(onAt + ((t - from) * (offAt - onAt)) / (to - from));
-    timed = spoken.map((word, i) => ({
-      text: word,
-      startMs: fit(words[i].startMs),
-      endMs: fit(words[i].endMs),
+    timed = matched.map((word) => ({
+      text: word.text,
+      startMs: fit(word.startMs),
+      endMs: fit(word.endMs),
     }));
     fitted = true;
   } else {
@@ -522,28 +639,38 @@ export function resolveAws({ settings, showcasesDir, env = process.env, aws = aw
   return { ok: true, profile, region, note };
 }
 
+/** The aws command's arguments for one clip. `ssml` says the text is
+ *  SSML, which it is when an ipa say entry applies. The aws command
+ *  reads a value that starts file:// or fileb:// as a file to send, and a
+ *  say entry could put that behind an ordinary caption: a space in front
+ *  keeps it text. */
+export function pollyArgs({ text, ssml, voice, engine, profile, region, out }) {
+  const args = ["polly", "synthesize-speech"];
+  if (profile) args.push("--profile", profile);
+  if (region) args.push("--region", region);
+  args.push(
+    "--engine",
+    engine,
+    "--voice-id",
+    voice,
+    "--output-format",
+    "mp3",
+    "--sample-rate",
+    String(SAMPLE_RATE),
+  );
+  if (ssml) args.push("--text-type", "ssml");
+  args.push("--text", /^fileb?:\/\//i.test(text) ? ` ${text}` : text, out);
+  return args;
+}
+
 /** Synthesizes one clip with the aws command, which reads the user's own
  *  AWS settings: whatever their profile does to sign in (keys, SSO, a
  *  credential process) works here too. */
 export function pollySynthesizer({ aws = awsPath() } = {}) {
-  return async function synthesize({ text, voice, engine, profile, region, out, signal }) {
+  return async function synthesize({ signal, ...clip }) {
     if (!aws) throw new Error(NO_AWS);
-    const args = ["polly", "synthesize-speech"];
-    if (profile) args.push("--profile", profile);
-    if (region) args.push("--region", region);
-    args.push(
-      "--engine",
-      engine,
-      "--voice-id",
-      voice,
-      "--output-format",
-      "mp3",
-      "--sample-rate",
-      String(SAMPLE_RATE),
-      "--text",
-      text,
-      out,
-    );
+    const { profile } = clip;
+    const args = pollyArgs(clip);
     await new Promise((resolve, reject) => {
       const proc = spawn(aws, args, { stdio: ["ignore", "ignore", "pipe"], signal });
       let stderr = "";
@@ -632,18 +759,25 @@ function writeManifest(showcasesDir, showcaseId, outputs, { inputs, pins }) {
   );
 }
 
-/** A caption's clip in the cache: its key names the text, the voice and
- *  the engine, so a changed caption is a new clip and the rest are
- *  reused. */
-export function captionKey(settings, text) {
+/** A caption's clip in the cache: its key names the text Polly is sent
+ *  (and that it is SSML, when it is), the voice and the engine, so a
+ *  changed caption, or say entry for a word in it, is a new clip and the
+ *  rest are reused. */
+export function captionKey(settings, text, { ssml = false } = {}) {
   return fingerprint({
     recipe: RECIPE_VERSION,
     engine: settings.engine,
     voice: settings.voice,
     rate: SAMPLE_RATE,
     text,
+    /* Only when set, so a plain clip's key is what it always was. */
+    ...(ssml ? { ssml } : {}),
   }).slice(0, 32);
 }
+
+/** The key of the clip that reads a planned caption. */
+const clipKey = (settings, caption) =>
+  captionKey(settings, caption.say.text, { ssml: caption.say.ssml });
 
 /** The print of everything a voiceover build reads: the settings, and
  *  the showcase in order — each caption's clip key, or the silence a
@@ -661,10 +795,12 @@ export function voiceInputsPrint(settings, scenes, pace) {
       tailMs: settings.tailMs,
       holdMs: settings.holdMs,
       scenes: settings.scenes ?? null,
+      /* Only when set: with no list the print is what it always was. */
+      ...(settings.say ? { say: settings.say } : {}),
     },
     items: scenes.map((scene) =>
       spoken(scene)
-        ? { id: scene.id, keys: scene.captions.map((c) => captionKey(settings, c.text)) }
+        ? { id: scene.id, keys: scene.captions.map((c) => clipKey(settings, c)) }
         : { id: scene.id, silenceMs: sceneSilenceMs(scene, pace) },
     ),
   });
@@ -703,7 +839,7 @@ export function voiceoverStatus({ showcasesDir, showcaseId, aws, env }) {
       problem: `showcase.yaml doesn't parse: ${String(error?.message ?? error)}`,
     };
   }
-  const plan = readVoiceoverPlan(doc);
+  const plan = readVoiceoverPlan(doc, { library: librarySay(showcasesDir) });
   if (!plan.voiced) return { built: false };
   if (!plan.ok)
     return { built: true, kind: "voiceover", ok: false, problem: plan.errors.join("\n") };
@@ -719,10 +855,7 @@ export function voiceoverStatus({ showcasesDir, showcaseId, aws, env }) {
   const unvoiced = scenes
     .filter(spoken)
     .flatMap((scene) => scene.captions.map((c) => ({ scene, caption: c })))
-    .filter(
-      ({ caption }) =>
-        !existsSync(path.join(cacheDir, `${captionKey(settings, caption.text)}.mp3`)),
-    );
+    .filter(({ caption }) => !existsSync(path.join(cacheDir, `${clipKey(settings, caption)}.mp3`)));
   if (unvoiced.length > 0) {
     stale.push(
       unvoiced.length === 1
@@ -817,7 +950,7 @@ export async function buildVoiceover({
       doc = parse(yamlText);
     }
   }
-  const plan = readVoiceoverPlan(doc);
+  const plan = readVoiceoverPlan(doc, { library: librarySay(showcasesDir) });
   if (!plan.voiced) {
     return {
       ok: false,
@@ -841,14 +974,14 @@ export async function buildVoiceover({
   const captions = scenes
     .filter(spoken)
     .flatMap((scene) => scene.captions.map((caption) => ({ sceneId: scene.id, ...caption })));
-  const notes = [];
+  const notes = [...plan.warnings];
   let synthesized = 0;
   let reused = 0;
   let calledPolly = false;
   const keep = new Set();
   for (const [n, caption] of captions.entries()) {
     checkAborted(signal);
-    const key = captionKey(settings, caption.text);
+    const key = clipKey(settings, caption);
     caption.key = key;
     caption.clip = path.join(cacheDir, `${key}.mp3`);
     keep.add(`${key}.mp3`).add(`${key}.heard.json`);
@@ -861,17 +994,31 @@ export async function buildVoiceover({
       });
       if (!calledPolly && setup.note) notes.push(setup.note);
       calledPolly = true;
-      await intoPlace(caption.clip, (partial) =>
-        synthesize({
-          text: caption.text,
-          voice: settings.voice,
-          engine: settings.engine,
-          profile: setup.profile,
-          region: setup.region,
-          out: partial,
-          signal,
-        }),
-      );
+      const { text, ssml, ipa } = caption.say;
+      try {
+        await intoPlace(caption.clip, (partial) =>
+          synthesize({
+            text,
+            ...(ssml ? { ssml } : {}),
+            voice: settings.voice,
+            engine: settings.engine,
+            profile: setup.profile,
+            region: setup.region,
+            out: partial,
+            signal,
+          }),
+        );
+      } catch (error) {
+        if (!ssml || signal?.aborted) throw error;
+        /* Polly doesn't say which word it refused, so say what was sent. */
+        throw new Error(
+          `${caption.sceneId} caption ${caption.index + 1} uses the say ` +
+            `${ipa.length === 1 ? "entry" : "entries"} ${ipa.map((name) => `"${name}"`).join(", ")} ` +
+            `(ipa) with the ${settings.engine} engine, and Polly didn't make it: ` +
+            `${error?.message ?? error}`,
+          { cause: error },
+        );
+      }
       const stale = path.join(cacheDir, `${key}.heard.json`);
       if (existsSync(stale)) unlinkSync(stale);
       synthesized += 1;

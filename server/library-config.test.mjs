@@ -10,6 +10,7 @@ import {
   libraryAwsSettings,
   libraryConfig,
   libraryExportDir,
+  librarySay,
   migrateLibrarySettings,
   readLibraryConfig,
   showInRecent,
@@ -52,6 +53,23 @@ describe("showInRecent", () => {
     mkdirSync(path.join(dir, "demo"));
     writeFileSync(path.join(dir, "demo", "showcase.yaml"), "show_in_recent: false\n");
     expect(showInRecent(dir)).toBe(true);
+  });
+});
+
+describe("librarySay", () => {
+  it("reads the say map, and names the file in what it leaves out", () => {
+    expect(librarySay(folder("say:\n  GitHub: Git Hub\n  AppMap: 3\n"))).toEqual({
+      entries: [{ key: "GitHub", text: "Git Hub" }],
+      warnings: [
+        'showcase_settings.yaml say.AppMap must be text or {ipa: "..."}. The entry is ignored',
+      ],
+    });
+    expect(librarySay(folder(null))).toEqual({ entries: [], warnings: [] });
+  });
+
+  it("is in the template, off", () => {
+    expect(SETTINGS_TEMPLATE).toContain("# say:");
+    expect(librarySay(folder(SETTINGS_TEMPLATE)).entries).toEqual([]);
   });
 });
 

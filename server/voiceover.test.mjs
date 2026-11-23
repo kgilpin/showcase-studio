@@ -15,13 +15,16 @@ import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { mediaDuration, runFfmpeg } from "./ffmpeg.mjs";
+import { readSay, sayCaption } from "./voiceover-say.mjs";
 import {
   DEFAULT_REGION,
   buildVoiceover,
+  captionKey,
   captionSegment,
   captionWords,
   hasVoiceover,
   layOutWindows,
+  pollyArgs,
   readVoiceoverPlan,
   resolveAws,
   splitHeardWords,
@@ -45,8 +48,8 @@ const NO_ENV = {};
 const toneSeconds = (text) => 0.4 + text.length * 0.02;
 
 function fakePolly(calls = []) {
-  return async ({ text, voice, engine, out }) => {
-    calls.push({ text, voice, engine });
+  return async ({ text, ssml, voice, engine, out }) => {
+    calls.push({ text, voice, engine, ...(ssml ? { ssml } : {}) });
     await runFfmpeg([
       "-v",
       "error",
@@ -72,12 +75,17 @@ function fakePolly(calls = []) {
  *  tone, with "Type /showcase" joined the way whisper joins it. */
 function fakeWhisper(textOf) {
   return async (file) => {
-    const text = textOf(file);
+    const sent = textOf(file);
+    /* SSML is heard without its tags. */
+    const text = sent
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<");
     const heard = text
       .replace(/Type \/showcase/g, "type/showcase")
       .split(/\s+/)
       .filter(Boolean);
-    const span = toneSeconds(text) * 1000;
+    const span = toneSeconds(sent) * 1000;
     const step = span / heard.length;
     return {
       segments: [
@@ -562,6 +570,213 @@ describe("the AWS setup", () => {
     expect(result.notes.filter((note) => note.includes("no region set"))).toHaveLength(1);
     /* Nothing to voice again: no Polly call, and no note about it. */
     expect((await build({ aws: NO_DEFAULT, env: { LOGIN: "personal" } })).notes).toEqual([]);
+  });
+});
+
+/* How a word is said (issue #83): only what Polly is sent changes. */
+describe("the say list", () => {
+  const write = ({ say, texts, engine = "generative" }) =>
+    writeFileSync(
+      path.join(library, "voiced", "showcase.yaml"),
+      JSON.stringify({
+        meta: { title: "Voiced", voiceover: { engine, ...(say ? { say } : {}) } },
+        scenes: texts.map((text, i) => ({ id: `s${i}`, captions: [{ text }] })),
+      }),
+    );
+  const librarySettings = (text) =>
+    writeFileSync(path.join(library, "showcase_settings.yaml"), text);
+  const status = () =>
+    voiceoverStatus({ showcasesDir: library, showcaseId: "voiced", aws: AWS, env: NO_ENV });
+  const wordsFile = () =>
+    JSON.parse(
+      readFileSync(path.join(library, "voiced", "assets", "voiceover.words.json"), "utf8"),
+    );
+
+  it("sends the respelling to Polly and keeps the caption's own word on screen", async () => {
+    write({ say: { GitHub: "Git Hub" }, texts: ["Push it to GitHub today."] });
+    const result = await build();
+    expect(calls.map((c) => c.text)).toEqual(["Push it to Git Hub today."]);
+    expect(calls[0].ssml).toBeUndefined();
+    const [segment] = wordsFile().segments;
+    expect(segment.text).toBe("Push it to GitHub today.");
+    expect(segment.words.map((w) => w.text)).toEqual(["Push", "it", "to", "GitHub", "today"]);
+    /* Fitted: "Git" and "Hub" are the one word "GitHub", twice as long as
+     * the words said as written. */
+    expect(result.notes).toEqual([]);
+    const lengths = segment.words.map((w) => w.endMs - w.startMs);
+    expect(lengths[3]).toBeGreaterThan(lengths[0] * 1.7);
+    expect(docOf().scenes[0].captions[0].text).toBe("Push it to GitHub today.");
+  });
+
+  it("sends an ipa entry as SSML, with the rest of the caption escaped", async () => {
+    write({
+      say: { records: { ipa: "rɪˈkɔːrdz" } },
+      texts: ["It records Q&A when x <y today."],
+    });
+    const result = await build();
+    expect(calls[0]).toMatchObject({
+      ssml: true,
+      text:
+        '<speak>It <phoneme alphabet="ipa" ph="rɪˈkɔːrdz">records</phoneme> ' +
+        "Q&amp;A when x &lt;y today.</speak>",
+    });
+    expect(result.notes).toEqual([]);
+    const args = pollyArgs({ ...calls[0], out: "clip.mp3" });
+    expect(args.slice(-5)).toEqual(["--text-type", "ssml", "--text", calls[0].text, "clip.mp3"]);
+    expect(pollyArgs({ text: "Plain.", out: "clip.mp3" })).not.toContain("--text-type");
+  });
+
+  it("re-voices only the captions that hold the word whose entry changed", async () => {
+    const texts = ["GitHub is here.", "Nothing to change.", "AppMap records it.", "Open GitHub."];
+    write({ say: { GitHub: "Git Hub", AppMap: "App Map" }, texts });
+    await build();
+    calls = [];
+    write({ say: { GitHub: "Git Hubb", AppMap: "App Map" }, texts });
+    expect(status().stale[0]).toBe("2 captions to voice");
+    expect(await build()).toMatchObject({ synthesized: 2, reused: 2 });
+    expect(calls.map((c) => c.text)).toEqual(["Git Hubb is here.", "Open Git Hubb."]);
+    expect(status()).toMatchObject({ upToDate: true });
+  });
+
+  it("never lets the aws command read a file for a respelling", () => {
+    for (const path of ["file:///etc/passwd", "fileb://notes.txt"]) {
+      const { text } = sayCaption("Hello", [readSay({ Hello: path }, "say").entries]);
+      expect(pollyArgs({ text, out: "clip.mp3" }).at(-2)).toBe(` ${path}`);
+    }
+  });
+
+  it("leaves recordsets alone when the entry is records", async () => {
+    write({ say: { records: "re cords" }, texts: ["It records recordsets."] });
+    await build();
+    expect(calls[0].text).toBe("It re cords recordsets.");
+  });
+
+  it("keys a showcase with no list exactly as before there were lists", () => {
+    /* Written down from the code before say: a change here throws away
+     * every clip people have paid for. */
+    const settings = { engine: "generative", voice: "Matthew" };
+    expect(captionKey(settings, "GitHub records recordsets.")).toBe(
+      "7d79f1a10e20e28f9bbcfce16d821777",
+    );
+    expect(
+      captionKey({ engine: "neural", voice: "Joanna" }, "Type /showcase, now.", { ssml: false }),
+    ).toBe("b6a66c97a6f9777c9752c1f567e26a95");
+  });
+
+  it("uses the library's list, with the showcase's own entry winning", async () => {
+    librarySettings("say:\n  GitHub: Git Hub\n  AppMap: App Map\n");
+    write({ say: { AppMap: "Ap Map" }, texts: ["GitHub and AppMap."] });
+    await build();
+    expect(calls[0].text).toBe("Git Hub and Ap Map.");
+  });
+
+  it("is out of date after the library's list changes, and re-voices nothing it doesn't touch", async () => {
+    write({ texts: ["Nothing to change."] });
+    await build();
+    expect(status()).toMatchObject({ upToDate: true });
+    librarySettings("say: { GitHub: Git Hub }\n");
+    expect(status().stale).toEqual(["voiceover.m4a"]);
+    expect(await build()).toMatchObject({ synthesized: 0, built: [] });
+    expect(status()).toMatchObject({ upToDate: true });
+  });
+
+  it("leaves out an entry that doesn't read, says so, and still builds", async () => {
+    librarySettings("say: { AppMap: 12 }\n");
+    write({ say: { GitHub: ["Git", "Hub"] }, texts: ["GitHub and AppMap."] });
+    const result = await build();
+    expect(result.ok).toBe(true);
+    expect(calls[0].text).toBe("GitHub and AppMap.");
+    expect(result.notes.join("\n")).toMatch(/meta\.voiceover\.say\.GitHub must be/);
+    expect(result.notes.join("\n")).toMatch(/showcase_settings\.yaml say\.AppMap must be/);
+  });
+
+  it("names the entry and the engine when Polly refuses an ipa", async () => {
+    write({ say: { records: { ipa: "rɪ" } }, texts: ["It records."], engine: "neural" });
+    const failed = build({
+      synthesize: async () => {
+        throw new Error("InvalidSsmlException");
+      },
+    });
+    await expect(failed).rejects.toThrow(
+      's0 caption 1 uses the say entry "records" (ipa) with the neural engine, ' +
+        "and Polly didn't make it: InvalidSsmlException",
+    );
+  });
+
+  describe("timing a replaced word", () => {
+    /** The words captionSegment times, from one heard word every 100 ms. */
+    const timed = (text, say, heard) => {
+      const words = heard.split(" ");
+      const { segment, fitted } = captionSegment(
+        {
+          text,
+          say: sayCaption(text, [readSay(say, "say").entries]),
+          startMs: 0,
+          durationMs: 5000,
+          voiced: { onMs: 0, offMs: words.length * 100 },
+          heard: words.map((word, i) => ({ text: word, startMs: i * 100, endMs: (i + 1) * 100 })),
+        },
+        { leadMs: 0 },
+      );
+      return { fitted, words: segment.words.map((w) => [w.text, w.startMs, w.endMs]) };
+    };
+    const two = { GitHub: "Git Hub", AppMap: "App Map" };
+
+    it("takes a respelling heard as two words, or joined back into one", () => {
+      expect(timed("Use GitHub now", two, "use git hub now")).toEqual({
+        fitted: true,
+        words: [
+          ["Use", 0, 100],
+          ["GitHub", 100, 300],
+          ["now", 300, 400],
+        ],
+      });
+      expect(timed("Use GitHub now", two, "use GitHub now").words[1]).toEqual(["GitHub", 100, 200]);
+    });
+
+    it("tells which of two replaced words was heard joined", () => {
+      expect(timed("GitHub and AppMap", two, "GitHub and app map").words).toEqual([
+        ["GitHub", 0, 100],
+        ["and", 100, 200],
+        ["AppMap", 200, 400],
+      ]);
+      expect(timed("GitHub AppMap", two, "git hub AppMap").words).toEqual([
+        ["GitHub", 0, 200],
+        ["AppMap", 200, 300],
+      ]);
+    });
+
+    it("takes more words than the respelling has when the rest are heard as written", () => {
+      expect(timed("Use Nginx now", { Nginx: "enginex" }, "use engine x now")).toEqual({
+        fitted: true,
+        words: [
+          ["Use", 0, 100],
+          ["Nginx", 100, 300],
+          ["now", 300, 400],
+        ],
+      });
+    });
+
+    it("splits a several-word key said as one over its own words", () => {
+      expect(timed("In New York now", { "New York": "Noo-york" }, "in newyork now").words).toEqual([
+        ["In", 0, 100],
+        ["New", 100, 143],
+        ["York", 143, 200],
+        ["now", 200, 300],
+      ]);
+    });
+
+    it("lights no word for a spoken symbol", () => {
+      expect(timed("Build & ship", { "&": "and" }, "build and ship").words).toEqual([
+        ["Build", 0, 100],
+        ["ship", 200, 300],
+      ]);
+    });
+
+    it("still gives up when the other words don't fit", () => {
+      expect(timed("Use GitHub now", two, "something else was said right here").fitted).toBe(false);
+      expect(timed("Use GitHub now", two, "use").fitted).toBe(false);
+    });
   });
 });
 
