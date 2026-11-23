@@ -17,30 +17,58 @@
  * The checkout can be any copy of the source, such as a git worktree:
  * each start runs that checkout's code as it is now. */
 import { spawn } from "node:child_process";
+import http from "node:http";
 import path from "node:path";
 import readline from "node:readline";
+import { setTimeout as delay } from "node:timers/promises";
 import { lockLandingPath } from "../src/lib/window-lock.mjs";
 
 /** Calls one MCP tool on the studio at `url`, the way a studio's own
- *  callTool does: resolves with the tool's result. A studio that doesn't
- *  answer rejects with `unreachable: true` on the error. */
-export async function callToolAt(url, params) {
-  let response;
-  try {
-    response = await fetch(`${url}/mcp`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params }),
-    });
-  } catch (cause) {
-    throw Object.assign(new Error(`The studio at ${url} isn't answering`, { cause }), {
-      unreachable: true,
-    });
-  }
-  const reply = await response.json().catch(() => null);
-  if (!reply) throw new Error(`The studio at ${url} answered ${response.status}`);
-  if (reply.error) throw new Error(reply.error.message);
-  return reply.result;
+ *  callTool does: resolves with the tool's result. When no answer comes
+ *  back (nothing at that address, or the connection drops) it rejects
+ *  with `noAnswer: true` on the error.
+ *
+ *  It waits as long as the tool takes. Node's fetch gives up after 300 s
+ *  with no response headers (UND_ERR_HEADERS_TIMEOUT), and some tools
+ *  take longer: ffmpeg on a long clip, a screenshot that waits for a
+ *  build. So this is a plain http request, with no time limit. */
+export function callToolAt(url, params) {
+  const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params });
+  return new Promise((resolve, reject) => {
+    const noAnswer = (cause) =>
+      reject(
+        Object.assign(new Error(`The studio at ${url} isn't answering`, { cause }), {
+          noAnswer: true,
+        }),
+      );
+    const request = http.request(
+      `${url}/mcp`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+      },
+      (response) => {
+        let text = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => (text += chunk));
+        response.on("error", noAnswer);
+        response.on("aborted", () => noAnswer(new Error("The connection closed mid-answer")));
+        response.on("end", () => {
+          let reply = null;
+          try {
+            reply = JSON.parse(text);
+          } catch {
+            /* not JSON: said below */
+          }
+          if (!reply) reject(new Error(`The studio at ${url} answered ${response.statusCode}`));
+          else if (reply.error) reject(new Error(reply.error.message));
+          else resolve(reply.result);
+        });
+      },
+    );
+    request.on("error", noAnswer);
+    request.end(body);
+  });
 }
 
 /** dev.mjs's options for a studio on `showcasesDir` with `lock` —
@@ -61,7 +89,14 @@ export function devStudioArgs({ showcasesDir, lock, alongside = false }) {
  *  goes to `log` (never to stdout, which carries MCP messages). If it
  *  exits first — a library another studio already has, a checkout with
  *  no node_modules — it rejects with the end of that output. */
-export function startChildStudio({ script, args = [], cwd, log, startTimeoutMs = 120_000 }) {
+export function startChildStudio({
+  script,
+  args = [],
+  cwd,
+  log,
+  startTimeoutMs = 120_000,
+  exitGraceMs = 2_000,
+}) {
   /* PORT and INIT_CWD are npm's and a launcher's; the child picks a free
    * port, and every path it gets is absolute. */
   const { PORT: _port, INIT_CWD: _initCwd, ...env } = process.env;
@@ -110,9 +145,27 @@ export function startChildStudio({ script, args = [], cwd, log, startTimeoutMs =
       throw new Error(`The studio ${why}:\n${tail.join("\n")}`);
     }
     const url = new URL(outcome.landing).origin;
+    /* A call that got no answer counts as a crash (`unreachable`, so the
+     * MCP server starts another studio and runs the tool again) only when
+     * the child has exited. A studio that is still running is just busy
+     * or broken, and running the tool twice would repeat its work. The
+     * connection can drop a moment before the exit event, so wait a
+     * little for it. */
+    const gone = () =>
+      child.exitCode !== null ||
+      child.signalCode !== null ||
+      Promise.race([exited.then(() => true), delay(exitGraceMs).then(() => false)]);
+    const callTool = async (params) => {
+      try {
+        return await callToolAt(url, params);
+      } catch (error) {
+        if (error.noAnswer && (await gone())) error.unreachable = true;
+        throw error;
+      }
+    };
     return {
       url,
-      studio: { callTool: (params) => callToolAt(url, params) },
+      studio: { callTool },
       /* The page to open: from the studio's own facts when there are
        * some (a New showcase page locks to the showcase it creates),
        * else the page it printed. */
