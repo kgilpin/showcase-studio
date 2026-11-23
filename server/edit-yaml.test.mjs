@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { applySceneEdit, EDITABLE_FIELDS } from "./edit-yaml.mjs";
 import { SHOWCASE_SCHEMA } from "../src/content/showcase-schema.mjs";
 
@@ -541,6 +542,70 @@ scenes:
     ).toThrow("soundtrack.src is required");
     expect(() => applySceneEdit(DOC, { field: "meta.set", name: "scenes", value: "x" })).toThrow(
       "not an editable meta field",
+    );
+  });
+
+  const VOICED = `meta:
+  title: Voiced
+  voiceover:
+    voice: Matthew     # the voice
+    # how words are said
+    say:
+      GitHub: Git Hub          # plain respelling
+      "42": forty two
+      records: {ipa: "rɪˈkɔːrdz"}   # exact sound
+scenes:
+  - id: a   # the only one
+`;
+  const setVoiceover = (text, change) => {
+    const value = structuredClone(parse(text).meta.voiceover);
+    change(value);
+    return applySceneEdit(text, { field: "meta.set", name: "voiceover", value });
+  };
+
+  it("round-trips a say list byte for byte", () => {
+    expect(setVoiceover(VOICED, () => {})).toBe(VOICED);
+  });
+
+  it("changes only the voiceover field that changed, around a say list", () => {
+    expect(setVoiceover(VOICED, (v) => (v.voice = "Joanna"))).toBe(
+      VOICED.replace("Matthew     #", "Joanna #"),
+    );
+    expect(setVoiceover(VOICED, (v) => (v.scenes = ["a"]))).toBe(
+      VOICED.replace("\nscenes:", "\n    scenes: [ a ]\nscenes:"),
+    );
+  });
+
+  it("edits, adds and removes say entries, keeping the others' comments", () => {
+    expect(setVoiceover(VOICED, (v) => (v.say.GitHub = "Git Hubb"))).toBe(
+      VOICED.replace("Git Hub          #", "Git Hubb #"),
+    );
+    expect(setVoiceover(VOICED, (v) => (v.say.AppMap = { ipa: "æp" }))).toBe(
+      VOICED.replace("\nscenes:", "\n      AppMap: { ipa: æp }\nscenes:"),
+    );
+    expect(setVoiceover(VOICED, (v) => delete v.say["42"])).toBe(
+      VOICED.replace('      "42": forty two\n', ""),
+    );
+  });
+
+  it("matches a say key YAML reads as a number", () => {
+    const numbered = VOICED.replace('"42"', "42");
+    expect(setVoiceover(numbered, (v) => (v.say["42"] = "four two"))).toBe(
+      numbered.replace("forty two", "four two"),
+    );
+  });
+
+  it("gives a first say list a line per word, or keeps to a one-line map's line", () => {
+    const block = "meta:\n  voiceover:\n    voice: Matthew # the voice\nscenes: []\n";
+    const say = { GitHub: "Git Hub", records: { ipa: "x" } };
+    expect(setVoiceover(block, (v) => (v.say = say))).toBe(
+      "meta:\n  voiceover:\n    voice: Matthew # the voice\n    say:\n      GitHub: Git Hub\n" +
+        "      records: { ipa: x }\nscenes: []\n",
+    );
+    const flow = "meta:\n  voiceover: { voice: Matthew }\nscenes: []\n";
+    expect(setVoiceover(flow, (v) => (v.say = say))).toBe(
+      "meta:\n  voiceover: { voice: Matthew, say: { GitHub: Git Hub, records: { ipa: x } } }\n" +
+        "scenes: []\n",
     );
   });
 

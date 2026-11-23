@@ -12,6 +12,9 @@
  *                            (Polly, voiceover.mjs) are made with, when a
  *                            showcase's own meta.voiceover names none
  *   aws_region: us-east-1    and the region, when the profile has none
+ *   say: {GitHub: Git Hub}   how words are said in every synthesized
+ *                            voiceover (voiceover-say.mjs); a showcase's
+ *                            meta.voiceover.say wins
  *
  * A setting's text may name an environment variable as ${NAME}, which is
  * replaced when the file is read: a committed file can say
@@ -20,7 +23,8 @@
  * (readLibraryConfig's `problems`); the setting keeps its unexpanded
  * text. Unknown keys are ignored. expandVariables does the replacing.
  * libraryAwsSettings reads the two AWS settings, and leaves out one
- * with a problem: it is never used as written.
+ * with a problem: it is never used as written. librarySay reads the
+ * say list, leaving out each entry that doesn't read, with a warning.
  *
  * A new setting gets a commented line in SETTINGS_TEMPLATE, which new
  * libraries show, and a description in the authoring guide
@@ -38,6 +42,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
+import { readSay } from "./voiceover-say.mjs";
 
 export const SETTINGS_FILE = "showcase_settings.yaml";
 const OLD_SETTINGS_FILE = "showcase.yaml";
@@ -91,6 +96,8 @@ export const SETTINGS_TEMPLATE = `# Showcase Studio library settings.
 #                          # voiceovers (Polly). \${NAME} is an environment
 #                          # variable: \${USER} is the login name.
 # aws_region: us-east-1    # the region, when the profile has none set
+# say:                     # how words are said in every synthesized
+#   GitHub: Git Hub        # voiceover; the captions keep their spelling
 `;
 
 /** Gives the library its settings file: renames an older root
@@ -172,6 +179,12 @@ export function libraryAwsSettings(dir, env = process.env) {
   const about = problems.filter((line) => /^\S+ aws_(profile|region):/.test(line));
   const all = [...wrong, ...about];
   return all.length > 0 ? { ...result, problem: all.join("\n") } : result;
+}
+
+/** The library's say list (how words are said in its synthesized
+ *  voiceovers): `{entries, warnings}`, see readSay. */
+export function librarySay(dir) {
+  return readSay(libraryConfig(dir).say, `${SETTINGS_FILE} say`);
 }
 
 /** False only when the folder's settings say show_in_recent: false. */

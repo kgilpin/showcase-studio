@@ -1025,6 +1025,9 @@ function readLimit(
 const VALUE_CHECKED_BY_READER =
   /\.(theme|captionStyle|position|view|embedCaptions|sceneMaxMs|targetMs|maxMs|speed)$/;
 const CHECKED_WHOLE_BY_READER = /(^|\.)(tiktok|watermark)(\.|\[|$)/;
+/* A say list's keys are the author's own words ("theme", "tiktok"), so
+ * none of them is one of the fields above. */
+const SAY_LIST = /^meta\.voiceover\.say(\.|$)/;
 
 /** The document's schema problems as warnings: the showcase's own, and
  *  each scene's by index. */
@@ -1032,9 +1035,11 @@ function schemaWarnings(doc: RawDoc): { showcase: string[]; scenes: Map<number, 
   const showcase: string[] = [];
   const scenes = new Map<number, string[]>();
   for (const problem of checkShowcase(doc)) {
-    if (CHECKED_WHOLE_BY_READER.test(problem.path)) continue;
-    if (problem.kind !== "unknown" && problem.kind !== "missing") {
-      if (VALUE_CHECKED_BY_READER.test(problem.path)) continue;
+    if (!SAY_LIST.test(problem.path)) {
+      if (CHECKED_WHOLE_BY_READER.test(problem.path)) continue;
+      if (problem.kind !== "unknown" && problem.kind !== "missing") {
+        if (VALUE_CHECKED_BY_READER.test(problem.path)) continue;
+      }
     }
     if (problem.sceneIndex == null) showcase.push(problem.message);
     else

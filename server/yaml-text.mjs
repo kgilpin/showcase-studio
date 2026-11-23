@@ -56,6 +56,35 @@ export function parseEditable(text) {
   return doc;
 }
 
+/** A line with the spacing the library rewrites taken out: before a
+ *  comment, and just inside brackets. */
+const unspaced = (line) =>
+  line
+    .replace(/[ \t]+#/g, " #")
+    .replace(/([{[])[ \t]+/g, "$1")
+    .replace(/[ \t]+([}\]])/g, "$1");
+
+/** Gives each line an edit didn't change its authored spacing back (the
+ *  aligned comments of a say list). Falls back to `written` if that
+ *  wouldn't mean exactly the same thing. */
+export function keepLineSpacing(original, written) {
+  const authored = new Map();
+  for (const line of original.split("\n")) {
+    const key = unspaced(line);
+    /* Two spellings of one line: no telling which is which. */
+    authored.set(key, authored.has(key) && authored.get(key) !== line ? null : line);
+  }
+  const text = written
+    .split("\n")
+    .map((line) => authored.get(unspaced(line)) ?? line)
+    .join("\n");
+  const [restored, meant] = [parseDocument(text), parseDocument(written)];
+  const same =
+    restored.errors.length === 0 &&
+    JSON.stringify(restored.toJS()) === JSON.stringify(meant.toJS());
+  return same ? text : written;
+}
+
 /** Writes an edited document: the library's output, with every folded
  *  and literal block the edit didn't change restored to its original
  *  text. Falls back to the library's output if the restored text would

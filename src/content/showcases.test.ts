@@ -648,6 +648,30 @@ scenes:
     ]);
   });
 
+  it("warns about a bad say entry, whatever its word is, and still loads", async () => {
+    /* "theme", "speed" and "tiktok" are also fields other readers check. */
+    const showcase = await load(
+      "said",
+      `meta:
+  title: Said
+  description: d
+  loop: false
+  voiceover:
+    say: { theme: 4, speed: { sound: x }, tiktok: [tick, tock], GitHub: Git Hub }
+scenes:
+  - id: one
+    theme: statement
+    captions: [{ text: Hi }]
+`,
+    );
+    expect(showcase).toBeDefined();
+    const said = warningsFor("").join("\n");
+    for (const word of ["theme", "speed", "tiktok"]) {
+      expect(said).toContain(`meta.voiceover.say.${word}`);
+    }
+    expect(said).not.toContain("say.GitHub");
+  });
+
   it("leaves a field's value to the reader that owns it, so a mistake is said once", async () => {
     await load(
       "once",

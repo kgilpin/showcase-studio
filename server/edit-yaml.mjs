@@ -72,8 +72,9 @@
  * build-plan.mjs. edit-yaml.test.mjs checks that every whitelisted field
  * is a field of the schema (src/content/showcase-schema.mjs).
  */
-import { isMap, isScalar, isSeq, Scalar } from "yaml";
-import { editedText, parseEditable } from "./yaml-text.mjs";
+import { isDeepStrictEqual } from "node:util";
+import { isCollection, isMap, isScalar, isSeq, Scalar } from "yaml";
+import { editedText, keepLineSpacing, parseEditable } from "./yaml-text.mjs";
 import {
   inRange,
   WATERMARK_FIELDS,
@@ -155,9 +156,13 @@ const META_FIELDS = {
   soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
   notes: { kind: "string", removable: true },
   /* A synthesized voiceover's settings (server/voiceover.mjs): the Polly
-   * voice and engine, how to reach AWS, and the track's asset key. */
+   * voice and engine, how to reach AWS, the track's asset key, and how
+   * words are said. Merged into the map that is there (mergeMap), so the
+   * say list keeps its comments. A bad say entry isn't refused here:
+   * validate warns about it, and it mustn't block an edit beside it. */
   voiceover: {
     kind: "map",
+    merge: true,
     map: {
       voice: false,
       engine: false,
@@ -168,6 +173,7 @@ const META_FIELDS = {
       tailMs: false,
       holdMs: false,
       scenes: false,
+      say: false,
     },
     removable: true,
   },
@@ -347,6 +353,48 @@ function setChecked(doc, basePath, checked) {
   doc.setIn(basePath, node);
 }
 
+const isPlainMap = (value) => value != null && typeof value === "object" && !Array.isArray(value);
+
+/** A new value inside a merged map: on one line, except a say list,
+ *  which gets a line per word. */
+function nodeInMap(doc, key, value) {
+  const node = doc.createNode(value);
+  if (!isCollection(node)) return node;
+  if (key === "say" && isMap(node)) {
+    for (const { value: entry } of node.items) if (isCollection(entry)) entry.flow = true;
+  } else {
+    node.flow = true;
+  }
+  return node;
+}
+
+/** Makes the map `node`, which reads as `current`, read as `value`,
+ *  touching only the fields that differ: the others keep their comments,
+ *  quotes and layout. */
+function mergeMap(doc, node, current, value) {
+  /* By the key's text: YAML reads `42:` as a number, the edit as "42". */
+  const keyOf = (pair) => String(isScalar(pair.key) ? pair.key.value : pair.key);
+  node.items = node.items.filter((pair) => Object.hasOwn(value, keyOf(pair)));
+  for (const [key, next] of Object.entries(value)) {
+    const pair = node.items.find((item) => keyOf(item) === key);
+    const was = current[key];
+    if (!pair) {
+      node.items.push(doc.createPair(key, nodeInMap(doc, key, next)));
+    } else if (isDeepStrictEqual(was, next)) {
+      continue;
+    } else if (isMap(pair.value) && isPlainMap(was) && isPlainMap(next)) {
+      mergeMap(doc, pair.value, was, next);
+    } else if (isScalar(pair.value) && was != null && typeof was === typeof next) {
+      pair.value.value = next;
+    } else {
+      const made = nodeInMap(doc, key, next);
+      made.comment = pair.value?.comment;
+      made.commentBefore = pair.value?.commentBefore;
+      pair.value = made;
+    }
+  }
+}
+
 /** The publish.set edit: one field of the top-level publish: block, the
  *  default (no destination) or one destination's override. The block is
  *  created right after meta the first time, and an override or block left
@@ -470,6 +518,13 @@ export function applySceneEdit(
     const doc = parseEditable(text);
     if (doc.errors.length > 0) throw new Error(doc.errors[0].message);
     if (!isMap(doc.get("meta"))) throw new Error("showcase.yaml has no meta section");
+    const existing = doc.getIn(["meta", name]);
+    if (META_FIELDS[name].merge && !checked.remove && isMap(existing)) {
+      const current = doc.toJS().meta[name];
+      if (isDeepStrictEqual(current, checked.value)) return text;
+      mergeMap(doc, existing, current, checked.value);
+      return keepLineSpacing(text, editedText(doc));
+    }
     setChecked(doc, ["meta", name], checked);
     return editedText(doc);
   }

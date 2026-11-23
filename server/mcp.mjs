@@ -78,6 +78,7 @@ import {
   validateShowcases,
 } from "./exporter.mjs";
 import { showcaseIndex } from "./showcase-data.mjs";
+import { librarySay } from "./library-config.mjs";
 import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
@@ -208,7 +209,10 @@ export const TOOLS = [
       'or "embed" — the player view the showcase opens in, for a showcase made for one ' +
       "destination; null returns to TikTok), cover, notes " +
       "(showcase-level authoring notes), soundtrack ({src, volume?, sync?}), tiktok ({fit?, " +
-      "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), or watermark " +
+      "focus?, bands?, area?} — how every scene's picture goes into TikTok's 9:16 frame), " +
+      "voiceover (a synthesized voice's settings, see build_voiceover: send the whole map, its " +
+      "say list included, since a field left out is removed; what didn't change keeps its " +
+      "comments), or watermark " +
       "({asset?, text?, position?, inset?, shade?, opacity?, scale?}) — the brand mark drawn " +
       "in a corner of every slide, like a TV network's bug. position is one of the four " +
       "corners (top-left default); inset pushes the mark down from a top corner or up from " +
@@ -522,7 +526,8 @@ export const TOOLS = [
       "wrong place, against .studio/showcase.schema.json; a wrong value; themes and media; " +
       "length — a scene over its maxMs or meta.sceneMaxMs says how far over and why, a " +
       "showcase over meta.targetMs names its longest scenes), and, for any showcase that " +
-      "failed, the error message; for a showcase whose media the studio builds, `media` " +
+      "failed, the error message; a warning with an empty showcaseId is about the library's " +
+      "showcase_settings.yaml; for a showcase whose media the studio builds, `media` " +
       "{kind, upToDate, stale, problem?}. Use it after YAML edits to confirm nothing broke, " +
       "read the length warnings before telling the user a showcase is done, and never leave " +
       "a warning unresolved.",
@@ -647,12 +652,15 @@ export const TOOLS = [
       "the running build of the showcase when there is one, else starts one.\n" +
       "The settings live in showcase.yaml's meta.voiceover: {voice (default Matthew), engine " +
       "(generative | neural | standard | long-form; default generative), profile and region " +
-      "(optional: else the user's AWS defaults), track (the asset key, default voiceover)}. " +
+      "(optional: else the user's AWS defaults), track (the asset key, default voiceover), say " +
+      '(how a word is spoken, with the caption left as written: {GitHub: "Git Hub", records: ' +
+      '{ipa: "rɪˈkɔːrdz"}}; showcase_settings.yaml\'s say is the same for the whole library)}. ' +
       "Each caption gets one window: 250 ms lead + its spoken length + 450 ms tail, the last " +
       "one 1.5 s more for the end card (leadMs, tailMs, holdMs change those). The pins add up " +
       "to the track, so never pin durationMs by hand on a voiced showcase, and never make " +
       "the voice with your own Polly or ffmpeg calls.\n" +
-      "Idempotent: clips are cached by voice, engine and text, so only changed captions call " +
+      "Idempotent: clips are cached by voice, engine and the text sent, so only captions " +
+      "that changed, or that hold a word whose say entry changed, call " +
       "Polly again. `force` makes every clip again. Needs the aws command signed in; without " +
       "whisper the words file falls back to estimated word times (the notes say so).\n" +
       "To voice some scenes and not others — try a voice on one scene, or voice one scene of a " +
@@ -1446,6 +1454,15 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
   }
   if (name === "validate") {
     const report = await validateShowcases(context.renderer, context.getUrl());
+    /* The library's say list, which no page reads. */
+    report.warnings = [
+      ...(report.warnings ?? []),
+      ...librarySay(context.getShowcasesDir()).warnings.map((message) => ({
+        showcaseId: "",
+        sceneId: "",
+        message,
+      })),
+    ];
     /* Whether each built showcase's media is up to date (media-status.mjs). */
     for (const loaded of report.loaded ?? []) {
       const media = context.mediaStatus?.(loaded.id);
