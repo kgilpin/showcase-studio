@@ -53,7 +53,7 @@
  *                                                   written to media.speed
  *   { field: "caption.set", captionIndex, name, value }
  *                                                   captions[i].text /
- *                                                   durationMs / position
+ *                                                   durationMs / position / id
  *   { field: "meta.set",    name, value }           one whitelisted meta
  *                                                   field (META_FIELDS)
  *   { field: "scene.move",  index }                 move the scene to the
@@ -96,6 +96,7 @@ import {
   CAPTION_POSITION_HELP,
   isCaptionPosition,
 } from "../src/content/caption-position-rules.mjs";
+import { CAPTION_ID_HELP, isCaptionId } from "../src/content/caption-starts-rules.mjs";
 import { TIKTOK_FIELDS, tiktokFieldProblem } from "../src/content/tiktok-fit-rules.mjs";
 import { checkPublishEdit } from "../src/content/publish-rules.mjs";
 import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
@@ -211,6 +212,7 @@ const CAPTION_FIELDS = {
   text: { kind: "string" },
   durationMs: { kind: "duration", removable: true },
   position: { kind: "captionPosition", removable: true },
+  id: { kind: "captionId", removable: true },
 };
 
 /** The whitelists, for the test that holds them to the schema
@@ -245,6 +247,9 @@ function checkFieldValue(fields, where, name, value) {
     case "captionPosition":
       if (!isCaptionPosition(value)) throw new Error(`${label} must be ${CAPTION_POSITION_HELP}`);
       return { value: value.trim() };
+    case "captionId":
+      if (!isCaptionId(value)) throw new Error(`${label} must be ${CAPTION_ID_HELP}`);
+      return { value };
     case "take": {
       const problem = takeProblem(value);
       if (problem) throw new Error(`${label}: ${problem.replace(/^scene "scene" take:? ?/, "")}`);

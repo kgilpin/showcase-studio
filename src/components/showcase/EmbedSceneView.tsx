@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { activeCaption, type Scene } from "@/content/showcases";
 import type { CaptionPreset } from "@/content/caption-position-rules.mjs";
 import { SceneMedia } from "./SceneMedia";
+import { captionStartStyle } from "@/content/caption-starts-rules.mjs";
 import { captionPlacement } from "./caption-placement";
 import { SceneWatermark } from "./SceneWatermark";
 import { CtaContent, WordLine } from "./SceneView";
@@ -44,7 +45,14 @@ export function EmbedSceneView({
    *  text in the composition, not over the media, so it always stays. */
   captions?: boolean;
 }) {
-  const media = <SceneMedia media={scene.media} durationMs={scene.durationMs} paused={paused} />;
+  const media = (
+    <SceneMedia
+      media={scene.media}
+      durationMs={scene.durationMs}
+      paused={paused}
+      captionStarts={captionStartStyle(scene)}
+    />
+  );
   const caption = activeCaption(scene, elapsedMs);
   const spoken = caption?.text ?? scene.body;
   /* As in portrait: a caption that duplicates the displayed title stays

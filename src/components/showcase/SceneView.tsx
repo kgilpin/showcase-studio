@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { activeCaption, wordTimeline, type Scene, type WordWindow } from "@/content/showcases";
 import { SceneMedia } from "./SceneMedia";
+import { captionStartStyle } from "@/content/caption-starts-rules.mjs";
 import { captionPlacement } from "./caption-placement";
 import type { CaptionPreset } from "@/content/caption-position-rules.mjs";
 import { SceneWatermark } from "./SceneWatermark";
@@ -213,6 +214,7 @@ export function SceneView({
       durationMs={scene.durationMs}
       paused={paused}
       canvas={usesTikTokFit(scene) ? canvas : "portrait"}
+      captionStarts={captionStartStyle(scene)}
     />
   );
   /* Editing affordances, rendered inside the slide so they inherit its

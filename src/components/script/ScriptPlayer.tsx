@@ -18,6 +18,7 @@ import {
  * without dragging in the whole content layer — YAML parsing, theme
  * resolution, and the glob of bundled showcase assets. */
 import { captionTimeline } from "@/content/timing.mjs";
+import { captionStartStyle } from "@/content/caption-starts-rules.mjs";
 import type { Scene } from "@/content/showcases";
 import { collectSceneSources } from "@/components/showcase/useMediaPreload";
 import { startTakeRecorder, type TakeRecorderHandle } from "./take-recorder";
@@ -537,7 +538,10 @@ export function ScriptPlayer({
               </div>
             )}
             {!showMedia ? null : media.kind === "graphic" ? (
-              <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-border bg-card">
+              <div
+                className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-border bg-card"
+                style={captionStartStyle(scene)}
+              >
                 <media.component />
               </div>
             ) : media.kind !== "none" ? (

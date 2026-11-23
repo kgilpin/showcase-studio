@@ -103,9 +103,15 @@ on a free `PORT`, then):
 scripts/rehearsal/verify.sh <port> "$TMPDIR/showcase-rehearsal/selfie-pitch/<run-name>" <ms> [<ms>...]
 ```
 
-It runs `check_framing` on the result and saves frames at the times
-given (the ones a warning named, or one per speaker scene). Look at
-them. A frame the session never looked at is the one to look at.
+It finds the showcase the session made, runs `check_framing` on it and
+saves TikTok frames, safe area shaded, at the times given (the ones a
+warning named, or one per speaker scene). Look at them. A frame the
+session never looked at is the one to look at.
+
+For graphics timed to captions (the code-issue scenario), add
+`--view 43 --live` and give times just before and just after each
+named caption starts. The part that belongs to that caption should be
+missing in the first frame and on screen in the second.
 
 ## 4. Write the report
 
