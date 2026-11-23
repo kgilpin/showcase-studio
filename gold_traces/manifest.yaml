@@ -234,3 +234,8 @@ entries:
     test_name: returns a short recording's transcript in the one call
     appmap_path: vitest/returns_a_short_recording's_transcript_in_the_one_call.appmap.json
     summary: The transcribe tool starts a background job and waits on it, then returns the transcript in the same call.
+  - feature: transcribe
+    test_file: server/whisper-model.test.mjs
+    test_name: downloads with curl from PATH and follows the redirect
+    appmap_path: vitest/downloads_with_curl_from_PATH_and_follows_the_redirect.appmap.json
+    summary: The first transcription downloads the speech model with curl from PATH, following the redirect to the CDN, into a partial file it then renames.
