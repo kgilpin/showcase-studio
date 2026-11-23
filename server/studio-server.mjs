@@ -121,6 +121,7 @@ import { airDrop, canAirDrop } from "./airdrop.mjs";
 import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
 import { createLicense, LicenseRequired } from "./license.mjs";
 import { createTerminals } from "./terminals.mjs";
+import { createTranscribeJobs } from "./transcribe-jobs.mjs";
 import { whisperPath } from "./transcribe.mjs";
 
 const require_ = createRequire(import.meta.url);
@@ -901,6 +902,7 @@ add notes specific to this library below, and the studio won't touch them.
     },
   });
 
+  const transcribeJobs = createTranscribeJobs({ getShowcasesDir: () => showcasesDir, changeLog });
   const mcpContext = {
     info,
     license,
@@ -910,6 +912,7 @@ add notes specific to this library below, and the studio won't touch them.
     renderer,
     exportJobs,
     buildJobs,
+    transcribeJobs,
     autoBuild,
     mediaStatus: (showcaseId) => mediaStatus({ showcasesDir, showcaseId, aws }),
     mediaSummary: () => mediaSummary(showcasesDir, { aws }),
@@ -1634,6 +1637,7 @@ add notes specific to this library below, and the studio won't touch them.
 
     async close() {
       unregisterStudio();
+      transcribeJobs.close();
       license.close();
       await claiming;
       release();

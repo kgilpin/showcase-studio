@@ -46,8 +46,10 @@
  *                      TikTok or 4:3, animations finished unless asked
  *                      live, TikTok's safe area shaded on request
  *   check_framing      face-check.mjs
- *   transcribe         transcribe.mjs; with `save`, it writes the
- *                      recording's editable transcript
+ *   transcribe, transcribe_status, transcribe_cancel
+ *                      transcribe-jobs.mjs, running transcribe.mjs; with
+ *                      `save`, it writes the recording's editable
+ *                      transcript
  *   build_media, build_status, build_cancel
  *                      build-media.mjs
  *   build_voiceover    voiceover.mjs
@@ -62,8 +64,9 @@
  *                      share.mjs
  *   export, export_status, export_cancel
  *
- * export_status and build_status take waitMs and wait for the job inside
- * the call, up to two minutes, so a session needn't poll. */
+ * export_status, build_status and transcribe_status take waitMs and wait
+ * for the job inside the call, up to two minutes, so a session needn't
+ * poll. */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pageErrorField } from "../src/lib/page-error.mjs";
@@ -97,7 +100,6 @@ import {
   templateSummary,
 } from "./showcase-templates.mjs";
 import { PLAYER_VIEWS } from "../src/lib/export-kinds.mjs";
-import { transcribe } from "./transcribe.mjs";
 import { createFaceFinder } from "./faces.mjs";
 import { checkCaptionsOverFaces, facesSummary } from "./face-check.mjs";
 import { DESTINATION_IDS, DESTINATIONS } from "../src/content/publish-rules.mjs";
@@ -639,6 +641,10 @@ export const TOOLS = [
       "and when: choosing cut points for a take, or checking a line — silencedetect only finds " +
       "pauses, this finds the words. First use downloads the speech model (~142MB), so the " +
       "first call can take a minute.\n" +
+      "A long recording can take many minutes, and there is no limit on that: when it isn't " +
+      'done after 50 seconds the result is {jobId, status: "running"} in place of the ' +
+      "transcript. Wait on it with transcribe_status {jobId, waitMs}; calling transcribe " +
+      "again for the same recording joins the same job.\n" +
       "Pass save: true to also write the recording's editable transcript beside it " +
       "(assets/<recording>.transcript.json). That file is what build_media turns into the " +
       "showcase's karaoke words file, and it is where a mishearing gets fixed: add to its " +
@@ -673,6 +679,35 @@ export const TOOLS = [
             "existing one carries",
         },
       },
+    },
+  },
+  {
+    name: "transcribe_status",
+    description:
+      "Check on a transcribe job that was still running: status (running | done | failed | " +
+      "canceled) and what it is doing now; when it is done, the same fields transcribe " +
+      "returns (text, segments, and transcript when saved). Pass waitMs to wait for the job " +
+      "inside the call (up to 120000 ms); for a long recording, wait in a few calls and " +
+      "tell the user between them.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string" },
+        waitMs: {
+          type: "number",
+          description: "How long to wait for the transcript before answering (0–120000 ms)",
+        },
+      },
+      required: ["jobId"],
+    },
+  },
+  {
+    name: "transcribe_cancel",
+    description: "Cancel a running transcribe job: whisper is stopped and nothing is saved.",
+    inputSchema: {
+      type: "object",
+      properties: { jobId: { type: "string" } },
+      required: ["jobId"],
     },
   },
   {
@@ -1039,9 +1074,10 @@ export function resolveRecording(args, showcasesDir) {
   return audioPath;
 }
 
-/* Transcription outlives the page-tool cap: a cold call downloads the
- * model and a long recording takes real time. */
-const TRANSCRIBE_TIMEOUT_MS = 300_000;
+/* How long transcribe waits before it answers with a jobId instead: long
+ * enough that a short recording is one call, and under the one minute
+ * some MCP clients give a call. */
+export const TRANSCRIBE_WAIT_MS = 50_000;
 
 const json = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 
@@ -1145,7 +1181,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Runs one tool against a studio. `context` is
  *  { info(), getUrl(), getShowcasesDir(), renderer, exportJobs, buildJobs,
- *  changeLog, history, share, openUrl, copyText, reveal }. */
+ *  transcribeJobs, changeLog, history, share, openUrl, copyText, reveal }. */
 export async function callTool(context, { name, arguments: args = {} } = {}) {
   const showcasesDir = context.getShowcasesDir();
   const sharePage = (showcaseId) =>
@@ -1492,39 +1528,32 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
     return json(result);
   }
   if (name === "transcribe") {
-    const audioPath = resolveRecording(args, showcasesDir);
-    let timer;
-    const result = await Promise.race([
-      transcribe(audioPath, {
-        save: args.save === true,
-        progress: (label) => console.log(`transcribe: ${label}`),
-      }),
-      new Promise((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error("Transcription timed out after 5 minutes")),
-          TRANSCRIBE_TIMEOUT_MS,
-        );
-      }),
-    ]).finally(() => clearTimeout(timer));
-    /* A saved transcript is a file the studio wrote into a showcase, so
-     * it goes in the change log like any other studio write — that is
-     * what lets the history commit it (server/showcase-history.mjs). A
-     * recording at the library root or outside it belongs to no
-     * showcase, and is left to its owner. */
-    const saved = result.transcript?.file;
-    const rel = saved ? path.relative(showcasesDir, saved) : "";
-    const inLibrary = rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
-    const [showcaseId, ...rest] = inLibrary ? rel.split(/[/\\]/) : [];
-    if (showcaseId && rest.length > 0) {
-      context.changeLog?.append({
-        source: "mcp",
-        tool: "transcribe",
-        showcaseId,
-        kind: "transcript",
-        file: rest.join("/"),
+    const file = resolveRecording(args, showcasesDir);
+    const { jobId } = context.transcribeJobs.start({ file, save: args.save === true });
+    const result = await jobStatus(context.transcribeJobs, jobId, TRANSCRIBE_WAIT_MS);
+    if (result.status === "running") {
+      return json({
+        ...result,
+        next:
+          "Still transcribing, as expected for a long recording: call transcribe_status " +
+          `{jobId: "${jobId}", waitMs: 120000} until it says done, and tell the user between calls.`,
       });
     }
-    return json({ file: audioPath, ...result });
+    if (result.status !== "done") throw new Error(result.error ?? "Transcription was canceled");
+    return json(result);
+  }
+  if (name === "transcribe_status" || name === "transcribe_cancel") {
+    const jobId = String(args.jobId ?? "");
+    const result =
+      name === "transcribe_cancel"
+        ? context.transcribeJobs.cancel(jobId)
+        : await jobStatus(context.transcribeJobs, jobId, args.waitMs);
+    if (!result) {
+      throw new Error(
+        `No transcribe job named "${jobId}" (restarting the studio ends them: call transcribe again)`,
+      );
+    }
+    return json(result);
   }
   if (name === "screenshot_slide") {
     await builtFirst(context, args.showcaseId, name);

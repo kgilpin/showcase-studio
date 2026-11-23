@@ -135,7 +135,8 @@ Claude works through the studio's MCP tools:
 - `validate` — load the whole library and report errors and warnings
 - `check_framing` — find captions that sit over a face in the video
   and say how to fix each one (the face finder is Mac-only)
-- `transcribe` — whisper.cpp voice-to-text with per-word timestamps
+- `transcribe` / `transcribe_status` / `transcribe_cancel` — whisper.cpp
+  voice-to-text with per-word timestamps, as a job for long recordings
 - `script` — the narration as plain text
 - `commit_showcase` — commit a finished change with a clear message
 - `export` / `export_status` / `export_cancel` — renders as background jobs

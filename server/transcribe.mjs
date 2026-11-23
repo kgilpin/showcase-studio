@@ -81,29 +81,32 @@ function findWhisper() {
 const MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
 export const modelPath = () => path.join(studioDataDir(), "whisper", "ggml-base.en.bin");
 
-async function ensureModel(progress) {
+async function ensureModel(progress, signal) {
   const target = modelPath();
   if (existsSync(target)) return target;
   progress?.("downloading the base.en speech model (~142MB, one time)…");
   mkdirSync(path.dirname(target), { recursive: true });
   // System curl streams to disk and follows the CDN redirect reliably.
   const partial = `${target}.partial`;
-  await run("/usr/bin/curl", ["-fsSL", "--max-time", "240", "-o", partial, MODEL_URL]);
+  await run("/usr/bin/curl", ["-fsSL", "--max-time", "240", "-o", partial, MODEL_URL], { signal });
   await rename(partial, target);
   return target;
 }
 
-function run(command, args) {
+/** Runs a program to its end. Aborting `signal` kills it, and the promise
+ *  rejects only once it is gone, so its work folder can be deleted. */
+function run(command, args, { signal } = {}) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawn(command, args, { stdio: ["ignore", "ignore", "pipe"], signal });
     let stderr = "";
-    proc.stderr.on("data", (chunk) => (stderr += chunk));
-    proc.on("error", reject);
-    proc.on("exit", (code) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`${path.basename(command)} exited ${code}: ${stderr.slice(-400)}`)),
-    );
+    let failure;
+    proc.stderr.on("data", (chunk) => (stderr = (stderr + chunk).slice(-400)));
+    proc.on("error", (error) => (failure = error));
+    proc.on("close", (code) => {
+      if (failure) reject(failure);
+      else if (code === 0) resolve();
+      else reject(new Error(`${path.basename(command)} exited ${code}: ${stderr}`));
+    });
   });
 }
 
@@ -111,35 +114,33 @@ function run(command, args) {
  *  each segment is { text, startMs, endMs, words: [{text, startMs,
  *  endMs}] }, plus { transcript } when `save` wrote the transcript file.
  *  Words are whole words — whisper's markers dropped, its sub-word
- *  tokens merged, punctuation folded onto the word before it. */
-export async function transcribe(audioPath, { progress, save = false } = {}) {
-  const whisper = whisperPath();
+ *  tokens merged, punctuation folded onto the word before it. Aborting
+ *  `signal` stops the running program, and nothing is saved after it.
+ *  `whisper` and `model` are for the tests. */
+export async function transcribe(
+  audioPath,
+  { progress, save = false, signal, whisper = whisperPath(), model: modelFile } = {},
+) {
   if (!whisper) {
     throw new Error(
       "No whisper binary found. Build the app's own copy with `npm run vendor:whisper` " +
         "(in the studio app repo), or install one on PATH (e.g. `brew install whisper-cpp`).",
     );
   }
-  const model = await ensureModel(progress);
+  const model = modelFile ?? (await ensureModel(progress, signal));
   const work = await mkdtemp(path.join(os.tmpdir(), "studio-whisper-"));
   try {
     const wav = path.join(work, "audio.wav");
     progress?.("extracting audio…");
-    await run(ffmpeg, [
-      "-y",
-      "-i",
-      audioPath,
-      "-ar",
-      "16000",
-      "-ac",
-      "1",
-      "-c:a",
-      "pcm_s16le",
-      wav,
-    ]);
+    await run(
+      ffmpeg,
+      ["-y", "-i", audioPath, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wav],
+      { signal },
+    );
     progress?.("transcribing…");
     const out = path.join(work, "out");
-    await run(whisper, ["-m", model, "-f", wav, "-ojf", "-of", out]);
+    await run(whisper, ["-m", model, "-f", wav, "-ojf", "-of", out], { signal });
+    signal?.throwIfAborted();
     const raw = JSON.parse(readFileSync(`${out}.json`, "utf8"));
     const tokenSegments = (raw.transcription ?? []).map((entry) => ({
       text: String(entry.text ?? "").trim(),
