@@ -5,8 +5,8 @@
  * (electron/vendor/whisper/whisper-cli — built by `npm run
  * vendor:whisper`; the folder name predates the studio server), then from
  * the user's PATH (e.g. Homebrew's whisper-cpp). The speech model
- * (base.en, ~142MB) is not shipped: it downloads once into the studio's
- * data folder on first use and is cached forever. The packaged app ships
+ * (base.en, ~142MB) is not shipped: whisper-model.mjs downloads it once
+ * into the studio's data folder on first use. The packaged app ships
  * the vendored binary, and packaging refuses to build without it;
  * whisper-binary.mjs is the one place its name and path are decided.
  *
@@ -22,14 +22,14 @@
  * editable transcript — see transcript.mjs for what that file is for. */
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { mkdtemp, rename, rm } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { studioDataDir } from "./settings.mjs";
 import { isWhisperMarker, mergeWhisperWords, saveTranscript } from "./transcript.mjs";
 import { vendoredWhisper } from "./whisper-binary.mjs";
+import { ensureModel } from "./whisper-model.mjs";
 
 const require_ = createRequire(import.meta.url);
 const ffmpeg = require_("ffmpeg-static");
@@ -78,21 +78,6 @@ function findWhisper() {
   return (match && match[0]) || "";
 }
 
-const MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
-export const modelPath = () => path.join(studioDataDir(), "whisper", "ggml-base.en.bin");
-
-async function ensureModel(progress, signal) {
-  const target = modelPath();
-  if (existsSync(target)) return target;
-  progress?.("downloading the base.en speech model (~142MB, one time)…");
-  mkdirSync(path.dirname(target), { recursive: true });
-  // System curl streams to disk and follows the CDN redirect reliably.
-  const partial = `${target}.partial`;
-  await run("/usr/bin/curl", ["-fsSL", "--max-time", "240", "-o", partial, MODEL_URL], { signal });
-  await rename(partial, target);
-  return target;
-}
-
 /** Runs a program to its end. Aborting `signal` kills it, and the promise
  *  rejects only once it is gone, so its work folder can be deleted. */
 function run(command, args, { signal } = {}) {
@@ -127,7 +112,7 @@ export async function transcribe(
         "(in the studio app repo), or install one on PATH (e.g. `brew install whisper-cpp`).",
     );
   }
-  const model = modelFile ?? (await ensureModel(progress, signal));
+  const model = modelFile ?? (await ensureModel({ progress, signal }));
   const work = await mkdtemp(path.join(os.tmpdir(), "studio-whisper-"));
   try {
     const wav = path.join(work, "audio.wav");
