@@ -31,9 +31,10 @@ tools_used:
   - validate # a graphic waiting for a caption id that isn't there
 
 # Nothing in the brief asks for a video file, and timing can be checked
-# with frames.
+# with frames. One draft per shape (4:3 and TikTok) is fair, since the
+# brief asks for both.
 max_calls:
-  export: 1
+  export: 2
   build_voiceover: 0
 
 # No sleep loops: export_status takes waitMs.
