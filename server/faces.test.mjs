@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   canFindFaces,
@@ -16,9 +17,9 @@ describe("the face finder", () => {
     expect(canFindFaces("linux")).toBe(false);
     const [command, args] = faceCommand("/pictures/frame.png");
     expect(command).toBe("osascript");
-    expect(args.slice(0, 3)).toEqual(["-l", "JavaScript", "-e"]);
-    expect(args[3]).toContain("VNDetectFaceRectanglesRequest");
-    expect(args[4]).toBe("/pictures/frame.png");
+    expect(args.slice(0, 2)).toEqual(["-l", "JavaScript"]);
+    expect(readFileSync(args[2], "utf8")).toContain("VNDetectFaceRectanglesRequest");
+    expect(args[3]).toBe("/pictures/frame.png");
   });
 
   it("keeps the faces that are sure enough and big enough to be the speaker", () => {

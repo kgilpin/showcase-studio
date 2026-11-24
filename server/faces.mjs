@@ -13,33 +13,9 @@
  * in `reason`, and the check reports that it could not run rather than
  * guessing. */
 import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = `
-ObjC.import("Foundation");
-ObjC.import("Vision");
-function run(argv) {
-  const url = $.NSURL.fileURLWithPath(argv[0]);
-  const handler = $.VNImageRequestHandler.alloc.initWithURLOptions(url, $());
-  const request = $.VNDetectFaceRectanglesRequest.alloc.init;
-  const error = Ref();
-  if (!handler.performRequestsError($([request]), error)) {
-    return JSON.stringify({ error: "Vision could not read the picture" });
-  }
-  const results = request.results;
-  const faces = [];
-  for (let i = 0; i < results.count; i++) {
-    const face = results.objectAtIndex(i);
-    const box = face.boundingBox;
-    faces.push({
-      left: box.origin.x,
-      top: 1 - box.origin.y - box.size.height,
-      width: box.size.width,
-      height: box.size.height,
-      confidence: face.confidence,
-    });
-  }
-  return JSON.stringify({ faces });
-}`;
+const SCRIPT_FILE = fileURLToPath(new URL("./faces.jxa.js", import.meta.url));
 
 /* A face Vision is less sure of than this is noise (a pattern in the
  * background); one shorter than this share of the frame is someone in
@@ -60,7 +36,7 @@ export const NO_FINDER_REASON =
 
 /** The osascript command that finds the faces in `file`. */
 export function faceCommand(file) {
-  return ["osascript", ["-l", "JavaScript", "-e", SCRIPT, file]];
+  return ["osascript", ["-l", "JavaScript", SCRIPT_FILE, file]];
 }
 
 /** The faces in the script's answer, keeping the ones worth acting on:
