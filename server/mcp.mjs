@@ -863,8 +863,8 @@ export const TOOLS = [
       "brief is the whole prompt — the titles in order, numbered, and the question: 'what does each " +
       "slide show?', or for a template whose titles tell a story (check: story) 'retell what " +
       "happens' — to hand verbatim to a fresh subagent that sees nothing else (no notes, no " +
-      "captions, no repository). slides maps each number to its sceneId, title and note, so you can " +
-      "compare each answer with what the slide is meant to show. Run it before showing an outline to " +
+      "captions, no repository). slides maps each number to its sceneId, title and what the slide shows: " +
+      "its captions (said) once it has them, or its note while it is still an outline. Compare each answer with that. Run it before showing an outline to " +
       "the user and before reporting a showcase as done; see the guide's 'Check the titles'.",
     inputSchema: {
       type: "object",
@@ -1476,11 +1476,11 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       ? "No scene has a title, so there is nothing to check."
       : check.check === "story"
         ? handOver +
-          "Then compare its retelling with the case in meta.notes and each scene's note. Rewrite " +
+          "Then compare its retelling with the case in meta.notes and each slide's said (or note, on an outline). Rewrite " +
           "every title it left out, misread, or that the story would not miss, so the titles tell " +
           "the story on their own, and run the check again."
         : handOver +
-          "Then compare each answer with that slide's note. Rewrite every title the reader couldn't " +
+          "Then compare each answer with that slide's said (or note, on an outline). Rewrite every title the reader couldn't " +
           "explain or explained wrongly, so it says what is on the screen, and run the check again.";
     return { content: [{ type: "text", text: JSON.stringify({ ...check, next }, null, 2) }] };
   }
