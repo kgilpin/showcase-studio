@@ -669,7 +669,11 @@ export const MAX_FRAMES_PER_CALL = 10;
  *  export's convention) so an overlay's resting state is what the still
  *  shows; `"live"` leaves them where the clock has them at that moment.
  *  `safeArea` shades where TikTok's own interface sits (TikTok view
- *  only), like the player's switch. Returns the frames in the order
+ *  only), like the player's switch. `title`, `captions` and `mark`
+ *  (true or false) put the slide title, the captions and the brand mark
+ *  in or leave them out where the video would do otherwise (the cover
+ *  picker's "whole scene" still); unset, each is as the video has it.
+ *  Returns the frames in the order
  *  asked, each with its base64 PNG and what the page says it shows
  *  (window.__record.at(): the scene and the caption on it). A check,
  *  not a deliverable: no export record, no license. */
@@ -684,6 +688,9 @@ export async function screenshotFrame(
     animations = "finished",
     safeArea = false,
     size = "half",
+    title,
+    captions,
+    mark,
   } = {},
 ) {
   if (!showcaseId) throw new Error("showcaseId is required");
@@ -723,6 +730,9 @@ export async function screenshotFrame(
   const query = new URLSearchParams({ controlled: "1" });
   if (embed) query.set("canvas", "embed");
   if (shaded) query.set("safeArea", "1");
+  for (const [name, value] of Object.entries({ title, captions, mark })) {
+    if (typeof value === "boolean") query.set(name, value ? "1" : "0");
+  }
   return withTimeout(
     withPage(renderer, { width, height }, async (page) => {
       await page.goto(`${appUrl}${pagePath}?${query}`);

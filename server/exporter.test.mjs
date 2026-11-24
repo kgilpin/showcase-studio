@@ -340,6 +340,24 @@ describe("a frame of the video", () => {
     expect(log.scripts.some((script) => script.includes("animation.finish()"))).toBe(false);
   });
 
+  it("puts the title, captions and brand mark in or leaves them out only when asked", async () => {
+    root = mkdtempSync(path.join(tmpdir(), "exporter-"));
+    library = novaLibrary(root);
+    const { renderer, log } = recordPageRenderer(pngHeader(1440, 1080), shows);
+    await frame(renderer, {
+      showcaseId: "nova",
+      atMs: 2000,
+      view: "43",
+      size: "full",
+      title: false,
+      captions: false,
+      mark: true,
+    });
+    expect(log.urls).toEqual([
+      "http://localhost:1/showcase/nova/record?controlled=1&canvas=embed&title=0&captions=0&mark=1",
+    ]);
+  });
+
   it("seeks again when a paint brings an animation it hasn't placed", async () => {
     /* As in Chrome: a graphic in a size container gets its animation at
      * the first paint after the seek that mounted it. */

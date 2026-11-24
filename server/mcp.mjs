@@ -27,6 +27,9 @@
  *                      fields (src/content/cover-rules.mjs), with the same
  *                      ifVersion check and change-log line
  *   screenshot_cover   exporter.mjs screenshotCover: the cover's still page
+ *   save_cover_picture cover-frame.mjs saveCoverPicture: the cover's
+ *                      picture from a moment of the video, by the same
+ *                      rule as the Cover page's picker
  *   read_showcase      here: showcase.yaml, plus theme.yaml and cover.yaml
  *                      with their themeVersion and coverVersion
  *   create_showcase    the studio's own scaffold, through the context,
@@ -72,6 +75,7 @@ import path from "node:path";
 import { pageErrorField } from "../src/lib/page-error.mjs";
 import { EXPORT_KINDS } from "./launch-options.mjs";
 import { addAssetPaths, encodeAsset } from "./asset-files.mjs";
+import { coverPictureLog, saveCoverPicture } from "./cover-frame.mjs";
 import {
   applyCoverEditsToFolder,
   applySceneEditsToFolder,
@@ -488,6 +492,35 @@ export const TOOLS = [
         size: { type: "string", enum: ["half", "full"] },
       },
       required: ["showcaseId"],
+    },
+  },
+  {
+    name: "save_cover_picture",
+    description:
+      "Save a picture for the cover from a moment of the video, the way the Cover page's " +
+      "picker does, and return its asset key; then set it as the cover's picture with " +
+      'edit_cover {name: "picture", value: <key>}. atMs is a time in ms from the start of ' +
+      "the video (find the moment with screenshot_frame). The studio decides what that " +
+      "moment gives: a scene with footage gives a frame of its clip, without captions or " +
+      "the brand mark (kind: frame); a scene with an image gives that image, and nothing is " +
+      "written (kind: image); a scene that is text or a diagram gives the whole slide as " +
+      "the video draws it (kind: scene). whole: true takes the whole slide even on a scene " +
+      'with footage or an image. For a whole slide: view "tiktok" (9:16, 1080×1920) or ' +
+      '"43" (the 4:3 video, 1440×1080), by default 4:3 when the showcase is made for the ' +
+      "4:3 view; title, captions and mark (the brand mark) are left out unless true, since " +
+      "the cover draws its own headline. The same moment and choices make the same file.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        showcaseId: { type: "string", description: "The showcase's folder name" },
+        atMs: { type: "number", description: "A time in ms from the start of the video" },
+        whole: { type: "boolean" },
+        view: { type: "string", enum: ["tiktok", "43"] },
+        title: { type: "boolean" },
+        captions: { type: "boolean" },
+        mark: { type: "boolean" },
+      },
+      required: ["showcaseId", "atMs"],
     },
   },
   {
@@ -1424,6 +1457,20 @@ export async function callTool(context, { name, arguments: args = {} } = {}) {
       edits: args.edits.map((edit) => ({ field: "cover", ...edit })),
     });
     return json({ applied: result.applied, version: result.hash });
+  }
+  if (name === "save_cover_picture") {
+    const showcaseId = String(args.showcaseId ?? "");
+    await builtFirst(context, showcaseId, name);
+    const result = await saveCoverPicture(showcasesDir, args, {
+      capture: context.renderer
+        ? (options) => screenshotFrame(context.renderer, context.getUrl(), showcasesDir, options)
+        : undefined,
+    });
+    if (!result.ok) throw new Error(result.error);
+    const entry = coverPictureLog(result);
+    if (entry) context.changeLog?.append({ source: "mcp", tool: name, showcaseId, ...entry });
+    const { ok: _ok, ...rest } = result;
+    return json({ showcaseId, ...rest });
   }
   if (name === "screenshot_cover") {
     const destination = args.destination ? String(args.destination) : undefined;
