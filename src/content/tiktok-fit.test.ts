@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { focusPercent, readTikTokFit, resolveTikTokFit } from "./tiktok-fit";
+import { focusPercent, hasBands, readTikTokFit, resolveTikTokFit } from "./tiktok-fit";
 
 describe("readTikTokFit", () => {
   it("keeps the fields it knows and reports the rest", () => {
@@ -88,5 +88,30 @@ describe("focusPercent", () => {
       0, 50, 100,
     ]);
     expect(focusPercent("35%")).toBe(35);
+  });
+});
+
+describe("hasBands", () => {
+  const area = (sides: Partial<Record<"top" | "right" | "bottom" | "left", number>>) => ({
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    ...sides,
+  });
+
+  it("leaves bands beside every fit picture", () => {
+    expect(hasBands({ fit: "fit", focus: "center", bands: "blur" })).toBe(true);
+  });
+
+  it("leaves a strip outside an area when a fill picture is lifted", () => {
+    expect(
+      hasBands({ fit: "fill", focus: "bottom", bands: "blur", area: area({ bottom: 15 }) }),
+    ).toBe(true);
+  });
+
+  it("leaves nothing bare when a fill picture has the whole frame", () => {
+    expect(hasBands({ fit: "fill", focus: "center", bands: "blur" })).toBe(false);
+    expect(hasBands({ fit: "fill", focus: "center", bands: "blur", area: area({}) })).toBe(false);
   });
 });

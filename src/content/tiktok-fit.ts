@@ -49,7 +49,8 @@ export type TikTokFit = {
   fit: TikTokFitMode;
   /** With fill: which part of the picture stays in the frame. */
   focus: TikTokFocus;
-  /** With fit: what fills the bands beside or above the picture. */
+  /** What fills the frame around the picture: the bands beside or above
+   *  a fit picture, and the part of the frame outside an area. */
   bands: TikTokBands;
   /** The part of the frame the picture goes in (fit and fill both work
    *  inside it); left out when the picture has the whole frame. Blurred
@@ -120,6 +121,16 @@ export function resolveTikTokFit(
     bands,
     ...(area ? { area } : {}),
   };
+}
+
+/** Whether the picture can leave part of the frame bare, so `bands`
+ *  decides what fills it: always with fit, and with fill when an area
+ *  keeps the picture in from any edge (a fill picture lifted above the
+ *  captions leaves a strip below it). */
+export function hasBands(fit: TikTokFit): boolean {
+  if (fit.fit === "fit") return true;
+  const area = fit.area;
+  return !!area && area.top + area.right + area.bottom + area.left > 0;
 }
 
 /** Whether a scene's TikTok fit decides how its picture fills the 9:16

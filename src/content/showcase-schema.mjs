@@ -90,7 +90,7 @@ const TIKTOK_FIT = object(
     },
     bands: oneOf(
       TIKTOK_BANDS,
-      "What fills the frame around a fit picture: a blur of it, or a color.",
+      "What fills the frame around the picture (beside a fit picture, or outside an area): a blur of it, or a color.",
     ),
     area: object(
       "TikTok fit area",

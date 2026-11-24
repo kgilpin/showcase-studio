@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { MediaAlign, SceneMedia as SceneMediaType, SceneMotion } from "@/content/showcases";
-import { focusPercent, resolveTikTokFit } from "@/content/tiktok-fit";
+import { focusPercent, hasBands, resolveTikTokFit } from "@/content/tiktok-fit";
 import { pictureRect } from "@/content/media-overlay";
 
 const motionClass: Record<SceneMotion, string> = {
@@ -169,7 +169,10 @@ export function SceneMedia({
   const fadeAlign = focusStyle
     ? undefined
     : alignClass[media.fadeTo?.align ?? media.align ?? "center"];
-  const blurBands = tiktok?.fit === "fit" && tiktok.bands === "blur";
+  /* Blurred bands wherever the picture leaves the frame bare: beside a
+   * fit picture, and outside an area (a fill picture lifted above the
+   * captions leaves a strip below it). */
+  const blurBands = !!tiktok && hasBands(tiktok) && tiktok.bands === "blur";
   const area = tiktok?.area;
   /* The band fill: the same picture, covering the frame, blurred and
    * dimmed so the sharp copy in front reads as the subject. */

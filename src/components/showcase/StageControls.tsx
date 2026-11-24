@@ -2,7 +2,8 @@
  * current view renders and plays. Today, in the TikTok view:
  *
  *   [Safe area] [Frame]  Picture [Fill|Fit]  Focus [Top|Center|Bottom]   (fill)
- *                                            Bands [Blur|Color]          (fit)
+ *                                            Bands [Blur|Color]          (fit, or fill
+ *                                                                         inside an area)
  *                                            [reset]  (the scene sets its own)
  *
  * and in the 4:3 view just [Frame].
@@ -25,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { commitEdit } from "@/lib/edits";
 import { studio } from "@/lib/studio";
 import type { Scene } from "@/content/showcases";
-import { usesTikTokFit, type TikTokFitSpec } from "@/content/tiktok-fit";
+import { hasBands, usesTikTokFit, type TikTokFitSpec } from "@/content/tiktok-fit";
 
 export function StageControls({
   showcaseId,
@@ -106,7 +107,7 @@ export function StageControls({
             ]}
             onPick={(value) => set({ fit: value })}
           />
-          {fit.fit === "fill" ? (
+          {fit.fit === "fill" && (
             <Choice
               label="Focus"
               value={fit.focus}
@@ -121,7 +122,8 @@ export function StageControls({
               ]}
               onPick={(value) => set({ focus: value })}
             />
-          ) : (
+          )}
+          {hasBands(fit) && (
             <Choice
               label="Bands"
               value={fit.bands}
