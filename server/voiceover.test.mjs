@@ -24,6 +24,8 @@ import {
   captionWords,
   hasVoiceover,
   layOutWindows,
+  migrateLibraryVoiceovers,
+  migrateVoiceoverYaml,
   pollyArgs,
   readVoiceoverPlan,
   resolveAws,
@@ -104,7 +106,7 @@ function fakeWhisper(textOf) {
 const SHOWCASE = `# A voiced showcase
 meta:
   title: Voiced
-  voiceover: { voice: Matthew, engine: generative, track: voiceover-synth }
+  voiceover: { polly: { voice: Matthew, engine: generative }, track: voiceover-synth }
 
 scenes:
   - id: open
@@ -400,8 +402,7 @@ describe("buildVoiceover", () => {
     expect(result).toMatchObject({ ok: true, synthesized: 1 });
     expect(calls.map((c) => c.text)).toEqual(["Make your first video today."]);
     expect(docOf().meta.voiceover).toEqual({
-      voice: "Matthew",
-      engine: "generative",
+      polly: { voice: "Matthew", engine: "generative" },
       track: "voiceover-synth",
       scenes: ["outro"],
     });
@@ -442,9 +443,12 @@ describe("buildVoiceover", () => {
  * the profiles the machine has before the first Polly call, so a missing
  * profile is a question for the user rather than a failed build. */
 describe("the AWS setup", () => {
-  const settingsOf = (voiceover = {}) =>
-    readVoiceoverPlan({ meta: { voiceover }, scenes: [{ id: "a", captions: [{ text: "Hi" }] }] })
-      .settings;
+  /* The Polly block's settings, given as they go in it. */
+  const settingsOf = (polly = {}) =>
+    readVoiceoverPlan({
+      meta: { voiceover: { polly } },
+      scenes: [{ id: "a", captions: [{ text: "Hi" }] }],
+    }).settings;
   const resolve = (voiceover, { aws = AWS, env = NO_ENV } = {}) =>
     resolveAws({ settings: settingsOf(voiceover), showcasesDir: library, aws, env });
   const librarySettings = (text) =>
@@ -487,7 +491,7 @@ describe("the AWS setup", () => {
 
   it("refuses a profile the machine doesn't have, saying where it came from", () => {
     expect(resolve({ profile: "nobody" }).problem).toBe(
-      'No AWS profile named "nobody" on this machine (meta.voiceover.profile). ' +
+      'No AWS profile named "nobody" on this machine (meta.voiceover.polly.profile). ' +
         "This machine's profiles: default, work.",
     );
     librarySettings("aws_profile: nobody\n");
@@ -579,7 +583,7 @@ describe("the say list", () => {
     writeFileSync(
       path.join(library, "voiced", "showcase.yaml"),
       JSON.stringify({
-        meta: { title: "Voiced", voiceover: { engine, ...(say ? { say } : {}) } },
+        meta: { title: "Voiced", voiceover: { polly: { engine }, ...(say ? { say } : {}) } },
         scenes: texts.map((text, i) => ({ id: `s${i}`, captions: [{ text }] })),
       }),
     );
@@ -797,6 +801,7 @@ describe("readVoiceoverPlan", () => {
 
   it("fills in the defaults", () => {
     expect(plan({}).settings).toEqual({
+      provider: "polly",
       voice: "Matthew",
       engine: "generative",
       track: "voiceover",
@@ -807,7 +812,7 @@ describe("readVoiceoverPlan", () => {
   });
 
   it("names what is wrong with the settings", () => {
-    const { errors } = plan({ engine: "loud", leadMs: 1.5, track: "a/b", speed: 2 });
+    const { errors } = plan({ polly: { engine: "loud" }, leadMs: 1.5, track: "a/b", speed: 2 });
     expect(errors.join("\n")).toMatch(/engine must be one of/);
     expect(errors.join("\n")).toMatch(/leadMs must be a whole number/);
     expect(errors.join("\n")).toMatch(/track is an asset key/);
@@ -920,5 +925,98 @@ describe("the pieces", () => {
       { text: "ab", startMs: 0, endMs: 200 },
       { text: "abcd", startMs: 200, endMs: 600 },
     ]);
+  });
+});
+
+/* The voice settings are typed per provider; the older flat ones are
+ * moved into the Polly block when the studio opens a library. */
+describe("the voice block", () => {
+  const plan = (voiceover) =>
+    readVoiceoverPlan({ meta: { voiceover }, scenes: [{ id: "a", captions: [{ text: "Hi" }] }] });
+  const errors = (voiceover) => plan(voiceover).errors.join("\n");
+
+  it("reads Polly's settings from its block, and Polly's defaults with no block", () => {
+    expect(plan({ polly: { voice: "Joanna", engine: "neural" } }).settings).toMatchObject({
+      provider: "polly",
+      voice: "Joanna",
+      engine: "neural",
+    });
+    expect(plan({ track: "vo" }).settings).toMatchObject({
+      provider: "polly",
+      voice: "Matthew",
+      engine: "generative",
+      track: "vo",
+    });
+  });
+
+  it("refuses the older flat settings, saying where each goes", () => {
+    expect(errors({ voice: "Joanna" })).toBe(
+      'meta.voiceover.voice goes in a voice block now — e.g. {polly: {voice: "Joanna"}} ' +
+        "(migrateVoiceoverYaml moves it)",
+    );
+  });
+
+  it("refuses two blocks, and a setting the block's provider doesn't take", () => {
+    expect(errors({ polly: {}, elevenlabs: { voice: "x" } })).toMatch(
+      /has polly and elevenlabs — one voice block/,
+    );
+    expect(errors({ polly: { model: "eleven_v4" } })).toMatch(
+      /meta.voiceover.polly.model isn't one of Polly's settings — use: voice, engine, profile, region/,
+    );
+    expect(errors({ polly: "Matthew" })).toMatch(/meta.voiceover.polly must be a map/);
+  });
+
+  it("moves flat Polly settings into the block, keeping comments and layout", () => {
+    const flow =
+      "meta:\n  voiceover: { voice: Matthew, engine: generative, track: vo }\nscenes: []\n";
+    expect(migrateVoiceoverYaml(flow)).toBe(
+      "meta:\n  voiceover: { polly: { voice: Matthew, engine: generative }, track: vo }\n" +
+        "scenes: []\n",
+    );
+    const block =
+      "# a showcase\nmeta:\n  voiceover:\n    track: vo # the track\n    voice: Joanna # warm\n" +
+      "    region: eu-west-1\n    say:\n      GitHub: Git Hub # spelled out\nscenes: []\n";
+    expect(migrateVoiceoverYaml(block)).toBe(
+      "# a showcase\nmeta:\n  voiceover:\n    track: vo # the track\n    polly:\n" +
+        "      voice: Joanna # warm\n      region: eu-west-1\n    say:\n" +
+        "      GitHub: Git Hub # spelled out\nscenes: []\n",
+    );
+    const moved = parse(migrateVoiceoverYaml(block));
+    expect(
+      readVoiceoverPlan({ ...moved, scenes: [{ id: "a", captions: [{ text: "Hi" }] }] }),
+    ).toMatchObject({ ok: true, settings: { voice: "Joanna", region: "eu-west-1" } });
+  });
+
+  it("leaves a showcase with nothing to move alone", () => {
+    for (const text of [
+      "meta:\n  title: X\nscenes: []\n",
+      "meta:\n  voiceover: { polly: { voice: Matthew }, track: vo }\nscenes: []\n",
+      "meta:\n  voiceover: { track: vo }\nscenes: []\n",
+      "meta: [\n",
+    ]) {
+      expect(migrateVoiceoverYaml(text)).toBeUndefined();
+    }
+  });
+
+  it("keeps a Polly clip's cache, so a moved showcase voices nothing again", async () => {
+    await build();
+    writeFileSync(
+      path.join(library, "voiced", "showcase.yaml"),
+      SHOWCASE.replace(
+        "{ polly: { voice: Matthew, engine: generative }, track: voiceover-synth }",
+        "{ voice: Matthew, engine: generative, track: voiceover-synth }",
+      ),
+    );
+    const writes = [];
+    expect(
+      migrateLibraryVoiceovers(library, (file, text) => {
+        writes.push(file);
+        writeFileSync(file, text);
+      }),
+    ).toEqual(["voiced"]);
+    expect(writes).toEqual([path.join(library, "voiced", "showcase.yaml")]);
+    calls = [];
+    expect(await build()).toMatchObject({ ok: true, synthesized: 0, reused: 4 });
+    expect(migrateLibraryVoiceovers(library, () => writes.push("again"))).toEqual([]);
   });
 });

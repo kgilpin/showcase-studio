@@ -217,6 +217,19 @@ describe("createStudio", () => {
     expect(readme).toContain("My own notes.");
   });
 
+  it("moves an older showcase's flat voice settings into their Polly block", async () => {
+    const flat = SHOWCASE_YAML.replace(
+      "  title: Nova\n",
+      "  title: Nova\n  voiceover:\n    voice: Joanna # warm\n    track: vo\n",
+    );
+    const { library } = await startStudio({
+      before: (dir) => writeFileSync(path.join(dir, "nova", "showcase.yaml"), flat),
+    });
+    expect(readFileSync(path.join(library, "nova", "showcase.yaml"), "utf8")).toBe(
+      flat.replace("    voice: Joanna # warm\n", "    polly:\n      voice: Joanna # warm\n"),
+    );
+  });
+
   it("writes no launch.json, and removes the ones an earlier studio wrote", async () => {
     const own = '{ "version": "0.0.1", "configurations": [] }\n';
     const written =
@@ -1106,7 +1119,8 @@ scenes:
 const VOICED_YAML = `meta:
   title: Talk
   voiceover:
-    voice: Matthew
+    polly:
+      voice: Matthew
 scenes:
   - id: intro
     theme: statement

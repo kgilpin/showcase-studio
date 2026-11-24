@@ -108,8 +108,10 @@ The marketing site (`site/`) is its own npm package:
 - YAML edits use `parseDocument` + `setIn` (`server/edit-yaml.mjs`),
   never parse-and-redump: comments in showcase files carry real
   information.
-- Which AWS profile pays for a synthesized voice is the user's choice. A
-  session asks; it never picks one.
+- Which AWS profile pays for a synthesized voice is the user's choice, and
+  so is which ElevenLabs account. A session asks; it never picks one. The
+  ElevenLabs key is read from `ELEVENLABS_API_KEY` only, never written to
+  a setting, the library, a log, the manifest or an error.
 - Everything the studio serves answers only requests from this machine.
 - `web/prompter` must never pull in the content layer (bundled showcases,
   YAML, themes). That's why `ScriptPlayer` imports the timing model
@@ -224,6 +226,22 @@ The marketing site (`site/`) is its own npm package:
   reader added without the entry makes every showcase using it warn. A
   one-line `description` there says what the field is for; the guide says
   when to use it.
+- **Options that belong to one provider get a typed block of their own.**
+  When a feature has interchangeable providers (a voice from Polly or
+  ElevenLabs, for example), each provider's settings live in a block
+  named for it, with its own schema entry, and the shared settings sit
+  beside the block: `voiceover: {polly: {voice, engine}, track}`, never a
+  flat list with descriptions saying "Polly only". Then the schema
+  itself says what is valid, and validate catches a setting given to
+  the wrong provider. The reader reads only the block that is there, and
+  refuses two blocks at once.
+- **When a field's shape changes, older files are updated
+  automatically.** The studio rewrites them when it opens the library
+  (as `migrateLibraryVoiceovers` in `server/voiceover.mjs` does for the
+  flat voiceover settings), through `parseDocument` so comments are kept,
+  and as its own write so the page and the history know about it. The
+  reader then refuses the old shape with a message saying where each
+  field goes now. It never quietly accepts both shapes.
 - What an author has to know (a theme, a media rule such as "footage is
   always muted", a caption style, a workflow like the recorded-pitch
   recipe) lives in `server/showcase-guide.mjs`, written to

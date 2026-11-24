@@ -57,6 +57,7 @@ export const MEDIA_FITS = ["cover", "contain"];
 export const CTA_KINDS = ["app-store", "github", "link"];
 export const TRANSITIONS = ["rise", "none"];
 export const VOICEOVER_ENGINES = ["generative", "neural", "standard", "long-form"];
+export const VOICEOVER_PROVIDERS = ["polly", "elevenlabs"];
 export const TONEMAPS = ["hlg", "none"];
 
 const PERCENT_PATTERN = "^\\d+(\\.\\d+)?%$";
@@ -356,26 +357,42 @@ const META = object(
         }),
       },
     ),
-    voiceover: object("voiceover", "A synthesized voice that reads the captions (AWS Polly).", {
-      voice: string("The Polly voice (default Matthew)."),
-      engine: oneOf(VOICEOVER_ENGINES),
-      profile: string(
-        "The AWS profile, when not the library's aws_profile in showcase_settings.yaml.",
-      ),
-      region: string("The AWS region, when not the library's aws_region or the profile's own."),
-      track: string("The track's asset key (default voiceover)."),
-      say: SAY,
-      leadMs: number("Silence before each caption's words."),
-      tailMs: number("Silence after."),
-      holdMs: number("Extra hold on the last caption."),
-      scenes: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "The scenes the voice reads, by id; the others keep their own timing and are silence " +
-          "on the track. Unset: every scene.",
+    voiceover: object(
+      "voiceover",
+      "A synthesized voice that reads the captions. One voice block, polly or elevenlabs, " +
+        "says who makes it; with neither, Polly's defaults.",
+      {
+        polly: object("voiceover.polly", "AWS Polly, on the user's own AWS account.", {
+          voice: string("The Polly voice id (default Matthew)."),
+          engine: oneOf(VOICEOVER_ENGINES, "The Polly engine (default generative)."),
+          profile: string(
+            "The AWS profile, when not the library's aws_profile in showcase_settings.yaml.",
+          ),
+          region: string("The AWS region, when not the library's aws_region or the profile's own."),
+        }),
+        elevenlabs: object(
+          "voiceover.elevenlabs",
+          "ElevenLabs, on the account whose key is in ELEVENLABS_API_KEY.",
+          {
+            voice: string("The ElevenLabs voice id."),
+            model: string("The ElevenLabs model id (default eleven_multilingual_v2)."),
+          },
+          ["voice"],
+        ),
+        track: string("The track's asset key (default voiceover)."),
+        say: SAY,
+        leadMs: number("Silence before each caption's words."),
+        tailMs: number("Silence after."),
+        holdMs: number("Extra hold on the last caption."),
+        scenes: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "The scenes the voice reads, by id; the others keep their own timing and are silence " +
+            "on the track. Unset: every scene.",
+        },
       },
-    }),
+    ),
     watermark: WATERMARK,
     tiktok: TIKTOK_FIT,
     theme: {

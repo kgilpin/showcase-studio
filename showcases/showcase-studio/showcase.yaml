@@ -7,7 +7,7 @@ meta:
     Script draft for the plugin pitch: Showcase Studio runs as a Claude Code plugin, so it uses the subscription you already have, every tool on your machine, and plain files you can share across projects.
     Voiceover: a synthesized draft, assets/voiceover-synth.m4a, made with AWS Polly's generative Matthew voice (kgilpin profile, us-east-1): one clip per caption (24 kHz mp3), each placed in a window of 250 ms lead + spoken length (rounded up to the millisecond) + 450 ms tail; the last caption holds 1.5 s more for the end card. Every caption's durationMs is pinned to its window, and the windows sum to 44788 ms, the audio's length. assets/voiceover-synth.words.json has one segment per caption window, with the caption's own words and the transcribe tool's word times fitted into the span where that caption's clip is voiced (whisper drifts across caption boundaries, so its times aren't used as they come). meta.voiceover holds these settings: after any caption edit, run build_voiceover (or press Build media), which re-voices only the changed captions and re-pins them. Last made 2026-10-16.
     These showcases ship as examples, so only the files the slides use belong in the folder. The old on-camera clip and the git scene's graphic were removed; both are in git history.
-  voiceover: { voice: Matthew, engine: generative, profile: kgilpin, region: us-east-1, track: voiceover-synth }
+  voiceover: { polly: { voice: Matthew, engine: generative, profile: kgilpin, region: us-east-1 }, track: voiceover-synth }
   soundtrack: { src: voiceover-synth, volume: 1, sync: true }
 
 scenes:

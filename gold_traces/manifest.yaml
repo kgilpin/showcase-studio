@@ -10,8 +10,8 @@
 # node-testable subsystem — the timing model, the YAML edit write path
 # (happy path + a rejection gate), the data server (index, byte ranges,
 # and the traversal gate), and the media build (the whole pipeline plus
-# its two refusals), the synthesized voiceover (a rebuild plus its
-# stale-write refusal), a frame of the video captured from the record
+# its two refusals), the synthesized voiceover (a Polly rebuild plus its
+# stale-write refusal, an ElevenLabs build plus its missing-key refusal), a frame of the video captured from the record
 # page (screenshot_frame), the caption-over-face check (check_framing)
 # on such frames, the Actions list around a git commit (pending, skip,
 # try again, done), the studio's side of licensing: its
@@ -182,6 +182,16 @@ entries:
     test_name: is what the status reports, before any build, and what the build refuses on
     appmap_path: vitest/is_what_the_status_reports,_before_any_build,_and_what_the_build_refuses_on.appmap.json
     summary: The AWS setup gate, refused — a machine with named profiles only and nothing naming one; the status reports the problem (the machine's profiles, and that the user is to be asked) before any build, and the build refuses on the same check without calling Polly. The negative branch of resolveAws, which the build trace above only passes.
+  - feature: voiceover
+    test_file: server/voiceover-elevenlabs.test.mjs
+    test_name: voices every caption, and is up to date after
+    appmap_path: vitest/voices_every_caption,_and_is_up_to_date_after.appmap.json
+    summary: An ElevenLabs build from the meta.voiceover.elevenlabs block — each caption posted once to the text-to-speech endpoint (a fake fetch), the WAV written and decoded with ffmpeg, the words and pins written through the YAML edit path; then the status finds nothing left to make.
+  - feature: voiceover
+    test_file: server/voiceover-elevenlabs.test.mjs
+    test_name: "is the status's problem before any build, and what the build refuses on"
+    appmap_path: "vitest/is_the_status's_problem_before_any_build,_and_what_the_build_refuses_on.appmap.json"
+    summary: The ElevenLabs key gate, refused — no ELEVENLABS_API_KEY; the status reports it before any build, and the build refuses on the same check without calling ElevenLabs. The negative branch of resolveElevenLabs, which the build trace above only passes.
   - feature: exporter
     test_file: server/exporter.test.mjs
     test_name: renders the frames asked, in order, from the page the video export records

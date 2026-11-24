@@ -34,6 +34,10 @@
  * and on neural. If Polly ever refuses one, the build's error names the
  * entry and the engine.
  *
+ * ElevenLabs gets no SSML (voiceover.mjs): its default model takes no
+ * phoneme tags, so an ipa entry's word is sent as written (`plain`), with
+ * a warning, and the build goes on.
+ *
  * A bad entry is left out with a warning; it never stops a build. In a
  * showcase, validate's warning comes from the schema
  * (src/content/showcase-schema.mjs). */
@@ -177,5 +181,8 @@ export function sayCaption(text, lists) {
     ssml: true,
     ipa,
     pieces,
+    /* The same caption for a voice that takes no SSML: respellings
+     * applied, an ipa entry's word left as written. */
+    plain: swapped(text, hits, { swap: (hit) => hit.entry.text ?? hit.word }),
   };
 }
