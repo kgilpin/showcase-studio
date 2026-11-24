@@ -359,23 +359,25 @@ const META = object(
     ),
     voiceover: object(
       "voiceover",
-      "A synthesized voice that reads the captions (AWS Polly or ElevenLabs).",
+      "A synthesized voice that reads the captions. One voice block, polly or elevenlabs, " +
+        "says who makes it; with neither, Polly's defaults.",
       {
-        provider: oneOf(
-          VOICEOVER_PROVIDERS,
-          "Who makes the voice (default polly). elevenlabs reads ELEVENLABS_API_KEY.",
-        ),
-        voice: string(
-          "The voice: a Polly voice id (default Matthew), or an ElevenLabs voice id (required).",
-        ),
-        engine: oneOf(VOICEOVER_ENGINES, "Polly only."),
-        model: string("ElevenLabs only: the model id (default eleven_multilingual_v2)."),
-        profile: string(
-          "Polly only: the AWS profile, when not the library's aws_profile in " +
-            "showcase_settings.yaml.",
-        ),
-        region: string(
-          "Polly only: the AWS region, when not the library's aws_region or the profile's own.",
+        polly: object("voiceover.polly", "AWS Polly, on the user's own AWS account.", {
+          voice: string("The Polly voice id (default Matthew)."),
+          engine: oneOf(VOICEOVER_ENGINES, "The Polly engine (default generative)."),
+          profile: string(
+            "The AWS profile, when not the library's aws_profile in showcase_settings.yaml.",
+          ),
+          region: string("The AWS region, when not the library's aws_region or the profile's own."),
+        }),
+        elevenlabs: object(
+          "voiceover.elevenlabs",
+          "ElevenLabs, on the account whose key is in ELEVENLABS_API_KEY.",
+          {
+            voice: string("The ElevenLabs voice id."),
+            model: string("The ElevenLabs model id (default eleven_multilingual_v2)."),
+          },
+          ["voice"],
         ),
         track: string("The track's asset key (default voiceover)."),
         say: SAY,

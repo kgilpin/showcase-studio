@@ -99,11 +99,11 @@ afterEach(async () => {
   await rm(library, { recursive: true, force: true });
 });
 
-describe("the provider setting", () => {
+describe("the voice block", () => {
   const plan = (voiceover) =>
     readVoiceoverPlan({ meta: { voiceover }, scenes: [{ id: "a", captions: [{ text: "Hi" }] }] });
 
-  it("stays polly when unset, with a Polly clip's key unchanged", () => {
+  it("stays polly with no block, with a Polly clip's key unchanged", () => {
     const { settings } = plan({});
     expect(settings).toMatchObject({ provider: "polly", voice: "Matthew", engine: "generative" });
     expect(settings.model).toBeUndefined();
@@ -113,27 +113,25 @@ describe("the provider setting", () => {
     );
   });
 
-  it("takes a voice and a model with ElevenLabs, and no engine", () => {
-    const { ok, settings } = plan({ provider: "elevenlabs", voice: VOICE });
+  it("takes a voice and a model in the elevenlabs block, and no engine", () => {
+    const { ok, settings } = plan({ elevenlabs: { voice: VOICE } });
     expect(ok).toBe(true);
     expect(settings).toMatchObject({ provider: "elevenlabs", voice: VOICE });
     expect(settings.model).toBe(ELEVENLABS_DEFAULT_MODEL);
     expect(settings.engine).toBeUndefined();
-    expect(plan({ provider: "elevenlabs", voice: VOICE, model: "eleven_v4" }).settings.model).toBe(
+    expect(plan({ elevenlabs: { voice: VOICE, model: "eleven_v4" } }).settings.model).toBe(
       "eleven_v4",
     );
   });
 
-  it("names what doesn't belong with each provider", () => {
+  it("names what doesn't belong in the elevenlabs block", () => {
     const errors = (voiceover) => plan(voiceover).errors.join("\n");
-    expect(errors({ provider: "elevenlabs" })).toMatch(/voice is required with ElevenLabs/);
+    expect(errors({ elevenlabs: {} })).toMatch(/meta.voiceover.elevenlabs.voice is required/);
     for (const key of ["engine", "profile", "region"]) {
-      expect(errors({ provider: "elevenlabs", voice: VOICE, [key]: "x" })).toMatch(
-        new RegExp(`${key} is a Polly setting`),
+      expect(errors({ elevenlabs: { voice: VOICE, [key]: "x" } })).toBe(
+        `meta.voiceover.elevenlabs.${key} isn't one of ElevenLabs' settings — use: voice, model`,
       );
     }
-    expect(errors({ model: "eleven_v4" })).toMatch(/model is an ElevenLabs setting/);
-    expect(errors({ provider: "azure" })).toMatch(/provider must be one of: polly, elevenlabs/);
   });
 });
 
@@ -208,7 +206,7 @@ describe("elevenlabsSynthesizer", () => {
 
 describe("the ElevenLabs key", () => {
   it("is the status's problem before any build, and what the build refuses on", async () => {
-    write({ provider: "elevenlabs", voice: VOICE });
+    write({ elevenlabs: { voice: VOICE } });
     const status = voiceoverStatus({ showcasesDir: library, showcaseId: "voiced", env: {} });
     expect(status).toMatchObject({ built: true, kind: "voiceover", ok: false });
     expect(status.problem).toMatch(/set ELEVENLABS_API_KEY in the environment/);
@@ -226,7 +224,7 @@ describe("the ElevenLabs key", () => {
   });
 
   it("is never written into the library", async () => {
-    write({ provider: "elevenlabs", voice: VOICE });
+    write({ elevenlabs: { voice: VOICE } });
     expect(await build()).toMatchObject({ ok: true, synthesized: 2 });
     const everything = (dir) =>
       readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
@@ -240,7 +238,7 @@ describe("the ElevenLabs key", () => {
 
 describe("an ElevenLabs build", () => {
   it("voices every caption, and is up to date after", async () => {
-    write({ provider: "elevenlabs", voice: VOICE });
+    write({ elevenlabs: { voice: VOICE } });
     const requests = [];
     /* A whisper that hears nothing, so the words file counts as built. */
     const result = await build({ requests, transcribe: async () => ({ segments: [] }) });
@@ -263,7 +261,7 @@ describe("an ElevenLabs build", () => {
   });
 
   it("never reuses a Polly clip, and makes every clip again for a new model", async () => {
-    write({ voice: "Matthew" });
+    write({ polly: { voice: "Matthew" } });
     const polly = [];
     const pollyBuild = await buildVoiceover({
       showcasesDir: library,
@@ -280,7 +278,7 @@ describe("an ElevenLabs build", () => {
     const pollyClips = cacheFiles().filter((file) => file.endsWith(".mp3"));
     expect(pollyClips).toHaveLength(2);
 
-    write({ provider: "elevenlabs", voice: "Matthew" });
+    write({ elevenlabs: { voice: "Matthew" } });
     expect(
       voiceoverStatus({ showcasesDir: library, showcaseId: "voiced", env: WITH_KEY }).stale,
     ).toContain("2 captions to voice");
@@ -289,7 +287,7 @@ describe("an ElevenLabs build", () => {
     expect(requests).toHaveLength(2);
 
     expect(await build({ requests })).toMatchObject({ ok: true, synthesized: 0, reused: 2 });
-    write({ provider: "elevenlabs", voice: "Matthew", model: "eleven_flash_v2_5" });
+    write({ elevenlabs: { voice: "Matthew", model: "eleven_flash_v2_5" } });
     expect(await build({ requests })).toMatchObject({ ok: true, synthesized: 2, reused: 0 });
     expect(requests.at(-1).body.model_id).toBe("eleven_flash_v2_5");
     /* The Polly clips no caption reads any more are gone. */
@@ -297,10 +295,9 @@ describe("an ElevenLabs build", () => {
   });
 
   it("respells a say entry, and reads an ipa entry's word as written, with a note", async () => {
-    write(
-      { provider: "elevenlabs", voice: VOICE, say: { GitHub: "Git Hub", records: { ipa: "rɪ" } } },
-      ["GitHub records Q&A today."],
-    );
+    write({ elevenlabs: { voice: VOICE }, say: { GitHub: "Git Hub", records: { ipa: "rɪ" } } }, [
+      "GitHub records Q&A today.",
+    ]);
     const requests = [];
     const result = await build({ requests });
     expect(result.ok).toBe(true);

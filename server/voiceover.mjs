@@ -38,17 +38,21 @@
  * A respelled word's heard words count as the one caption word they
  * stand for (alignHeard).
  *
- * The settings live in showcase.yaml, beside the captions they voice:
+ * The settings live in showcase.yaml, beside the captions they voice.
+ * Who makes the voice is a typed block of its own, polly or elevenlabs,
+ * holding that provider's settings and no others; the rest is shared:
  *
  *   meta:
  *     voiceover:
- *       voice: Matthew        # a Polly voice id
- *       engine: generative    # generative | neural | standard | long-form
- *       profile: my-profile   # optional: the AWS profile (else the
- *                             #   library's aws_profile, else AWS_PROFILE,
- *                             #   else the default profile)
- *       region: us-east-1     # optional: else the library's aws_region,
- *                             #   else the profile's region, else us-east-1
+ *       polly:                  # AWS Polly (the default when there is
+ *                               #   no voice block at all)
+ *         voice: Matthew        # a Polly voice id
+ *         engine: generative    # generative | neural | standard | long-form
+ *         profile: my-profile   # optional: the AWS profile (else the
+ *                               #   library's aws_profile, else AWS_PROFILE,
+ *                               #   else the default profile)
+ *         region: us-east-1     # optional: else the library's aws_region,
+ *                               #   else the profile's region, else us-east-1
  *       track: voiceover-synth   # the asset key (default "voiceover")
  *       say: { GitHub: Git Hub } # optional: how a word is said, on top
  *                                #   of the library's own say list
@@ -57,14 +61,19 @@
  *                                #   own timing and are silence on the
  *                                #   track, so the pins still add up
  *
- * ElevenLabs is `provider: elevenlabs`, for a machine with no AWS sign-in
- * (a cloud session, say):
+ * ElevenLabs, for a machine with no AWS sign-in (a cloud session, say):
  *
  *   meta:
  *     voiceover:
- *       provider: elevenlabs     # default polly
- *       voice: JBFqnCBsd6RMkjVDRZzb   # an ElevenLabs voice id (required)
- *       model: eleven_multilingual_v2 # optional: the ElevenLabs model id
+ *       elevenlabs:
+ *         voice: JBFqnCBsd6RMkjVDRZzb   # an ElevenLabs voice id (required)
+ *         model: eleven_multilingual_v2 # optional: the ElevenLabs model id
+ *
+ * Older showcases kept Polly's settings flat in meta.voiceover; the
+ * studio moves them into the polly block when it opens the library
+ * (migrateVoiceoverYaml), and the reader refuses them with that advice.
+ * Inside the build the settings are one flat object again, with
+ * `provider` naming the block they came from.
  *
  * It takes no engine, profile or region. The API key is the environment
  * variable ELEVENLABS_API_KEY and nothing else: it is never written to a
@@ -118,14 +127,15 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { parse } from "yaml";
-import { VOICEOVER_PROVIDERS } from "../src/content/showcase-schema.mjs";
+import { YAMLMap, isMap, isScalar, parse } from "yaml";
+import { SHOWCASE_SCHEMA, VOICEOVER_PROVIDERS } from "../src/content/showcase-schema.mjs";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { runFfmpeg } from "./ffmpeg.mjs";
 import { SETTINGS_FILE, libraryAwsSettings, librarySay } from "./library-config.mjs";
 import { applySceneEditsToFolder, contentHash } from "./scene-edit.mjs";
 import { transcribe as whisperTranscribe } from "./transcribe.mjs";
 import { transcriptJson } from "./transcript.mjs";
+import { editedText, parseEditable } from "./yaml-text.mjs";
 import { readSay, sayCaption } from "./voiceover-say.mjs";
 
 /* Bumped when the recipe changes in a way that makes old outputs wrong. */
@@ -153,8 +163,19 @@ const ENGINES = ["generative", "neural", "standard", "long-form"];
  *  beside eleven_v4. */
 export const ELEVENLABS_DEFAULT_MODEL = "eleven_multilingual_v2";
 
-/** The settings only Polly reads. */
-const POLLY_ONLY = ["engine", "profile", "region"];
+/** Each voice block's own settings, typed: meta.voiceover.polly and
+ *  meta.voiceover.elevenlabs each take these and no others. Read from the
+ *  schema, the one copy, as are the block names (VOICEOVER_PROVIDERS). */
+const VOICEOVER_SCHEMA = SHOWCASE_SCHEMA.properties.meta.properties.voiceover.properties;
+export const PROVIDER_SETTINGS = Object.fromEntries(
+  VOICEOVER_PROVIDERS.map((name) => [name, Object.keys(VOICEOVER_SCHEMA[name].properties)]),
+);
+/** The settings every voice shares, beside its block. */
+const SHARED_SETTINGS = Object.keys(VOICEOVER_SCHEMA).filter(
+  (key) => !VOICEOVER_PROVIDERS.includes(key),
+);
+/** How a message names each provider's settings. */
+const PROVIDER_NAMES = { polly: "Polly's", elevenlabs: "ElevenLabs'" };
 
 /** A sample louder than this (-40 dBFS) is voice, not the clip's quiet
  *  edges. */
@@ -164,6 +185,63 @@ const CACHE_DIR = path.join(".studio", "build", "voiceover");
 const MANIFEST_DIR = path.join(".studio", "build");
 
 const fingerprint = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+/* ---------- the older, flat settings ---------- */
+
+/** Moves an older showcase's flat Polly settings (meta.voiceover.voice,
+ *  engine, profile, region) into their own block, meta.voiceover.polly,
+ *  with their comments and layout: `voiceover: {voice: Matthew, track:
+ *  voiceover}` becomes `voiceover: {polly: {voice: Matthew}, track:
+ *  voiceover}`. Returns the new text, or undefined when there is nothing
+ *  to move (or the file doesn't parse, or already has a voice block, which
+ *  readVoiceoverPlan then reports). The studio runs it over every
+ *  showcase when it opens a library (migrateLibraryVoiceovers). */
+export function migrateVoiceoverYaml(text) {
+  if (!/\bvoiceover\b/.test(text)) return undefined;
+  let doc;
+  try {
+    doc = parseEditable(text);
+  } catch {
+    return undefined;
+  }
+  if (doc.errors.length > 0) return undefined;
+  const node = doc.getIn(["meta", "voiceover"], true);
+  if (!isMap(node)) return undefined;
+  const keyOf = (pair) => String(isScalar(pair.key) ? pair.key.value : pair.key);
+  if (node.items.some((pair) => VOICEOVER_PROVIDERS.includes(keyOf(pair)))) return undefined;
+  const moving = node.items.filter((pair) => PROVIDER_SETTINGS.polly.includes(keyOf(pair)));
+  if (moving.length === 0) return undefined;
+  const block = new YAMLMap(doc.schema);
+  block.flow = node.flow;
+  block.items = moving;
+  const first = node.items.indexOf(moving[0]);
+  node.items = node.items.filter((pair) => !moving.includes(pair));
+  node.items.splice(first, 0, doc.createPair("polly", block));
+  return editedText(doc);
+}
+
+/** Runs migrateVoiceoverYaml over every showcase in the library, writing
+ *  each changed showcase.yaml with `write(file, text)` (the studio's own
+ *  write, so the page and the history know it). Returns the ids moved. */
+export function migrateLibraryVoiceovers(showcasesDir, write) {
+  const moved = [];
+  let entries = [];
+  try {
+    entries = readdirSync(showcasesDir, { withFileTypes: true });
+  } catch {
+    return moved;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+    const file = path.join(showcasesDir, entry.name, "showcase.yaml");
+    if (!existsSync(file)) continue;
+    const next = migrateVoiceoverYaml(readFileSync(file, "utf8"));
+    if (next === undefined) continue;
+    write(file, next);
+    moved.push(entry.name);
+  }
+  return moved;
+}
 
 /* ---------- reading the plan ---------- */
 
@@ -182,7 +260,7 @@ export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] }
     return {
       voiced: true,
       ok: false,
-      errors: ["meta.voiceover must be a map — e.g. {voice: Matthew}"],
+      errors: ["meta.voiceover must be a map — e.g. {polly: {voice: Matthew}}"],
     };
   }
   if (doc.meta.source != null) {
@@ -192,13 +270,44 @@ export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] }
     );
   }
   const settings = { ...VOICEOVER_DEFAULTS };
-  for (const key of ["provider", "voice", "engine", "model", "profile", "region", "track"]) {
-    if (raw[key] == null) continue;
-    if (typeof raw[key] !== "string" || !raw[key].trim()) {
-      errors.push(`meta.voiceover.${key} must be text`);
-      continue;
+  /* Who makes the voice: the one voice block there is, else Polly with
+   * its defaults. Its settings are read from that block only. */
+  const blocks = VOICEOVER_PROVIDERS.filter((name) => raw[name] != null);
+  if (blocks.length > 1) {
+    errors.push(
+      `meta.voiceover has ${blocks.join(" and ")} — one voice block says who makes the voice`,
+    );
+  }
+  settings.provider = blocks[0] ?? "polly";
+  const block = raw[settings.provider] ?? {};
+  const at = `meta.voiceover.${settings.provider}`;
+  if (typeof block !== "object" || Array.isArray(block)) {
+    errors.push(`${at} must be a map — e.g. {voice: ...}`);
+  } else {
+    const own = PROVIDER_SETTINGS[settings.provider];
+    for (const key of Object.keys(block)) {
+      if (!own.includes(key)) {
+        errors.push(
+          `${at}.${key} isn't one of ${PROVIDER_NAMES[settings.provider]} settings — use: ` +
+            own.join(", "),
+        );
+      }
     }
-    settings[key] = raw[key].trim();
+    for (const key of own) {
+      if (block[key] == null) continue;
+      if (typeof block[key] !== "string" || !block[key].trim()) {
+        errors.push(`${at}.${key} must be text`);
+        continue;
+      }
+      settings[key] = block[key].trim();
+    }
+  }
+  if (raw.track != null) {
+    if (typeof raw.track !== "string" || !raw.track.trim()) {
+      errors.push("meta.voiceover.track must be text");
+    } else {
+      settings.track = raw.track.trim();
+    }
   }
   for (const key of ["leadMs", "tailMs", "holdMs"]) {
     if (raw[key] == null) continue;
@@ -228,45 +337,27 @@ export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] }
   if (sayLists.some((entries) => entries.length > 0)) {
     settings.say = { showcase: own.entries, library: library.entries };
   }
-  const known = new Set([
-    "provider",
-    ...Object.keys(VOICEOVER_DEFAULTS),
-    "model",
-    "profile",
-    "region",
-    "scenes",
-    "say",
-  ]);
+  const known = [...VOICEOVER_PROVIDERS, ...SHARED_SETTINGS];
   for (const key of Object.keys(raw)) {
-    if (!known.has(key)) {
-      errors.push(`meta.voiceover.${key} is not a setting — use: ${[...known].join(", ")}`);
-    }
-  }
-  if (settings.provider == null) settings.provider = "polly";
-  if (!VOICEOVER_PROVIDERS.includes(settings.provider)) {
-    errors.push(`meta.voiceover.provider must be one of: ${VOICEOVER_PROVIDERS.join(", ")}`);
+    if (known.includes(key)) continue;
+    errors.push(
+      PROVIDER_SETTINGS.polly.includes(key) || key === "model"
+        ? `meta.voiceover.${key} goes in a voice block now — e.g. ` +
+            `{polly: {${key}: ${JSON.stringify(raw[key])}}} (migrateVoiceoverYaml moves it)`
+        : `meta.voiceover.${key} is not a setting — use: ${known.join(", ")}`,
+    );
   }
   if (settings.provider === "elevenlabs") {
-    for (const key of POLLY_ONLY) {
-      if (raw[key] != null) {
-        errors.push(`meta.voiceover.${key} is a Polly setting — ElevenLabs takes voice and model`);
-      }
-    }
-    if (raw.voice == null) {
+    if (raw.elevenlabs?.voice == null) {
       errors.push(
-        "meta.voiceover.voice is required with ElevenLabs — an ElevenLabs voice id " +
+        "meta.voiceover.elevenlabs.voice is required — an ElevenLabs voice id " +
           "(the user's voice library lists them)",
       );
     }
     delete settings.engine;
     settings.model ??= ELEVENLABS_DEFAULT_MODEL;
-  } else {
-    if (raw.model != null) {
-      errors.push("meta.voiceover.model is an ElevenLabs setting — Polly takes an engine");
-    }
-    if (!ENGINES.includes(settings.engine)) {
-      errors.push(`meta.voiceover.engine must be one of: ${ENGINES.join(", ")}`);
-    }
+  } else if (!ENGINES.includes(settings.engine)) {
+    errors.push(`meta.voiceover.polly.engine must be one of: ${ENGINES.join(", ")}`);
   }
   if (/[/\\]|^\./.test(settings.track)) {
     errors.push("meta.voiceover.track is an asset key — a file name without a folder");
@@ -669,7 +760,7 @@ export function resolveAws({ settings, showcasesDir, env = process.env, aws = aw
   const profile = settings.profile ?? library.profile ?? env.AWS_PROFILE?.trim() ?? undefined;
   const from =
     settings.profile != null
-      ? "meta.voiceover.profile"
+      ? "meta.voiceover.polly.profile"
       : library.profile != null
         ? `aws_profile in ${SETTINGS_FILE}`
         : "AWS_PROFILE in the environment";
@@ -757,7 +848,7 @@ export function pollySynthesizer({ aws = awsPath() } = {}) {
         if (code === 0) return resolve();
         const said = stderr.trim().slice(-500);
         const fix = /must specify a region/i.test(said)
-          ? ` — set aws_region in ${SETTINGS_FILE} at the library root (or meta.voiceover.region)`
+          ? ` — set aws_region in ${SETTINGS_FILE} at the library root (or meta.voiceover.polly.region)`
           : /could not be found/i.test(said)
             ? ` — set aws_profile in ${SETTINGS_FILE} at the library root to a profile this machine has`
             : /sso|token|credential|expired/i.test(said)
@@ -837,7 +928,7 @@ export function elevenlabsSynthesizer({ fetch = globalThis.fetch, env = process.
         response.status === 401
           ? ` — check ${ELEVENLABS_KEY_VARIABLE}: ElevenLabs didn't accept the key`
           : response.status === 404
-            ? " — meta.voiceover.voice must be a voice id in the user's ElevenLabs voices"
+            ? " — meta.voiceover.elevenlabs.voice must be a voice id in the user's ElevenLabs voices"
             : "";
       throw new Error(
         `ElevenLabs answered ${response.status}: ${hide(String(said).trim().slice(0, 500))}${fix}`,
@@ -1135,8 +1226,8 @@ export async function buildVoiceover({
     return {
       ok: false,
       error:
-        `"${showcaseId}" has no meta.voiceover — add one (e.g. voiceover: {voice: Matthew, ` +
-        "engine: generative}) to have its captions read aloud.",
+        `"${showcaseId}" has no meta.voiceover — add one (e.g. voiceover: {polly: {voice: ` +
+        "Matthew}}) to have its captions read aloud.",
     };
   }
   if (!plan.ok) return { ok: false, error: plan.errors.join("\n") };

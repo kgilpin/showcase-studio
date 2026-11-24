@@ -548,7 +548,8 @@ scenes:
   const VOICED = `meta:
   title: Voiced
   voiceover:
-    voice: Matthew     # the voice
+    polly:
+      voice: Matthew     # the voice
     # how words are said
     say:
       GitHub: Git Hub          # plain respelling
@@ -568,7 +569,7 @@ scenes:
   });
 
   it("changes only the voiceover field that changed, around a say list", () => {
-    expect(setVoiceover(VOICED, (v) => (v.voice = "Joanna"))).toBe(
+    expect(setVoiceover(VOICED, (v) => (v.polly.voice = "Joanna"))).toBe(
       VOICED.replace("Matthew     #", "Joanna #"),
     );
     expect(setVoiceover(VOICED, (v) => (v.scenes = ["a"]))).toBe(
@@ -596,17 +597,30 @@ scenes:
   });
 
   it("gives a first say list a line per word, or keeps to a one-line map's line", () => {
-    const block = "meta:\n  voiceover:\n    voice: Matthew # the voice\nscenes: []\n";
+    const block = "meta:\n  voiceover:\n    polly:\n      voice: Matthew # the voice\nscenes: []\n";
     const say = { GitHub: "Git Hub", records: { ipa: "x" } };
     expect(setVoiceover(block, (v) => (v.say = say))).toBe(
-      "meta:\n  voiceover:\n    voice: Matthew # the voice\n    say:\n      GitHub: Git Hub\n" +
+      "meta:\n  voiceover:\n    polly:\n      voice: Matthew # the voice\n    say:\n" +
+        "      GitHub: Git Hub\n" +
         "      records: { ipa: x }\nscenes: []\n",
     );
-    const flow = "meta:\n  voiceover: { voice: Matthew }\nscenes: []\n";
+    const flow = "meta:\n  voiceover: { polly: { voice: Matthew } }\nscenes: []\n";
     expect(setVoiceover(flow, (v) => (v.say = say))).toBe(
-      "meta:\n  voiceover: { voice: Matthew, say: { GitHub: Git Hub, records: { ipa: x } } }\n" +
+      "meta:\n  voiceover: { polly: { voice: Matthew }, say: { GitHub: Git Hub, records: { ipa: x } } }\n" +
         "scenes: []\n",
     );
+  });
+
+  it("takes the voice settings in their provider's block only", () => {
+    expect(() => setVoiceover(VOICED, (v) => (v.voice = "Joanna"))).toThrow(
+      "meta.voiceover.voice is not a field — meta.voiceover takes: polly, elevenlabs",
+    );
+    const swapped = setVoiceover(VOICED, (v) => {
+      delete v.polly;
+      v.elevenlabs = { voice: "abc" };
+    });
+    expect(parse(swapped).meta.voiceover).toMatchObject({ elevenlabs: { voice: "abc" } });
+    expect(swapped).toContain("GitHub: Git Hub          # plain respelling");
   });
 
   it("sets, flips, and removes meta embedCaptions", () => {

@@ -39,7 +39,8 @@ scenes:
 const VOICED = `meta:
   title: A voiced showcase
   voiceover:
-    voice: Matthew
+    polly:
+      voice: Matthew
 scenes:
   - id: intro
     theme: statement

@@ -78,7 +78,7 @@ import { isPair, isScalar, isSeq, parseDocument, visit } from "yaml";
 import { buildMedia } from "./build-media.mjs";
 import { createAutoBuild } from "./auto-build.mjs";
 import { mediaStatus, mediaSummary } from "./media-status.mjs";
-import { buildVoiceover, hasVoiceover } from "./voiceover.mjs";
+import { buildVoiceover, hasVoiceover, migrateLibraryVoiceovers } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
 import { saveCoverFrame } from "./cover-frame.mjs";
 import { createActionsLog } from "./actions-log.mjs";
@@ -471,6 +471,13 @@ export function createStudio({
       if (existsSync(settingsPath)) recordSelfWrite(settingsPath, readFileSync(settingsPath));
     } catch (error) {
       console.warn(`[studio] couldn't set up showcase_settings.yaml: ${error.message}`);
+    }
+    /* Older showcases' flat Polly settings, moved into their voice block
+     * (meta.voiceover.polly). */
+    try {
+      migrateLibraryVoiceovers(showcasesDir, writeOwn);
+    } catch (error) {
+      console.warn(`[studio] couldn't update older voiceover settings: ${error.message}`);
     }
     const readmePath = path.join(showcasesDir, "README.md");
     if (!existsSync(readmePath)) {
