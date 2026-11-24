@@ -138,6 +138,29 @@ the portal offers is set in Stripe under Settings → Billing → Customer
 portal. Cancelling there sends the same webhook events, and the license
 ends with the paid period.
 
+## Coupons for testers
+
+Checkout takes Stripe promotion codes, and asks for a card only when
+something is due (`payment_method_collection: if_required`). So a code
+that makes the first months free needs no card at all.
+
+To make one: in Stripe, Product catalog → Coupons → New. For example
+100% off, duration "Repeating" for 3 months, then add a promotion code
+(say `BOSTON-BETA`) with a redemption limit. The tester clicks Subscribe
+in the studio and enters the code at checkout.
+
+```
+checkout with code ──► $0 invoice, no card ──► license active
+                                                    │
+                     free months end, no card ──────┤
+                                                    ▼
+                     invoice fails ──► past_due ──► good for 3 more days, then ends
+                                                    │
+                     tester adds a card in Manage subscription ──► active again
+```
+
+Without a code, checkout is unchanged: it asks for a card.
+
 ## Spotting a shared key
 
 Every licensed export writes `USE#<key>#<device>` and, the first time a
