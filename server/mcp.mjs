@@ -169,7 +169,7 @@ export const TOOLS = [
       'still of the frame, as the screens export shows a slide; animations: "live" leaves ' +
       "them where the clock has them at that moment, to check a mark's timing. safeArea: " +
       "true shades where TikTok's tabs, buttons and description cover the frame (TikTok view), " +
-      "as the player's Safe area switch does. Frames come at half size (540×960, or 720×540 " +
+      "as the player's TikTok safe area does. Frames come at half size (540×960, or 720×540 " +
       'for 4:3); size: "full" renders them at 1080×1920 / 1440×1080.',
     inputSchema: {
       type: "object",

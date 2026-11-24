@@ -457,7 +457,7 @@ export type ShowcaseStudio = {
    *  Share page). */
   share: StudioShare;
   /** One frame of the video at a time, as the export would render it,
-   *  to save as a PNG (the player's Frame button). `name` is the file
+   *  to save as a PNG (the player's This frame as PNG). `name` is the file
    *  name the studio suggests. */
   frame(
     showcaseId: string,

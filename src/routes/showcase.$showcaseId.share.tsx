@@ -5,7 +5,7 @@ import { ShareHandoff, type HandoffMethod } from "@/components/share/ShareHandof
 import { ShareCover } from "@/components/share/ShareCover";
 import { ShareHistory } from "@/components/share/ShareHistory";
 import { ShareText, type PublishEdit } from "@/components/share/ShareText";
-import { ShareVideo, type Quality } from "@/components/share/ShareVideo";
+import { ShareVideo, ShareVideoExport, type Quality } from "@/components/share/ShareVideo";
 import { ShowcaseFrame } from "@/components/showcase/ShowcaseFrame";
 import { getShowcase, useShowcase } from "@/content/showcases";
 import {
@@ -292,10 +292,6 @@ function ShareScreen() {
                 full={full}
                 draft={draft}
                 quality={quality}
-                job={running}
-                onQuality={setPicked}
-                onExport={(exportKind) => void exportVideo(exportKind)}
-                onCancel={(jobId) => void studio()!.exports.cancel(jobId)}
               />
               {showcase && (
                 <ShareCover
@@ -318,6 +314,18 @@ function ShareScreen() {
               method={method}
               canAirDrop={canAirDrop}
               canDrag={canDrag}
+              exportControl={
+                <ShareVideoExport
+                  kind={destination.exportKind}
+                  full={full}
+                  draft={draft}
+                  quality={quality}
+                  job={running}
+                  onQuality={setPicked}
+                  onExport={(exportKind) => void exportVideo(exportKind)}
+                  onCancel={(jobId) => void studio()!.exports.cancel(jobId)}
+                />
+              }
               text={
                 <ShareText
                   destination={destination}

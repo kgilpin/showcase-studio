@@ -28,7 +28,7 @@
  *   screenshotFrame  one frame of the video at a given time (the record
  *                    page the video export records, in the TikTok 9:16
  *                    or 4:3 embed view), for the screenshot_frame MCP
- *                    tool and the player's Frame button (which gets it
+ *                    tool and the player's This frame as PNG (which gets it
  *                    from GET /studio/api/frame). Animations are
  *                    finished unless asked for live; TikTok's safe area
  *                    is shaded on request.

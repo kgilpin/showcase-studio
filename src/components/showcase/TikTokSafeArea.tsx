@@ -1,5 +1,5 @@
 /* Where TikTok draws its own interface over the video — shown over the
- * TikTok view when the player's "Safe area" switch is on, never in an
+ * TikTok view when the player's TikTok safe area (View menu) is on, never in an
  * export. Measured on an iPhone in the TikTok app, where the 9:16 frame
  * fills the screen above TikTok's tab bar:
  *

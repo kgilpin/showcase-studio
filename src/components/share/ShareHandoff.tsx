@@ -4,7 +4,7 @@
  * answer. The page remembers the answer for each destination, so it is
  * already chosen next time — but it stays a step you can see and change.
  *
- *   1 ✓ The video is up to date
+ *   1 ✓ Export the video          (ShareVideoExport: its state and button)
  *   2 ✓ Write and copy the caption
  *   3 ✓ How will you post it?   [ From this computer ]  [ From your phone ]
  *
@@ -65,6 +65,7 @@ export function ShareHandoff({
   method,
   canAirDrop,
   canDrag,
+  exportControl,
   text,
   copied,
   pending,
@@ -85,6 +86,8 @@ export function ShareHandoff({
   canDrag: boolean;
   /** The caption was copied since the page opened this destination. */
   copied: boolean;
+  /** The export control (ShareVideoExport), shown in step 1. */
+  exportControl: React.ReactNode;
   /** The text editor (ShareText), shown in the "copy the caption" step. */
   text: React.ReactNode;
   /** The newest hand-off to this destination still waiting for its link. */
@@ -124,12 +127,10 @@ export function ShareHandoff({
       <ol className="mt-5 space-y-4">
         <Step n={1} done={ready}>
           <p>
-            {ready
-              ? quality === "draft"
-                ? `The ${fourThree ? "4:3 " : ""}draft is up to date — fine for trying the steps.`
-                : `The full-quality ${fourThree ? "4:3 " : ""}video is up to date.`
-              : `Export the ${fourThree ? "4:3 " : ""}${quality === "draft" ? "draft" : "full-quality video"} first (see Video).`}
+            Export the {fourThree ? "4:3 " : ""}
+            {quality === "draft" ? "draft" : "video"}
           </p>
+          {exportControl}
         </Step>
 
         <Step n={2} done={copied}>

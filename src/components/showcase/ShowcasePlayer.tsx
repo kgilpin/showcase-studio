@@ -1,15 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Captions,
-  CaptionsOff,
-  Pause,
-  Pin,
-  PinOff,
-  Play,
-  RotateCcw,
-  SkipBack,
-  SkipForward,
-} from "lucide-react";
+import { Pause, Pencil, Play, SkipBack, SkipForward } from "lucide-react";
 import { ShowcaseFrame } from "./ShowcaseFrame";
 import { DiagnosticsTray } from "./DiagnosticsTray";
 import { cn } from "@/lib/utils";
@@ -18,14 +8,15 @@ import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { EditableText } from "@/components/studio/EditableText";
 import { ExportButton } from "@/components/studio/ExportButton";
 import { MediaPicker } from "@/components/studio/MediaPicker";
-import { StylePanel } from "@/components/studio/StylePanel";
 import { captionTimeline, type Showcase } from "@/content/showcases";
 import { embedCaptionsSetting } from "@/content/embed-captions";
-import { playerView, VIEW_LABELS, type PlayerView } from "@/lib/export-kinds.mjs";
+import { playerView, type PlayerView } from "@/lib/export-kinds.mjs";
 import { FIXED_ASPECT, SceneView, TIKTOK_ASPECT } from "./SceneView";
 import { EMBED_ASPECT, EmbedSceneView } from "./EmbedSceneView";
 import { ProgressRail } from "./ProgressRail";
-import { StageControls } from "./StageControls";
+import { barButtonClass } from "./bar-button";
+import { EditScenePanel } from "./EditScenePanel";
+import { ViewMenu } from "./ViewMenu";
 import { Scrubber } from "./Scrubber";
 import { Soundtrack } from "./Soundtrack";
 import { useMediaPreload } from "./useMediaPreload";
@@ -131,6 +122,12 @@ export function ShowcasePlayer({
   useEditShortcuts(showcase.id);
   const editing = canEdit && paused && view === "screens";
   const [picker, setPicker] = useState(false);
+  /* The Edit scene panel: open only while paused. Opening it pauses;
+   * playing closes it. */
+  const [editOpen, setEditOpen] = useState(false);
+  useEffect(() => {
+    if (!paused) setEditOpen(false);
+  }, [paused]);
 
   const go = useCallback((next: number) => {
     setProgress(0);
@@ -236,6 +233,8 @@ export function ShowcasePlayer({
   }, [index, go, picker]);
 
   const elapsedMs = progress * scene.durationMs;
+  /* The scrubber's moment, from the start of the showcase. */
+  const atMs = scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs;
   /* One timeline pass gives both the caption on screen and its index —
    * the transcript column edits that same line in place while paused
    * (the /script page lists and edits all of them). Deriving both from
@@ -275,7 +274,9 @@ export function ShowcasePlayer({
               {scene.eyebrow && (
                 <p className="text-xs uppercase tracking-[0.42em] text-primary">{scene.eyebrow}</p>
               )}
-              <p className="font-mono text-[0.65rem] text-support">{scene.id}</p>
+              <p className="text-xs text-support" title={`${scene.id} in showcase.yaml`}>
+                Scene {index + 1} of {scenes.length}
+              </p>
               {scene.warnings?.map((warning, i) => (
                 <p key={i} className="text-xs text-amber-400/90">
                   ⚠ {warning}
@@ -326,15 +327,23 @@ export function ShowcasePlayer({
             </div>
             <div className="hidden shrink-0 flex-col self-stretch py-8 sm:flex sm:w-56 md:w-60 lg:w-64">
               {/* Scene identity, pinned to the top: how to refer to this
-               * scene — in conversation and in the YAML (the id). The title
-               * stays out; the slide itself displays it. */}
+               * scene in conversation ("scene 3"), with its YAML id as the
+               * tooltip. The title shows here only where the stage hides
+               * it (the TikTok view); elsewhere the slide displays it. */}
               <div className="shrink-0">
                 {scene.eyebrow && (
                   <p className="text-xs uppercase tracking-[0.42em] text-primary">
                     {scene.eyebrow}
                   </p>
                 )}
-                <p className="mt-2 font-mono text-[0.65rem] text-support">{scene.id}</p>
+                <p className="mt-2 text-xs text-support" title={`${scene.id} in showcase.yaml`}>
+                  Scene {index + 1} of {scenes.length}
+                </p>
+                {presentation === "video" && scene.title && !sameText(scene.title, captionText) && (
+                  <p className="mt-2 font-display text-2xl leading-snug tracking-tight text-foreground">
+                    {scene.title}
+                  </p>
+                )}
               </div>
               <div className="flex flex-1 flex-col justify-center gap-4">
                 {captionText && (
@@ -372,22 +381,20 @@ export function ShowcasePlayer({
         )}
       </div>
 
-      {/* Rendering and playback controls — between the stage and the
-       * scene rail: the scrubber first, right under the stage, then the
-       * current view's own controls (the TikTok view's safe area and
-       * picture fit). Future ones (playback speed) go here too. */}
+      {/* Between the stage and the scene rail: the scrubber, right under
+       * the stage, then the Edit scene panel while it's open. */}
       <div className="flex shrink-0 justify-center">
         <Scrubber positionMs={elapsedMs} durationMs={scene.durationMs} onSeek={seek} />
       </div>
-      <StageControls
-        showcaseId={showcase.id}
-        scene={scene}
-        view={view}
-        canEdit={canEdit}
-        safeArea={safeArea}
-        onToggleSafeArea={toggleSafeArea}
-        atMs={scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs}
-      />
+      {editOpen && (
+        <EditScenePanel
+          showcase={showcase}
+          scene={scene}
+          sceneNumber={index + 1}
+          view={view}
+          onPickMedia={() => setPicker(true)}
+        />
+      )}
       <div
         className="z-20 flex shrink-0 flex-col items-center gap-4 px-6 py-7 sm:px-10"
         onClick={(e) => e.stopPropagation()}
@@ -399,116 +406,47 @@ export function ShowcasePlayer({
           targetMs={showcase.targetMs}
           onSelect={(i) => go(i)}
         />
-        <div className="flex items-center gap-6 text-muted-foreground">
-          {/* View mode: which export destination this screen previews. */}
-          <div className="flex rounded-full border border-border bg-card/60 p-1 text-xs">
-            {(
-              [
-                ["tiktok", "TikTok"],
-                ["screens", "App Screens"],
-                ["embed", "4:3"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => pickView(key)}
-                aria-pressed={view === key}
-                className={cn(
-                  "rounded-full px-3 py-1.5 transition-colors",
-                  view === key
-                    ? "bg-secondary text-foreground"
-                    : "text-support hover:text-foreground",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-            {/* The pin: open this showcase in the current view from now
-             * on (meta.view in showcase.yaml, through the usual edit path,
-             * so the change log and git history see it); pinned, it
-             * unpins back to TikTok, the built-in default. */}
+        {/* The bottom bar: what changes the video (Edit scene) and how
+         * you watch it (View) on the left, playback in the middle, and
+         * the files you can make (Export) on the right. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-muted-foreground">
+          <div className="flex items-center gap-2">
             {canEdit && (
               <button
                 type="button"
-                aria-pressed={pinned}
-                aria-label={
-                  pinned
-                    ? `${VIEW_LABELS[view]} is the view this showcase opens in. Click to go back to opening in TikTok view.`
-                    : `Open this showcase in the ${VIEW_LABELS[view]} view from now on`
-                }
-                title={
-                  pinned
-                    ? `This showcase opens in the ${VIEW_LABELS[view]} view (saved in showcase.yaml). Click to go back to the default, TikTok.`
-                    : `Open this showcase in the ${VIEW_LABELS[view]} view from now on (saved in showcase.yaml)`
-                }
-                onClick={() =>
-                  void commitEdit(showcase.id, "", {
-                    field: "meta.set",
-                    name: "view",
-                    value: pinned ? null : view,
-                  })
-                }
-                className={cn(
-                  "ml-1 rounded-full px-2 py-1.5 transition-colors",
-                  pinned ? "text-primary" : "text-support hover:text-foreground",
-                )}
+                aria-pressed={editOpen}
+                title="Change this scene's picture, and the video's captions and colors"
+                onClick={() => {
+                  if (!editOpen) setPaused(true);
+                  setEditOpen((open) => !open);
+                }}
+                className={barButtonClass}
               >
-                {pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
+                <Pencil className="size-3.5" /> Edit scene
               </button>
             )}
+            <ViewMenu
+              view={view}
+              onView={pickView}
+              pinned={pinned}
+              /* The pin: open this showcase in the current view from now
+               * on (meta.view in showcase.yaml, through the usual edit
+               * path, so the change log and git history see it); pinned,
+               * it unpins back to TikTok, the built-in default. */
+              onPin={
+                canEdit
+                  ? () =>
+                      void commitEdit(showcase.id, "", {
+                        field: "meta.set",
+                        name: "view",
+                        value: pinned ? null : view,
+                      })
+                  : undefined
+              }
+              safeArea={safeArea}
+              onToggleSafeArea={toggleSafeArea}
+            />
           </div>
-          {/* 4:3 captions: whether the embed canvas overlays them. "auto"
-           * follows the voiceover; picking a value writes meta.embedCaptions
-           * to showcase.yaml, and the reset removes it again. */}
-          {view === "embed" && canEdit && (
-            <div className="flex items-center rounded-full border border-border bg-card/60 p-1 text-xs">
-              <button
-                type="button"
-                aria-pressed={embedCaptions.shown}
-                title={
-                  embedCaptions.auto
-                    ? embedCaptions.shown
-                      ? "Captions show because this showcase has no voiceover. Click to hide them."
-                      : "Captions are hidden because this showcase has a voiceover. Click to show them."
-                    : `Captions are ${embedCaptions.shown ? "on" : "off"} for 4:3 (saved in showcase.yaml). Click to turn them ${embedCaptions.shown ? "off" : "on"}.`
-                }
-                onClick={() =>
-                  void commitEdit(showcase.id, "", {
-                    field: "meta.set",
-                    name: "embedCaptions",
-                    value: !embedCaptions.shown,
-                  })
-                }
-                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-foreground transition-colors hover:bg-secondary"
-              >
-                {embedCaptions.shown ? (
-                  <Captions className="size-3.5" />
-                ) : (
-                  <CaptionsOff className="size-3.5" />
-                )}
-                Captions {embedCaptions.shown ? "on" : "off"}
-                {embedCaptions.auto && <span className="text-support">· auto</span>}
-              </button>
-              {!embedCaptions.auto && (
-                <button
-                  type="button"
-                  aria-label="Back to automatic captions"
-                  title="Back to automatic: hidden with a voiceover, shown without one"
-                  onClick={() =>
-                    void commitEdit(showcase.id, "", {
-                      field: "meta.set",
-                      name: "embedCaptions",
-                      value: null,
-                    })
-                  }
-                  className="rounded-full p-1.5 text-support transition-colors hover:text-foreground"
-                >
-                  <RotateCcw className="size-3" />
-                </button>
-              )}
-            </div>
-          )}
           {/* Transport. */}
           <div className="flex items-center gap-2">
             <Control label="Previous scene" onClick={() => go(Math.max(0, index - 1))}>
@@ -521,24 +459,23 @@ export function ShowcasePlayer({
               <SkipForward className="size-4" />
             </Control>
             {showcase.soundtrack && (
-              <Soundtrack
-                paused={paused}
-                soundtrack={showcase.soundtrack}
-                timelineMs={
-                  scenes.slice(0, index).reduce((sum, s) => sum + s.durationMs, 0) + elapsedMs
-                }
-              />
+              <Soundtrack paused={paused} soundtrack={showcase.soundtrack} timelineMs={atMs} />
             )}
-            {canEdit && <StylePanel showcase={showcase} />}
-            {/* Exports what this view previews (TikTok, 4:3, App Screens). */}
-            <ExportButton showcaseId={showcase.id} view={view} />
           </div>
+          <ExportButton showcaseId={showcase.id} view={view} atMs={atMs} safeArea={safeArea} />
         </div>
       </div>
       {picker && <MediaPicker showcase={showcase} scene={scene} onClose={() => setPicker(false)} />}
       <DiagnosticsTray />
     </ShowcaseFrame>
   );
+}
+
+/** Two texts that read the same: a statement slide's title is often its
+ *  caption too, and the panel shouldn't say it twice. */
+function sameText(a: string, b: string | undefined) {
+  const plain = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  return b != null && plain(a) === plain(b);
 }
 
 function Control({

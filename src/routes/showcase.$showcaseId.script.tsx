@@ -8,7 +8,6 @@ import {
   useShowcase,
   type Scene,
 } from "@/content/showcases";
-import { dataMode } from "@/content/source";
 import { commitEdit, useCanEditScenes, useEditShortcuts } from "@/lib/edits";
 import { EditableText } from "@/components/studio/EditableText";
 import { MediaPicker } from "@/components/studio/MediaPicker";
@@ -123,18 +122,11 @@ function ScriptScreen() {
             {showcase.description}
           </p>
           <p className="mt-6 text-sm text-support">
-            {scenes.length} slides · {seconds(total)} total ·{" "}
-            {showcase.loop ? "loops" : "plays once"} · soundtrack{" "}
-            {showcase.soundtrack?.src
-              ? `at ${Math.round(showcase.soundtrack.volume * 100)}% volume`
-              : "not set"}{" "}
-            · edit{" "}
-            <code className="text-foreground/80">
-              {dataMode ? "" : "showcases/"}
-              {showcase.id}/showcase.yaml
-            </code>
+            {scenes.length} slides · {seconds(total)}
           </p>
-          {showcase.notes && (
+          {/* Notes are for planning: the showcase's notes show with the
+           * outline, and go quiet once the slides are written. */}
+          {showcase.notes && isOutline(scenes) && (
             <p className="mt-4 whitespace-pre-line border-l-2 border-border pl-3 text-xs leading-relaxed text-support">
               {showcase.notes}
             </p>
@@ -166,8 +158,11 @@ function ScriptScreen() {
             return (
               <li key={scene.id} className="rounded-2xl border border-border bg-card/40 p-6 sm:p-8">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.32em] text-support">
-                    Slide {i + 1} · {scene.theme} · {scene.id}
+                  <p
+                    className="text-xs uppercase tracking-[0.32em] text-support"
+                    title={`${scene.id} in showcase.yaml`}
+                  >
+                    Slide {i + 1}
                   </p>
                   <div className="flex items-center gap-3">
                     <p className="text-xs tabular-nums text-support">
@@ -287,7 +282,9 @@ function ScriptScreen() {
                         </h2>
                       )
                     )}
-                    {scene.note && (
+                    {/* A note is for planning: it shows while the slide is
+                     * an outline, and the captions take its place. */}
+                    {scene.note && timeline.length === 0 && (
                       <p className="mt-3 border-l-2 border-border pl-3 text-xs leading-relaxed text-support">
                         {scene.note}
                       </p>
@@ -371,12 +368,6 @@ function ScriptScreen() {
                     {scene.cta && (
                       <p className="mt-5 text-sm text-support">
                         CTA: {scene.cta.label} — {scene.cta.url}
-                      </p>
-                    )}
-                    {media.kind !== "none" && (
-                      <p className="mt-5 text-xs leading-relaxed text-support">
-                        {media.kind} · {media.motion ?? "zoom-in"} · {media.frame ?? "phone"} ·{" "}
-                        {media.alt}
                       </p>
                     )}
                   </div>

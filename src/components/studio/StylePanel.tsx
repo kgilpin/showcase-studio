@@ -5,8 +5,10 @@ import type { Showcase } from "@/content/showcases";
 import { cn } from "@/lib/utils";
 
 /* The style panel (desktop shell only): caption painting and the caption
- * and stage colors, written through the same whitelisted edit path as
- * every other in-app edit (meta.captionStyle in showcase.yaml; the
+ * and stage colors, opened from the player's Edit scene panel as
+ * "Captions and colors…" (it applies to the whole video, not the
+ * scene). Written through the same whitelisted edit path as every
+ * other in-app edit (meta.captionStyle in showcase.yaml; the
  * caption-* colors and the stage background in theme.yaml). Cmd/Ctrl+Z
  * undoes these like any other edit. */
 
@@ -24,7 +26,7 @@ const COLOR_ROWS = [
   { label: "Slide background", group: "atmosphere", name: "gradient-stage", fallback: "#0a0e17" },
 ] as const;
 
-export function StylePanel({ showcase }: { showcase: Showcase }) {
+export function StylePanel({ showcase, className }: { showcase: Showcase; className?: string }) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -50,16 +52,18 @@ export function StylePanel({ showcase }: { showcase: Showcase }) {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "rounded-full border p-2.5 transition-colors",
+          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition-colors",
           open
             ? "border-transparent bg-secondary text-foreground"
-            : "border-border bg-card/60 text-foreground/70 hover:bg-secondary hover:text-foreground",
+            : "border-border bg-card/60 text-support hover:text-foreground",
+          className,
         )}
       >
-        <Palette className="size-4" />
+        <Palette className="size-3.5" />
+        Captions and colors…
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 z-40 mb-3 w-64 rounded-2xl border border-border bg-card p-4 text-left shadow-2xl">
+        <div className="absolute bottom-full left-0 z-40 mb-3 w-64 rounded-2xl border border-border bg-card p-4 text-left shadow-2xl">
           <p className="text-xs uppercase tracking-[0.2em] text-support">Captions</p>
           <div className="mt-2 flex rounded-full border border-border bg-background/40 p-1 text-xs">
             {CAPTION_STYLES.map(([key, label]) => (

@@ -147,12 +147,19 @@ The marketing site (`site/`) is its own npm package:
   incoherent themes but always renders.
 - The player (`ShowcasePlayer.tsx`) stacks its rows under the top bar: the
   stage (with the transcript beside it), the scrubber (`Scrubber.tsx`),
-  `StageControls.tsx`, then the scene rail with the view switch and
-  transport. Controls that change how the current view renders or plays
-  go in the rows between the stage and the scene rail: today the
-  scrubber, the TikTok Safe area switch, the Frame button and the current
-  scene's picture fit (`media.tiktok`). Future ones, such as playback
-  speed, go there too, not in the bottom bar.
+  the Edit scene panel while it's open (`EditScenePanel.tsx`), then the
+  scene rail and the bottom bar. The bottom bar has few buttons on
+  purpose, and each control goes where its kind does:
+
+  | Kind                       | Goes in                                                                    | Today                                                                                                |
+  | -------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+  | Changes the video          | **Edit scene** (`EditScenePanel.tsx`), opened while paused, closed by play | Picture fit, focus and bands; Change picture; under "Whole video": Captions and colors, 4:3 captions |
+  | Changes only how you watch | **View** menu (`ViewMenu.tsx`)                                             | TikTok / App Screens / 4:3, Open in this view, TikTok safe area                                      |
+  | Makes a file               | **Export** menu (`ExportButton.tsx`)                                       | Draft, Full quality, App Store screenshots, This frame as PNG                                        |
+  | Playback                   | the transport, in the middle                                               | Previous, play, next, the soundtrack                                                                 |
+
+  A new control joins one of these, not the bar itself.
+
 - The TikTok view and the `video` / `video-draft` exports are 9:16
   (1080×1920). App Screens and the screenshot export stay 1320×2868 (App
   Store 6.9"). Each picture's TikTok fit is in `src/content/tiktok-fit.ts`,
