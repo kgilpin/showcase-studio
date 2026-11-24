@@ -797,6 +797,7 @@ describe("readVoiceoverPlan", () => {
 
   it("fills in the defaults", () => {
     expect(plan({}).settings).toEqual({
+      provider: "polly",
       voice: "Matthew",
       engine: "generative",
       track: "voiceover",

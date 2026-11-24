@@ -108,8 +108,10 @@ The marketing site (`site/`) is its own npm package:
 - YAML edits use `parseDocument` + `setIn` (`server/edit-yaml.mjs`),
   never parse-and-redump: comments in showcase files carry real
   information.
-- Which AWS profile pays for a synthesized voice is the user's choice. A
-  session asks; it never picks one.
+- Which AWS profile pays for a synthesized voice is the user's choice, and
+  so is which ElevenLabs account. A session asks; it never picks one. The
+  ElevenLabs key is read from `ELEVENLABS_API_KEY` only, never written to
+  a setting, the library, a log, the manifest or an error.
 - Everything the studio serves answers only requests from this machine.
 - `web/prompter` must never pull in the content layer (bundled showcases,
   YAML, themes). That's why `ScriptPlayer` imports the timing model

@@ -751,23 +751,27 @@ export const TOOLS = [
     name: "build_voiceover",
     description:
       "Make a synthesized voiceover from a showcase's captions with AWS Polly, on the user's " +
-      "own AWS account (through the aws command) — the track, the karaoke words file, and " +
+      "own AWS account (through the aws command), or with ElevenLabs (provider: elevenlabs, " +
+      "on the account whose key is in ELEVENLABS_API_KEY) — the track, the karaoke words file, and " +
       "every caption's durationMs. The studio does this on its own a few seconds after a " +
       "caption or the voice settings change, and before any export or screenshot; call it " +
       "to force a rebuild or to get a jobId to wait on with build_status {waitMs}. Returns " +
       "the running build of the showcase when there is one, else starts one.\n" +
-      "The settings live in showcase.yaml's meta.voiceover: {voice (default Matthew), engine " +
-      "(generative | neural | standard | long-form; default generative), profile and region " +
-      "(optional: else the user's AWS defaults), track (the asset key, default voiceover), say " +
+      "The settings live in showcase.yaml's meta.voiceover: {provider (polly | elevenlabs; " +
+      "default polly), voice (default Matthew; with ElevenLabs a voice id, required), model " +
+      "(ElevenLabs only, default eleven_multilingual_v2), engine " +
+      "(Polly only: generative | neural | standard | long-form; default generative), profile " +
+      "and region (Polly only, optional: else the user's AWS defaults), track (the asset key, default voiceover), say " +
       '(how a word is spoken, with the caption left as written: {GitHub: "Git Hub", records: ' +
       '{ipa: "rɪˈkɔːrdz"}}; showcase_settings.yaml\'s say is the same for the whole library)}. ' +
       "Each caption gets one window: 250 ms lead + its spoken length + 450 ms tail, the last " +
       "one 1.5 s more for the end card (leadMs, tailMs, holdMs change those). The pins add up " +
       "to the track, so never pin durationMs by hand on a voiced showcase, and never make " +
-      "the voice with your own Polly or ffmpeg calls.\n" +
-      "Idempotent: clips are cached by voice, engine and the text sent, so only captions " +
-      "that changed, or that hold a word whose say entry changed, call " +
-      "Polly again. `force` makes every clip again. Needs the aws command signed in; without " +
+      "the voice with your own Polly, ElevenLabs or ffmpeg calls.\n" +
+      "Idempotent: clips are cached by provider, voice, engine or model and the text sent, so " +
+      "only captions that changed, or that hold a word whose say entry changed, call " +
+      "the voice again. `force` makes every clip again. Polly needs the aws command signed in, " +
+      "ElevenLabs needs ELEVENLABS_API_KEY set; which account pays is the user's to say. Without " +
       "whisper the words file falls back to estimated word times (the notes say so).\n" +
       "To voice some scenes and not others — try a voice on one scene, or voice one scene of a " +
       "showcase whose other scenes keep their own timing — pass `only`: it is written to " +
@@ -780,7 +784,7 @@ export const TOOLS = [
         showcaseId: { type: "string", description: "The showcase's folder name" },
         force: {
           type: "boolean",
-          description: "Call Polly again for every caption, even the unchanged ones",
+          description: "Call the voice again for every caption, even the unchanged ones",
         },
         only: {
           type: "array",

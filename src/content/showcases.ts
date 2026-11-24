@@ -396,7 +396,8 @@ type RawDoc = {
      *  Read by the build (server/build-plan.mjs), ignored here: the build
      *  writes the durationMs pins the player actually follows. */
     source?: Record<string, unknown>;
-    /** A synthesized voiceover's settings, when Polly reads the captions.
+    /** A synthesized voiceover's settings, when Polly or ElevenLabs reads
+     *  the captions.
      *  Read by the build (server/voiceover.mjs), ignored here. */
     voiceover?: Record<string, unknown>;
     /** Default overlay caption painting for every scene (see CaptionStyle). */

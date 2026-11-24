@@ -171,8 +171,9 @@ const META_FIELDS = {
   cover: { kind: "string", removable: true },
   soundtrack: { kind: "map", map: { src: true, volume: false, sync: false }, removable: true },
   notes: { kind: "string", removable: true },
-  /* A synthesized voiceover's settings (server/voiceover.mjs): the Polly
-   * voice and engine, how to reach AWS, the track's asset key, and how
+  /* A synthesized voiceover's settings (server/voiceover.mjs): who makes
+   * the voice (Polly or ElevenLabs), the voice and its engine or model,
+   * how to reach AWS, the track's asset key, and how
    * words are said. Merged into the map that is there (mergeMap), so the
    * say list keeps its comments. A bad say entry isn't refused here:
    * validate warns about it, and it mustn't block an edit beside it. */
@@ -180,8 +181,10 @@ const META_FIELDS = {
     kind: "map",
     merge: true,
     map: {
+      provider: false,
       voice: false,
       engine: false,
+      model: false,
       profile: false,
       region: false,
       track: false,

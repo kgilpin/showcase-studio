@@ -10,6 +10,7 @@ export const MEDIA_FITS: readonly string[];
 export const CTA_KINDS: readonly string[];
 export const TRANSITIONS: readonly string[];
 export const VOICEOVER_ENGINES: readonly string[];
+export const VOICEOVER_PROVIDERS: readonly string[];
 export const TONEMAPS: readonly string[];
 
 /** The JSON Schema for showcase.yaml. */

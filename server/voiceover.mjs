@@ -1,12 +1,14 @@
 /* A synthesized voiceover: the captions in showcase.yaml read aloud by
- * AWS Polly, on the user's own AWS account, and everything the player
- * needs to stay in step with that voice.
+ * AWS Polly, on the user's own AWS account, or by ElevenLabs, on the
+ * user's own ElevenLabs account, and everything the player needs to stay
+ * in step with that voice.
  *
  *   meta.voiceover + captions
  *          │
- *          ├──► one Polly clip per caption    cached by (engine, voice,
- *          │                                  text sent): only changed
- *          │                                  captions call Polly again
+ *          ├──► one clip per caption          cached by (provider, model or
+ *          │                                  engine, voice, text sent):
+ *          │                                  only changed captions call
+ *          │                                  the voice again
  *          ├──► assets/<track>.m4a            every clip in its window,
  *          │                                  joined from raw PCM
  *          ├──► assets/<track>.words.json     karaoke word times, one
@@ -55,8 +57,26 @@
  *                                #   own timing and are silence on the
  *                                #   track, so the pins still add up
  *
- * The voice and the engine are what the showcase sounds like, so they go
- * with it. The profile and region are only how to reach Polly; leave them
+ * ElevenLabs is `provider: elevenlabs`, for a machine with no AWS sign-in
+ * (a cloud session, say):
+ *
+ *   meta:
+ *     voiceover:
+ *       provider: elevenlabs     # default polly
+ *       voice: JBFqnCBsd6RMkjVDRZzb   # an ElevenLabs voice id (required)
+ *       model: eleven_multilingual_v2 # optional: the ElevenLabs model id
+ *
+ * It takes no engine, profile or region. The API key is the environment
+ * variable ELEVENLABS_API_KEY and nothing else: it is never written to a
+ * setting, the library, a log, the manifest or an error. No key is the
+ * status's `problem`, said before any build, as a missing AWS profile is.
+ * Its clips are asked for as wav_24000 (16-bit PCM at the track's own
+ * rate, in a WAV header, so ffmpeg reads them as it reads Polly's mp3s).
+ * ElevenLabs is sent no SSML: its default model takes no phoneme tags,
+ * so an ipa say entry's word goes as written, with a warning.
+ *
+ * The voice and the engine or model are what the showcase sounds like, so
+ * they go with it. The profile and region are only how to reach Polly; leave them
  * out of a showcase that ships to other people, and their own AWS
  * settings apply.
  *
@@ -99,6 +119,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
+import { VOICEOVER_PROVIDERS } from "../src/content/showcase-schema.mjs";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { runFfmpeg } from "./ffmpeg.mjs";
 import { SETTINGS_FILE, libraryAwsSettings, librarySay } from "./library-config.mjs";
@@ -126,6 +147,14 @@ export const VOICEOVER_DEFAULTS = {
 };
 
 const ENGINES = ["generative", "neural", "standard", "long-form"];
+
+/** ElevenLabs' model when the showcase names none: the endpoint's own
+ *  default, and the one its models page recommends for video narration
+ *  beside eleven_v4. */
+export const ELEVENLABS_DEFAULT_MODEL = "eleven_multilingual_v2";
+
+/** The settings only Polly reads. */
+const POLLY_ONLY = ["engine", "profile", "region"];
 
 /** A sample louder than this (-40 dBFS) is voice, not the clip's quiet
  *  edges. */
@@ -163,7 +192,7 @@ export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] }
     );
   }
   const settings = { ...VOICEOVER_DEFAULTS };
-  for (const key of ["voice", "engine", "profile", "region", "track"]) {
+  for (const key of ["provider", "voice", "engine", "model", "profile", "region", "track"]) {
     if (raw[key] == null) continue;
     if (typeof raw[key] !== "string" || !raw[key].trim()) {
       errors.push(`meta.voiceover.${key} must be text`);
@@ -199,20 +228,59 @@ export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] }
   if (sayLists.some((entries) => entries.length > 0)) {
     settings.say = { showcase: own.entries, library: library.entries };
   }
-  const known = new Set([...Object.keys(VOICEOVER_DEFAULTS), "profile", "region", "scenes", "say"]);
+  const known = new Set([
+    "provider",
+    ...Object.keys(VOICEOVER_DEFAULTS),
+    "model",
+    "profile",
+    "region",
+    "scenes",
+    "say",
+  ]);
   for (const key of Object.keys(raw)) {
     if (!known.has(key)) {
       errors.push(`meta.voiceover.${key} is not a setting — use: ${[...known].join(", ")}`);
     }
   }
-  if (!ENGINES.includes(settings.engine)) {
-    errors.push(`meta.voiceover.engine must be one of: ${ENGINES.join(", ")}`);
+  if (settings.provider == null) settings.provider = "polly";
+  if (!VOICEOVER_PROVIDERS.includes(settings.provider)) {
+    errors.push(`meta.voiceover.provider must be one of: ${VOICEOVER_PROVIDERS.join(", ")}`);
+  }
+  if (settings.provider === "elevenlabs") {
+    for (const key of POLLY_ONLY) {
+      if (raw[key] != null) {
+        errors.push(`meta.voiceover.${key} is a Polly setting — ElevenLabs takes voice and model`);
+      }
+    }
+    if (raw.voice == null) {
+      errors.push(
+        "meta.voiceover.voice is required with ElevenLabs — an ElevenLabs voice id " +
+          "(the user's voice library lists them)",
+      );
+    }
+    delete settings.engine;
+    settings.model ??= ELEVENLABS_DEFAULT_MODEL;
+  } else {
+    if (raw.model != null) {
+      errors.push("meta.voiceover.model is an ElevenLabs setting — Polly takes an engine");
+    }
+    if (!ENGINES.includes(settings.engine)) {
+      errors.push(`meta.voiceover.engine must be one of: ${ENGINES.join(", ")}`);
+    }
   }
   if (/[/\\]|^\./.test(settings.track)) {
     errors.push("meta.voiceover.track is an asset key — a file name without a folder");
   }
   settings.track = settings.track.replace(/\.(m4a|mp3)$/i, "");
 
+  /* ElevenLabs is sent no SSML: an ipa entry's word goes as written. */
+  const unsaid = new Set();
+  const sayFor = (text) => {
+    const say = sayCaption(text, sayLists);
+    if (!say.ssml || settings.provider !== "elevenlabs") return say;
+    for (const name of say.ipa) unsaid.add(name);
+    return { text: say.plain, pieces: say.pieces };
+  };
   const scenes = (Array.isArray(doc.scenes) ? doc.scenes : []).map((scene, sceneIndex) => ({
     id: scene?.id,
     sceneIndex,
@@ -220,9 +288,18 @@ export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] }
     voiced: voicedIds ? voicedIds.has(scene?.id) : true,
     captions: (Array.isArray(scene?.captions) ? scene.captions : []).map((caption, index) => {
       const text = typeof caption?.text === "string" ? caption.text.trim() : "";
-      return { index, text, say: sayCaption(text, sayLists) };
+      return { index, text, say: sayFor(text) };
     }),
   }));
+  const ipaWarnings =
+    unsaid.size > 0
+      ? [
+          `The say ${unsaid.size === 1 ? "entry" : "entries"} ` +
+            `${[...unsaid].map((name) => `"${name}"`).join(", ")} (ipa) can't be sent to ` +
+            "ElevenLabs, so the word is read as written. Give it a respelling instead " +
+            "(GitHub: Git Hub).",
+        ]
+      : [];
   for (const scene of scenes) {
     if (typeof scene.id !== "string" || !scene.id) {
       errors.push(`Scene ${scene.sceneIndex + 1} has no id`);
@@ -252,7 +329,7 @@ export function readVoiceoverPlan(doc, { library = { entries: [], warnings: [] }
         ok: true,
         settings,
         scenes,
-        warnings: [...own.warnings, ...library.warnings],
+        warnings: [...own.warnings, ...library.warnings, ...ipaWarnings],
       };
 }
 
@@ -692,6 +769,94 @@ export function pollySynthesizer({ aws = awsPath() } = {}) {
   };
 }
 
+/* ---------- ElevenLabs ---------- */
+
+export const ELEVENLABS_KEY_VARIABLE = "ELEVENLABS_API_KEY";
+const ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech";
+/** 16-bit PCM at the track's rate, in a WAV header ffmpeg reads. */
+export const ELEVENLABS_FORMAT = "wav_24000";
+
+const elevenLabsKey = (env) => env?.[ELEVENLABS_KEY_VARIABLE]?.trim() || undefined;
+
+/** Whether an ElevenLabs voice can be made here: `{ok: true}` when
+ *  ELEVENLABS_API_KEY is set, else `{ok: false, problem}`, which says
+ *  where the key goes and that the account is the user's to choose. The
+ *  key itself is never in the answer. */
+export function resolveElevenLabs({ env = process.env } = {}) {
+  if (elevenLabsKey(env)) return { ok: true };
+  return {
+    ok: false,
+    problem:
+      `No ElevenLabs API key: set ${ELEVENLABS_KEY_VARIABLE} in the environment the studio ` +
+      "runs in (it is read from there only, never from a file in the library). Which " +
+      "ElevenLabs account pays for the voice is the user's choice: ask them for the key's " +
+      "account, never pick one yourself.",
+  };
+}
+
+/** Synthesizes one clip with ElevenLabs' text-to-speech endpoint, on the
+ *  account whose key is in ELEVENLABS_API_KEY. Writes the WAV to `out`,
+ *  as the Polly synthesizer writes its mp3. `fetch` is replaceable for
+ *  tests. An error says what ElevenLabs answered, with the key taken out
+ *  of it should it ever be echoed. */
+export function elevenlabsSynthesizer({ fetch = globalThis.fetch, env = process.env } = {}) {
+  return async function synthesize({ text, voice, model, out, signal }) {
+    const key = elevenLabsKey(env);
+    if (!key) throw new Error(resolveElevenLabs({ env }).problem);
+    const hide = (said) => said.split(key).join("[ELEVENLABS_API_KEY]");
+    let response;
+    try {
+      response = await fetch(
+        `${ELEVENLABS_URL}/${encodeURIComponent(voice)}?output_format=${ELEVENLABS_FORMAT}`,
+        {
+          method: "POST",
+          headers: { "xi-api-key": key, "content-type": "application/json", accept: "audio/wav" },
+          body: JSON.stringify({ text, model_id: model }),
+          signal,
+        },
+      );
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      throw new Error(`ElevenLabs couldn't be reached: ${hide(String(error?.message ?? error))}`);
+    }
+    if (!response.ok) {
+      let said = "";
+      try {
+        said = await response.text();
+        const detail = JSON.parse(said)?.detail;
+        said =
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((item) => item?.msg ?? JSON.stringify(item)).join("; ")
+              : (detail?.message ?? said);
+      } catch {
+        /* not JSON: the text as it came */
+      }
+      const fix =
+        response.status === 401
+          ? ` — check ${ELEVENLABS_KEY_VARIABLE}: ElevenLabs didn't accept the key`
+          : response.status === 404
+            ? " — meta.voiceover.voice must be a voice id in the user's ElevenLabs voices"
+            : "";
+      throw new Error(
+        `ElevenLabs answered ${response.status}: ${hide(String(said).trim().slice(0, 500))}${fix}`,
+      );
+    }
+    const audio = Buffer.from(await response.arrayBuffer());
+    if (audio.length === 0) throw new Error("ElevenLabs answered with no audio");
+    writeFileSync(out, audio);
+  };
+}
+
+/** What a showcase's voice can be made with here: the AWS setup for
+ *  Polly (resolveAws), the API key for ElevenLabs. */
+function resolveVoiceSetup({ settings, showcasesDir, env, aws }) {
+  return settings.provider === "elevenlabs"
+    ? resolveElevenLabs({ ...(env ? { env } : {}) })
+    : resolveAws({ settings, showcasesDir, env, ...(aws ? { aws } : {}) });
+}
+
 /* ---------- files ---------- */
 
 async function decodePcm(file, signal) {
@@ -772,12 +937,20 @@ export function captionKey(settings, text, { ssml = false } = {}) {
     text,
     /* Only when set, so a plain clip's key is what it always was. */
     ...(ssml ? { ssml } : {}),
+    /* Likewise: a Polly clip's key is unchanged, and an ElevenLabs one
+     * never matches it. */
+    ...(settings.provider === "elevenlabs"
+      ? { provider: settings.provider, model: settings.model }
+      : {}),
   }).slice(0, 32);
 }
 
 /** The key of the clip that reads a planned caption. */
 const clipKey = (settings, caption) =>
   captionKey(settings, caption.say.text, { ssml: caption.say.ssml });
+
+/** A clip's file in the cache: Polly's are mp3, ElevenLabs' WAV. */
+const clipFile = (settings, key) => `${key}.${settings.provider === "elevenlabs" ? "wav" : "mp3"}`;
 
 /** The print of everything a voiceover build reads: the settings, and
  *  the showcase in order — each caption's clip key, or the silence a
@@ -797,6 +970,9 @@ export function voiceInputsPrint(settings, scenes, pace) {
       scenes: settings.scenes ?? null,
       /* Only when set: with no list the print is what it always was. */
       ...(settings.say ? { say: settings.say } : {}),
+      ...(settings.provider === "elevenlabs"
+        ? { provider: settings.provider, model: settings.model }
+        : {}),
     },
     items: scenes.map((scene) =>
       spoken(scene)
@@ -844,9 +1020,10 @@ export function voiceoverStatus({ showcasesDir, showcaseId, aws, env }) {
   if (!plan.ok)
     return { built: true, kind: "voiceover", ok: false, problem: plan.errors.join("\n") };
   const { settings, scenes } = plan;
-  /* The AWS setup, before any build is started for it: a missing
-   * profile is a question for the user, not a failed build. */
-  const setup = resolveAws({ settings, showcasesDir, env, ...(aws ? { aws } : {}) });
+  /* The AWS setup or the ElevenLabs key, before any build is started
+   * for it: a missing profile or key is a question for the user, not a
+   * failed build. */
+  const setup = resolveVoiceSetup({ settings, showcasesDir, env, aws });
   if (!setup.ok) return { built: true, kind: "voiceover", ok: false, problem: setup.problem };
   const cacheDir = path.join(showcasesDir, CACHE_DIR, showcaseId);
   const assetsDir = path.join(showcasesDir, showcaseId, "assets");
@@ -855,7 +1032,10 @@ export function voiceoverStatus({ showcasesDir, showcaseId, aws, env }) {
   const unvoiced = scenes
     .filter(spoken)
     .flatMap((scene) => scene.captions.map((c) => ({ scene, caption: c })))
-    .filter(({ caption }) => !existsSync(path.join(cacheDir, `${clipKey(settings, caption)}.mp3`)));
+    .filter(
+      ({ caption }) =>
+        !existsSync(path.join(cacheDir, clipFile(settings, clipKey(settings, caption)))),
+    );
   if (unvoiced.length > 0) {
     stale.push(
       unvoiced.length === 1
@@ -908,7 +1088,7 @@ export async function buildVoiceover({
   onProgress = () => {},
   signal,
   beforeWrite,
-  synthesize = pollySynthesizer(),
+  synthesize,
   transcribe = (file) => whisperTranscribe(file),
   aws,
   env,
@@ -961,8 +1141,12 @@ export async function buildVoiceover({
   }
   if (!plan.ok) return { ok: false, error: plan.errors.join("\n") };
   const { settings, scenes } = plan;
-  const setup = resolveAws({ settings, showcasesDir, env, ...(aws ? { aws } : {}) });
+  const setup = resolveVoiceSetup({ settings, showcasesDir, env, aws });
   if (!setup.ok) return { ok: false, error: setup.problem };
+  synthesize ??=
+    settings.provider === "elevenlabs"
+      ? elevenlabsSynthesizer({ ...(env ? { env } : {}) })
+      : pollySynthesizer();
 
   const cacheDir = path.join(showcasesDir, CACHE_DIR, showcaseId);
   mkdirSync(cacheDir, { recursive: true });
@@ -983,8 +1167,8 @@ export async function buildVoiceover({
     checkAborted(signal);
     const key = clipKey(settings, caption);
     caption.key = key;
-    caption.clip = path.join(cacheDir, `${key}.mp3`);
-    keep.add(`${key}.mp3`).add(`${key}.heard.json`);
+    caption.clip = path.join(cacheDir, clipFile(settings, key));
+    keep.add(clipFile(settings, key)).add(`${key}.heard.json`);
     if (!force && existsSync(caption.clip)) {
       reused += 1;
     } else {
@@ -1001,7 +1185,9 @@ export async function buildVoiceover({
             text,
             ...(ssml ? { ssml } : {}),
             voice: settings.voice,
-            engine: settings.engine,
+            ...(settings.provider === "elevenlabs"
+              ? { provider: settings.provider, model: settings.model }
+              : { engine: settings.engine }),
             profile: setup.profile,
             region: setup.region,
             out: partial,
@@ -1141,7 +1327,11 @@ export async function buildVoiceover({
       wordsPath,
       transcriptJson({
         source:
-          `AWS Polly ${settings.engine} ${settings.voice}, built by build_voiceover: one segment ` +
+          `${
+            settings.provider === "elevenlabs"
+              ? `ElevenLabs ${settings.model} ${settings.voice}`
+              : `AWS Polly ${settings.engine} ${settings.voice}`
+          }, built by build_voiceover: one segment ` +
           "per caption window; word times from whisper.cpp hearing each caption's clip, fitted " +
           "to where the clip is voiced; spelling from the captions",
         segments,
@@ -1262,7 +1452,7 @@ export async function buildVoiceover({
   };
 }
 
-/** Whether a showcase is voiced by Polly (meta.voiceover) rather than cut
+/** Whether a showcase is voiced (meta.voiceover, Polly or ElevenLabs) rather than cut
  *  from a recording — how a plain "build" of a showcase picks its build. */
 export function hasVoiceover(showcasesDir, showcaseId) {
   if (!showcaseId || /[/\\]|\.\./.test(showcaseId)) return false;
