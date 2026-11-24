@@ -128,7 +128,11 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { YAMLMap, isMap, isScalar, parse } from "yaml";
-import { SHOWCASE_SCHEMA, VOICEOVER_PROVIDERS } from "../src/content/showcase-schema.mjs";
+import {
+  SHOWCASE_SCHEMA,
+  VOICEOVER_ENGINES,
+  VOICEOVER_PROVIDERS,
+} from "../src/content/showcase-schema.mjs";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import { runFfmpeg } from "./ffmpeg.mjs";
 import { SETTINGS_FILE, libraryAwsSettings, librarySay } from "./library-config.mjs";
@@ -156,7 +160,7 @@ export const VOICEOVER_DEFAULTS = {
   holdMs: 1500,
 };
 
-const ENGINES = ["generative", "neural", "standard", "long-form"];
+const ENGINES = VOICEOVER_ENGINES;
 
 /** ElevenLabs' model when the showcase names none: the endpoint's own
  *  default, and the one its models page recommends for video narration
