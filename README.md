@@ -50,8 +50,11 @@ Claude, and you can also edit in the studio yourself.
 isn't installed, Claude runs the plugin's installer (`bin/install-app`).
 It downloads the app from https://showcasestudio.dev/download/, checks
 its SHA-256 hash, and puts it in `~/Applications` (on Windows,
-`%LOCALAPPDATA%\Programs`). It needs a Mac with Apple Silicon, or Windows
-on x64.
+`%LOCALAPPDATA%\Programs`; on Linux, `~/.local/share/showcase-studio`).
+It needs a Mac with Apple Silicon, Windows on x64, or Linux on x64. The
+Linux build has no window: it is for CI and for Claude Code's preview
+panel, and its exports draw pages with Google Chrome
+(`~/.local/share/showcase-studio/bin/install-chrome` installs it).
 
 After the install, run `/mcp` and reconnect `showcase-studio` (or start a
 new session) so the tools appear.

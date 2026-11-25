@@ -26,6 +26,7 @@
     "build:icon": "node scripts/render-icon.mjs",
     "package:desktop": "npm run vendor:whisper && npm run build:desktop && node scripts/package-desktop.mjs && node scripts/electron-builder.mjs --dir",
     "release:desktop": "npm run vendor:whisper && npm run build:desktop && node scripts/package-desktop.mjs && node scripts/electron-builder.mjs --mac && cd dist-electron/dist && shasum -a 256 Showcase-Studio-$npm_package_version-mac-arm64.zip > SHA256SUMS",
+    "package:linux": "npm run vendor:whisper && npm run build:desktop && node scripts/package-linux.mjs",
     "vendor:whisper": "node scripts/vendor-whisper.mjs",
     "test": "vitest run",
     "postinstall": "node scripts/postinstall.mjs",

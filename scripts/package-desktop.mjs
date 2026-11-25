@@ -11,7 +11,6 @@
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
-  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -19,39 +18,25 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { vendoredWhisper } from "../server/whisper-binary.mjs";
+import {
+  RUNTIME_DEPS,
+  checkBuiltApp,
+  copyBuiltApp,
+  copySourceDir,
+  repoRoot,
+  versionOf,
+} from "./package-files.mjs";
 
-const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const stage = path.join(repoRoot, "dist-electron", "app");
 
-const nitroJson = path.join(repoRoot, ".output", "nitro.json");
-const preset = existsSync(nitroJson) ? JSON.parse(readFileSync(nitroJson, "utf8")).preset : null;
-if (preset !== "node-server") {
-  console.error(
-    `.output/ is ${preset ? `a ${preset} build` : "missing"} — run \`npm run build:desktop\` first`,
-  );
-  process.exit(1);
-}
+checkBuiltApp();
 
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 
-const RUNTIME_DEPS = [
-  "node-pty",
-  "ffmpeg-static",
-  "esbuild",
-  "yaml",
-  "@xterm/headless",
-  "@xterm/addon-serialize",
-];
 const rootPkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-const versionOf = (dep) => {
-  const version = rootPkg.dependencies?.[dep] ?? rootPkg.devDependencies?.[dep];
-  if (!version) throw new Error(`${dep} not found in package.json`);
-  return version;
-};
 writeFileSync(
   path.join(stage, "package.json"),
   JSON.stringify(
@@ -79,50 +64,16 @@ if (!existsSync(whisper)) {
   throw new Error(`No whisper for ${process.platform} at ${whisper}.\nRun: npm run vendor:whisper`);
 }
 
-/* The shell and the studio backend, minus dev-only and test files. */
-for (const dir of ["electron", "server"]) {
-  mkdirSync(path.join(stage, dir));
-  for (const file of readdirSync(path.join(repoRoot, dir))) {
-    /* Dev-only: the Playwright renderer. */
-    if (file.endsWith(".test.mjs") || file === "renderer-playwright.mjs") continue;
-    /* The shell's own dependency manifest and install (desktop-deps.mjs):
-     * the staged app has its own package.json, and Electron itself is the
-     * runtime, not a file inside it. */
-    if (["package.json", "package-lock.json", "node_modules"].includes(file)) continue;
-    cpSync(path.join(repoRoot, dir, file), path.join(stage, dir, file), { recursive: true });
-  }
-}
-/* Plain modules the page shares with the shell and the studio server, at
- * their staged-relative ../src paths: the timing model (prompter-script.mjs,
- * exporter.mjs), what counts as media (asset-files.mjs), the brand mark's
- * rules, where captions may sit and what a TikTok fit may say
- * (edit-yaml.mjs), what a theme may hold (edit-theme.mjs), the text a
- * post uses and where it can go (edit-yaml.mjs, share.mjs), the lock rule
- * (electron/main.mjs), the last page error (server/mcp.mjs, exporter.mjs),
- * and export names (the export notification in electron/main.mjs).
- * scripts/package-desktop.test.mjs fails when server/ or electron/ imports
- * a src file missing here. */
-for (const shared of [
-  "content/asset-kinds.mjs",
-  "content/caption-position-rules.mjs",
-  "content/caption-starts-rules.mjs",
-  "content/cover-rules.mjs",
-  "content/publish-rules.mjs",
-  "content/showcase-schema.mjs",
-  "content/theme-rules.mjs",
-  "content/tiktok-fit-rules.mjs",
-  "content/timing.mjs",
-  "content/watermark-rules.mjs",
-  "lib/window-lock.mjs",
-  "lib/page-error.mjs",
-  "lib/export-kinds.mjs",
-]) {
-  mkdirSync(path.join(stage, "src", path.dirname(shared)), { recursive: true });
-  cpSync(path.join(repoRoot, "src", shared), path.join(stage, "src", shared));
-}
-cpSync(path.join(repoRoot, ".output"), path.join(stage, ".output"), { recursive: true });
-/* The license covers the app's builds too, so each copy carries it. */
-cpSync(path.join(repoRoot, "LICENSE"), path.join(stage, "LICENSE"));
+/* The shell and the studio backend, minus dev-only and test files. The
+ * Playwright renderer is for the dev modes and the Linux build. The
+ * shell's own dependency manifest and install (desktop-deps.mjs) stay
+ * out: the staged app has its own package.json, and Electron itself is
+ * the runtime, not a file inside it. */
+copySourceDir(stage, "electron");
+copySourceDir(stage, "server", ["renderer-playwright.mjs", "headless-main.mjs"]);
+/* The src modules the studio shares with the page (package-files.mjs),
+ * the built app server, and the license. */
+copyBuiltApp(stage);
 
 /* On Windows npm is npm.cmd, which Node only starts through a shell. */
 execFileSync("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], {
