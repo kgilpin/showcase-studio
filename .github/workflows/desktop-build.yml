@@ -363,6 +363,8 @@ jobs:
           cd release && sha256sum -c SHA256SUMS-linux-x64
           tar -xzf Showcase-Studio-*-linux-x64.tar.gz -C /opt
           grep PRETTY_NAME /etc/os-release
+          # Built on another Ubuntu: it must still load here.
+          /opt/showcase-studio/electron/vendor/whisper/whisper-cli --help 2>&1 | head -1
 
       - name: Install Google Chrome
         run: /opt/showcase-studio/bin/install-chrome
