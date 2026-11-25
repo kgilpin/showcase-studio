@@ -143,9 +143,13 @@ export function alignCaptionWords(scenes, transcript) {
   let ti = 0;
   let slideStart = 0;
   for (const scene of scenes) {
-    for (const caption of scene.captions ?? []) {
+    /* Each timed caption is a new object in a new list: the scene's
+     * captions can be the very objects of the parsed showcase.yaml, and
+     * a `words` written onto those is read back as an authored field the
+     * next time the page checks the file (after any in-app edit). */
+    scene.captions = (scene.captions ?? []).map((caption) => {
       const tokens = caption.text.trim().split(/\s+/).filter(Boolean);
-      if (tokens.length === 0) continue;
+      if (tokens.length === 0) return caption;
       const anchors = new Array(tokens.length);
       let cursor = ti;
       let matched = 0;
@@ -161,7 +165,7 @@ export function alignCaptionWords(scenes, transcript) {
           }
         }
       }
-      if (matched < Math.ceil(tokens.length / 2)) continue;
+      if (matched < Math.ceil(tokens.length / 2)) return caption;
       ti = cursor;
       /* Fill unmatched runs by splitting the span between their matched
        * neighbours (or extrapolating a beat at the edges). */
@@ -181,7 +185,7 @@ export function alignCaptionWords(scenes, transcript) {
         i = j;
       }
       let floor = 0;
-      caption.words = tokens.map((word, i) => {
+      const words = tokens.map((word, i) => {
         const startMs = Math.min(
           Math.max(anchors[i].start - slideStart, floor, 0),
           scene.durationMs,
@@ -190,7 +194,8 @@ export function alignCaptionWords(scenes, transcript) {
         floor = startMs;
         return { word, startMs, endMs };
       });
-    }
+      return { ...caption, words };
+    });
     slideStart += scene.durationMs;
   }
 }

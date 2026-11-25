@@ -246,6 +246,11 @@ export function SceneMedia({
           className={cn("pointer-events-none absolute inset-0", motion, paused && "media-paused")}
           style={{ ...style, ...captionStarts }}
         >
+          {/* A size container, so an overlay's cqw and cqh are the
+              picture's even when the graphic doesn't set container-type
+              itself. Without it they fall through to whatever container
+              is above: about the picture in TikTok, but the whole canvas
+              in 4:3, where text sized in cqw outgrows the picture. */}
           <div
             className="absolute"
             style={
@@ -255,8 +260,9 @@ export function SceneMedia({
                     top: overlayRect.top,
                     width: overlayRect.width,
                     height: overlayRect.height,
+                    containerType: "size",
                   }
-                : { inset: 0, visibility: "hidden" }
+                : { inset: 0, visibility: "hidden", containerType: "size" }
             }
           >
             <Overlay />

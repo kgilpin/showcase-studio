@@ -115,7 +115,12 @@ import {
   OTHER_TEMPLATE,
   starterShowcaseYaml,
 } from "./showcase-templates.mjs";
-import { ensureLibrarySettings, libraryExportDir, SETTINGS_FILE } from "./library-config.mjs";
+import {
+  ensureLibrarySettings,
+  libraryExportDir,
+  libraryProblem,
+  SETTINGS_FILE,
+} from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { airDrop, canAirDrop } from "./airdrop.mjs";
 import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
@@ -366,6 +371,12 @@ export function createStudio({
   aws,
 }) {
   let showcasesDir = path.resolve(initialDir);
+  /* Never make a library inside another one: scaffold() would write
+   * library files into a showcase's folder (libraryProblem). */
+  {
+    const problem = libraryProblem(showcasesDir);
+    if (problem) throw new Error(problem);
+  }
   /* While this studio runs, the page's error page may show error details
    * to requests from this machine (src/lib/page-error.mjs). */
   const unregisterStudio = registerStudio();
@@ -1156,6 +1167,8 @@ add notes specific to this library below, and the studio won't touch them.
     if (lock) return { ok: false, error: "This studio is locked to one showcase" };
     const target = path.resolve(String(dir ?? ""));
     if (!dir || !isDirectory(target)) return { ok: false, error: `${target} is not a folder` };
+    const problem = libraryProblem(target);
+    if (problem) return { ok: false, error: problem };
     const other = await runningStudio(target, { exceptUrl: url });
     if (other) return { ok: false, error: alreadyOpen(target, other.url) };
     release();

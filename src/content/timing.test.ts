@@ -215,6 +215,22 @@ describe("alignCaptionWords", () => {
     expect(second[0]).toEqual({ word: "Fleets", startMs: 200, endMs: 600 });
   });
 
+  it("leaves the caption objects it was given as they were", () => {
+    /* The page's scenes can share caption objects with the parsed
+     * showcase.yaml; a `words` written onto those reads back as an
+     * unknown field after the next in-app edit. */
+    const authored = { text: "Hello there" };
+    const authoredList = [authored];
+    const scenes = [{ durationMs: 4000, captions: authoredList }];
+    alignCaptionWords(scenes, [
+      { text: "Hello", startMs: 200, endMs: 600 },
+      { text: "there", startMs: 600, endMs: 1000 },
+    ]);
+    expect(authored).toEqual({ text: "Hello there" });
+    expect(authoredList).toEqual([{ text: "Hello there" }]);
+    expect(scenes[0]!.captions[0]).toMatchObject({ text: "Hello there", words: expect.any(Array) });
+  });
+
   it("interpolates unmatched words between their matched neighbours", () => {
     const scenes = [
       {
