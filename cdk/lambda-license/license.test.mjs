@@ -56,14 +56,14 @@ function memoryStore() {
       if (license.lastEventAt > eventAt) return;
       Object.assign(license, fields, { lastEventAt: eventAt });
     },
-    async recordUse(key, deviceId, now) {
+    async recordUse(key, deviceId, now, { ci = false } = {}) {
       const id = `${key}/${deviceId}`;
       const use = uses.get(id);
       if (use) {
-        Object.assign(use, { lastSeen: now, exports: use.exports + 1 });
+        Object.assign(use, { lastSeen: now, exports: use.exports + 1 }, ci && { ci: true });
         return { newDevice: false, devices: null };
       }
-      uses.set(id, { firstSeen: now, lastSeen: now, exports: 1 });
+      uses.set(id, { firstSeen: now, lastSeen: now, exports: 1, ...(ci && { ci: true }) });
       const license = licenses.get(key);
       license.machineCount = (license.machineCount ?? 0) + 1;
       return { newDevice: true, devices: license.machineCount };
@@ -468,6 +468,59 @@ describe("free exports", () => {
     expect((await recordExport({ deviceId: "short" }, { store: memoryStore(), now: NOW }))[0]).toBe(
       400,
     );
+  });
+});
+
+describe("exports from CI", () => {
+  it("needs a good license, and never uses or counts a free export", async () => {
+    const store = memoryStore();
+    const [, missing] = await recordExport(
+      { deviceId: DEVICE, kind: "video-draft", ci: true },
+      { store, now: NOW },
+    );
+    expect(missing).toEqual({ allowed: false, licensed: false, licenseProblem: "missing" });
+    const [, unknown] = await recordExport(
+      { deviceId: DEVICE, kind: "screens", licenseKey: "SS-0000-0000-0000-0000", ci: true },
+      { store, now: NOW },
+    );
+    expect(unknown).toMatchObject({ allowed: false, licenseProblem: "unknown" });
+    const licenseKey = await licensed(store);
+    const [, ended] = await recordExport(
+      { deviceId: DEVICE, kind: "video", licenseKey, ci: true },
+      { store, now: NOW + 60 * DAY },
+    );
+    expect(ended).toMatchObject({ allowed: false, licenseProblem: "ended" });
+    expect(store.counts.size).toBe(0);
+  });
+
+  it("records a repository as one machine, marked as CI", async () => {
+    const store = memoryStore();
+    const licenseKey = await licensed(store);
+    const lines = [];
+    const log = (line) => lines.push(JSON.parse(line));
+    for (const kind of ["script", "video-43-draft", "video"]) {
+      const [, result] = await recordExport(
+        { deviceId: DEVICE, licenseKey, kind, ci: true },
+        { store, now: NOW, log },
+      );
+      expect(result).toMatchObject({ allowed: true, licensed: true });
+    }
+    expect(store.licenses.get(licenseKey).machineCount).toBe(1);
+    expect(store.uses.get(`${licenseKey}/${DEVICE}`)).toMatchObject({ exports: 3, ci: true });
+    expect(lines[0]).toEqual({
+      audit: "export",
+      licenseKey,
+      deviceId: DEVICE,
+      kind: "script",
+      devices: 1,
+      ci: true,
+    });
+  });
+
+  it("treats anything but ci: true as an export from a computer", async () => {
+    const store = memoryStore();
+    const [, result] = await recordExport({ deviceId: DEVICE, ci: "yes" }, { store, now: NOW });
+    expect(result).toMatchObject({ allowed: true, licensed: false });
   });
 });
 

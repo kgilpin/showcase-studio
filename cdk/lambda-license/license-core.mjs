@@ -13,11 +13,13 @@
  *   POST /check      { licenseKey?, deviceId? }
  *                    → whether the key is good and until when, and the
  *                      device's free exports left
- *   POST /export     { deviceId, licenseKey?, kind? }
+ *   POST /export     { deviceId, licenseKey?, kind?, ci? }
  *                    → whether a full-quality export may run: always
  *                      with a good license (and the key and device are
  *                      logged, to spot a key shared across machines);
- *                      otherwise it uses one of the device's free exports
+ *                      otherwise it uses one of the device's free exports.
+ *                      With ci (a CI run; its device is the repository),
+ *                      only a good license will do: no free exports
  *   POST /portal     { licenseKey } → { url } of the Stripe Customer
  *                      Portal for that license's customer
  *
@@ -121,8 +123,9 @@ export function licenseStatus(license, now) {
  *                                         one made first by a racing call)
  *   updateLicense(key, fields, eventAt) → applies fields unless a newer
  *                                         event already did
- *   recordUse(key, deviceId, now)       → notes a licensed export from
- *                                         this device; counts the distinct
+ *   recordUse(key, deviceId, now, { ci }) → notes a licensed export from
+ *                                         this device (ci: a repository's
+ *                                         CI runs); counts the distinct
  *                                         devices on the license
  *   freeExportsUsed(deviceId)           → the count
  *   countFreeExport(deviceId, limit)    → { allowed, used }: adds one
@@ -313,22 +316,40 @@ export async function check(payload, { store, now }) {
  *  and the device are recorded (store.recordUse, plus one log line), so
  *  a key used on many machines shows up. Without one, the device uses
  *  one of its FREE_EXPORTS, unless they're gone. `licenseProblem` says
- *  why a key that was sent didn't count. */
+ *  why a key that was sent didn't count.
+ *
+ *  `ci: true` is a CI run, whose device is a hash of the repository:
+ *  every export kind is sent, and only a good license allows it. No free
+ *  export is used or counted (`licenseProblem: "missing"` when no key was
+ *  sent). Older studios never send it, so they get the rules above. */
 export async function recordExport(payload, { store, now, log = console.log }) {
   const deviceId = String(payload?.deviceId ?? "");
   if (!DEVICE_ID.test(deviceId)) return BAD_DEVICE;
   const kind = String(payload.kind ?? "").slice(0, 32);
+  const ci = payload.ci === true;
   let licenseProblem;
   if (payload.licenseKey != null) {
     const key = normalizeKey(payload.licenseKey);
     const license = LICENSE_KEY.test(key) ? await store.getLicense(key) : null;
     const status = licenseStatus(license, now);
     if (status.valid) {
-      const { devices } = await store.recordUse(key, deviceId, now);
-      log(JSON.stringify({ audit: "export", licenseKey: key, deviceId, kind, devices }));
+      const { devices } = await store.recordUse(key, deviceId, now, { ci });
+      log(
+        JSON.stringify({
+          audit: "export",
+          licenseKey: key,
+          deviceId,
+          kind,
+          devices,
+          ...(ci && { ci: true }),
+        }),
+      );
       return [200, { allowed: true, licensed: true, validUntil: status.validUntil }];
     }
     licenseProblem = !license ? "unknown" : license.status === "pending" ? "pending" : "ended";
+  }
+  if (ci) {
+    return [200, { allowed: false, licensed: false, licenseProblem: licenseProblem ?? "missing" }];
   }
   const { allowed, used } = await store.countFreeExport(deviceId, FREE_EXPORTS);
   return [

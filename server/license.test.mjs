@@ -3,8 +3,12 @@ import {
   COUNTED_KINDS,
   LIMIT_MESSAGE,
   OFFLINE_DAYS,
+  ciDeviceIdFor,
+  ciRefusal,
+  ciRepository,
   createLicense,
   deviceIdFor,
+  isCi,
   readHardwareId,
 } from "./license.mjs";
 
@@ -55,6 +59,10 @@ function fakeService() {
       }
       if (path === "/export") {
         if (license?.valid) return reply(200, { allowed: true, licensed: true });
+        if (payload.ci === true) {
+          const licenseProblem = !payload.licenseKey ? "missing" : (license?.status ?? "unknown");
+          return reply(200, { allowed: false, licensed: false, licenseProblem });
+        }
         if (used >= 2) return reply(200, { allowed: false, licensed: false, freeExports });
         service.free.set(payload.deviceId, used + 1);
         return reply(200, {
@@ -87,7 +95,9 @@ function fakeService() {
   return service;
 }
 
-function setup({ settings = memorySettings(), service = fakeService(), at = NOW } = {}) {
+/* env is {} unless a test says otherwise: the tests themselves run in CI,
+ * where CI=true would otherwise turn on the CI rules. */
+function setup({ settings = memorySettings(), service = fakeService(), at = NOW, env = {} } = {}) {
   const clock = { now: at };
   const opened = [];
   const changes = [];
@@ -100,6 +110,7 @@ function setup({ settings = memorySettings(), service = fakeService(), at = NOW 
     onChange: (status) => changes.push(status),
     now: () => clock.now,
     pollMs: 10,
+    env,
   });
   return { license, settings, service, clock, opened, changes };
 }
@@ -260,5 +271,121 @@ describe("the saved key", () => {
     await license.enterKey(KEY);
     expect(license.savedKey()).toBe(KEY);
     expect(JSON.stringify(license.status())).not.toContain(KEY);
+  });
+});
+
+describe("in CI", () => {
+  const CI_ENV = { CI: "true", GITHUB_REPOSITORY: "octo/app" };
+  const ALL_KINDS = ["screens", "script", "video", "video-draft", "video-43", "video-43-draft"];
+
+  it("is CI only when CI is true or 1", () => {
+    expect([{ CI: "true" }, { CI: "1" }, { CI: "TRUE" }].map(isCi)).toEqual([true, true, true]);
+    expect([{}, { CI: "false" }, { CI: "0" }, { CI: "" }].map(isCi)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("names the repository from GitHub, GitLab, CircleCI and the rest", () => {
+    expect(ciRepository({ GITHUB_REPOSITORY: "octo/app" })).toBe("octo/app");
+    expect(ciRepository({ CI_PROJECT_PATH: "group/app" })).toBe("group/app");
+    expect(ciRepository({ CIRCLE_PROJECT_USERNAME: "o", CIRCLE_PROJECT_REPONAME: "a" })).toBe(
+      "o/a",
+    );
+    expect(ciRepository({})).toBeNull();
+  });
+
+  it("refuses every kind without a key, and asks nothing", async () => {
+    const { license, service, settings } = setup({ env: CI_ENV });
+    for (const kind of ALL_KINDS) {
+      const verdict = await license.beforeExport(kind);
+      expect(verdict).toMatchObject({ allowed: false, ci: true });
+      expect(verdict.message).toContain("SHOWCASE_STUDIO_LICENSE_KEY isn't set");
+      expect(verdict.message).toContain("https://showcasestudio.dev/pricing");
+    }
+    expect(service.calls).toEqual([]);
+    expect(settings.load()).toEqual({});
+  });
+
+  it("allows every kind with a good key, sent as the repository, and saves nothing", async () => {
+    const service = fakeService();
+    service.pay();
+    const { license, settings } = setup({
+      service,
+      env: { ...CI_ENV, SHOWCASE_STUDIO_LICENSE_KEY: ` ${KEY.toLowerCase()} ` },
+    });
+    for (const kind of ALL_KINDS) {
+      expect(await license.beforeExport(kind)).toMatchObject({ allowed: true, licensed: true });
+    }
+    expect(service.calls).toHaveLength(ALL_KINDS.length);
+    expect(service.calls[0]).toEqual([
+      "/export",
+      { deviceId: ciDeviceIdFor("octo/app"), kind: "screens", licenseKey: KEY, ci: true },
+    ]);
+    expect(ciDeviceIdFor("octo/app")).not.toBe(deviceIdFor("octo/app"));
+    expect(JSON.stringify(settings.load())).not.toContain(KEY);
+  });
+
+  it("has no free videos: an unknown or ended key is refused, and says which", async () => {
+    const unknown = setup({ env: { ...CI_ENV, SHOWCASE_STUDIO_LICENSE_KEY: KEY } });
+    const refused = await unknown.license.beforeExport("video-draft");
+    expect(refused.allowed).toBe(false);
+    expect(refused.message).toContain("No subscription has the key");
+    expect(refused.message).not.toContain(KEY);
+
+    const service = fakeService();
+    service.licenses.set(KEY, { valid: false, status: "canceled" });
+    const ended = setup({ service, env: { ...CI_ENV, SHOWCASE_STUDIO_LICENSE_KEY: KEY } });
+    expect((await ended.license.beforeExport("video")).message).toContain("has ended");
+  });
+
+  it("has no offline grace: no service, no export", async () => {
+    const service = fakeService();
+    service.offline = true;
+    const settings = memorySettings({
+      license: {
+        key: KEY,
+        lastCheck: { valid: true, status: "active", checkedAt: new Date(NOW).toISOString() },
+      },
+    });
+    const { license } = setup({
+      service,
+      settings,
+      env: { ...CI_ENV, SHOWCASE_STUDIO_LICENSE_KEY: KEY },
+    });
+    const verdict = await license.beforeExport("video");
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.message).toContain("Couldn't reach the license service");
+  });
+
+  it("falls back to the computer's own ID when no variable names the repository", async () => {
+    const service = fakeService();
+    service.pay();
+    const { license } = setup({ service, env: { CI: "1", SHOWCASE_STUDIO_LICENSE_KEY: KEY } });
+    await license.beforeExport("script");
+    expect(service.calls[0][1].deviceId).toBe(deviceIdFor("HW-1"));
+  });
+
+  it("changes nothing outside CI, even with the key variable set", async () => {
+    const { license, service } = setup({
+      env: { CI: "false", GITHUB_REPOSITORY: "octo/app", SHOWCASE_STUDIO_LICENSE_KEY: KEY },
+    });
+    expect(await license.beforeExport("video-draft")).toEqual({ allowed: true, counted: false });
+    expect((await license.beforeExport("video")).licensed).toBe(false);
+    expect(service.calls[0][1]).toEqual({ deviceId: deviceIdFor("HW-1"), kind: "video" });
+  });
+
+  it("gives the export:* scripts the same answer, and nothing outside CI", async () => {
+    const service = fakeService();
+    const options = { serviceUrl: "https://license.test/", fetchImpl: service.fetch };
+    expect(await ciRefusal("script", { env: {}, ...options })).toBeNull();
+    expect(service.calls).toEqual([]);
+    expect(await ciRefusal("script", { env: CI_ENV, ...options })).toContain("isn't set");
+    service.pay();
+    const env = { ...CI_ENV, SHOWCASE_STUDIO_LICENSE_KEY: KEY };
+    expect(await ciRefusal("screens", { env, ...options })).toBeNull();
+    expect(service.calls[0][1]).toMatchObject({ kind: "screens", ci: true });
   });
 });

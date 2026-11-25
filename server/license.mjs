@@ -20,7 +20,19 @@
  *
  * The machine is named to the service by a hash of its hardware ID, not
  * a number kept in settings, so deleting settings.json doesn't hand out
- * new free exports. */
+ * new free exports.
+ *
+ * In CI (the CI variable is "true" or "1"), the rules are stricter:
+ *
+ *   every export kind ──► the key from SHOWCASE_STUDIO_LICENSE_KEY
+ *                           │ none: refused, nothing sent
+ *                           ▼
+ *                         POST /export { ci: true } ──► licensed? else refused
+ *
+ *   There are no free videos and no offline grace: a service that can't
+ *   be reached means no export. The device is the repository (a hash of
+ *   GITHUB_REPOSITORY or its equivalent), so the service counts one repo
+ *   as one computer. The key from the environment is never saved. */
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -34,6 +46,46 @@ export const FREE_EXPORTS = 2;
 
 /** How long a good license keeps working without reaching the service. */
 export const OFFLINE_DAYS = 7;
+
+/** Where a CI run's license key comes from. */
+export const CI_KEY_VARIABLE = "SHOWCASE_STUDIO_LICENSE_KEY";
+
+/** Where to subscribe, for the CI refusal. */
+export const PRICING_URL = "https://showcasestudio.dev/pricing";
+
+/** The variables CI systems name the repository in, most specific
+ *  first. CircleCI splits it in two. */
+const REPO_VARIABLES = [
+  (env) => env.GITHUB_REPOSITORY, // GitHub Actions: owner/name
+  (env) => env.CI_PROJECT_PATH, // GitLab: group/project
+  (env) => env.BITBUCKET_REPO_FULL_NAME, // Bitbucket Pipelines
+  (env) =>
+    env.CIRCLE_PROJECT_USERNAME && env.CIRCLE_PROJECT_REPONAME
+      ? `${env.CIRCLE_PROJECT_USERNAME}/${env.CIRCLE_PROJECT_REPONAME}`
+      : undefined, // CircleCI
+  (env) => env.TRAVIS_REPO_SLUG, // Travis
+  (env) => env.BUILDKITE_REPO, // Buildkite: the clone URL
+  (env) => env.BUILD_REPOSITORY_URI ?? env.BUILD_REPOSITORY_NAME, // Azure Pipelines
+];
+
+/** Whether the studio runs in CI: the standard CI variable, "true" or "1". */
+export const isCi = (env = process.env) => /^(true|1)$/i.test(String(env.CI ?? "").trim());
+
+/** The repository a CI run is for, or null when no known variable names it. */
+export function ciRepository(env = process.env) {
+  for (const read of REPO_VARIABLES) {
+    const value = String(read(env) ?? "").trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+/** What a CI export is refused with. `why` is the reason; the rest says
+ *  what to do. It never carries the key. */
+export const ciMessage = (why) =>
+  `${why} Showcase Studio needs a subscription license key for every export in CI. ` +
+  `Put your key in the ${CI_KEY_VARIABLE} environment variable (as a secret in your CI ` +
+  `settings). To get a key, subscribe at ${PRICING_URL}.`;
 
 /** How often the status is checked again, at most, while the studio runs. */
 const REFRESH_MS = 60 * 60 * 1000;
@@ -72,6 +124,11 @@ export function readHardwareId({ platform = process.platform, run = spawnSync } 
 export const deviceIdFor = (hardwareId) =>
   createHash("sha256").update(`showcase-studio:${hardwareId}`).digest("base64url");
 
+/** A CI run's device: the repository, hashed the same way under its own
+ *  prefix, so it can't match a computer's. */
+export const ciDeviceIdFor = (repository) =>
+  createHash("sha256").update(`showcase-studio:ci:${repository}`).digest("base64url");
+
 /** The refusal an export job fails with when no export is left. The
  *  page shows its own dialog first; this is what Claude's `export` tool
  *  and anything else that skips the page see. */
@@ -99,7 +156,10 @@ export function createLicense({
   now = Date.now,
   pollMs = 3000,
   pollForMs = 30 * 60 * 1000,
+  env = process.env,
 } = {}) {
+  const ci = isCi(env);
+
   const base = () =>
     (serviceUrl ?? process.env.LICENSE_URL ?? settings.load().licenseUrl ?? LICENSE_URL).replace(
       /\/+$/,
@@ -109,6 +169,8 @@ export function createLicense({
   let deviceId;
   const device = () => {
     if (deviceId) return deviceId;
+    const repository = ci ? ciRepository(env) : null;
+    if (repository) return (deviceId = ciDeviceIdFor(repository));
     let id = hardwareId();
     if (!id) {
       // No hardware ID to read (a container, say): a saved random one.
@@ -223,6 +285,7 @@ export function createLicense({
    *  the message to show. Kinds outside COUNTED_KINDS are always allowed
    *  and nothing is sent. */
   async function beforeExport(kind) {
+    if (ci) return ciVerdict(kind);
     if (!COUNTED_KINDS.includes(kind)) return { allowed: true, counted: false };
     const { key } = saved();
     try {
@@ -254,6 +317,35 @@ export function createLicense({
     } catch {
       return offlineVerdict();
     }
+  }
+
+  /** In CI: every kind needs a good key from the environment, checked
+   *  with the service now. Nothing is saved, and nothing works offline. */
+  async function ciVerdict(kind) {
+    const refuse = (why) => ({ allowed: false, counted: true, ci: true, message: ciMessage(why) });
+    const licenseKey = String(env[CI_KEY_VARIABLE] ?? "")
+      .trim()
+      .toUpperCase();
+    if (!licenseKey) return refuse(`${CI_KEY_VARIABLE} isn't set.`);
+    let code, result;
+    try {
+      [code, result] = await call("/export", { deviceId: device(), kind, licenseKey, ci: true });
+    } catch (error) {
+      return refuse(`${failure(error)}, so the license key couldn't be checked.`);
+    }
+    if (code === 200 && result.allowed && result.licensed) {
+      return { allowed: true, counted: true, licensed: true, ci: true };
+    }
+    const problem = code === 400 ? "malformed" : result.licenseProblem;
+    return refuse(
+      problem === "malformed"
+        ? `The key in ${CI_KEY_VARIABLE} isn't a Showcase Studio license key.`
+        : problem === "unknown"
+          ? `No subscription has the key in ${CI_KEY_VARIABLE}.`
+          : problem === "pending"
+            ? `The subscription for the key in ${CI_KEY_VARIABLE} isn't paid yet.`
+            : `The subscription for the key in ${CI_KEY_VARIABLE} has ended.`,
+    );
   }
 
   /** The service can't be reached: a license checked within OFFLINE_DAYS
@@ -414,4 +506,16 @@ export function createLicense({
     removeKey,
     close: stopWaiting,
   };
+}
+
+/** For the export:* scripts, which draw pages or read YAML without the
+ *  studio: in CI, asks the service as the studio would, once per export,
+ *  and returns the refusal's message (null when allowed). Outside CI it
+ *  asks nothing and returns null. Nothing is saved. */
+export async function ciRefusal(kind, { env = process.env, ...options } = {}) {
+  if (!isCi(env)) return null;
+  let memory = {};
+  const settings = { load: () => memory, save: (patch) => (memory = { ...memory, ...patch }) };
+  const verdict = await createLicense({ settings, env, ...options }).beforeExport(kind);
+  return verdict.allowed ? null : verdict.message;
 }
