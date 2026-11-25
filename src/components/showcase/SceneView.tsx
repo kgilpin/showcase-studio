@@ -178,6 +178,7 @@ export function SceneView({
   elapsedMs = 0,
   hideCaption = false,
   hideTitle = false,
+  hideWatermark = false,
   frameless = false,
   canvas = "portrait",
   safeArea = false,
@@ -200,6 +201,9 @@ export function SceneView({
    *  compete with it. Only applies to scenes with media — on media-less
    *  scenes the title is the visual and always stays. */
   hideTitle?: boolean;
+  /** Leave out the brand mark (the cover picker's still of a scene: the
+   *  cover draws no mark of its own, and a corner mark rarely suits it). */
+  hideWatermark?: boolean;
   /** Drop the device chrome and fill the parent (screenshot export). */
   frameless?: boolean;
   /** Studio editing (paused player only): the title becomes click-to-edit
@@ -208,6 +212,7 @@ export function SceneView({
   /** Studio editing: clicking the media area opens the asset picker. */
   onPickMedia?: (() => void) | undefined;
 }) {
+  const watermark = hideWatermark ? undefined : scene.watermark;
   const media = (
     <SceneMedia
       media={scene.media}
@@ -283,12 +288,7 @@ export function SceneView({
   if (scene.theme === "statement") {
     const backdrop = scene.media.kind !== "none" && scene.media.frame === "full";
     return (
-      <FixedStage
-        frameless={frameless}
-        watermark={scene.watermark}
-        canvas={canvas}
-        safeArea={safeArea}
-      >
+      <FixedStage frameless={frameless} watermark={watermark} canvas={canvas} safeArea={safeArea}>
         <div className="relative h-full w-full" style={{ background: "var(--gradient-stage)" }}>
           {backdrop && (
             <>
@@ -376,7 +376,7 @@ export function SceneView({
     <FixedStage
       compact={hasMedia}
       frameless={frameless}
-      watermark={scene.watermark}
+      watermark={watermark}
       canvas={canvas}
       safeArea={safeArea}
     >

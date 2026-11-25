@@ -36,6 +36,10 @@ import { seekSceneMedia } from "@/lib/record-seek";
  * was 9:16, means the TikTok frame too.) `?safeArea=1` shades where
  * TikTok's own interface covers the frame, as the player's Safe area
  * switch does — for a frame someone checks, never for an export.
+ * `?title=`, `?captions=` and `?mark=` (1 or 0) put the slide title, the
+ * captions and the brand mark in or leave them out, where the video
+ * would do otherwise: the cover picker's still of a whole scene
+ * (server/cover-frame.mjs). Left unset, each is as the video has it.
  */
 export const Route = createFileRoute("/showcase/$showcaseId/record")({
   validateSearch: (
@@ -44,11 +48,17 @@ export const Route = createFileRoute("/showcase/$showcaseId/record")({
     controlled: boolean;
     canvas: "tiktok" | "embed";
     safeArea: boolean;
+    title?: boolean;
+    captions?: boolean;
+    mark?: boolean;
     snapshot?: string;
   } => ({
     controlled: flag(search["controlled"]),
     canvas: search["canvas"] === "embed" ? "embed" : "tiktok",
     safeArea: flag(search["safeArea"]),
+    ...choice("title", search["title"]),
+    ...choice("captions", search["captions"]),
+    ...choice("mark", search["mark"]),
     /* The export's snapshot of the showcase (src/content/source.ts reads
      * it from the URL); kept here so the router keeps it in the URL. */
     ...(typeof search["snapshot"] === "string" ? { snapshot: search["snapshot"] } : {}),
@@ -61,6 +71,13 @@ export const Route = createFileRoute("/showcase/$showcaseId/record")({
 
 /** A `?flag=1` search parameter. */
 const flag = (value: unknown) => value === 1 || value === "1" || value === true;
+/** A `?name=1` or `?name=0` search parameter, as { name: true | false };
+ *  nothing when it is unset. */
+function choice(name: string, value: unknown) {
+  if (flag(value)) return { [name]: true };
+  if (value === 0 || value === "0" || value === false) return { [name]: false };
+  return {};
+}
 
 /** A box in the frame, in percent of the frame from its top-left corner. */
 export type FrameBox = { top: number; left: number; width: number; height: number };
@@ -148,11 +165,19 @@ function frameInfo(scenes: Scene[], clock: Clock, frame: HTMLElement | null): Fr
 
 function RecordPage() {
   const { showcaseId } = Route.useParams();
-  const { controlled, canvas, safeArea } = Route.useSearch();
+  const { controlled, canvas, safeArea, title, captions, mark } = Route.useSearch();
   const showcase = getShowcase(showcaseId);
   if (!showcase) return null; // the layout route renders the not-found message
   return (
-    <Recorder showcase={showcase} controlled={controlled} canvas={canvas} safeArea={safeArea} />
+    <Recorder
+      showcase={showcase}
+      controlled={controlled}
+      canvas={canvas}
+      safeArea={safeArea}
+      title={title}
+      captions={captions}
+      mark={mark}
+    />
   );
 }
 
@@ -161,11 +186,17 @@ function Recorder({
   controlled,
   canvas,
   safeArea,
+  title,
+  captions,
+  mark,
 }: {
   showcase: Showcase;
   controlled: boolean;
   canvas: "tiktok" | "embed";
   safeArea: boolean;
+  title?: boolean | undefined;
+  captions?: boolean | undefined;
+  mark?: boolean | undefined;
 }) {
   const scenes = showcase.scenes;
   const totalMs = scenes.reduce((sum, scene) => sum + scene.durationMs, 0);
@@ -259,7 +290,9 @@ function Recorder({
             scene={scene}
             paused={paused}
             elapsedMs={clock.elapsedMs}
-            captions={embedCaptionsSetting(showcase).shown}
+            captions={captions ?? embedCaptionsSetting(showcase).shown}
+            hideTitle={title === false}
+            hideWatermark={mark === false}
           />
         ) : (
           <SceneView
@@ -269,7 +302,9 @@ function Recorder({
             elapsedMs={clock.elapsedMs}
             canvas="tiktok"
             frameless
-            hideTitle
+            hideTitle={title !== true}
+            hideCaption={captions === false}
+            hideWatermark={mark === false}
             safeArea={safeArea}
           />
         )}

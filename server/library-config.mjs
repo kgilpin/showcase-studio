@@ -73,6 +73,33 @@ export function hasLibrarySettings(dir) {
   return existsSync(path.join(dir, SETTINGS_FILE)) || oldSettings(dir) !== undefined;
 }
 
+/** True when `dir` is one showcase: its showcase.yaml is a script, not an
+ *  older library's settings. A real script wins over library files left
+ *  beside it, so a showcase stays a showcase. */
+export function isShowcaseFolder(dir) {
+  return existsSync(path.join(dir, OLD_SETTINGS_FILE)) && oldSettings(dir) === undefined;
+}
+
+/** Why `dir` can't be a library, in words for the user, or undefined
+ *  when it can. A library never sits inside another one:
+ *
+ *    dir is one showcase                    → no: open the folder it's in
+ *    a folder above dir has library settings → no: open that folder
+ *
+ *  Making `dir` a library writes library files into it (settings, README,
+ *  .studio/), so this is checked before any studio uses a folder. */
+export function libraryProblem(dir) {
+  if (isShowcaseFolder(dir)) {
+    return `${dir} is a showcase, not a showcases folder. Open the folder it's in, ${path.dirname(dir)}, or open just this showcase.`;
+  }
+  for (let up = path.dirname(dir); up !== path.dirname(up); up = path.dirname(up)) {
+    if (hasLibrarySettings(up)) {
+      return `${dir} is inside the showcases folder ${up}, and a showcases folder can't hold another one. Open ${up} instead.`;
+    }
+  }
+  return undefined;
+}
+
 /** Renames an older library's root showcase.yaml to
  *  showcase_settings.yaml. Only when it is settings (no `scenes` or `meta`) and
  *  showcase_settings.yaml isn't there yet. Returns true when it moved. */

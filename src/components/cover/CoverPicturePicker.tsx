@@ -1,21 +1,39 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Film, ImagePlus, Images, Loader2, X } from "lucide-react";
-import { refreshShowcase, showcaseAssets, type Showcase } from "@/content/showcases";
+import { refreshShowcase, showcaseAssets, type Scene, type Showcase } from "@/content/showcases";
+import { SceneView, TIKTOK_ASPECT } from "@/components/showcase/SceneView";
+import { EMBED_ASPECT, EmbedSceneView } from "@/components/showcase/EmbedSceneView";
 import { forgetEditBase } from "@/lib/edits";
+import { clipTimeS, seekSceneMedia } from "@/lib/record-seek";
 import { studio } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
 /* Choosing the cover's picture, from either place a picture comes from:
  *
- *   From the video   scrub through the whole video; the preview is the
- *                    scene's own picture at that moment (no captions, no
- *                    brand mark). "Use this frame" saves the frame into
- *                    assets/ (server/cover-frame.mjs) and picks it; on a
- *                    scene with an image, the image itself is picked.
+ *   From the video   scrub through the whole video. Two ways to take a
+ *                    moment:
+ *                      Picture      the scene's own picture (no captions,
+ *                                   no brand mark). "Use this frame"
+ *                                   saves the clip's frame into assets/;
+ *                                   on a scene with an image, the image
+ *                                   is picked.
+ *                      Whole scene  the slide as the video draws it, for
+ *                                   a scene that is text or a graphic.
+ *                                   Title, captions and brand mark are
+ *                                   each a switch, all off by default:
+ *                                   the cover draws its own headline.
+ *                                   In 9:16 or 4:3 (4:3 to begin with
+ *                                   for a showcase made for the 4:3
+ *                                   view).
+ *                    A scene with no picture of its own is always taken
+ *                    whole. Every save is one call to the studio's
+ *                    "cover-picture" action, which applies the same rule
+ *                    as Claude's save_cover_picture tool
+ *                    (server/cover-frame.mjs).
  *   Images           the showcase's images, and "Add an image…" for one
  *                    from this computer.
  *
- * It opens on the video when the showcase has one. `onPick` gets the
+ * It opens on the video when the showcase has scenes. `onPick` gets the
  * asset key; the caller writes it as the cover's picture. `hint` is a
  * line of advice under the title (which pictures suit a 16:9 thumbnail). */
 
@@ -57,8 +75,7 @@ export function CoverPicturePicker({
   onPick: (key: string) => void;
   onClose: () => void;
 }) {
-  const hasVideo = showcase.scenes.some((scene) => scene.media.kind === "video");
-  const [tab, setTab] = useState<Tab>(hasVideo ? "video" : "images");
+  const [tab, setTab] = useState<Tab>(showcase.scenes.length > 0 ? "video" : "images");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -169,16 +186,28 @@ function FromVideo({
     first ? first.start + Math.min(1000, first.scene.durationMs / 2) : 0,
   );
   const [saving, setSaving] = useState(false);
+  /* Picture or whole scene, as last chosen; a scene with no picture of
+   * its own is always taken whole. */
+  const [wantWhole, setWantWhole] = useState(false);
+  const [parts, setParts] = useState<SceneParts>({ title: false, captions: false, mark: false });
+  /* A showcase made for the 4:3 view is drawn 4:3 to begin with. */
+  const [shape, setShape] = useState<Shape>(showcase.view === "embed" ? "43" : "tiktok");
   const video = useRef<HTMLVideoElement>(null);
   const here = scenes.find(({ start, end }) => at >= start && at < end) ?? scenes.at(-1);
   const media = here?.scene.media;
+  const hasPicture = media?.kind === "video" || media?.kind === "image";
+  const whole = wantWhole || !hasPicture;
 
-  /* The clip at this moment: the scene's time into it at the clip's
-   * speed, looping as the player loops it. */
+  /* The clip at this moment, by the player's rule (the studio uses the
+   * same one to cut the frame). */
   const clipSeconds = (element: HTMLVideoElement) => {
     if (!here || media?.kind !== "video") return 0;
-    const seconds = ((at - here.start) / 1000) * (media.speed ?? 1);
-    return element.duration ? seconds % element.duration : seconds;
+    return clipTimeS({
+      elapsedMs: at - here.start,
+      sceneMs: here.scene.durationMs,
+      clipS: element.duration,
+      speed: media.speed ?? 1,
+    });
   };
   useEffect(() => {
     const element = video.current;
@@ -191,26 +220,25 @@ function FromVideo({
     return () => element.removeEventListener("loadedmetadata", seek);
   });
 
+  /* The studio decides what this moment gives (server/cover-frame.mjs):
+   * the clip's frame, the scene's image, or the whole scene. */
   const use = async () => {
-    if (!here || !media) return;
+    if (!here) return;
     onError(null);
-    if (media.kind === "image" && media.asset) {
-      onPick(media.asset);
-      return;
-    }
-    if (media.kind !== "video" || !video.current) return;
     setSaving(true);
     try {
-      const result = await studio()!.assets.saveFrame({
+      const result = await studio()!.assets.savePicture({
         showcaseId: showcase.id,
-        sceneId: here.scene.id,
-        clipMs: Math.round(video.current.currentTime * 1000),
+        atMs: Math.round(at),
+        whole,
+        view: shape,
+        ...shownParts(here.scene, shape, parts),
       });
       if (!result.ok || !result.asset) {
-        onError(result.error ?? "The frame could not be saved");
+        onError(result.error ?? "The picture could not be saved");
         return;
       }
-      await reread(showcase.id);
+      if (result.kind !== "image") await reread(showcase.id);
       onPick(result.asset.key);
     } finally {
       setSaving(false);
@@ -227,7 +255,9 @@ function FromVideo({
   return (
     <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
       <div className="flex h-[40vh] items-center justify-center rounded-xl bg-black sm:h-[46vh]">
-        {media?.kind === "video" ? (
+        {whole && here ? (
+          <WholeScene scene={here.scene} shape={shape} elapsedMs={at - here.start} parts={parts} />
+        ) : media?.kind === "video" ? (
           <video
             ref={video}
             key={media.src}
@@ -239,13 +269,21 @@ function FromVideo({
           />
         ) : media?.kind === "image" ? (
           <img src={media.src} alt={media.alt} className="h-full w-full object-contain" />
-        ) : (
-          <p className="max-w-xs text-center text-sm text-white/60">
-            This scene has no picture of its own — it's text or a graphic. Move to a scene with
-            footage or an image.
-          </p>
-        )}
+        ) : null}
       </div>
+
+      {here && (
+        <SceneOptions
+          scene={here.scene}
+          hasPicture={hasPicture}
+          whole={whole}
+          onWhole={setWantWhole}
+          shape={shape}
+          onShape={setShape}
+          parts={parts}
+          onParts={setParts}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         {/* The scenes along the video, each as wide as it lasts. */}
@@ -261,9 +299,7 @@ function FromVideo({
                 "min-w-0 truncate px-1.5 text-left text-[0.65rem] transition-colors",
                 here?.scene.id === scene.id
                   ? "bg-primary/30 text-foreground"
-                  : scene.media.kind === "video" || scene.media.kind === "image"
-                    ? "bg-secondary text-foreground/70 hover:bg-secondary/70"
-                    : "bg-secondary/40 text-foreground/40 hover:bg-secondary/60",
+                  : "bg-secondary text-foreground/70 hover:bg-secondary/70",
               )}
             >
               {scene.title || scene.id}
@@ -287,15 +323,246 @@ function FromVideo({
           <span className="truncate">{here?.scene.title || here?.scene.id}</span>
           <button
             type="button"
-            disabled={saving || !(media?.kind === "video" || media?.kind === "image")}
+            disabled={saving || !here}
             onClick={() => void use()}
             className="ml-auto inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity enabled:hover:opacity-90 disabled:opacity-40"
           >
             {saving && <Loader2 className="size-4 animate-spin" />}
-            {media?.kind === "image" ? "Use this image" : "Use this frame"}
+            {whole
+              ? "Use this scene"
+              : media?.kind === "image"
+                ? "Use this image"
+                : "Use this frame"}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** What a whole-scene still draws beyond the slide itself. */
+type SceneParts = { title: boolean; captions: boolean; mark: boolean };
+
+/** The shape of a whole-scene still: TikTok's 9:16 frame or the 4:3
+ *  embed, as the video draws each. */
+type Shape = "tiktok" | "43";
+
+/** Why a part can't be switched on this scene, in this shape: it always
+ *  shows ("always") or never does ("never"), with the reason the
+ *  checkbox's tooltip gives. SceneView and EmbedSceneView decide this;
+ *  the picker only says so. */
+type Lock = { state: "always" | "never"; reason: string };
+
+function partLocks(scene: Scene, shape: Shape): Partial<Record<keyof SceneParts, Lock>> {
+  const textIsPicture = scene.theme === "statement" || scene.media.kind === "none";
+  const isText: Lock = { state: "always", reason: "This slide's text is its picture" };
+  const locks: Partial<Record<keyof SceneParts, Lock>> = {};
+  if (textIsPicture) locks.title = isText;
+  else if (scene.theme === "footage") {
+    locks.title = { state: "never", reason: "Footage never shows a title" };
+  }
+  /* The spoken line: on the 9:16 frame it is set as text on a slide that
+   * is its text; on the 4:3 embed every layout but console sets it as
+   * text beside the picture. */
+  if (textIsPicture || (shape === "43" && scene.theme !== "console")) {
+    locks.captions = { state: "always", reason: "The spoken line is part of this layout" };
+  }
+  return locks;
+}
+
+/** The parts the still really shows, so its file name says so. */
+function shownParts(scene: Scene, shape: Shape, parts: SceneParts): SceneParts {
+  const shown = { ...parts };
+  for (const [key, lock] of Object.entries(partLocks(scene, shape))) {
+    shown[key as keyof SceneParts] = lock.state === "always";
+  }
+  return shown;
+}
+
+/** The scene as the video draws it at `elapsedMs`, in the 9:16 frame or
+ *  the 4:3 embed, with its animations at rest: what "Use this scene"
+ *  saves. */
+function WholeScene({
+  scene,
+  shape,
+  elapsedMs,
+  parts,
+}: {
+  scene: Scene;
+  shape: Shape;
+  elapsedMs: number;
+  parts: SceneParts;
+}) {
+  const frame = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = frame.current;
+    if (!element) return;
+    seekSceneMedia(
+      {
+        getAnimations: () => element.getAnimations({ subtree: true }),
+        querySelectorAll: ((selector: string) =>
+          element.querySelectorAll(selector)) as Document["querySelectorAll"],
+      },
+      scene,
+      elapsedMs,
+    );
+    /* The studio's still finishes animations (server/exporter.mjs), so
+     * an entrance shows where it comes to rest. */
+    for (const animation of element.getAnimations({ subtree: true })) {
+      try {
+        animation.finish();
+      } catch {
+        /* an infinite animation can't finish; it stays where it is */
+      }
+    }
+  });
+  return (
+    <div
+      ref={frame}
+      aria-label="The scene as the cover's picture"
+      className="pointer-events-none relative h-full max-w-full overflow-hidden"
+      style={{ aspectRatio: shape === "43" ? EMBED_ASPECT : TIKTOK_ASPECT }}
+    >
+      {shape === "43" ? (
+        <EmbedSceneView
+          key={scene.id}
+          scene={scene}
+          paused
+          elapsedMs={elapsedMs}
+          captions={parts.captions}
+          hideTitle={!parts.title}
+          hideWatermark={!parts.mark}
+        />
+      ) : (
+        <SceneView
+          key={scene.id}
+          scene={scene}
+          paused
+          elapsedMs={elapsedMs}
+          canvas="tiktok"
+          frameless
+          hideTitle={!parts.title}
+          hideCaption={!parts.captions}
+          hideWatermark={!parts.mark}
+        />
+      )}
+    </div>
+  );
+}
+
+/** A row of mutually exclusive choices, as a pill of buttons. */
+function Choice<T extends string | boolean>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: readonly { value: T; label: string; title: string; disabled?: boolean }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="radiogroup" className="flex rounded-full border border-border p-0.5">
+      {options.map((option) => (
+        <button
+          key={option.label}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          disabled={option.disabled}
+          title={option.title}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "rounded-full px-3 py-1 transition-colors disabled:opacity-40",
+            value === option.value
+              ? "bg-primary/15 font-medium text-foreground"
+              : "text-foreground/60 enabled:hover:text-foreground",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Picture or whole scene, and the shape and parts of a whole scene. */
+function SceneOptions({
+  scene,
+  hasPicture,
+  whole,
+  onWhole,
+  shape,
+  onShape,
+  parts,
+  onParts,
+}: {
+  scene: Scene;
+  hasPicture: boolean;
+  whole: boolean;
+  onWhole: (whole: boolean) => void;
+  shape: Shape;
+  onShape: (shape: Shape) => void;
+  parts: SceneParts;
+  onParts: (parts: SceneParts) => void;
+}) {
+  const locks = partLocks(scene, shape);
+  const shown = shownParts(scene, shape, parts);
+  const toggles: { key: keyof SceneParts; label: string }[] = [
+    { key: "title", label: "Title" },
+    { key: "captions", label: "Captions" },
+    { key: "mark", label: "Brand mark" },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+      <Choice
+        value={whole}
+        onChange={onWhole}
+        options={[
+          {
+            value: false,
+            label: "Picture",
+            disabled: !hasPicture,
+            title: hasPicture
+              ? "The scene's own picture, nothing drawn over it"
+              : "This scene has no picture of its own — it's text or a graphic",
+          },
+          { value: true, label: "Whole scene", title: "The slide as the video draws it" },
+        ]}
+      />
+      {whole && (
+        <>
+          <Choice
+            value={shape}
+            onChange={onShape}
+            options={[
+              { value: "tiktok", label: "9:16", title: "The slide as the TikTok video draws it" },
+              { value: "43", label: "4:3", title: "The slide as the 4:3 video draws it" },
+            ]}
+          />
+          {toggles.map(({ key, label }) => {
+            const lock = locks[key];
+            return (
+              <label
+                key={key}
+                title={lock?.reason}
+                className={cn(
+                  "inline-flex items-center gap-1.5",
+                  lock ? "text-foreground/40" : "cursor-pointer text-foreground/80",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={shown[key]}
+                  disabled={lock != null}
+                  onChange={(event) => onParts({ ...parts, [key]: event.target.checked })}
+                  className="accent-[var(--primary)]"
+                />
+                {label}
+              </label>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }

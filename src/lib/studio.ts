@@ -484,11 +484,23 @@ export type ShowcaseStudio = {
      *  references are left alone — a dangling key shows in the
      *  "referenced but missing" list. */
     remove(payload: { showcaseId: string; name: string }): Promise<{ ok: boolean; error?: string }>;
-    /** Saves the frame of a scene's video at `clipMs` (a time in the clip
-     *  file) into assets/ as a still, for the cover's picture
-     *  (server/cover-frame.mjs). */
-    saveFrame(payload: { showcaseId: string; sceneId: string; clipMs: number }): Promise<{
+    /** The cover's picture from the moment `atMs` of the video: a frame
+     *  of the scene's clip saved into assets/, the scene's own image, or,
+     *  for a scene with no picture or with `whole`, the whole scene as the
+     *  video draws it (9:16 or 4:3, with the title, captions and brand
+     *  mark only when asked). The same rule as Claude's
+     *  save_cover_picture (server/cover-frame.mjs). */
+    savePicture(payload: {
+      showcaseId: string;
+      atMs: number;
+      whole: boolean;
+      view: "tiktok" | "43";
+      title: boolean;
+      captions: boolean;
+      mark: boolean;
+    }): Promise<{
       ok: boolean;
+      kind?: "frame" | "image" | "scene";
       asset?: { name: string; key: string };
       error?: string;
     }>;
@@ -868,7 +880,7 @@ function createClient(first: StudioInfo): ShowcaseStudio {
       rename: (payload) => post("asset-rename", payload),
       add: (payload) => post("asset-add", payload),
       remove: (payload) => post("asset-delete", payload),
-      saveFrame: (payload) => post("cover-frame", payload),
+      savePicture: (payload) => post("cover-picture", payload),
     },
   };
 }

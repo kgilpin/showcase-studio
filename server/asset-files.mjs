@@ -180,3 +180,29 @@ export async function encodeAsset(
     if (existsSync(scratch)) unlinkSync(scratch);
   }
 }
+
+/** Writes `data` (a Buffer) into assets/ as `name`, replacing any file of
+ *  that name: written aside in .studio/ first, then renamed in, like an
+ *  encode. For a still the studio renders itself (the cover picker's
+ *  still of a whole scene), where the same moment makes the same file.
+ *  Returns { ok: true, asset: { name, key }, replaced } or
+ *  { ok: false, error }. */
+export function writeAsset(showcasesDir, { showcaseId, name, data } = {}) {
+  const id = String(showcaseId ?? "");
+  const file = String(name ?? "").trim();
+  const { dir, error } = assetsDir(showcasesDir, id, [file]);
+  if (error) return { ok: false, error };
+  if (!Buffer.isBuffer(data) || data.length === 0) return { ok: false, error: "No data" };
+  const target = path.join(dir, file);
+  const scratch = scratchFor(showcasesDir, id, file);
+  mkdirSync(path.dirname(scratch), { recursive: true });
+  writeFileSync(scratch, data);
+  const replaced = existsSync(target);
+  mkdirSync(dir, { recursive: true });
+  renameSync(scratch, target);
+  return {
+    ok: true,
+    asset: { name: file, key: file.slice(0, file.length - path.extname(file).length) },
+    replaced,
+  };
+}

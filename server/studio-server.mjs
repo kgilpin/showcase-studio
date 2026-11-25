@@ -80,7 +80,7 @@ import { createAutoBuild } from "./auto-build.mjs";
 import { mediaStatus, mediaSummary } from "./media-status.mjs";
 import { buildVoiceover, hasVoiceover, migrateLibraryVoiceovers } from "./voiceover.mjs";
 import { addAssetData } from "./asset-files.mjs";
-import { saveCoverFrame } from "./cover-frame.mjs";
+import { coverPictureLog, saveCoverPicture } from "./cover-frame.mjs";
 import { createActionsLog } from "./actions-log.mjs";
 import { createChangeLog, editForLog } from "./change-log.mjs";
 import { watchStudioCode } from "./code-changes.mjs";
@@ -115,7 +115,12 @@ import {
   OTHER_TEMPLATE,
   starterShowcaseYaml,
 } from "./showcase-templates.mjs";
-import { ensureLibrarySettings, libraryExportDir, SETTINGS_FILE } from "./library-config.mjs";
+import {
+  ensureLibrarySettings,
+  libraryExportDir,
+  libraryProblem,
+  SETTINGS_FILE,
+} from "./library-config.mjs";
 import { loadSettings, saveSettings } from "./settings.mjs";
 import { airDrop, canAirDrop } from "./airdrop.mjs";
 import { copyToClipboard, createShare, openInBrowser } from "./share.mjs";
@@ -366,6 +371,12 @@ export function createStudio({
   aws,
 }) {
   let showcasesDir = path.resolve(initialDir);
+  /* Never make a library inside another one: scaffold() would write
+   * library files into a showcase's folder (libraryProblem). */
+  {
+    const problem = libraryProblem(showcasesDir);
+    if (problem) throw new Error(problem);
+  }
   /* While this studio runs, the page's error page may show error details
    * to requests from this machine (src/lib/page-error.mjs). */
   const unregisterStudio = registerStudio();
@@ -1156,6 +1167,8 @@ add notes specific to this library below, and the studio won't touch them.
     if (lock) return { ok: false, error: "This studio is locked to one showcase" };
     const target = path.resolve(String(dir ?? ""));
     if (!dir || !isDirectory(target)) return { ok: false, error: `${target} is not a folder` };
+    const problem = libraryProblem(target);
+    if (problem) return { ok: false, error: problem };
     const other = await runningStudio(target, { exceptUrl: url });
     if (other) return { ok: false, error: alreadyOpen(target, other.url) };
     release();
@@ -1334,16 +1347,20 @@ add notes specific to this library below, and the studio won't touch them.
       if (result.ok) logUi(body.showcaseId, "asset.add", { names: result.names });
       return result;
     },
-    /* A frame of a scene's video, saved into assets/ for the cover's
-     * picture (server/cover-frame.mjs). The page then points the cover
-     * at it with an ordinary cover edit. */
-    "cover-frame": async (body) => {
-      const result = await saveCoverFrame(showcasesDir, body);
-      if (result.ok) {
-        logUi(body.showcaseId, "asset.encode", {
-          name: result.asset.name,
-          replaced: result.replaced,
-        });
+    /* The cover's picture from a moment of the video: a frame of the
+     * clip, the scene's image, or the whole scene as drawn — the same
+     * rule as Claude's save_cover_picture (server/cover-frame.mjs). The
+     * page then points the cover at it with an ordinary cover edit. */
+    "cover-picture": async (body) => {
+      const result = await saveCoverPicture(showcasesDir, body, {
+        capture: renderer
+          ? (options) => screenshotFrame(renderer, url, showcasesDir, options)
+          : undefined,
+      });
+      const entry = result.ok ? coverPictureLog(result) : undefined;
+      if (entry) {
+        const { kind, ...fields } = entry;
+        logUi(body.showcaseId, kind, fields);
       }
       return result;
     },
