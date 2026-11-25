@@ -3,7 +3,8 @@
 # ../app-version, downloaded from showcasestudio.dev (or
 # $SHOWCASE_STUDIO_DOWNLOAD_URL, e.g. a local wrangler dev), checked against
 # the release's SHA-256 hash, into ~/Applications (or
-# $SHOWCASE_STUDIO_INSTALL_DIR). Replaces an older version there. The
+# $SHOWCASE_STUDIO_INSTALL_DIR). Linux and Windows have their own places
+# (below). Replaces an older version there. The
 # files come from <base>/v<version>/. The plugin's showcase skill runs
 # this when the studio tools are missing.
 #
@@ -34,10 +35,61 @@ case "$(uname -s)" in
     ;;
 esac
 
+# Linux x64: a tarball with no window (Node, the studio and its launcher,
+# bin/showcase-studio), unpacked to ~/.local/share/showcase-studio (or
+# $SHOWCASE_STUDIO_INSTALL_DIR/showcase-studio). curl, sha256sum and tar
+# come with every distribution. $SHOWCASE_STUDIO_RELEASE_DIR names a
+# folder that already holds the tarball and SHA256SUMS-linux-x64 (a local
+# build); then nothing is downloaded. The Linux CI job installs its own
+# build this way.
+install_linux() {
+  if [ "$(uname -m)" != x86_64 ]; then
+    fail "Showcase Studio $version for Linux is built for x86_64 only (this is $(uname -m))."
+  fi
+  dest="${SHOWCASE_STUDIO_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}}"
+  app="$dest/showcase-studio"
+  tarball="Showcase-Studio-$version-linux-x64.tar.gz"
+  sums="SHA256SUMS-linux-x64"
+
+  if [ "$(cat "$app/VERSION" 2> /dev/null)" = "$version" ]; then
+    echo "Showcase Studio $version is already installed at $app"
+    exit 0
+  fi
+
+  work="$(mktemp -d)"
+  trap 'rm -rf "$work"' EXIT
+  if [ -n "${SHOWCASE_STUDIO_RELEASE_DIR:-}" ]; then
+    echo "Installing Showcase Studio $version from $SHOWCASE_STUDIO_RELEASE_DIR..."
+    for file in "$tarball" "$sums"; do
+      cp "$SHOWCASE_STUDIO_RELEASE_DIR/$file" "$work/" 2> /dev/null ||
+        fail "$SHOWCASE_STUDIO_RELEASE_DIR has no $file."
+    done
+  else
+    echo "Downloading Showcase Studio $version from $base..."
+    for file in "$tarball" "$sums"; do
+      curl -fsSL --retry 3 -o "$work/$file" "$base/v$version/$file" ||
+        fail "Couldn't download $base/v$version/$file. Check your internet connection and try again."
+    done
+  fi
+  (cd "$work" && sha256sum -c "$sums" > /dev/null) ||
+    fail "The download doesn't match its SHA-256 hash, so nothing was installed."
+
+  mkdir -p "$work/unpacked" "$dest"
+  tar -xzf "$work/$tarball" -C "$work/unpacked"
+  rm -rf "$app"
+  mv "$work/unpacked/showcase-studio" "$app"
+
+  echo "Installed Showcase Studio $version at $app"
+  echo "Exports draw pages with Google Chrome. If it isn't installed: sudo \"$app/bin/install-chrome\""
+  echo "Next: reconnect the showcase-studio MCP server (/mcp in Claude Code) or start a new session, so its tools appear."
+  exit 0
+}
+[ "$(uname -s)" = Linux ] && install_linux
+
 # Ask the hardware, not uname: a shell running under Rosetta (as Claude
 # Code's can) reports x86_64 on an Apple Silicon Mac.
 if [ "$(uname -s)" != Darwin ] || [ "$(sysctl -n hw.optional.arm64 2> /dev/null)" != 1 ]; then
-  fail "Showcase Studio $version is built for macOS on Apple Silicon only."
+  fail "Showcase Studio $version is built for macOS on Apple Silicon, Windows x64 and Linux x64 only."
 fi
 
 installed="$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$app/Contents/Info.plist" 2> /dev/null || true)"

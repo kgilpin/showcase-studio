@@ -158,13 +158,24 @@ Actions workflow.
 ### Releases on the site
 
 The bucket `showcase-studio-releases` holds `v<version>/<file>` for each
-release, and `latest.json` (`{"mac": …, "win": …}`), which
-`/download/latest/mac` and `/download/latest/win` redirect by.
+release, and `latest.json` (`{"mac": …, "win": …, "linux": …}`), which
+`/download/latest/mac`, `/download/latest/win` and `/download/latest/linux`
+redirect by.
+
+| Platform | Release files                                                   |
+| -------- | --------------------------------------------------------------- |
+| `mac`    | `Showcase-Studio-<v>-mac-arm64.zip` + `SHA256SUMS`              |
+| `win`    | `Showcase-Studio-<v>-win-x64.zip` + `SHA256SUMS-win-x64`        |
+| `linux`  | `Showcase-Studio-<v>-linux-x64.tar.gz` + `SHA256SUMS-linux-x64` |
 
 ```sh
-npm run publish-release -- <mac|win> <version> <folder> [--local]
+npm run publish-release -- <mac|win|linux> <version> <folder> [--local]
 ```
 
-puts a release's zip and checksum file in the bucket and writes
+puts a release's file and checksum file in the bucket and writes
 `latest.json` last (`--local`: the bucket `npm run dev:wrangler` serves).
 The `studio-release` skill runs it.
+
+`/download/latest/linux` and the tarball's `application/gzip` type come
+from `site/worker.js`. Deploy the site once (`npm run deploy`) before the
+first release with a Linux build; the `v<version>/` links work without it.

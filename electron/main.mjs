@@ -48,12 +48,11 @@ import {
   Notification,
   shell,
 } from "electron";
-import http from "node:http";
-import net from "node:net";
 import { createReadStream, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { startAppStudio } from "../server/app-studio.mjs";
 import {
   LIBRARY_FOR_CLAUDE_HELP,
   STUDIO_USAGE,
@@ -66,7 +65,6 @@ import { serveStudioMcp, takeOverStdout } from "../server/mcp-stdio.mjs";
 import { loadSettings, saveSettings } from "../server/settings.mjs";
 import { showcaseIndex } from "../server/showcase-data.mjs";
 import { alreadyOpen, runningStudio } from "../server/studio-presence.mjs";
-import { createStudio } from "../server/studio-server.mjs";
 import { exportLabel } from "../src/lib/export-kinds.mjs";
 import { isPathInLock, lockLandingPath } from "../src/lib/window-lock.mjs";
 import { createElectronRenderer } from "./renderer.mjs";
@@ -123,99 +121,10 @@ let studio;
  * lock — kept current from the studio's events. */
 let studioInfo = { library: options.showcasesDir, lock: options.lock };
 
-const builtServer = path.join(repoRoot, ".output", "server", "index.mjs");
-
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer();
-    probe.on("error", reject);
-    probe.listen(0, "127.0.0.1", () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
-    });
-  });
-}
-
-/** Streams a request the studio doesn't handle through to the built app server. */
-function proxyToBuiltApp(appPort, req, res) {
-  const upstream = http.request(
-    { host: "127.0.0.1", port: appPort, path: req.url, method: req.method, headers: req.headers },
-    (up) => {
-      res.writeHead(up.statusCode ?? 502, up.headers);
-      up.pipe(res);
-    },
-  );
-  upstream.on("error", () => {
-    if (!res.headersSent) res.statusCode = 502;
-    res.end("app server unavailable");
-  });
-  req.pipe(upstream);
-}
-
-let builtApp;
-/** Starts the built app server (Nitro) on a free port, once: it can only
- *  be imported once, so every studio this process starts shares it.
- *  Resolves with its port. */
-function startBuiltApp() {
-  builtApp ??= (async () => {
-    if (!existsSync(builtServer)) {
-      throw new Error(
-        "The built app is missing (.output/). Run `npm run build:desktop`, " +
-          "or use `npm run dev:electron` from source.",
-      );
-    }
-    const port = await freePort();
-    /* The built app server reads its address from PORT and HOST. */
-    process.env.PORT = String(port);
-    process.env.HOST = "127.0.0.1";
-    await import(pathToFileURL(builtServer).href);
-    return port;
-  })();
-  return builtApp;
-}
-
-/** The packaged app's studio: a small server on `port` (a free one by
- *  default) that mounts the studio server in front of the built app.
- *  Resolves with `{ studio, url, landingUrl(), close() }`. */
-async function startAppStudio({ showcasesDir, lock, features, port }) {
-  const appPort = await startBuiltApp();
-  const created = createStudio({
-    showcasesDir,
-    lock,
-    version: appVersion,
-    srcDir: repoRoot,
-    renderer: createElectronRenderer(),
-    features,
-  });
-  const front = http.createServer(
-    (req, res) => void created.handle(req, res, () => proxyToBuiltApp(appPort, req, res)),
-  );
-  try {
-    await new Promise((resolve, reject) => {
-      front.once("error", reject);
-      front.listen(port ?? 0, "127.0.0.1", resolve);
-    });
-  } catch (error) {
-    await created.close();
-    throw error;
-  }
-  const url = `http://127.0.0.1:${front.address().port}`;
-  created.setUrl(url);
-  return {
-    studio: created,
-    url,
-    landingUrl: () => {
-      const { lock: current } = created.info();
-      return url + (current ? lockLandingPath(current) : "");
-    },
-    async close() {
-      await created.close();
-      /* Open event streams would keep the server from closing. */
-      front.closeAllConnections();
-      await new Promise((resolve) => front.close(resolve));
-    },
-  };
-}
+/** The packaged app's studio (server/app-studio.mjs), drawn with
+ *  Electron's renderer. */
+const startPackagedStudio = (options) =>
+  startAppStudio({ ...options, version: appVersion, renderer: createElectronRenderer() });
 
 async function readStudioInfo() {
   const response = await fetch(`${appUrl}/studio/api/info`);
@@ -506,7 +415,7 @@ function serveMcp() {
     windows: true,
     startStudio: async ({ showcasesDir, lock, window }) => {
       await app.whenReady();
-      const running = await startAppStudio({
+      const running = await startPackagedStudio({
         showcasesDir,
         lock,
         features: { terminal: false, autoCommit: false },
@@ -604,7 +513,7 @@ app.whenReady().then(async () => {
   }
   if (!appUrl) {
     try {
-      const running = await startAppStudio({
+      const running = await startPackagedStudio({
         showcasesDir: options.showcasesDir,
         lock: options.lock,
         features: { terminal: options.terminal },

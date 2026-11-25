@@ -6,13 +6,15 @@
  * From the repo root:
  *   npm --prefix site run publish-release -- mac 0.6.0 dist-electron/dist
  *   npm --prefix site run publish-release -- win 0.6.0 <the CI artifact's folder>
+ *   npm --prefix site run publish-release -- linux 0.6.0 <the CI artifact's folder>
  * Add --local to use the bucket wrangler dev serves, for trying it out, and
  * --profile <name> to upload with a wrangler auth profile instead of the
  * default sign-in.
  *
  * The folder holds the zip and its checksum file, as the build leaves them:
- *   mac  Showcase-Studio-<version>-mac-arm64.zip + SHA256SUMS
- *   win  Showcase-Studio-<version>-win-x64.zip   + SHA256SUMS-win-x64
+ *   mac    Showcase-Studio-<version>-mac-arm64.zip    + SHA256SUMS
+ *   win    Showcase-Studio-<version>-win-x64.zip      + SHA256SUMS-win-x64
+ *   linux  Showcase-Studio-<version>-linux-x64.tar.gz + SHA256SUMS-linux-x64
  *
  * The checksum file must have one line, for this zip, and match it: the
  * plugin's installer checks every line. Uploads go through wrangler, signed
@@ -32,6 +34,7 @@ const MAX_BYTES = 300 * 1024 * 1024;
 const FILES = {
   mac: (v) => [`Showcase-Studio-${v}-mac-arm64.zip`, "SHA256SUMS"],
   win: (v) => [`Showcase-Studio-${v}-win-x64.zip`, "SHA256SUMS-win-x64"],
+  linux: (v) => [`Showcase-Studio-${v}-linux-x64.tar.gz`, "SHA256SUMS-linux-x64"],
 };
 
 const site = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -52,7 +55,7 @@ function fail(message) {
 
 if (!FILES[platform] || !/^\d+\.\d+\.\d+$/.test(version ?? "") || !folder) {
   fail(
-    "usage: publish-release <mac|win> <version, e.g. 0.6.0> <folder> [--local] [--profile <name>]",
+    "usage: publish-release <mac|win|linux> <version, e.g. 0.6.0> <folder> [--local] [--profile <name>]",
   );
 }
 const [zip, sums] = FILES[platform](version);
@@ -92,7 +95,7 @@ wrangler(
   "--file",
   zipPath,
   "--content-type",
-  "application/zip",
+  zip.endsWith(".zip") ? "application/zip" : "application/gzip",
 );
 wrangler(
   "r2",

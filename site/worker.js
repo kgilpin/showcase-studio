@@ -17,11 +17,14 @@
  *     /download/latest/mac.sha256   redirect to its SHA256SUMS
  *     /download/latest/win          the same for Windows
  *     /download/latest/win.sha256
+ *     /download/latest/linux        the same for the Linux tarball
+ *     /download/latest/linux.sha256
  *
  * The bucket holds v<version>/<file> for each release, and latest.json,
- * {"mac": "0.6.0", "win": "0.6.0"}, which site/scripts/publish-release.mjs
- * writes last. Mac and Windows have their own entry because the Windows
- * build reaches the bucket later than the Mac one.
+ * {"mac": "0.6.0", "win": "0.6.0", "linux": "0.6.0"}, which
+ * site/scripts/publish-release.mjs writes last. Each platform has its own
+ * entry because the Windows and Linux builds reach the bucket later than
+ * the Mac one.
  *
  * A Worker can only read a bucket in its own account. Until the domain
  * moves to the SiteForward account, the site's Worker (in goo.global) has
@@ -50,6 +53,8 @@ const LATEST = {
   "mac.sha256": () => "SHA256SUMS",
   win: (v) => `Showcase-Studio-${v}-win-x64.zip`,
   "win.sha256": () => "SHA256SUMS-win-x64",
+  linux: (v) => `Showcase-Studio-${v}-linux-x64.tar.gz`,
+  "linux.sha256": () => "SHA256SUMS-linux-x64",
 };
 
 async function download(request, env, pathname) {
@@ -57,7 +62,7 @@ async function download(request, env, pathname) {
     return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   }
 
-  const latest = /^\/download\/latest\/(mac|win)(\.sha256)?$/.exec(pathname);
+  const latest = /^\/download\/latest\/(mac|win|linux)(\.sha256)?$/.exec(pathname);
   if (latest) {
     const platform = latest[1];
     const object = await env.RELEASES.get("latest.json");
@@ -102,8 +107,8 @@ async function download(request, env, pathname) {
   headers.set("Accept-Ranges", "bytes");
   // A release's files never change once uploaded.
   headers.set("Cache-Control", "public, max-age=31536000, immutable");
-  if (key.endsWith(".zip")) {
-    headers.set("Content-Type", "application/zip");
+  if (key.endsWith(".zip") || key.endsWith(".tar.gz")) {
+    headers.set("Content-Type", key.endsWith(".zip") ? "application/zip" : "application/gzip");
     headers.set("Content-Disposition", `attachment; filename="${key.split("/")[1]}"`);
   } else {
     headers.set("Content-Type", "text/plain; charset=utf-8");

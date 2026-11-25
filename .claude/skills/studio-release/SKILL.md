@@ -1,6 +1,6 @@
 ---
 name: studio-release
-description: Release Showcase Studio from main — bump the version, build the signed and notarized Mac app, tag, let CI build Windows, publish the four assets to showcasestudio.dev/download (and the GitHub release, kept as the record), and verify the install as a user. Use when the user asks to release, ship, or publish a new version of the app.
+description: Release Showcase Studio from main — bump the version, build the signed and notarized Mac app, tag, let CI build Windows and Linux, publish the six assets to showcasestudio.dev/download (and the GitHub release, kept as the record), and verify the install as a user. Use when the user asks to release, ship, or publish a new version of the app.
 argument-hint: "[version, e.g. 0.5.0 — default: chosen from what ships, by semantic versioning]"
 ---
 
@@ -16,9 +16,10 @@ don't work around it.
 ```
 preflight + behavior review ─► version commit ─► Mac build (signed + notarized) ─► push main + tag
                                                                                          │
-                              CI builds Windows from the tag ◄───────────────────────────┘
+                      CI builds Windows and Linux from the tag ◄─────────────────────────┘
                                           │
-      Mac zip + SHA256SUMS now, Windows zip + SHA256SUMS-win-x64 when CI is done, each to:
+      Mac zip + SHA256SUMS now; Windows zip + SHA256SUMS-win-x64 and
+      Linux tarball + SHA256SUMS-linux-x64 when CI is done; each to:
         showcasestudio.dev/download  (R2 bucket — what users and the installer download)
         GitHub release               (the private record of each build)
                                           │
@@ -187,7 +188,7 @@ git tag -a vX.Y.Z -m "Showcase Studio X.Y.Z"
 git push origin main vX.Y.Z
 ```
 
-The tag push starts the Windows build (`.github/workflows/desktop-build.yml`).
+The tag push starts the Windows and Linux builds (`.github/workflows/desktop-build.yml`).
 Note its run id: `gh run list -L 3 --json databaseId,event,headBranch` — the
 `push` event on branch `vX.Y.Z`.
 
@@ -216,17 +217,27 @@ gh release create vX.Y.Z dist-electron/dist/Showcase-Studio-X.Y.Z-mac-arm64.zip 
 
 The notes: what changed since the last tag, grouped for a user (Mac,
 Windows, plugin, everything else), from the commit list in step 2, in
-plain sentences. Say that the Windows files are added when the CI build
-finishes.
+plain sentences. Say that the Windows and Linux files are added when the
+CI build finishes.
 
-## 6. Add the Windows build when CI finishes
+## 6. Add the Windows and Linux builds when CI finishes
 
 ```sh
 gh run watch <run id> --exit-status --interval 20
 gh run download <run id> -n showcase-studio-win-x64 -D <folder>
 npm --prefix site run publish-release -- win X.Y.Z <folder>
 gh release upload vX.Y.Z <folder>/Showcase-Studio-X.Y.Z-win-x64.zip <folder>/SHA256SUMS-win-x64
+
+gh run download <run id> -n showcase-studio-linux-x64 -D <linux folder>
+npm --prefix site run publish-release -- linux X.Y.Z <linux folder>
+gh release upload vX.Y.Z <linux folder>/Showcase-Studio-X.Y.Z-linux-x64.tar.gz <linux folder>/SHA256SUMS-linux-x64
 ```
+
+The Linux artifact comes from the `linux` job; publish it only when
+`linux-check` and `linux-debian` passed too (they install it, export a
+video, and connect Claude Code to it). `/download/latest/linux` needs a
+site deployed since the Linux build was added (docs/deploy.md, "Releases
+on the site"); check it once with `curl -sI`.
 
 Until this step, `/download/latest/win` still points at the last
 release's Windows build, which is what a Windows user should get
@@ -241,8 +252,10 @@ once, and if it repeats, treat it as real. Any other failure is real —
 read `gh run view <run id> --log-failed` and stop.
 
 Done means `/download/latest/win` redirects to the X.Y.Z Windows zip,
-and `gh release view vX.Y.Z --json assets` lists four assets: the Mac
-zip, `SHA256SUMS`, the Windows zip and `SHA256SUMS-win-x64`.
+`/download/latest/linux` to the X.Y.Z Linux tarball, and
+`gh release view vX.Y.Z --json assets` lists six assets: the Mac zip,
+`SHA256SUMS`, the Windows zip, `SHA256SUMS-win-x64`, the Linux tarball
+and `SHA256SUMS-linux-x64`.
 
 ## 7. Verify as a user
 
@@ -275,7 +288,7 @@ and the check hangs with no output (issue #56).
 ## 8. Report
 
 Tell the user: the version, the download links and the GitHub release
-URL, the four assets, the
-signing identity and notarization result, the Windows run's result, and
+URL, the six assets, the
+signing identity and notarization result, the Windows and Linux jobs' results, and
 the install check. If a step was skipped or is still pending (the
-Windows upload, say), say so plainly.
+Windows or Linux upload, say), say so plainly.

@@ -1,5 +1,7 @@
-# Builds the desktop app on Windows and checks that it starts.
+# Builds the desktop app on Windows, and the windowless Linux build, and
+# checks that each starts.
 #
+# Windows:
 #   npm ci ─► setup:desktop ─► tests ─► vendor:whisper ─► build:desktop ─►
 #                                       package-desktop.mjs ─► electron-builder --win zip
 #                                                                     │
@@ -7,19 +9,34 @@
 #                                                                     │
 #                                   workflow artifact: the zip and its checksum
 #
-# It builds on Windows itself because ffmpeg-static and esbuild install
-# programs for the machine that runs npm install; a build made on a Mac
-# would carry Mac programs.
+# Linux (no Electron; scripts/package-linux.mjs):
+#   linux:        npm ci ─► vendor:whisper ─► build:desktop ─► package-linux.mjs
+#                   (on the oldest Ubuntu supported: the build needs its glibc or newer)
+#                   ─► workflow artifact: the tarball and its checksum
+#   linux-check:  on the newest Ubuntu, from the artifact alone: the plugin's
+#                   installer, an export, the studio's pages, Claude Code's MCP
+#   linux-debian: in a node:22 container (Debian, no Chrome): install-chrome,
+#                   then an export
+#
+# Each builds on its own platform because ffmpeg-static, esbuild and
+# node-pty install programs for the machine that runs npm install; a
+# build made on a Mac would carry Mac programs.
 #
 # Runs on version tags (a release) and by hand (Actions > Desktop build >
 # Run workflow) — not on pull requests: a Windows build takes the better
-# part of an hour, so run it by hand on a PR that changes packaging. It
-# never publishes a release: the zip is a workflow artifact to test first.
+# part of an hour, so run it by hand on a PR that changes packaging (the
+# `windows` input off runs the Linux jobs alone). It never publishes a
+# release: the builds are workflow artifacts to test first.
 
 name: Desktop build
 
 on:
   workflow_dispatch:
+    inputs:
+      windows:
+        description: Build Windows too (the Linux jobs always run)
+        type: boolean
+        default: true
   push:
     tags: ["v*"]
 
@@ -28,6 +45,7 @@ permissions:
 
 jobs:
   windows:
+    if: github.event_name == 'push' || inputs.windows
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -195,3 +213,172 @@ jobs:
             dist-electron/dist/Showcase-Studio-*-win-x64.zip
             dist-electron/dist/SHA256SUMS-win-x64
           if-no-files-found: error
+
+  linux:
+    # The oldest Ubuntu the build supports: whisper-cli and node-pty are
+    # compiled here, and need this glibc (2.35) or newer where they run.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Built from source with cmake (scripts/vendor-whisper.mjs): the
+      # build ships it, and packaging fails without it.
+      - name: Vendor whisper
+        run: npm run vendor:whisper
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Build the app server
+        run: npm run build:desktop
+
+      - name: Package
+        run: node scripts/package-linux.mjs
+
+      - name: The build carries whisper and Node
+        run: |
+          app=dist-linux/showcase-studio
+          "$app/electron/vendor/whisper/whisper-cli" --help 2>&1 | head -3
+          "$app/node/bin/node" --version
+          "$app/bin/showcase-studio" --help | head -3
+          ls -la dist-linux
+          cat dist-linux/SHA256SUMS-linux-x64
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: showcase-studio-linux-x64
+          path: |
+            dist-linux/Showcase-Studio-*-linux-x64.tar.gz
+            dist-linux/SHA256SUMS-linux-x64
+          if-no-files-found: error
+
+  # The tarball on its own, the way a CI user gets it: a fresh runner with
+  # no npm install, the newest Ubuntu, and the Google Chrome GitHub's
+  # runners come with.
+  linux-check:
+    needs: linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: showcase-studio-linux-x64
+          path: release
+
+      - name: Plugin installs the build
+        run: |
+          export SHOWCASE_STUDIO_RELEASE_DIR="$PWD/release"
+          export SHOWCASE_STUDIO_INSTALL_DIR="$RUNNER_TEMP/apps"
+          sh plugins/showcase-studio/bin/install-app
+          app="$SHOWCASE_STUDIO_INSTALL_DIR/showcase-studio"
+          test "$(cat "$app/VERSION")" = "$(tr -d '[:space:]' < plugins/showcase-studio/app-version)"
+          sh plugins/showcase-studio/bin/install-app | tee again.log
+          grep -q "already installed" again.log
+          echo "APP=$app" >> "$GITHUB_ENV"
+
+      # A copy of a showcase outside the repo, so the studio's automatic
+      # git commits stay off, with its exports kept beside it.
+      - name: Library
+        run: |
+          lib="$RUNNER_TEMP/library"
+          mkdir -p "$lib"
+          cp -R showcases/showcase-studio "$lib/"
+          echo "export_dir: exports" > "$lib/showcase_settings.yaml"
+          echo "LIB=$lib" >> "$GITHUB_ENV"
+
+      - name: Export a draft video
+        run: |
+          "$APP/bin/showcase-studio" --library "$LIB" --export video-43-draft:showcase-studio 2>&1 |
+            grep -v ": frame " | tee export.log
+          out="$(sed -n 's/^exported: //p' export.log)"
+          test -s "$out"
+          ls -la "$out"
+          "$APP/node_modules/ffmpeg-static/ffmpeg" -hide_banner -i "$out" 2>&1 | grep -E "Duration|Video:" || true
+
+      - name: The studio's pages, with no window
+        run: |
+          version="$(cat "$APP/VERSION")"
+          PORT=47123 "$APP/bin/showcase-studio" --open "$LIB/showcase-studio" --no-window > app.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2> /dev/null; echo "--- app.log"; cat app.log' EXIT
+          base=http://127.0.0.1:47123
+          for i in $(seq 90); do curl -fs "$base/studio/api/info" > /dev/null && break; sleep 1; done
+          test "$(curl -fs "$base/studio/api/info" | jq -r .version)" = "$version"
+          for path in / /showcase/showcase-studio /showcase/showcase-studio/assets /studio/api/history; do
+            status="$(curl -s -o /dev/null -w '%{http_code}' "$base$path")"
+            echo "$status $path"
+            test "$status" = 200
+          done
+
+      # The plugin's launcher, driven over MCP by hand: studio_start must
+      # start a studio from the installed build.
+      - name: The plugin starts the build with --mcp
+        run: |
+          start='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"studio_start","arguments":{"library":"'"$LIB"'"}}}'
+          init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}'
+          (printf '%s\n%s\n' "$init" "$start"; sleep 30) |
+            SHOWCASE_STUDIO_INSTALL_DIR="$RUNNER_TEMP/apps" sh plugins/showcase-studio/bin/studio-mcp 2> mcp.err |
+            tee mcp.out | cut -c1-300
+          echo "--- stderr"; tail -5 mcp.err
+          grep '"id":2' mcp.out | jq -e '.result.content[0].text | fromjson | .url | startswith("http://127.0.0.1:")'
+
+      - name: Claude Code connects to the plugin
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          export SHOWCASE_STUDIO_INSTALL_DIR="$RUNNER_TEMP/apps"
+          repo="$PWD"
+          mkdir -p "$RUNNER_TEMP/project" && cd "$RUNNER_TEMP/project"
+          claude plugin marketplace add "$repo"
+          claude plugin install showcase-studio@showcase-studio
+          claude mcp list 2>&1 | tee mcp-list.log
+          grep -q "plugin:showcase-studio:showcase-studio.*Connected" mcp-list.log
+
+  # An older Debian with no browser at all, as in a node:22 container:
+  # bin/install-chrome puts Google Chrome in, then an export runs.
+  linux-debian:
+    needs: linux
+    runs-on: ubuntu-latest
+    container: node:22
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: showcase-studio-linux-x64
+          path: release
+
+      - name: Unpack
+        run: |
+          cd release && sha256sum -c SHA256SUMS-linux-x64
+          tar -xzf Showcase-Studio-*-linux-x64.tar.gz -C /opt
+          grep PRETTY_NAME /etc/os-release
+          # Built on another Ubuntu: it must still load here.
+          /opt/showcase-studio/electron/vendor/whisper/whisper-cli --help > whisper.txt 2>&1 || true
+          head -1 whisper.txt
+          grep -q "^usage:" whisper.txt
+
+      - name: Install Google Chrome
+        run: /opt/showcase-studio/bin/install-chrome
+
+      - name: Export a draft video
+        run: |
+          lib="$RUNNER_TEMP/library"
+          mkdir -p "$lib"
+          cp -R showcases/showcase-studio "$lib/"
+          echo "export_dir: exports" > "$lib/showcase_settings.yaml"
+          /opt/showcase-studio/bin/showcase-studio --library "$lib" --export video-43-draft:showcase-studio 2>&1 |
+            grep -v ": frame " | tee export.log
+          out="$(sed -n 's/^exported: //p' export.log)"
+          test -s "$out"
+          ls -la "$out"

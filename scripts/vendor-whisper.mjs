@@ -11,6 +11,13 @@
  * The cmake must be one for this Mac's architecture: an Intel cmake
  * under Rosetta can only make an x86_64 binary, so it is refused.
  *
+ * Linux x64: built from source the same way (cmake and build-essential).
+ * The build must run on any x64 machine and on older distributions, so
+ * it isn't tuned to the CPU that builds it (AVX2 is the floor, which
+ * every x64 processor since 2015 has), and it uses ggml's own threads
+ * instead of OpenMP, so it needs no libgomp. Build it on the oldest
+ * Ubuntu the release supports: the binary needs that glibc or newer.
+ *
  * Windows: downloaded, because there is a build to download. It comes
  * from one pinned release, checked against its SHA-256, and only the
  * files whisper-cli needs are kept (the archive also holds llama, SDL2,
@@ -53,9 +60,10 @@ if (process.platform === "win32") {
   await vendorWindows();
   process.exit(0);
 }
-if (process.platform !== "darwin") {
+const linux = process.platform === "linux" && process.arch === "x64";
+if (process.platform !== "darwin" && !linux) {
   throw new Error(
-    `The studio is packaged for macOS and Windows; there is no vendored whisper for ${process.platform}.\n` +
+    `The studio is packaged for macOS, Windows and Linux x64; there is no vendored whisper for ${process.platform} ${process.arch}.\n` +
       "Install whisper-cli yourself and point $SHOWCASE_STUDIO_WHISPER at it.",
   );
 }
@@ -95,8 +103,14 @@ async function vendorWindows() {
   console.log(`vendored: ${binary} (${kept} files)`);
 }
 
+/* In CI, GITHUB_TOKEN lifts the API's low limit for unsigned requests,
+ * which runners share. */
 const release = await (
-  await fetch("https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest")
+  await fetch("https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest", {
+    headers: process.env.GITHUB_TOKEN
+      ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+      : {},
+  })
 ).json();
 const tag = release.tag_name;
 if (!tag) throw new Error("Could not resolve the latest whisper.cpp release tag");
@@ -136,9 +150,27 @@ if (os.platform() === "darwin") {
     );
   }
 }
+/* Linux: no -march=native, an AVX2 floor, no OpenMP (see the top). */
+const linuxArgs = linux
+  ? [
+      "-DGGML_NATIVE=OFF",
+      "-DGGML_AVX=ON",
+      "-DGGML_AVX2=ON",
+      "-DGGML_FMA=ON",
+      "-DGGML_F16C=ON",
+      "-DGGML_OPENMP=OFF",
+    ]
+  : [];
 execFileSync(
   "cmake",
-  ["-B", "build", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF", ...macArchArgs],
+  [
+    "-B",
+    "build",
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DBUILD_SHARED_LIBS=OFF",
+    ...macArchArgs,
+    ...linuxArgs,
+  ],
   {
     cwd: work,
     stdio: "inherit",

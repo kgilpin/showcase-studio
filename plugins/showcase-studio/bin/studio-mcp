@@ -3,7 +3,8 @@
 # talking MCP on stdin and stdout.
 #
 # It looks for the app at $SHOWCASE_STUDIO_APP, then in
-# $SHOWCASE_STUDIO_INSTALL_DIR, ~/Applications and /Applications, and
+# $SHOWCASE_STUDIO_INSTALL_DIR, ~/Applications and /Applications (on
+# Linux: ~/.local/share/showcase-studio; on Windows: see below), and
 # prefers the version this plugin expects (../app-version). With no app,
 # it exits with a message naming bin/install-app, which installs it. A
 # SHOWCASE_STUDIO_APP that names nothing is an error, not a fallback:
@@ -62,6 +63,44 @@ case "$(uname -s)" in
     exit 1
     ;;
 esac
+
+# Linux: the tarball bin/install-app unpacks, with its launcher at
+# bin/showcase-studio and its version in VERSION. SHOWCASE_STUDIO_APP may
+# name the unpacked folder or the launcher itself.
+if [ "$(uname -s)" = Linux ]; then
+  app_dir=""
+  if [ -n "${SHOWCASE_STUDIO_APP:-}" ]; then
+    if [ -x "$SHOWCASE_STUDIO_APP/bin/showcase-studio" ]; then
+      app_dir="$SHOWCASE_STUDIO_APP"
+    elif [ -f "$SHOWCASE_STUDIO_APP" ] && [ -x "$SHOWCASE_STUDIO_APP" ]; then
+      app_dir="$(cd "$(dirname "$SHOWCASE_STUDIO_APP")/.." && pwd)"
+    else
+      echo "showcase-studio: SHOWCASE_STUDIO_APP is set, but there is no Showcase Studio at $SHOWCASE_STUDIO_APP. Unset it to use the installed app." >&2
+      exit 1
+    fi
+  fi
+  found=""
+  for dir in \
+    "$app_dir" \
+    "${SHOWCASE_STUDIO_INSTALL_DIR:+$SHOWCASE_STUDIO_INSTALL_DIR/showcase-studio}" \
+    "${XDG_DATA_HOME:-$HOME/.local/share}/showcase-studio"; do
+    [ -n "$dir" ] && [ -x "$dir/bin/showcase-studio" ] || continue
+    if [ "$(cat "$dir/VERSION" 2> /dev/null)" = "$want" ]; then
+      found="$dir"
+      break
+    fi
+    [ -n "$found" ] || found="$dir"
+  done
+  if [ -z "$found" ]; then
+    echo "showcase-studio: Showcase Studio isn't installed. Install version $want with: \"$root/bin/install-app\"" >&2
+    exit 1
+  fi
+  have="$(cat "$found/VERSION" 2> /dev/null)"
+  if [ "$have" != "$want" ]; then
+    echo "showcase-studio: $found is version ${have:-unknown}, but this plugin expects $want. Running it anyway; update it with: \"$root/bin/install-app\"" >&2
+  fi
+  exec "$found/bin/showcase-studio" --mcp
+fi
 
 version_of() {
   /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$1/Contents/Info.plist" 2> /dev/null
