@@ -3,7 +3,7 @@
 Detail that has no single home file. Each module's own header comment
 says what that module does; this page says how they connect.
 
-## The studio and its three ways to run
+## The studio and its ways to run
 
 Every studio feature is plain Node in `server/` (no Electron imports),
 unit-tested and gold-traced. `createStudio()` in
@@ -18,13 +18,26 @@ of running it:
                        └────────────────────────────┘
                        ┌────────────────────────────┐
  Showcase Studio.app ─►│ electron/main.mjs          │  the built app (.output/)
-                       │ + the studio server        │  and the studio server,
+                       │ + server/app-studio.mjs    │  and the studio server,
                        └────────────────────────────┘  in-process, free ports
+                       ┌────────────────────────────┐
+ Linux build ─────────►│ server/headless-main.mjs   │  the same, in plain Node,
+  (bin/showcase-studio)│ + server/app-studio.mjs    │  with no window
+                       └────────────────────────────┘
                        ┌────────────────────────────┐
  Claude Code ─────────►│ server/mcp-stdio.mjs       │  MCP over stdio; owns
   (.mcp.json, or the   │ studio_start / studio_stop │  one studio process
    plugin's --mcp)     └────────────────────────────┘
 ```
+
+The Mac and Windows app and the Linux build start the same studio:
+`server/app-studio.mjs` puts the built app server (`.output/`) behind the
+studio server. They differ only in the page renderer (below) and in
+having a window. The Linux build (`scripts/package-linux.mjs`) is a
+tarball with Node 22 inside, so a CI job needs nothing else; its
+launcher `bin/showcase-studio` takes the app's options. It never has a
+window: `--no-window` is accepted and changes nothing, and with `--mcp`
+`studio_start` offers no `window`.
 
 - `npm run dev` picks the port from `PORT` when a launcher sets it, else a
   free one, and prints it as `studio: <url>`. The library defaults to this
@@ -48,10 +61,10 @@ channel, so all other output goes to stderr. `studio_start` starts it
 example in Claude Code's preview. `studio_stop` stops it, and it stops with
 the Claude Code session. There is nothing to find and no port to set.
 
-| Where Claude Code runs | What starts the studio                                                                                                                  |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| In this repo           | `.mcp.json` runs `scripts/studio-mcp.mjs`: the `npm run dev` studio, from source                                                        |
-| Anywhere else          | The showcase-studio plugin (`plugins/showcase-studio/`, listed in `.claude-plugin/marketplace.json`) runs the packaged app with `--mcp` |
+| Where Claude Code runs | What starts the studio                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| In this repo           | `.mcp.json` runs `scripts/studio-mcp.mjs`: the `npm run dev` studio, from source                                                                                    |
+| Anywhere else          | The showcase-studio plugin (`plugins/showcase-studio/`, listed in `.claude-plugin/marketplace.json`) runs the packaged app (on Linux, the Linux build) with `--mcp` |
 
 With the plugin, `studio_start {window: true}` opens the app's own window.
 Without it the app runs with no window or Dock icon. Closing that window
@@ -128,10 +141,13 @@ The page side is `src/lib/live-updates.ts` and `refreshShowcase` in
 
 ## Screenshots, exports and renderers
 
-Screenshots and exports draw pages with Playwright from source
-(`server/renderer-playwright.mjs`, Google Chrome when installed, since its
-bundled Chromium can't play MP4 video) and with Electron's offscreen
-windows in the packaged app (`electron/renderer.mjs`). They are encoded
+Screenshots and exports draw pages with Playwright from source and in
+the Linux build (`server/renderer-playwright.mjs`, Google Chrome when
+installed, since its bundled Chromium can't play MP4 video) and with
+Electron's offscreen windows in the Mac and Windows app
+(`electron/renderer.mjs`). Electron's renderer needs a display, which a
+CI machine doesn't have. GitHub's Ubuntu runners come with Google
+Chrome; elsewhere the Linux build's `bin/install-chrome` installs it. They are encoded
 with the bundled ffmpeg. Exports land in
 `~/Downloads/showcase-exports/<id>` unless the library's `export_dir`
 says otherwise.
