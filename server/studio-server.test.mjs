@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publish } from "../cdk/lambda/publish-core.mjs";
 import { VIDEO_FORMATS } from "../src/lib/export-kinds.mjs";
@@ -629,6 +629,37 @@ scenes:
       if (scene.note) expect(brief).not.toContain(scene.note);
     }
     expect(next).toContain("subagent");
+  });
+
+  it("check_titles keys each slide to its captions, or to its note while it is an outline", async () => {
+    const { studio, library } = await startStudio();
+    const file = path.join(library, "nova", "showcase.yaml");
+    const doc = parse(readFileSync(file, "utf8"));
+    // One scene with captions (and a note left over from planning), one still an outline.
+    const written = {
+      id: "written",
+      theme: "statement",
+      title: "Pick the force",
+      note: "A note left over from planning.",
+      captions: [{ text: "Pick a quarter,  half," }, { text: "or everything." }],
+    };
+    const outline = {
+      id: "outline",
+      theme: "statement",
+      title: "Watch it arrive",
+      note: "Show the fleet landing, so the viewer sees the payoff.",
+    };
+    doc.scenes.push(written, outline);
+    writeFileSync(file, stringify(doc));
+    const { slides } = JSON.parse(
+      (await studio.callTool({ name: "check_titles", arguments: { showcaseId: "nova" } }))
+        .content[0].text,
+    );
+    const slide = (id) => slides.find((s) => s.sceneId === id);
+    expect(slide(written.id).said).toBe("Pick a quarter, half, or everything.");
+    expect(slide(written.id).note).toBeUndefined();
+    expect(slide(outline.id).note).toBe(outline.note);
+    expect(slide(outline.id).said).toBeUndefined();
   });
 
   it("check_script returns the narration alone, numbered, and a key back to the scenes", async () => {

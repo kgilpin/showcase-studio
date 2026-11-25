@@ -212,9 +212,10 @@ export type Scene = {
    *  names are mapped, with a linter warning). */
   theme: SceneTheme;
   eyebrow?: string;
-  /** Authoring note — context an author or agent keeps with the scene
-   *  (what a take is, what's still pending). Never rendered in the
-   *  player or any export; shown on the script page. Notes live here,
+  /** Outline note: what the scene is for while it is still an outline
+   *  (or something still to do on it). Removed once the scene has
+   *  captions. Never rendered in the player or any export; shown on
+   *  the script page. Notes live here,
    *  not in YAML comments: comments don't follow a scene through the
    *  edit tool's move/delete, this field does. */
   note?: string | undefined;

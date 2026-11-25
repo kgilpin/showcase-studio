@@ -11,3 +11,7 @@ routeTree.gen.ts
 .claude
 gold_traces/baseline
 tmp
+
+# The authoring guide is written out to libraries exactly as it is; Prettier
+# would flatten its indented diagrams.
+server/showcase-guide.md

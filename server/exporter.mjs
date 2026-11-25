@@ -273,8 +273,11 @@ export function scriptText(showcasesDir, showcaseId) {
 /** The title check: the slide titles alone, for a reader who has seen
  *  nothing else. `brief` is the whole prompt for that reader — the
  *  titles in order, numbered, and the question to answer. `slides` maps
- *  each number back to its scene, with the scene's note, so the writer
- *  can compare each answer with what the slide was meant to show.
+ *  each number back to its scene, with what the slide shows: its captions
+ *  (`said`) once it has them, or its note while it is still an outline.
+ *  The writer compares each answer with that. Captions win over a note
+ *  because they can't go out of date: a note is only written for the
+ *  outline (see the guide's "Scene notes").
  *  Scenes with no title (footage) are left out of both. */
 export function titleCheck(showcasesDir, showcaseId) {
   if (!existsSync(path.join(showcasesDir, showcaseId, "showcase.yaml"))) {
@@ -282,13 +285,20 @@ export function titleCheck(showcasesDir, showcaseId) {
   }
   const doc = readDoc(showcasesDir, showcaseId);
   const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
+  const said = (scene) =>
+    oneLine(
+      (scene.captions ?? [])
+        .map((caption) => caption?.text ?? "")
+        .filter(Boolean)
+        .join(" "),
+    );
   const slides = (doc.scenes ?? [])
     .filter((scene) => scene?.title && oneLine(scene.title))
     .map((scene, i) => ({
       slide: i + 1,
       sceneId: scene.id,
       title: oneLine(scene.title),
-      ...(scene.note ? { note: oneLine(scene.note) } : {}),
+      ...(said(scene) ? { said: said(scene) } : scene.note ? { note: oneLine(scene.note) } : {}),
     }));
   /* A template whose titles tell a story (titleCheck: story) asks the
    * reader to retell it; every other showcase asks what each slide shows. */

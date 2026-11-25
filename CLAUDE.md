@@ -135,7 +135,7 @@ The marketing site (`site/`) is its own npm package:
   together for a new app, and `plugin.json`'s version for every plugin
   change (that's what `claude plugin update` looks at). The skill holds
   session steps only; how showcases work stays in
-  `server/showcase-guide.mjs`.
+  `server/showcase-guide.md`.
 
 ## Conventions
 
@@ -219,7 +219,7 @@ The marketing site (`site/`) is its own npm package:
   library-level file, and don't put settings in `.studio/` (it's
   gitignored; settings should be committed). When you add a setting, add
   a commented line to `SETTINGS_TEMPLATE` and describe it in
-  `server/showcase-guide.mjs`. Existing libraries keep the file they
+  `server/showcase-guide.md`. Existing libraries keep the file they
   have, so the guide is how their sessions learn about it.
 - **A new showcase.yaml field goes in `src/content/showcase-schema.mjs`
   first.** The loader warns about fields the schema doesn't know, so a
@@ -244,7 +244,9 @@ The marketing site (`site/`) is its own npm package:
   field goes now. It never quietly accepts both shapes.
 - What an author has to know (a theme, a media rule such as "footage is
   always muted", a caption style, a workflow like the recorded-pitch
-  recipe) lives in `server/showcase-guide.mjs`, written to
+  recipe) lives in `server/showcase-guide.md`, plain Markdown. The
+  parts that depend on the machine, such as tool paths, are filled in
+  by `studioGuide()` in `server/showcase-guide.mjs`. Both are written to
   `<library>/.studio/GUIDE.md` on every launch. Update it in the same
   commit as the change. A session that had to read a sibling showcase or
   this source to learn a workflow means the guide is missing a section.

@@ -255,7 +255,9 @@ const SCENE = object(
     theme: oneOf(SCENE_THEMES, "The layout: statement, feature, console, or footage."),
     title: string("On-screen display text; never spoken. Omit it on footage."),
     eyebrow: string("A label for the script and teleprompter pages; never on the slide."),
-    note: string("An authoring note; shown on the script page, never rendered."),
+    note: string(
+      "An outline note: what the scene is for, while it has no captions. Removed once captions are written; never rendered.",
+    ),
     captions: { type: "array", items: CAPTION, description: "The narration, in order." },
     captionStyle: oneOf(
       CAPTION_STYLES,
