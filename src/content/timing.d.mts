@@ -54,7 +54,9 @@ export function wordTimeline(
 
 /** Attaches exact `words` windows to captions from a voiceover
  *  transcript with word timestamps (the transcribe tool's shape, a bare
- *  segments array, or a flat word list). Mutates the scenes in place. */
+ *  segments array, or a flat word list). Replaces each scene's captions
+ *  with new objects, so captions shared with the parsed file stay as
+ *  authored. */
 export function alignCaptionWords(
   scenes: { durationMs: number; captions?: { text: string; words?: WordWindow[] }[] }[],
   transcript: unknown,
