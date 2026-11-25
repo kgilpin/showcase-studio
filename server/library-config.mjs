@@ -28,7 +28,7 @@
  *
  * A new setting gets a commented line in SETTINGS_TEMPLATE, which new
  * libraries show, and a description in the authoring guide
- * (server/showcase-guide.mjs). Existing libraries keep the file they
+ * (server/showcase-guide.md). Existing libraries keep the file they
  * have, so the guide is how their sessions learn about it.
  *
  * Older libraries keep their settings in a root-level showcase.yaml — the
