@@ -273,6 +273,30 @@ describe("studioOptions", () => {
     );
   });
 
+  it("never makes a library inside another: not in a showcase, not below a library", () => {
+    const lib = library("nova");
+    const nova = path.join(lib, "nova");
+    writeFileSync(path.join(lib, "showcase_settings.yaml"), "");
+    expect(() => studioOptions(["--library", nova], context)).toThrow(/is a showcase/);
+    expect(() => studioOptions(["--new", nova], context)).toThrow(/is a showcase/);
+    const tools = path.join(lib, "tools");
+    mkdirSync(tools);
+    expect(() => studioOptions(["--library", tools], context)).toThrow(
+      /inside the showcases folder/,
+    );
+  });
+
+  it("opens a showcase that has library files left in it, as a showcase", () => {
+    const lib = library("nova");
+    const nova = path.join(lib, "nova");
+    writeFileSync(path.join(nova, "showcase_settings.yaml"), "# left over\n");
+    expect(findLibrary(nova)).toBe(lib);
+    expect(studioOptions(["--open", nova], context)).toMatchObject({
+      showcasesDir: lib,
+      lock: { kind: "showcase", showcaseId: "nova" },
+    });
+  });
+
   it("refuses options that contradict each other or repeat", () => {
     const lib = library("nova");
     const nova = path.join(lib, "nova");

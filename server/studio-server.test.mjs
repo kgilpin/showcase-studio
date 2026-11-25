@@ -309,6 +309,20 @@ describe("createStudio", () => {
     });
   });
 
+  it("refuses to switch to a showcase's folder, or start in one", async () => {
+    const { post, info, library } = await startStudio();
+    const showcase = path.join(library, "nova");
+    expect(await post("library", { dir: showcase })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/is a showcase/),
+    });
+    expect((await info()).library).toBe(library);
+    expect(existsSync(path.join(showcase, "showcase_settings.yaml"))).toBe(false);
+    expect(() => createStudio({ showcasesDir: showcase, version: "test" })).toThrow(
+      /is a showcase/,
+    );
+  });
+
   it("switches libraries and remembers the folder", async () => {
     const { post, info, saved } = await startStudio();
     const other = libraryWith("other");
