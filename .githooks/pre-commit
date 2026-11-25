@@ -1,0 +1,15 @@
+#!/bin/sh
+# Stops a commit that adds something that looks like a secret: an API key,
+# a token, a private key. scan-secrets (@siteforward/secret-not-secret)
+# scores each staged file's strings by how random they look.
+#
+# A flagged value that is safe to publish goes in not-secret-strings.txt;
+# a file to skip entirely goes in not-secret-paths.txt.
+#
+# git uses this folder because `npm install` sets core.hooksPath to
+# .githooks (scripts/postinstall.mjs).
+if [ ! -x node_modules/.bin/scan-secrets ]; then
+  echo "pre-commit: secret scan skipped; run npm install to turn it on." >&2
+  exit 0
+fi
+exec node_modules/.bin/scan-secrets --staged

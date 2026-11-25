@@ -20,6 +20,11 @@ is in [docs/licensing.md](docs/licensing.md).
   (`electron/node_modules`), which only `dev:electron`, `package:desktop`
   and `release:desktop` need. Electron fetches its 300 MB binary on first
   use.
+- `npm i` also turns on the pre-commit hook (`.githooks/pre-commit`), which
+  scans staged files for secrets with `scan-secrets`. The repo is public.
+  A flagged value that is safe goes in `not-secret-strings.txt`, with a
+  comment saying what it is; a file to skip goes in `not-secret-paths.txt`.
+  Never bypass it with `--no-verify`.
 
 ## Commands
 
