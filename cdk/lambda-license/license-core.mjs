@@ -202,6 +202,9 @@ export async function checkout({ stripe, store, priceId, selfUrl, now, forStudio
     success_url: `${selfUrl}/thanks?session_id={CHECKOUT_SESSION_ID}${forStudio ? "&from=studio" : ""}`,
     cancel_url: `${selfUrl}/cancelled${forStudio ? "?from=studio" : ""}`,
     allow_promotion_codes: "true",
+    // A coupon that makes the first invoice $0 (a tester's free months)
+    // shouldn't ask for a card. Without a coupon, Stripe still asks.
+    payment_method_collection: "if_required",
   });
   // The key goes to the studio that started the checkout: until it's
   // paid, it's a pending license that unlocks nothing.

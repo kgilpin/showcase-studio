@@ -187,6 +187,14 @@ describe("checkout", () => {
     });
   });
 
+  it("takes promotion codes and asks for a card only when something is due", async () => {
+    const { sent } = await started(memoryStore());
+    expect(sent).toMatchObject({
+      allow_promotion_codes: "true",
+      payment_method_collection: "if_required",
+    });
+  });
+
   it("hands the studio the checkout URL and the key, and returns the buyer to it", async () => {
     const store = memoryStore();
     const { result, sent, customerKey } = await started(store, { forStudio: true });
