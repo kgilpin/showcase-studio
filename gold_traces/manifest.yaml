@@ -202,6 +202,11 @@ entries:
     test_name: captures each destination at its own size and file type
     appmap_path: vitest/captures_each_destination_at_its_own_size_and_file_type.appmap.json
     summary: Saving a cover (the Cover page's Save button, screenshot_cover) — each destination's size and file type looked up, the still page opened at that size, and the capture checked as a PNG for the 9:16 covers or a JPEG for the 1280×720 YouTube thumbnail.
+  - feature: cover
+    test_file: server/cover-frame.test.mjs
+    test_name: draws the whole slide on a scene with no picture, 9:16 unless the showcase is 4:3
+    appmap_path: vitest/draws_the_whole_slide_on_a_scene_with_no_picture,_9-16_unless_the_showcase_is_4-3.appmap.json
+    summary: The cover's picture from a moment of the video (the Cover page's picker and Claude's save_cover_picture) — the scene at that moment found by its timing, a scene with no picture drawn whole (9:16, then 4:3 for a showcase made for the 4:3 view) with the title, captions and brand mark left out, named for the scene, moment and shape, written into assets/ through a temporary file in .studio/ (writeAsset), and the change-log entry it makes.
   - feature: face-check
     test_file: server/face-check.test.mjs
     test_name: "renders each caption's moment, finds the faces, and warns where they meet"

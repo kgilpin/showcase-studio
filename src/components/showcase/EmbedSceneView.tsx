@@ -36,15 +36,25 @@ export function EmbedSceneView({
   paused,
   elapsedMs = 0,
   captions = true,
+  hideTitle = false,
+  hideWatermark = false,
 }: {
   scene: Scene;
   paused: boolean;
   elapsedMs?: number;
+  /** Leave out the title on the console and feature layouts, when the
+   *  scene has media (the cover picker's still of a scene). A statement
+   *  slide, or a slide with no media, is its text, so its title stays. */
+  hideTitle?: boolean;
+  /** Leave out the brand mark (the cover picker's still of a scene). */
+  hideWatermark?: boolean;
   /** Overlay captions on the console layout's media (the showcase's
    *  embedCaptions setting). The other layouts set the spoken line as
    *  text in the composition, not over the media, so it always stays. */
   captions?: boolean;
 }) {
+  const watermark = hideWatermark ? undefined : scene.watermark;
+  const showTitle = Boolean(scene.title) && !(hideTitle && scene.media.kind !== "none");
   const media = (
     <SceneMedia
       media={scene.media}
@@ -83,7 +93,7 @@ export function EmbedSceneView({
   if (scene.theme === "statement") {
     const backdrop = scene.media.kind !== "none" && scene.media.frame === "full";
     return (
-      <Stage watermark={scene.watermark}>
+      <Stage watermark={watermark}>
         {backdrop && (
           <>
             <div className="absolute inset-0">{media}</div>
@@ -139,7 +149,7 @@ export function EmbedSceneView({
     /* Side-by-side, like feature: the spoken line gets the panel instead
      * of covering the speaker. */
     return (
-      <Stage watermark={scene.watermark}>
+      <Stage watermark={watermark}>
         <div className="flex h-full w-full">
           {/* Eyebrows stay off slides (they label the script pages). */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-[1.8cqw] px-[5cqw] text-left">
@@ -169,9 +179,9 @@ export function EmbedSceneView({
 
   if (scene.theme === "console") {
     return (
-      <Stage watermark={scene.watermark}>
+      <Stage watermark={watermark}>
         <div className="flex h-full w-full flex-col">
-          {scene.title && (
+          {showTitle && (
             <div className="shrink-0 px-[4cqw] pt-[2.6cqw] text-center">
               <h2 className="font-display text-[4.2cqw] leading-[1.08] tracking-tight text-foreground">
                 {scene.title}
@@ -189,10 +199,10 @@ export function EmbedSceneView({
 
   /* feature: text panel beside the full-height phone media. */
   return (
-    <Stage watermark={scene.watermark}>
+    <Stage watermark={watermark}>
       <div className="flex h-full w-full">
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-[1.6cqw] px-[5cqw] text-left">
-          {scene.title && (
+          {showTitle && (
             <h2 className="font-display text-[4.6cqw] leading-[1.08] tracking-tight text-foreground">
               {scene.title}
             </h2>
