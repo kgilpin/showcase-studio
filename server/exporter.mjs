@@ -256,13 +256,6 @@ export function scriptText(showcasesDir, showcaseId) {
   }
   const doc = readDoc(showcasesDir, showcaseId);
   const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
-  const said = (scene) =>
-    oneLine(
-      (scene.captions ?? [])
-        .map((c) => c?.text ?? "")
-        .filter(Boolean)
-        .join(" "),
-    );
   const title = oneLine(doc.meta?.title ?? showcaseId).toUpperCase();
   const out = [title, "=".repeat(title.length)];
   if (doc.meta?.description) out.push("", oneLine(doc.meta.description));
