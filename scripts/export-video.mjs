@@ -42,6 +42,7 @@ import { parse } from "yaml";
 import { chromium } from "playwright";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
 import ffmpegStatic from "ffmpeg-static";
+import { ciRefusal } from "../server/license.mjs";
 
 const run = promisify(execFile);
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -67,6 +68,15 @@ if (unknown.length > 0) {
   process.exit(1);
 }
 const ids = requested.length > 0 ? requested : available;
+
+/* In CI every export needs a license key (server/license.mjs). */
+for (const id of ids) {
+  const refused = await ciRefusal(prompter ? "prompter-draft" : realtime ? "video-draft" : "video");
+  if (refused) {
+    console.error(`${id}: ${refused}`);
+    process.exit(1);
+  }
+}
 
 // Fail fast with a clear message if the dev server isn't running.
 try {

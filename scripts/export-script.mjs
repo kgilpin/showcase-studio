@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { parse } from "yaml";
 import { resolveSceneTiming } from "../src/content/timing.mjs";
+import { ciRefusal } from "../server/license.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const showcasesDir = path.join(root, "showcases");
@@ -43,6 +44,15 @@ if (unknown.length > 0) {
   process.exit(1);
 }
 const ids = args.length > 0 ? args : available;
+
+/* In CI every export needs a license key (server/license.mjs). */
+for (const id of ids) {
+  const refused = await ciRefusal("script");
+  if (refused) {
+    console.error(`${id}: ${refused}`);
+    process.exit(1);
+  }
+}
 
 const secs = (ms) => `${(ms / 1000).toFixed(ms % 1000 ? 1 : 0)}s`;
 const oneLine = (s) => s.replace(/\s+/g, " ").trim();

@@ -14,6 +14,8 @@ is `server/license.mjs` and the components in `src/components/studio/`
 - A license key works on **any number of computers**. Each licensed
   export is logged with the key and the computer, so a key shared
   widely shows up (see "Spotting a shared key"). A limit can come later.
+- **In CI, every export needs a license key**, drafts, screenshots and
+  the script included. There are no free videos in CI. See "In CI".
 
 ## The pieces
 
@@ -89,17 +91,17 @@ conditional write on `SUB#<subscription id>`).
 One Lambda, one Function URL, routed by path. The URL is the stack's
 `LicenseApiUrl` output.
 
-| Request                                          | Who calls it                               | Answer                                                                          |
-| ------------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------- |
-| `POST /checkout` (form)                          | a Buy button                               | `303` to Stripe Checkout                                                        |
-| `POST /checkout` (JSON `{ deviceId }`)           | the studio                                 | `{ checkoutUrl, licenseKey }`                                                   |
-| `POST /webhook`                                  | Stripe                                     | `200` once handled; `400` on a bad signature                                    |
-| `GET /thanks?session_id=cs_…[&from=studio]`      | Stripe sends the buyer here                | an HTML page with the key                                                       |
-| `GET /cancelled[?from=studio]`                   | Stripe, if the buyer backs out             | an HTML page: nothing was charged                                               |
-| `GET /back`                                      | the Customer Portal's return link          | "You can close this tab"                                                        |
-| `POST /check` `{ licenseKey?, deviceId? }`       | the studio                                 | `valid`, `status`, `validUntil`, `renews`, `freeExports: { used, limit, left }` |
-| `POST /export` `{ deviceId, licenseKey?, kind }` | the studio, as a full-quality video starts | `{ allowed, licensed, licenseProblem?, freeExports? }`                          |
-| `POST /portal` `{ licenseKey }`                  | the studio's Manage subscription           | `{ url }` of Stripe's Customer Portal                                           |
+| Request                                               | Who calls it                                                     | Answer                                                                          |
+| ----------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `POST /checkout` (form)                               | a Buy button                                                     | `303` to Stripe Checkout                                                        |
+| `POST /checkout` (JSON `{ deviceId }`)                | the studio                                                       | `{ checkoutUrl, licenseKey }`                                                   |
+| `POST /webhook`                                       | Stripe                                                           | `200` once handled; `400` on a bad signature                                    |
+| `GET /thanks?session_id=cs_…[&from=studio]`           | Stripe sends the buyer here                                      | an HTML page with the key                                                       |
+| `GET /cancelled[?from=studio]`                        | Stripe, if the buyer backs out                                   | an HTML page: nothing was charged                                               |
+| `GET /back`                                           | the Customer Portal's return link                                | "You can close this tab"                                                        |
+| `POST /check` `{ licenseKey?, deviceId? }`            | the studio                                                       | `valid`, `status`, `validUntil`, `renews`, `freeExports: { used, limit, left }` |
+| `POST /export` `{ deviceId, licenseKey?, kind, ci? }` | the studio, as a full-quality video starts (in CI: every export) | `{ allowed, licensed, licenseProblem?, freeExports? }`                          |
+| `POST /portal` `{ licenseKey }`                       | the studio's Manage subscription                                 | `{ url }` of Stripe's Customer Portal                                           |
 
 ## The table
 
@@ -109,7 +111,7 @@ One DynamoDB table, key `pk`:
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `LICENSE#SS-XXXX-XXXX-XXXX-XXXX` | `status` (`pending` until paid), `validUntil`, `cancelAtPeriodEnd`, `subscriptionId`, `stripeCustomerId`, `lastEventAt`, `machineCount` |
 | `SUB#sub_…`                      | `licenseKey` — finds the license from a Stripe event                                                                                    |
-| `USE#<key>#<device id>`          | `firstSeen`, `lastSeen`, `exports`: one row per computer a key exported from                                                            |
+| `USE#<key>#<device id>`          | `firstSeen`, `lastSeen`, `exports`: one row per computer a key exported from; `ci: true` when the "computer" is a repository's CI runs  |
 | `FREE#<device id>`               | `count`: the computer's free videos used, in all                                                                                        |
 
 A license is good while its status is `active`, `trialing` or
@@ -161,6 +163,65 @@ checkout with code ──► $0 invoice, no card ──► license active
 
 Without a code, checkout is unchanged: it asks for a card.
 
+## In CI
+
+The studio is in CI when the `CI` environment variable is `true` or
+`1`. GitHub Actions, GitLab, CircleCI and most other CI systems set it.
+The repository is public under the Elastic License 2.0, which forbids
+getting around a license-key check, so the studio trusts this variable
+and asks for no further proof.
+
+```
+ any export (screens, script, video, video-draft, video-43, video-43-draft)
+      │   from the Export button, the Share page, --export, Claude's export
+      │   tool, or the export:* scripts
+      ▼
+ SHOWCASE_STUDIO_LICENSE_KEY set? ── no ──► refused, nothing sent
+      │ yes
+      ▼
+ POST /export { deviceId: <the repository>, kind, licenseKey, ci: true }
+      │
+      ├─ service can't be reached ──► refused (no offline grace in CI)
+      ├─ key unknown, pending or ended ──► refused (no free videos in CI)
+      └─ good license ──► the export runs
+```
+
+| What                | Outside CI                | In CI                                      |
+| ------------------- | ------------------------- | ------------------------------------------ |
+| Exports that ask    | `video`, `video-43`       | every kind                                 |
+| Free videos         | 2 per computer            | none                                       |
+| The key             | saved in `settings.json`  | `SHOWCASE_STUDIO_LICENSE_KEY`, never saved |
+| The device          | a hash of the hardware ID | a hash of the repository                   |
+| Service unreachable | 7 days on a good license  | no export                                  |
+
+**The key** is read only from `SHOWCASE_STUDIO_LICENSE_KEY`, and never
+written to settings, the library, a log or an error. A refusal says
+why (not set, not a key, unknown, not paid yet, ended, or the service
+couldn't be reached), that CI needs a key in that variable, and that
+keys come from https://showcasestudio.dev/pricing.
+
+**The device** is `base64url(sha256("showcase-studio:ci:" + repository))`,
+so one repository counts as one computer on the license, however many
+runners it uses. The repository comes from the first of these that is
+set: `GITHUB_REPOSITORY`, `CI_PROJECT_PATH` (GitLab),
+`BITBUCKET_REPO_FULL_NAME`, `CIRCLE_PROJECT_USERNAME`/`CIRCLE_PROJECT_REPONAME`,
+`TRAVIS_REPO_SLUG`, `BUILDKITE_REPO`, `BUILD_REPOSITORY_URI` or
+`BUILD_REPOSITORY_NAME` (Azure). With none of them, it's the
+computer's own ID, as outside CI.
+
+**The service**, sent `ci: true`, allows the export only with a good
+license and never uses or counts a free one (`licenseProblem:
+"missing"` when no key came). It marks the `USE#` row and the audit
+line with `ci: true`. A studio from before this change never sends
+`ci`, and gets the rules it always had. A new studio talking to a
+service from before this change still refuses without a good license,
+because it allows a CI export only when the answer says `licensed`.
+
+**The export:\* scripts** (`npm run export:screens`, `export:video`,
+`export:script`) don't go through the studio's `recordedExport`, so
+each asks the same question itself (`ciRefusal` in
+`server/license.mjs`) before it exports.
+
 ## Spotting a shared key
 
 Every licensed export writes `USE#<key>#<device>` and, the first time a
@@ -170,6 +231,8 @@ logs one line to CloudWatch:
 ```
 {"audit":"export","licenseKey":"SS-…","deviceId":"…","kind":"video","devices":2}
 ```
+
+An export from CI adds `"ci":true`.
 
 To list keys used on more than 3 computers:
 
@@ -181,7 +244,7 @@ aws dynamodb scan --profile siteforward --region us-east-1 --table-name <the Lic
 
 | Where                       | What                                                                                                                                                                                                     |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server/license.mjs`        | the computer's ID, the key in `settings.json`, the check before a full-quality video, the offline rule, the checkout and its waiting                                                                     |
+| `server/license.mjs`        | the computer's ID, the key in `settings.json`, the check before a full-quality video, the offline rule, the checkout and its waiting, and the CI rules                                                   |
 | `server/studio-server.mjs`  | asks it before every export (`recordedExport`), so the Export button, the Share page, `--export` and Claude's `export` tool all meet the same rule; page actions `license-*`; a `license` event          |
 | `StudioSettings` (the gear) | a dot on the gear while there's something to do, named in its tooltip: **Trial · 2 videos left**, **Waiting for payment…**, **Payment issue** (amber). A subscription in good standing has no dot        |
 | `LicensePanel`              | the gear panel's Subscription section: **Subscribed · Active**, "Renews Nov 20", Manage subscription ↗, and the license key (Show, Copy), with **Use a different key** and **Remove from this computer** |

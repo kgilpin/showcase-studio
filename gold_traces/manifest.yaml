@@ -247,6 +247,11 @@ entries:
     test_name: allows two full-quality videos without a license, then refuses
     appmap_path: vitest/allows_two_full-quality_videos_without_a_license,_then_refuses.appmap.json
     summary: The studio's check before a full-quality export — two free ones allowed, the third refused with the limit message.
+  - feature: license-studio
+    test_file: server/license.test.mjs
+    test_name: "has no free videos: an unknown or ended key is refused, and says which"
+    appmap_path: "vitest/has_no_free_videos-_an_unknown_or_ended_key_is_refused,_and_says_which.appmap.json"
+    summary: The studio in CI — the key from SHOWCASE_STUDIO_LICENSE_KEY, the repository as the device, POST /export with ci, and a refusal (no free videos) for an unknown and an ended key.
   - feature: transcribe
     test_file: server/transcribe-jobs.test.mjs
     test_name: returns a short recording's transcript in the one call

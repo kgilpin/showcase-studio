@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { parse } from "yaml";
 import { chromium } from "playwright";
+import { ciRefusal } from "../server/license.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const baseUrl = process.env.BASE_URL ?? "http://localhost:8080";
@@ -51,6 +52,15 @@ if (unknown.length > 0) {
   process.exit(1);
 }
 const ids = requested.length > 0 ? requested : available;
+
+/* In CI every export needs a license key (server/license.mjs). */
+for (const id of ids) {
+  const refused = await ciRefusal("screens");
+  if (refused) {
+    console.error(`${id}: ${refused}`);
+    process.exit(1);
+  }
+}
 
 // Fail fast with a clear message if the dev server isn't running.
 try {

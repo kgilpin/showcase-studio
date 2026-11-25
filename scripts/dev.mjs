@@ -82,7 +82,8 @@ if (options.exportJob) {
     console.log(`exported: ${out}`);
     await shutdown(0);
   } catch (error) {
-    console.error(error);
+    // A license refusal is a message for the user, not a bug: no stack.
+    console.error(error.code === "license-required" ? error.message : error);
     await shutdown(1);
   }
 }

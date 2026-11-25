@@ -4,7 +4,7 @@
 #
 # The license service: the purchase (checkout, webhook, thank-you page),
 # the webhook's signature gate (refused branch), the free-video limit,
-# and a licensed export with its audit.
+# a licensed export with its audit, and the CI refusal.
 
 schema_version: 2
 
@@ -33,3 +33,8 @@ entries:
     test_name: records each machine a key exports from, and counts the machines
     appmap_path: vitest/records_each_machine_a_key_exports_from,_and_counts_the_machines.appmap.json
     summary: A licensed export — allowed from any machine, each one recorded and logged, so a shared key shows up.
+  - feature: license-service
+    test_file: lambda-license/license.test.mjs
+    test_name: needs a good license, and never uses or counts a free export
+    appmap_path: vitest/needs_a_good_license,_and_never_uses_or_counts_a_free_export.appmap.json
+    summary: An export from CI (ci true) — refused with no key, an unknown key and an ended one, and never counted against free exports. Runs the same functions as the licensed-export audit entry, but drives recordExport's CI refusal branch.

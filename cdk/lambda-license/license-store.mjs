@@ -143,14 +143,17 @@ export function createStore(TableName, client = new DynamoDBClient({})) {
 
     /* One update for the device's row; when it's the device's first
      * licensed export, the license's machineCount goes up too. */
-    async recordUse(key, deviceId, now) {
+    async recordUse(key, deviceId, now, { ci = false } = {}) {
       const { Attributes } = await db.send(
         new UpdateCommand({
           TableName,
           Key: { pk: `USE#${key}#${deviceId}` },
+          // ci marks a repository's CI runs, whose device is the repository.
           UpdateExpression:
-            "SET firstSeen = if_not_exists(firstSeen, :now), lastSeen = :now ADD exports :one",
-          ExpressionAttributeValues: { ":now": now, ":one": 1 },
+            "SET firstSeen = if_not_exists(firstSeen, :now), lastSeen = :now" +
+            (ci ? ", ci = :ci" : "") +
+            " ADD exports :one",
+          ExpressionAttributeValues: { ":now": now, ":one": 1, ...(ci && { ":ci": true }) },
           ReturnValues: "UPDATED_OLD",
         }),
       );
