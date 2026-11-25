@@ -1,0 +1,117 @@
+# A showcase that explains one branch, made by Claude Code with no one
+# watching, then exported as a draft video:
+#
+#   checkout ─► npm ci ─► claude -p brief ─► studio --export ─► artifact
+#   (studio      (studio,   (the plugin, the   (video-43-draft,    showcase folder,
+#    + branch)    Chrome)    studio from        no Claude)          video, transcript
+#                            source)
+#
+# Run it from the Actions tab, or:
+#   gh workflow run branch-showcase.yml -f branch=feature/outline-notes
+#
+# Needs the ANTHROPIC_API_KEY secret. No voiceover, so no AWS or
+# ElevenLabs account is used. Only drafts are exported: full-quality
+# videos need a license, and there is no way to give CI one yet.
+
+name: Branch showcase
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: The branch to explain
+        required: true
+      base:
+        description: The branch it is compared with
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  showcase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BRANCH: ${{ inputs.branch }}
+      BASE_BRANCH: ${{ inputs.base || 'main' }}
+      LIBRARY: ${{ github.workspace }}/library
+      SUBJECT: ${{ github.workspace }}/subject
+      STUDIO: ${{ github.workspace }}/studio
+    steps:
+      - name: Check out the studio
+        uses: actions/checkout@v7
+        with:
+          path: studio
+
+      - name: Check out the branch to explain
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.BRANCH }}
+          path: subject
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+
+      - name: Install the studio
+        working-directory: studio
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Make the library
+        run: |
+          id="$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//')"
+          echo "SHOWCASE_ID=$id" >> "$GITHUB_ENV"
+          mkdir -p "$LIBRARY"
+          printf 'export_dir: exports\nshow_in_recent: false\n' > "$LIBRARY/showcase_settings.yaml"
+
+      - name: Create the showcase with Claude
+        working-directory: library
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SHOWCASE_STUDIO_SRC: ${{ env.STUDIO }}
+          BASE: origin/${{ env.BASE_BRANCH }}
+        run: |
+          export SHOWCASE_STUDIO_NODE="$(command -v node)"
+          brief="$(sed -e "s|\${BRANCH}|$BRANCH|g" -e "s|\${BASE}|$BASE|g" \
+            -e "s|\${SUBJECT}|$SUBJECT|g" -e "s|\${SHOWCASE_ID}|$SHOWCASE_ID|g" \
+            "$STUDIO/.github/branch-showcase/brief.md")"
+          printf '%s\n' "$brief" > "$RUNNER_TEMP/brief.md"
+          claude -p "$brief" \
+            --plugin-dir "$STUDIO/plugins/showcase-studio" \
+            --add-dir "$SUBJECT" \
+            --output-format stream-json --verbose \
+            --dangerously-skip-permissions \
+            > "$RUNNER_TEMP/transcript.jsonl" 2> "$RUNNER_TEMP/claude-stderr.log"
+          # The session's last message: what it made and what it checked.
+          tail -n 1 "$RUNNER_TEMP/transcript.jsonl" | node -e \
+            'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).result)}catch{console.log(s)}})' \
+            | tee "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          test -f "$LIBRARY/$SHOWCASE_ID/showcase.yaml"
+
+      - name: Export the draft video
+        working-directory: studio
+        run: npm run dev -- --library "$LIBRARY" --no-terminal --no-auto-commit --export "video-43-draft:$SHOWCASE_ID"
+
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: showcase-${{ env.SHOWCASE_ID }}
+          path: |
+            library/${{ env.SHOWCASE_ID }}/
+            library/exports/
+            ${{ runner.temp }}/brief.md
+            ${{ runner.temp }}/transcript.jsonl
+            ${{ runner.temp }}/claude-stderr.log
+            ${{ runner.temp }}/summary.md
+          if-no-files-found: warn
