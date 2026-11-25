@@ -187,7 +187,7 @@ export function SceneView({
 }: {
   scene: Scene;
   /** TikTok canvas: shade where TikTok's own interface will cover the
-   *  video (the player's "Safe area" switch; never in exports). */
+   *  video (the player's TikTok safe area (View menu); never in exports). */
   safeArea?: boolean;
   /** "tiktok" draws the 9:16 TikTok frame and places pictures by their
    *  TikTok fit; "portrait" is the App Screens canvas. */

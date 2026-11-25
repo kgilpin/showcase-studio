@@ -1,20 +1,25 @@
-/* The Share page's video card: the two exports a post can use — the
- * full-quality video of the kind the destination takes (9:16 for TikTok,
- * Instagram and YouTube Shorts; 4:3 for a regular YouTube upload) and
- * its draft — and which one this post uses.
+/* The Share page's video, in two parts.
  *
- *   ◉ Full quality   1080×1920 · 30 fps   ✓ Up to date     about 4 min
- *   ○ Draft          540×960 · 12 fps     Out of date      about 2 min  [Export]
+ * ShareVideo, the card on the left, is what you'll post: a preview that
+ * plays the chosen export's own file (so what you check is what you
+ * post), with its length, size and when it was made.
  *
- * The full-quality video is the one to post. The draft renders faster and
- * is half size, so it's good for trying the steps out — every step works
- * the same with it. Each row's estimate is the studio's own measure: the
+ * ShareVideoExport is step 1 of the hand-off (ShareHandoff): one sentence
+ * about the chosen export, and the button that makes it.
+ *
+ *   ✓ Ready to post. It matches your latest edits.
+ *   The full-quality video is older than your latest edits.   [Export again]
+ *   The full-quality video isn't exported yet.                [Export]
+ *   ⟳ Exporting the full-quality video · 42%  ━━━━━──────      [Cancel]
+ *     Takes about 4 min.            Post a quick draft instead (540×960)
+ *
+ * The full-quality video (9:16 for TikTok, Instagram and YouTube Shorts;
+ * 4:3 for a regular YouTube upload) is the one to post. The draft renders
+ * faster at half size, so it's good for trying the steps out; every step
+ * works the same with it. The estimate is the studio's own measure: the
  * newest export of that kind took so long per frame (server/
- * export-records.mjs), before the first one a measured default.
- *
- * The preview plays the chosen export's file itself, so what you check is
- * what you post. Getting the file out (Finder, dragging) is a step of the
- * hand-off (ShareHandoff). */
+ * export-records.mjs), before the first one a measured default. Getting
+ * the file out (Finder, dragging) is a later step of the hand-off. */
 import { CheckCircle2, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportPercent, VIDEO_FORMATS } from "@/lib/export-kinds.mjs";
@@ -29,108 +34,10 @@ export type Quality = "full" | "draft";
 export type FullKind = "video" | "video-43";
 type VideoKind = keyof typeof VIDEO_FORMATS;
 
-function ExportRow({
-  label,
-  kind,
-  exports,
-  job,
-  chosen,
-  busy,
-  onChoose,
-  onExport,
-  onCancel,
-}: {
-  label: string;
-  kind: VideoKind;
-  exports: ShareExports;
-  job: StudioExportJob | null;
-  chosen: boolean;
-  /** Another export is running, so this one can't start. */
-  busy: boolean;
-  onChoose(): void;
-  onExport(): void;
-  onCancel(jobId: string): void;
-}) {
-  const { width, height, fps } = VIDEO_FORMATS[kind];
-  const percent = job ? exportPercent(job) : null;
-  return (
-    <div
-      className={cn(
-        "rounded-xl border p-3 transition-colors",
-        chosen ? "border-primary/70 bg-primary/5" : "border-border",
-      )}
-    >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
-          <input
-            type="radio"
-            name="share-quality"
-            checked={chosen}
-            onChange={onChoose}
-            aria-label={`Post the ${label.toLowerCase()} video`}
-            className="accent-primary"
-          />
-          {label}
-        </label>
-        <span className="text-xs text-support">
-          {width}×{height} · {fps} fps
-        </span>
-        <span className="ml-auto text-xs">
-          {job ? (
-            <span className="flex items-center gap-1.5 text-foreground">
-              <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
-              Exporting{percent == null ? "…" : ` · ${percent}%`}
-            </span>
-          ) : exports.current ? (
-            <span className="flex items-center gap-1.5 text-foreground">
-              <CheckCircle2 className="size-3.5 text-emerald-400" aria-hidden="true" />
-              Up to date
-            </span>
-          ) : exports.latest ? (
-            <span className="text-amber-400/90">Out of date</span>
-          ) : (
-            <span className="text-support">Not exported</span>
-          )}
-        </span>
-      </div>
-      {job ? (
-        <div className="mt-2 space-y-2">
-          <div className="h-1.5 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-500"
-              style={{ width: `${percent ?? 100}%`, opacity: percent == null ? 0.4 : 1 }}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-support">{job.progress}</p>
-            <Button variant="outline" size="sm" onClick={() => onCancel(job.jobId)}>
-              <X /> Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        !exports.current && (
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="min-w-0 text-xs text-support">
-              Takes {formatEstimate(exports.estimateMs)}
-              {kind.endsWith("-draft") ? " — good for trying the steps out" : ""}.
-            </p>
-            <Button
-              size="sm"
-              variant={chosen ? "default" : "outline"}
-              disabled={busy}
-              onClick={onExport}
-              className="shrink-0"
-              aria-label={`Export the ${label.toLowerCase()} video`}
-            >
-              {exports.latest ? "Export again" : "Export"}
-            </Button>
-          </div>
-        )
-      )}
-    </div>
-  );
-}
+/** The export the post uses: the chosen quality's up-to-date file, or
+ *  its newest one. */
+const shownExport = (exports: ShareExports): ShareExport | null =>
+  exports.current ?? exports.latest;
 
 export function ShareVideo({
   videoUrl,
@@ -138,30 +45,15 @@ export function ShareVideo({
   full,
   draft,
   quality,
-  job,
-  onQuality,
-  onExport,
-  onCancel,
 }: {
   videoUrl: (exportId: string) => string;
-  /** The full-quality export the destination takes; the draft row is
-   *  its draft. */
+  /** The full-quality export the destination takes. */
   kind: FullKind;
   full: ShareExports;
   draft: ShareExports;
   quality: Quality;
-  /** The running export of this showcase's video or draft, if any. */
-  job: StudioExportJob | null;
-  onQuality(quality: Quality): void;
-  onExport(kind: VideoKind): void;
-  onCancel(jobId: string): void;
 }) {
-  const chosen = quality === "draft" ? draft : full;
-  const shown: ShareExport | null = chosen.current ?? chosen.latest;
-  const rows: { quality: Quality; kind: VideoKind; label: string }[] = [
-    { quality: "full", kind, label: "Full quality" },
-    { quality: "draft", kind: `${kind}-draft`, label: "Draft" },
-  ];
+  const shown = shownExport(quality === "draft" ? draft : full);
   /* The preview box has the video's own shape: a tall phone frame, or
    * the 4:3 embed. */
   const { width, height } = VIDEO_FORMATS[kind];
@@ -172,9 +64,7 @@ export function ShareVideo({
       className="@container rounded-2xl border border-border bg-card/40 p-5"
     >
       <p className="text-xs uppercase tracking-[0.3em] text-support">Video</p>
-      {/* The preview beside the rows only when the card is wide enough for
-       * both (its own width, not the window's: see the share route). */}
-      <div className="mt-4 flex flex-col gap-5 @md:flex-row">
+      <div className="mt-4 flex flex-col gap-5 @md:flex-row @md:items-center">
         <div
           className={cn(
             "mx-auto shrink-0 overflow-hidden rounded-xl bg-background/60 @md:mx-0",
@@ -197,44 +87,114 @@ export function ShareVideo({
             </div>
           )}
         </div>
-
-        <div className="min-w-0 flex-1 space-y-3">
-          <div role="radiogroup" aria-label="Which video to post" className="space-y-2">
-            {rows.map((row) => (
-              <ExportRow
-                key={row.kind}
-                label={row.label}
-                kind={row.kind}
-                exports={row.quality === "draft" ? draft : full}
-                job={job?.kind === row.kind ? job : null}
-                chosen={quality === row.quality}
-                busy={job != null && job.kind !== row.kind}
-                onChoose={() => onQuality(row.quality)}
-                onExport={() => onExport(row.kind)}
-                onCancel={onCancel}
-              />
-            ))}
-          </div>
-
-          {quality === "draft" && (
-            <p className="text-xs text-amber-400/90">
-              Posting the draft: it&apos;s half size and less smooth. Use it to try the steps, then
-              post the full-quality video.
-            </p>
-          )}
-
-          {shown && (
-            <p className="text-xs text-support">
-              {formatDuration(shown.durationMs)} · {formatBytes(shown.bytes)} · exported{" "}
-              {formatWhen(shown.createdAt)}
+        <p className="min-w-0 flex-1 text-xs leading-relaxed text-support">
+          {shown ? (
+            <>
+              {quality === "draft" ? "The draft" : "The full-quality video"} ·{" "}
+              {formatDuration(shown.durationMs)} · {formatBytes(shown.bytes)}
+              <br />
+              Exported {formatWhen(shown.createdAt)}. It plays here so you can check it before
+              posting.
               <br />
               <span className="break-all font-mono text-[0.7rem] text-support/80">
                 {shown.file}
               </span>
-            </p>
+            </>
+          ) : (
+            "Export it in step 1, and it plays here so you can check it before posting."
           )}
-        </div>
+        </p>
       </div>
     </section>
+  );
+}
+
+export function ShareVideoExport({
+  kind,
+  full,
+  draft,
+  quality,
+  job,
+  onQuality,
+  onExport,
+  onCancel,
+}: {
+  kind: FullKind;
+  full: ShareExports;
+  draft: ShareExports;
+  quality: Quality;
+  /** The running export of this showcase's video or draft, if any. */
+  job: StudioExportJob | null;
+  onQuality(quality: Quality): void;
+  onExport(kind: VideoKind): void;
+  onCancel(jobId: string): void;
+}) {
+  const exportKind: VideoKind = quality === "draft" ? `${kind}-draft` : kind;
+  const exports = quality === "draft" ? draft : full;
+  const name = quality === "draft" ? "draft" : "full-quality video";
+  const mine = job?.kind === exportKind ? job : null;
+  const percent = mine ? exportPercent(mine) : null;
+  const otherKind: VideoKind = quality === "draft" ? kind : `${kind}-draft`;
+  const other = VIDEO_FORMATS[otherKind];
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border p-3">
+      {mine ? (
+        <div className="space-y-2">
+          <p className="flex items-center gap-1.5">
+            <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
+            Exporting the {name}
+            {percent == null ? "…" : ` · ${percent}%`}
+          </p>
+          <div className="h-1.5 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-500"
+              style={{ width: `${percent ?? 100}%`, opacity: percent == null ? 0.4 : 1 }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-support">{mine.progress}</p>
+            <Button variant="outline" size="sm" onClick={() => onCancel(mine.jobId)}>
+              <X /> Cancel
+            </Button>
+          </div>
+        </div>
+      ) : exports.current ? (
+        <p className="flex items-center gap-1.5">
+          <CheckCircle2 className="size-3.5 text-emerald-400" aria-hidden="true" />
+          Ready to post. It matches your latest edits.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <p>
+              {exports.latest
+                ? `The ${name} is older than your latest edits.`
+                : `The ${name} isn't exported yet.`}
+            </p>
+            <p className="text-xs text-support">Takes {formatEstimate(exports.estimateMs)}.</p>
+          </div>
+          <Button
+            size="sm"
+            disabled={job != null}
+            title={job != null ? "Another export is running; one runs at a time" : undefined}
+            onClick={() => onExport(exportKind)}
+            className="shrink-0"
+            aria-label={`Export the ${name}`}
+          >
+            {exports.latest ? "Export again" : "Export"}
+          </Button>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => onQuality(quality === "draft" ? "full" : "draft")}
+        className="text-xs text-primary/80 transition-colors hover:text-primary"
+      >
+        {quality === "draft"
+          ? `Posting the draft, which is half size and less smooth. Post the full-quality video (${other.width}×${other.height}) instead`
+          : `Post a quick draft instead (${other.width}×${other.height}, ${other.fps} fps), to try the steps`}
+      </button>
+    </div>
   );
 }

@@ -865,7 +865,7 @@ scenes:
     expect(result.content[3].text).toMatch(/^Frame at 2000 ms \(0:02\.0\)/);
     expect(opened).toEqual([`${url}/showcase/nova/record?controlled=1&safeArea=1`]);
 
-    /* The player's Frame button gets the same frame, full size, as a file. */
+    /* The player's This frame as PNG gets the same frame, full size, as a file. */
     const saved = await fetch(`${url}/studio/api/frame?showcase=nova&at=500&view=tiktok`);
     expect(saved.status).toBe(200);
     expect(saved.headers.get("content-type")).toBe("image/png");

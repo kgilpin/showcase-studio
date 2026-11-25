@@ -26,7 +26,7 @@
  *                               page's preview (byte ranges, so it seeks)
  *   GET  /studio/api/frame?showcase=<id>&at=<ms>[&view=tiktok|43][&safeArea=1]
  *                               one frame of the video at that time, as a
- *                               PNG to save (the player's Frame button;
+ *                               PNG to save (the player's This frame as PNG;
  *                               the screenshot_frame MCP tool renders the
  *                               same page)
  *   GET  /studio/api/cover?showcase=<id>[&destination=tiktok|instagram|youtube|youtube43]
