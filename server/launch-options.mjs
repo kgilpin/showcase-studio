@@ -36,12 +36,14 @@ Usage:
   npm run dev -- [options]                        the studio, in your browser
   npm run dev:electron -- [options]               the same studio, in a desktop window
   open -n "Showcase Studio.app" --args [options]  the packaged desktop app
+  showcase-studio/bin/showcase-studio [options]   the Linux build, with no window
 
 The studio picks a free port and prints its URL (a launcher can pick the
 port by setting PORT). Claude Code starts a studio of its own: in this
 repo through .mcp.json (scripts/studio-mcp.mjs), and anywhere else through
-the showcase-studio plugin, which runs the packaged app with --mcp. Its
-studio_start tool offers the same choices as --open, --new, and --library.
+the showcase-studio plugin, which runs the packaged app (or the Linux
+build) with --mcp. Its studio_start tool offers the same choices as
+--open, --new, and --library.
 
 Options:
   --open <showcase folder>   Open one showcase and lock the studio to it.

@@ -1,6 +1,7 @@
 /* Draws the studio's pages for screenshots and exports with Playwright,
- * in any Node process — the dev modes use it. The packaged app passes
- * Electron's renderer instead (electron/renderer.mjs). Both offer the
+ * in any Node process — the dev modes and the Linux build use it. The
+ * Mac and Windows app passes Electron's renderer instead
+ * (electron/renderer.mjs). Both offer the
  * same small interface, which server/exporter.mjs uses:
  *
  *   openPage({ width, height }) → { goto(url), evaluate(script), capture(options), close() }
@@ -18,7 +19,12 @@
  * (H.264) video, so slides with video clips would capture blank. Without
  * Chrome it falls back to that Chromium (first time: `npx playwright
  * install chromium`). */
-export function createPlaywrightRenderer({ log = (message) => console.log(message) } = {}) {
+export function createPlaywrightRenderer({
+  log = (message) => console.log(message),
+  /* What to tell the user when no browser starts. The Linux build has no
+   * npx, so it names its own installer. */
+  installHint = "Install Google Chrome, or run `npx playwright install chromium` once.",
+} = {}) {
   let contextPromise;
   let browser;
 
@@ -39,7 +45,7 @@ export function createPlaywrightRenderer({ log = (message) => console.log(messag
       contextPromise = undefined;
       throw new Error(
         `The page renderer could not start: ${String(error?.message ?? error).split("\n")[0]}. ` +
-          "Install Google Chrome, or run `npx playwright install chromium` once.",
+          installHint,
       );
     });
     return contextPromise;
