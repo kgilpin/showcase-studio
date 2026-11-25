@@ -95,6 +95,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@siteforward/secret-not-secret": "^1.0.0",
     "@types/node": "^22.16.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",
