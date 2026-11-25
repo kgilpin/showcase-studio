@@ -270,15 +270,21 @@ export function ShowcasePlayer({
            * portrait stage does); aspect-ratio on a flex-sized box
            * collapses instead. */
           <div className="flex h-full min-h-0 flex-col justify-center">
-            <div className="flex h-7 shrink-0 items-baseline gap-4 px-1">
+            {/* The strip takes the frame's width and never sets it
+             * (w-0 min-w-full): a long warning would otherwise widen the
+             * column, and the frame with it. It stays one line; each
+             * warning is cut short, with the whole of it as its tooltip. */}
+            <div className="flex h-7 w-0 min-w-full shrink-0 items-baseline gap-4 overflow-hidden whitespace-nowrap px-1">
               {scene.eyebrow && (
-                <p className="text-xs uppercase tracking-[0.42em] text-primary">{scene.eyebrow}</p>
+                <p className="shrink-0 text-xs uppercase tracking-[0.42em] text-primary">
+                  {scene.eyebrow}
+                </p>
               )}
-              <p className="text-xs text-support" title={`${scene.id} in showcase.yaml`}>
+              <p className="shrink-0 text-xs text-support" title={`${scene.id} in showcase.yaml`}>
                 Scene {index + 1} of {scenes.length}
               </p>
               {scene.warnings?.map((warning, i) => (
-                <p key={i} className="text-xs text-amber-400/90">
+                <p key={i} title={warning} className="min-w-0 truncate text-xs text-amber-400/90">
                   ⚠ {warning}
                 </p>
               ))}
